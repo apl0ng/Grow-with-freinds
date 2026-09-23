@@ -25,6 +25,7 @@ Game="*res://scripts/core/game.gd"
 GameState="*res://scripts/core/game_state.gd"
 Sfx="*res://scripts/art/sfx.gd"
 Juice="*res://scripts/art/juice.gd"
+Story="*res://scripts/core/story.gd"
 
 [display]
 

@@ -174,6 +174,9 @@ func server_despawn_all() -> void; func get_items_of_type(type) -> Array[Item]
 signal item_added(item); signal item_removed(item); signal holder_changed(item, old_holder, new_holder)
 ```
 On `GameState.game_reset` the host despawns all seed packets and products (cans are re-homed by the Well).
+QA rules: an item's holder re-requesting pickup is a silent no-op; drops never land inside geometry or on a station
+(the spot is walked back toward the player, feet as the last resort); Net's disconnect cleanup (incl. `peer_left`)
+runs at the end of the frame. `BalanceConfig.quota_for_round(n, player_count)` scales the quota by team size.
 Initial world spawns (e.g. the well's starting cans) must wait for `Game.world_ready` and check `Net.is_host`
 (ItemManager._ready runs after Room._ready, so do not spawn from a station's `_ready`).
 

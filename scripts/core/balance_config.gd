@@ -4,7 +4,7 @@ extends Resource
 ## accessed everywhere through the Config autoload (Config.balance).
 
 @export_group("Economy")
-@export var starting_money: int = 120
+@export var starting_money: int = 150
 @export var seeds: Array[SeedDef] = []
 @export var upgrades: Array[UpgradeDef] = []
 
@@ -12,10 +12,13 @@ extends Resource
 ## Seconds per round.
 @export var round_length_sec: float = 300.0
 ## Quota for round 1.
-@export var base_quota: int = 400
+@export var base_quota: int = 350
 ## quota(n) = round(base_quota * quota_scale^(n-1) + quota_add * (n-1))
 @export var quota_scale: float = 1.5
-@export var quota_add: int = 100
+@export var quota_add: int = 150
+## Quota multiplier per player beyond the first: quota *= 1 + quota_per_extra_player * (players - 1).
+## Applied by GameState when a round starts (co-op scaling; 0 = same quota for any team size).
+@export var quota_per_extra_player: float = 0.2
 ## If true the round ends (success) the moment sales reach the quota; otherwise it runs to the timer.
 @export var end_round_on_quota_met: bool = true
 ## If true unspent money carries over to the next round.
@@ -60,9 +63,11 @@ func get_upgrade(id: StringName) -> UpgradeDef:
 			return u
 	return null
 
-func quota_for_round(round_number: int) -> int:
+func quota_for_round(round_number: int, player_count: int = 1) -> int:
 	var n: int = max(round_number, 1)
-	return int(round(base_quota * pow(quota_scale, n - 1) + quota_add * (n - 1)))
+	var base := base_quota * pow(quota_scale, n - 1) + quota_add * (n - 1)
+	var team := 1.0 + quota_per_extra_player * max(player_count - 1, 0)
+	return int(round(base * team))
 
 func total_grow_time(seed: SeedDef) -> float:
 	var t := 0.0
