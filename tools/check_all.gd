@@ -8,7 +8,16 @@ var _failures: Array[String] = []
 var _count := 0
 
 func _initialize() -> void:
-	_walk("res://")
+	# Optional: pass specific res:// paths after "--" to check only those files.
+	var only: PackedStringArray = []
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("res://"):
+			only.append(a)
+	if only.is_empty():
+		_walk("res://")
+	else:
+		for p in only:
+			_check_file(p)
 	print("check_all: loaded %d resources, %d failures" % [_count, _failures.size()])
 	for f in _failures:
 		print("  FAIL: " + f)

@@ -13,7 +13,9 @@ status=0
 if [[ "${1:-}" != "--no-import" ]]; then
   echo "== import (class cache)"
   timeout 300 "$GODOT" --headless --path . --import >"$LOG" 2>&1
-  grep -E "SCRIPT ERROR|ERROR:|Parse Error" "$LOG" | grep -v "main_menu.tscn" | head -40 && status=1
+  if grep -E "SCRIPT ERROR|ERROR:|Parse Error" "$LOG" | grep -qv "main_menu.tscn"; then
+    echo "-- errors:"; grep -E "SCRIPT ERROR|ERROR:|Parse Error" "$LOG" | grep -v "main_menu.tscn" | head -40; status=1
+  fi
 fi
 
 echo "== load all resources"
@@ -24,7 +26,7 @@ if grep -qE "SCRIPT ERROR|ERROR:|Parse Error|failures: [1-9]" "$LOG"; then
 fi
 
 echo "== boot main scene (90 frames)"
-timeout 120 "$GODOT" --headless --path . --quit-after 90 >"$LOG" 2>&1
+timeout 120 "$GODOT" --headless --path . --quit-after 90 >"$LOG" 2>&1; echo "(boot exit $?)"; grep -E "SCRIPT ERROR|ERROR:|Parse Error" "$LOG" | head -20
 if grep -qE "SCRIPT ERROR|ERROR:|Parse Error" "$LOG"; then
   echo "-- errors:"; grep -E -B1 -A2 "SCRIPT ERROR|ERROR:|Parse Error" "$LOG" | head -80; status=1
 fi
