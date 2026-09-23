@@ -82,13 +82,13 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | 8.3 | Dark undertone: material library re-tune, colder environment, sad ToonFace, mood rules in STYLE.md | A | in progress |
 | 8.4 | Sad player faces / slumped idle on the player body | folded into 8.6a | — |
 | 8.5 | Blender pipeline: tools/blender (gwf.py, build.py), Toonify, MODELING.md, reference contact sheets, models_test | pipeline | done |
-| 8.6a | Modeling: player body (sad) + Boss | M1 | in progress |
+| 8.6a | Modeling: player body (sad) + Boss | M1 | done |
 | 8.6b | Modeling: shop cage counter, deposit chute, water tank, grow tray | M2 | done |
 | 8.6c | Modeling: watering can, seed packet, product bundle | M3 | done |
 | 8.6d | Modeling: roller door + beam, barred window, fence + gate, cable tray, pipes, grow-light bar, fluoro | M4 | done (room swaps being applied by C) |
 | 8.6e | Modeling: pallet, crate, cot, camera, punch clock, debt board, clock, sad plant, signs, leaky pipe, hook up drum + lamps | M5 | done |
 | 8.6 | Modeling wave (Blender): characters, stations, items + plant stages, room props | modelers | todo (after 8.5) |
-| 8.7 | **Plant deep-dive (user request, back of queue):** take extra time on the plant model across seedling, vegetative, flowering ("fruitation") and ready stages; reference real cannabis morphology (cotyledons + first serrated leaflets, fan leaves with 5–7 serrated fingers on nodes, apical dominance, pistils/bud sites forming, dense colas with sugar leaves when ready, drooping when dry) but keep the output chunky/cartoon like the rest of the game | plant modeler | in progress |
+| 8.7 | **Plant deep-dive (user request, back of queue):** take extra time on the plant model across seedling, vegetative, flowering ("fruitation") and ready stages; reference real cannabis morphology (cotyledons + first serrated leaflets, fan leaves with 5–7 serrated fingers on nodes, apical dominance, pistils/bud sites forming, dense colas with sugar leaves when ready, drooping when dry) but keep the output chunky/cartoon like the rest of the game | plant modeler | done |
 
 ## Decisions
 - **Theme (user direction, after M6): the starting room is a LOW-BUDGET FACTORY.** The crew is here against their
@@ -155,6 +155,18 @@ plots with 4 visible stages that pop in and pulse when ready, water gauge + DRY 
 well refills cans (2 spawn at start), harvest into hands, selling adds to quota with float text / burst / sound,
 team favors (Cheap Fertilizer, Dented Cans, Better Cut). Test: `farm_test` (99), `farm_net_test`, `farm_world_test`,
 `econ_test` (116), `econ_mp_test`, and `tools/smoke.sh solo` (51 checks through the real RPC path).
+
+### M8 Factory retheme, dark undertone, Blender models (done)
+Works: 20×15×6 m factory room (cinder-block walls, concrete floor, pendant lamps on chains, flickering fluoros,
+black ceiling hole, roller door barred with a wooden beam, fenced grow area, debt board, punch clock, cot, cameras);
+every prop, station, item and character is a Blender-authored GLB (tools/blender/models/*.py → art/models/*.glb,
+43 models, byte-deterministic builds, toon-converted at runtime by Toonify); the plant has four botanically
+referenced cartoon stages plus wilted variants; the Boss scowls behind a barred supply window and barks; workers are
+slumped, heavy-lidded and frowning; all copy is shift/payment/debt-toned with no cheer; team-scaled payments.
+Placeholder: walls/floor/ceiling shell are still Godot primitives (architecture); Forward+ lighting was tuned by numbers
+and GL previews only (no GPU here); sounds are synthesized placeholders never heard by a human.
+Test: `tools/test_all.sh` (30 suites). Models: `python3 tools/blender/build.py --test`; previews via the
+`tools/tests/models_*_preview.gd` scripts under xvfb.
 
 ### M7 QA (done)
 Works: `tools/test_all.sh` = 21 suites / 2525 checks green in ~3 min; 4-player stress test (same-frame pickup races,

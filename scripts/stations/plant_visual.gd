@@ -15,7 +15,7 @@ extends Node3D
 ##     Ready/Buds/BudTop                                 an empty MeshInstance3D (no mesh) that carries the
 ##                                                       per-plant strain material (get_tint_material(), which
 ##                                                       the plot's tag card shares; the farm tests read it)
-##   DryIndicator / Bob (bobbing water drop + "DRY!" label, stays upright)
+##   DryIndicator / Bob (bobbing water drop + "DRY" label, stays upright)
 ## Strain colour: every model's TINT parts (calyxes, frosty tips) take Toon.grade(seed colour) via Toonify.tint.
 ## Leaves are library greens (never tinted); the wilted models use toon_leaf_dry.
 
@@ -120,7 +120,7 @@ func get_tint() -> Color:
 func get_tint_material() -> Material:
 	return _bud_material
 
-## Wilts the plant (swaps in the stage's wilted model, slumps it) and shows the bobbing "DRY!" drop.
+## Wilts the plant (swaps in the stage's wilted model, slumps it) and shows the bobbing "DRY" drop.
 func set_dry(dry: bool, animate: bool) -> void:
 	if dry == _dry:
 		return
