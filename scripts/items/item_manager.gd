@@ -26,10 +26,14 @@ const DROP_FORWARD: float = 0.8
 const DROP_WALL_MARGIN: float = 0.3
 ## Height above the feet used for the "is there a wall in front of me" check (metres).
 const DROP_CHEST_HEIGHT: float = 1.0
-## The floor probe starts this far above the feet (so drops can land on low stations) ...
+## The floor probe starts this far above the feet (so drops can land on low props; station tops are refused) ...
 const FLOOR_PROBE_UP: float = 0.6
 ## ... and searches this far below them.
 const FLOOR_PROBE_DOWN: float = 3.0
+## A dropped item needs a free sphere of this radius (metres) just above its landing point.
+const DROP_CLEARANCE_RADIUS: float = 0.15
+## A blocked drop spot is retried this many times, walking back towards the player's feet.
+const DROP_BACKOFF_STEPS: int = 8
 
 var spawner: MultiplayerSpawner = null
 
@@ -227,21 +231,31 @@ func get_player(peer_id: int) -> Player:
 
 ## Where an item dropped by `player` lands: DROP_FORWARD in front of them (pulled back from walls), on the floor
 ## (raycast down; falls back to the player's feet height).
+## The spot must be free: not inside static geometry the chest-high wall check cannot see (the well's 0.76 m
+## ring, 0.9 m crates: the floor probe starts inside them and would put the item on the floor INSIDE the
+## collider, where no interaction ray can reach it) and not on top of a station (an item resting on an empty
+## grow plot ends up inside the plant's collider once something is planted). A blocked spot is walked back
+## towards the player until it is free; the player's own feet are the last resort.
 func compute_drop_position(player: Player) -> Vector3:
 	var feet := player.global_position
 	var forward := _flat_forward(player)
-	var target := feet + forward * DROP_FORWARD
+	var reach := DROP_FORWARD
 	var space := _get_space()
-	if space != null:
-		var chest := feet + Vector3.UP * DROP_CHEST_HEIGHT
-		var query := PhysicsRayQueryParameters3D.create(chest, chest + forward * DROP_FORWARD, Const.LAYER_WORLD,
-				[player.get_rid()])
-		var hit := space.intersect_ray(query)
-		if not hit.is_empty():
-			var wall: Vector3 = hit["position"]
-			var free_dist := maxf(0.0, Vector2(wall.x - feet.x, wall.z - feet.z).length() - DROP_WALL_MARGIN)
-			target = feet + forward * minf(free_dist, DROP_FORWARD)
-	return _project_to_floor(target, player)
+	if space == null:
+		return _project_to_floor(feet + forward * reach, player)
+	var chest := feet + Vector3.UP * DROP_CHEST_HEIGHT
+	var query := PhysicsRayQueryParameters3D.create(chest, chest + forward * DROP_FORWARD, Const.LAYER_WORLD,
+			[player.get_rid()])
+	var hit := space.intersect_ray(query)
+	if not hit.is_empty():
+		var wall: Vector3 = hit["position"]
+		var free_dist := maxf(0.0, Vector2(wall.x - feet.x, wall.z - feet.z).length() - DROP_WALL_MARGIN)
+		reach = minf(free_dist, DROP_FORWARD)
+	for i in range(DROP_BACKOFF_STEPS, 0, -1):
+		var landing := _probe_floor(feet + forward * (reach * float(i) / float(DROP_BACKOFF_STEPS)), player)
+		if _is_drop_spot_free(landing, player):
+			return landing["position"]
+	return _project_to_floor(feet, player)
 
 ## Yaw (radians) that turns a dropped item's front (+Z face, labels) towards the player who dropped it.
 func compute_drop_yaw(player: Player) -> float:
@@ -370,6 +384,11 @@ func _flat_forward(player: Player) -> Vector3:
 ## Raycasts down onto static geometry (layer 1: floor, station tops) below `point`.
 ## Falls back to the player's feet height (or the point's own height without a player).
 func _project_to_floor(point: Vector3, player: Player) -> Vector3:
+	return _probe_floor(point, player)["position"]
+
+## Like _project_to_floor() but also returns what the item would rest on: {"position": Vector3, "collider": Object}
+## (collider null when nothing was hit and the fallback height is used).
+func _probe_floor(point: Vector3, player: Player) -> Dictionary:
 	var base_y := player.global_position.y if player != null else point.y
 	var space := _get_space()
 	if space != null:
@@ -381,8 +400,28 @@ func _project_to_floor(point: Vector3, player: Player) -> Vector3:
 		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, to, Const.LAYER_WORLD, exclude))
 		if not hit.is_empty():
 			var floor_hit: Vector3 = hit["position"]
-			return Vector3(point.x, floor_hit.y, point.z)
-	return Vector3(point.x, base_y, point.z)
+			return {"position": Vector3(point.x, floor_hit.y, point.z), "collider": hit.get("collider")}
+	return {"position": Vector3(point.x, base_y, point.z), "collider": null}
+
+## True if an item can rest at `landing` (from _probe_floor): not on a station (collision layer 3) and no static
+## geometry inside the clearance sphere just above the landing point.
+func _is_drop_spot_free(landing: Dictionary, player: Player) -> bool:
+	var surface := landing.get("collider") as CollisionObject3D
+	if surface != null and (surface.collision_layer & Const.LAYER_INTERACTABLE) != 0:
+		return false
+	var space := _get_space()
+	if space == null:
+		return true
+	var sphere := SphereShape3D.new()
+	sphere.radius = DROP_CLEARANCE_RADIUS
+	var params := PhysicsShapeQueryParameters3D.new()
+	params.shape = sphere
+	var pos: Vector3 = landing["position"]
+	params.transform = Transform3D(Basis.IDENTITY, pos + Vector3.UP * (DROP_CLEARANCE_RADIUS + 0.03))
+	params.collision_mask = Const.LAYER_WORLD
+	if player != null:
+		params.exclude = [player.get_rid()]
+	return space.intersect_shape(params, 1).is_empty()
 
 ## GameState.game_reset (every peer, after a RETRY reset was applied). HOST ONLY: despawns every seed packet
 ## and product, held or loose. Watering cans are left alone: the Well's own reset handler (two frames later)

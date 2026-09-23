@@ -178,6 +178,15 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	if not is_host:
 		return # clients learn about departures through _rpc_players_sync
 	_rejected_peers.erase(peer_id)
+	# Deferred (end of frame): when several clients drop in the same ENet service batch, ENet has already reset
+	# the other departing peers (0 channels) while this signal is dispatched, and anything sent to them now
+	# (the player despawn, the registry broadcast) logs "Unable to send packet on channel 0". By the end of the
+	# frame every queued disconnect has been dispatched, so only live peers are addressed.
+	_server_cleanup_departed.call_deferred(peer_id, _peer)
+
+func _server_cleanup_departed(peer_id: int, session: ENetMultiplayerPeer) -> void:
+	if not is_host or session != _peer:
+		return # left / re-hosted in the meantime: the new session starts clean
 	var world: World = Game.world
 	if world != null and is_instance_valid(world):
 		if world.items != null:

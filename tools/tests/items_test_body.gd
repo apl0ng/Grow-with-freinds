@@ -258,7 +258,11 @@ func _test_give_drop_release() -> void:
 	check(not packet.is_held() and mgr.get_held_by(1) == can, "second item stays on the floor")
 	check(not packet.can_interact(player) and packet.get_denied_reason(player) == "Hands full", "denied reason 'Hands full'")
 	check(not mgr.server_give_item(can, 2), "cannot give an item someone else holds")
-	check(can.get_denied_reason(player) == "Someone is holding this" and not can.can_interact(player), "held item not interactable")
+	var other := Player.new() # bare Player of another peer (only peer_id is read)
+	other.peer_id = 2
+	check(can.get_denied_reason(other) == "Someone is holding this" and not can.can_interact(other), "held item not interactable for others")
+	other.free()
+	check(can.can_interact(player) and can.get_denied_reason(player) == "", "holder's repeated pickup request is a silent no-op (double press)")
 	check(mgr.server_give_item(can, 1), "giving the same item to its holder is a no-op success")
 	# Drop at a position.
 	var drop_at := AREA + Vector3(1, 0, 2)

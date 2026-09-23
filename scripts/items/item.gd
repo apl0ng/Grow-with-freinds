@@ -147,11 +147,19 @@ func get_prompt(_player: Player) -> String:
 	return "Pick up %s" % get_label_text()
 
 func can_interact(player: Player) -> bool:
-	if player == null or is_held():
+	if player == null:
+		return false
+	if holder_id == player.peer_id:
+		# A repeated pickup request from the current holder (double press / LMB spam while the first request is
+		# still in flight) is a harmless no-op (server_give_item returns true), never "Someone is holding this".
+		return true
+	if is_held():
 		return false
 	return _get_held_item_of(player) == null
 
 func get_denied_reason(player: Player) -> String:
+	if player != null and holder_id == player.peer_id:
+		return ""
 	if is_held():
 		return "Someone is holding this"
 	if player != null and _get_held_item_of(player) != null:
