@@ -165,7 +165,7 @@ referenced cartoon stages plus wilted variants; the Boss scowls behind a barred 
 slumped, heavy-lidded and frowning; all copy is shift/payment/debt-toned with no cheer; team-scaled payments.
 Placeholder: walls/floor/ceiling shell are still Godot primitives (architecture); Forward+ lighting was tuned by numbers
 and GL previews only (no GPU here); sounds are synthesized placeholders never heard by a human.
-Test: `tools/test_all.sh` (30 suites). Models: `python3 tools/blender/build.py --test`; previews via the
+Test: `tools/test_all.sh` (28 suites, 4783 checks). Models: `python3 tools/blender/build.py --test`; previews via the
 `tools/tests/models_*_preview.gd` scripts under xvfb.
 
 ### M7 QA (done)
