@@ -5,11 +5,13 @@ extends SceneTree
 ##    Leaves mesh in library greens (never TINT), tris <= 6000, height / footprint in the stage's range, standing
 ##    on the soil point (origin); flowering Buds is TINT (+ cream pistils), READY Buds holds one mesh per cola with
 ##    its origin at the cola's base; the wilted variants are lower and use toon_leaf_dry.
-## 2. plant_visual.tscn instances those models as the stage nodes (+ a Dry child per growing stage), outlined.
+## 2. plant_visual.tscn instances those models as the stage nodes (+ a Dry child per growing stage), outlined,
+##    and holds no dummy nodes (every MeshInstance3D has a mesh; Ready/Buds holds only the colas).
 ## 3. Strain tint: for every strain in data/balance.tres, every TINT_bud surface shows exactly Toon.grade(seed
 ##    colour), TINT_frost a lighter shade of it, the leaves stay untinted; get_tint_material() (the plot's tag card)
-##    and Ready/Buds/BudTop keep the raw seed colour.
-## 4. Dry: set_dry swaps in the wilted model and slumps Tilt, watering swaps back.
+##    is the material the READY crown cola renders its calyxes with (graded too).
+## 4. Dry: set_dry swaps in the wilted model and slumps Tilt, watering swaps back; animated, it crossfades and
+##    ends with exactly one model on screen.
 ## 5. Through scenes/stations/grow_plot.tscn exactly like the game (synced setters + server_plant): the right stage
 ##    model shows, the READY colas pulse in place and stop when harvested, the plant stands in the soil.
 ## Autoloads are reached through /root (a -s script compiles before they exist); game classes are duck-typed.
@@ -31,6 +33,8 @@ const SPECS := {
 const STAGE_NODES: Array[String] = ["", "Seedling", "Vegetative", "Flowering", "Ready"]
 const GROW := "Tilt/Bouncer/Grow/"
 const PULSE_META := &"_juice_pulsing" # Juice.META_PULSE
+## Longer than PlantVisual.WILT_TIME (0.4 s): the dry <-> watered crossfade is over by then.
+const BLEND_WAIT := 0.6
 
 var _checks := 0
 var _fails: PackedStringArray = []
@@ -227,12 +231,19 @@ func _test_scene(holder: Node3D) -> void:
 					"%s/Dry instances %s_dry.glb" % [STAGE_NODES[i], model])
 		else:
 			_check(dry == null, "Ready has no wilted variant (READY never drinks)")
-	var carrier := pv.get_node_or_null(GROW + "Ready/Buds/BudTop") as MeshInstance3D
-	_check(carrier != null and carrier.mesh == null, "Ready/Buds/BudTop is the (mesh-less) strain material carrier")
+	var dummies: PackedStringArray = []
+	for mi in pv.find_children("*", "MeshInstance3D", true, false):
+		if (mi as MeshInstance3D).mesh == null:
+			dummies.append(str(pv.get_path_to(mi)))
+	_check(dummies.is_empty(), "no mesh-less dummy MeshInstance3D in plant_visual.tscn", ", ".join(dummies))
+	var ready_buds := pv.get_node(GROW + "Ready/Buds")
+	var not_colas := ready_buds.get_children().filter(func(x: Node) -> bool:
+		return not (x is MeshInstance3D and (x as MeshInstance3D).mesh != null))
+	_check(ready_buds.get_node_or_null(^"BudTop") == null and not_colas.is_empty(), "Ready/Buds holds only cola meshes (no BudTop carrier)")
 	for n in ["%Tilt", "%Bouncer", "%Grow", "%DryIndicator", "%Bob"]:
 		_check(pv.get_node_or_null(NodePath(n)) is Node3D, "PlantVisual keeps %s" % n)
 	for f in ["set_stage", "set_growth", "set_tint", "get_tint", "get_tint_material", "set_dry", "is_dry", "bounce",
-			"get_top_global_position"]:
+			"get_top_global_position", "get_wilt", "is_wilt_blending"]:
 		_check(pv.has_method(f), "PlantVisual API keeps %s()" % f)
 	await _free(pv)
 
@@ -245,7 +256,12 @@ func _test_tint(holder: Node3D) -> void:
 	var config := root.get_node_or_null(^"/root/Config")
 	var seeds: Array = config.get(&"balance").get(&"seeds") if config != null else []
 	_check(seeds.size() >= 3, "data/balance.tres has strains to test (%d)" % seeds.size())
-	var carrier := pv.get_node(GROW + "Ready/Buds/BudTop") as MeshInstance3D
+	var crown := pv.get_node(GROW + "Ready/Buds/ColaTop") as MeshInstance3D
+	var crown_surface := -1
+	for s in crown.mesh.get_surface_count():
+		if Toonify.material_name(crown.mesh.surface_get_material(s)) == "TINT_bud":
+			crown_surface = s
+	_check(crown_surface >= 0, "the READY crown cola has a TINT_bud surface")
 	for sd in seeds:
 		var col: Color = sd.get(&"color")
 		var want := _grade(col)
@@ -282,8 +298,9 @@ func _test_tint(holder: Node3D) -> void:
 		_check(frost_ok, "%s: TINT_frost is a lighter shade of the same strain colour" % sid)
 		_check(leaf_ok, "%s: leaves keep their library materials (untinted)" % sid)
 		var tm := pv.call(&"get_tint_material") as BaseMaterial3D
-		_check(tm != null and tm.albedo_color.is_equal_approx(col) and carrier.material_override == tm,
-				"%s: get_tint_material() (tag card) keeps the raw seed colour; Ready/Buds/BudTop carries it" % sid)
+		_check(tm != null and _near(tm.albedo_color, want) and crown_surface >= 0 and crown.get_active_material(crown_surface) == tm,
+				"%s: get_tint_material() (tag card) is the crown cola's graded TINT_bud material" % sid,
+				str(tm.albedo_color if tm else Color.BLACK))
 	await _free(pv)
 
 
@@ -312,8 +329,26 @@ func _test_dry(holder: Node3D) -> void:
 		_check(dry_box.end.y < healthy_box.end.y, "%s dry: visibly lower (%.2f < %.2f)" % [STAGE_NODES[i], dry_box.end.y,
 				healthy_box.end.y])
 		pv.call(&"set_dry", false, false)
-		_check(leaves.visible and not dry.visible and tilt.rotation.is_zero_approx(),
-				"%s watered again: healthy model back, upright" % STAGE_NODES[i])
+		_check(leaves.visible and not dry.visible and tilt.rotation.is_zero_approx() and not bool(pv.call(&"is_wilt_blending")),
+				"%s watered again: healthy model back, upright, nothing blending" % STAGE_NODES[i])
+	# Animated (a live change): a crossfade that ends with exactly one model, both directions.
+	var fl := pv.get_node(GROW + "Flowering") as Node3D
+	var fl_parts: Array[Node3D] = [fl.get_node(^"Leaves") as Node3D, fl.get_node(^"Buds") as Node3D]
+	var fl_dry := fl.get_node(^"Dry") as Node3D
+	pv.call(&"set_stage", 3, false)
+	for to_dry in [true, false]:
+		pv.call(&"set_dry", to_dry, true)
+		var both := false
+		var t0 := Time.get_ticks_msec()
+		while bool(pv.call(&"is_wilt_blending")) and Time.get_ticks_msec() - t0 < 1500:
+			await process_frame
+			both = both or (fl_parts[0].visible and fl_dry.visible)
+		var healthy_on := fl_parts[0].visible and fl_parts[1].visible
+		_check(both and not bool(pv.call(&"is_wilt_blending")) and fl_dry.visible == to_dry and healthy_on != to_dry,
+				"Flowering %s animated: crossfade, then only the %s model" % ["drying" if to_dry else "watering",
+				"wilted" if to_dry else "healthy"])
+		var rest := fl_dry if to_dry else fl_parts[0]
+		_check(rest.transform.is_equal_approx(Transform3D.IDENTITY), "Flowering: the shown model ends at its rest transform")
 	await _free(pv)
 
 
@@ -341,9 +376,10 @@ func _test_plot(holder: Node3D) -> void:
 	_check(_visible_stage(plant) == 1, "planting shows the seedling model")
 	var card := plot.get_node(^"%Card") as MeshInstance3D
 	var tint_mat := plant.call(&"get_tint_material") as Material
-	_check(card.material_override == tint_mat, "the plot's tag card shares the plant's strain material")
 	var config := root.get_node(^"/root/Config")
 	var purple: Color = config.get(&"balance").call(&"get_seed", &"purple").get(&"color")
+	_check(tint_mat != null and card.material_override == tint_mat and _near((tint_mat as BaseMaterial3D).albedo_color, _grade(purple)),
+			"the plot's tag card shares the plant's graded strain material")
 	var seedling := plant.get_node(GROW + "Seedling") as Toonify
 	_check(_near(seedling.tint, _grade(purple)), "stage models tinted with Toon.grade(purple)")
 	for st in [2, 3, 4]:
@@ -353,12 +389,13 @@ func _test_plot(holder: Node3D) -> void:
 	# READY: every cola pulses in place (its own origin at its base), the carrier does not
 	var juice := root.get_node(^"/root/Juice")
 	var buds := plant.get_node(GROW + "Ready/Buds") as Node3D
-	var colas := buds.get_children().filter(func(x: Node) -> bool: return x is MeshInstance3D and x.name != &"BudTop")
+	var colas := buds.get_children().filter(func(x: Node) -> bool: return x is MeshInstance3D)
 	var pulsing := 0
 	for cola: Node3D in colas:
 		pulsing += 1 if cola.has_meta(PULSE_META) else 0
-	_check(colas.size() >= 5 and pulsing == colas.size(), "READY: every cola pulses (%d / %d)" % [pulsing, colas.size()])
-	_check(not buds.get_node(^"BudTop").has_meta(PULSE_META), "READY: the tint carrier does not pulse")
+	_check(colas.size() >= 5 and pulsing == colas.size() and colas.size() == buds.get_child_count(),
+			"READY: every child of Ready/Buds is a cola and pulses (%d / %d)" % [pulsing, colas.size()])
+	_check((buds.get_node(^"ColaTop") as Node3D).is_visible_in_tree(), "READY: the crown cola whose material the tag uses is on screen")
 	await create_timer(0.3).timeout
 	var moved := false
 	for cola: Node3D in colas:
@@ -382,8 +419,11 @@ func _test_plot(holder: Node3D) -> void:
 			"a thirsty vegetative plant shows its wilted model")
 	plot.call(&"server_water", 1.0)
 	await process_frame
+	_check(bool(plant.call(&"is_wilt_blending")) and (veg.get_node(^"Leaves") as Node3D).visible,
+			"watering crossfades: the healthy model is already swelling back in")
+	await create_timer(BLEND_WAIT).timeout
 	_check(not (veg.get_node(^"Dry") as Node3D).visible and (veg.get_node(^"Leaves") as Node3D).visible,
-			"watering brings the healthy model back")
+			"watering brings the healthy model back (only it, once the blend is over)")
 	if juice != null:
 		juice.call(&"stop", plant)
 	await _free(plot)

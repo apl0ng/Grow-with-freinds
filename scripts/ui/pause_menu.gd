@@ -5,6 +5,11 @@ extends Control
 ## clock does not stop, and the copy says so).
 ## Opens only when nobody else holds the UI lock (e.g. with the shop open, Escape closes the shop
 ## instead); closing our own menu always works. Holds Game.set_ui_lock(&"pause") while open.
+## Keyboard focus stays on its own two buttons (focus neighbours in the scene): the round-end overlay can be open
+## underneath, and Tab / arrows must never reach its NEXT SHIFT / START OVER through the pause card.
+
+## Emitted after the menu closed and released its lock (the HUD hands the keyboard back to the round-end overlay).
+signal closed
 
 const LOCK_SOURCE: StringName = &"pause"
 ## Controls hint rows: [label, action, fallback key text].
@@ -84,6 +89,7 @@ func close() -> void:
 	visible = false
 	_set_locked(false)
 	Sfx.play(&"ui_close")
+	closed.emit()
 
 
 func toggle() -> void:

@@ -6,8 +6,16 @@ extends Control
 ##   Paid   - host: NEXT SHIFT + MAIN MENU            clients: "Waiting for the Boss's decision…" + LEAVE
 ##   Missed - host: START OVER (full reset) + MAIN MENU   clients: "Waiting for the Boss's decision…" + LEAVE
 ## Grim relief, never victory (STYLE.md "Mood & tone"): off-white title, no gold banner, no "!".
+## Keyboard: the host's primary button gets focus FOCUS_DELAY_SEC after the overlay appears, so a jump (Space) or
+## Enter pressed just as the shift ends cannot skip the screen (START OVER resets everyone); never while the pause
+## menu sits on top (it keeps the keyboard; the HUD calls arm_focus() when it closes). Clients get no default focus
+## (Space must not LEAVE the session); Tab / arrow keys focus the first button when nothing has focus.
 
 const LOCK_SOURCE: StringName = &"round_end"
+## Seconds before the host's default button takes the keyboard focus (see above).
+const FOCUS_DELAY_SEC: float = 0.6
+## Keys that give an unfocused overlay its keyboard focus.
+const NAV_ACTIONS: Array[StringName] = [&"ui_focus_next", &"ui_focus_prev", &"ui_up", &"ui_down", &"ui_left", &"ui_right"]
 
 const TEXT_PAID_TITLE := "PAYMENT ACCEPTED…\nfor now"
 const TEXT_PAID_SUB := "Shift %d paid. The Boss raises the number."
@@ -23,6 +31,7 @@ const TEXT_LEAVE := "LEAVE"
 
 var _locked: bool = false
 var _shown_phase: int = -1
+var _focus_tween: Tween
 
 @onready var card: Control = %Card
 @onready var title_label: Label = %Title
@@ -56,6 +65,19 @@ func _exit_tree() -> void:
 	_set_locked(false)
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not visible or event.is_echo() or not event.is_pressed():
+		return
+	var vp := get_viewport()
+	if vp == null or vp.gui_get_focus_owner() != null or Game.is_ui_locked_by(PauseMenu.LOCK_SOURCE):
+		return
+	for action: StringName in NAV_ACTIONS:
+		if InputMap.has_action(action) and event.is_action_pressed(action):
+			(primary_button if primary_button.visible else menu_button).grab_focus()
+			vp.set_input_as_handled()
+			return
+
+
 ## True while the overlay is up (ROUND_SUCCESS / ROUND_FAILED).
 func is_open() -> bool:
 	return visible
@@ -69,6 +91,7 @@ func _sync_to_phase(new_phase: int) -> void:
 	var over := new_phase == GameState.Phase.ROUND_SUCCESS or new_phase == GameState.Phase.ROUND_FAILED
 	if not over:
 		_shown_phase = -1
+		_cancel_focus()
 		visible = false
 		_set_locked(false)
 		return
@@ -80,8 +103,32 @@ func _sync_to_phase(new_phase: int) -> void:
 	if fresh:
 		if is_inside_tree():
 			Juice.pop_in(card)
-		if primary_button.visible and is_inside_tree():
-			primary_button.grab_focus.call_deferred()
+		arm_focus()
+
+
+## Host: gives the primary button the keyboard focus FOCUS_DELAY_SEC from now (restarts a pending one).
+func arm_focus() -> void:
+	_cancel_focus()
+	if not is_inside_tree() or not visible:
+		return
+	_focus_tween = create_tween()
+	_focus_tween.tween_interval(FOCUS_DELAY_SEC)
+	_focus_tween.tween_callback(focus_default)
+
+
+## Host: focuses the primary button now, unless the overlay is hidden or the pause menu sits on top of it.
+func focus_default() -> void:
+	if not visible or not is_inside_tree() or not primary_button.visible:
+		return
+	if Game.is_ui_locked_by(PauseMenu.LOCK_SOURCE):
+		return
+	primary_button.grab_focus()
+
+
+func _cancel_focus() -> void:
+	if _focus_tween != null:
+		_focus_tween.kill()
+		_focus_tween = null
 
 
 func _on_round_ended(success: bool, _round_number: int) -> void:

@@ -87,6 +87,8 @@ func run() -> void:
 	await _test_server_water_clamps()
 	await _test_harvest_without_world()
 	await _test_visuals()
+	await _test_wilt_crossfade()
+	await _test_plant_hitbox()
 	if _fake_items != null:
 		await _test_harvest_with_items()
 		await _test_plot_interactions()
@@ -192,6 +194,26 @@ func _ticks_to_next_stage(plot: GrowPlot, max_ticks: int) -> int:
 
 func _plant_node(plot: GrowPlot, path: String) -> Node3D:
 	return plot.get_node("Plant/" + path) as Node3D
+
+func _wait(sec: float) -> void:
+	await get_tree().create_timer(sec).timeout
+
+## Colours equal up to the float noise (~1e-4) of the glTF round trip of the models' neutral TINT grey.
+func _near(a: Color, b: Color, eps: float = 0.003) -> bool:
+	return absf(a.r - b.r) < eps and absf(a.g - b.g) < eps and absf(a.b - b.b) < eps and absf(a.a - b.a) < eps
+
+## The material `mi` renders its surface named `mat_name` (Blender material) with, or null.
+func _surface_material(mi: MeshInstance3D, mat_name: String) -> BaseMaterial3D:
+	if mi == null or mi.mesh == null:
+		return null
+	for s in mi.mesh.get_surface_count():
+		if Toonify.material_name(mi.mesh.surface_get_material(s)) == mat_name:
+			return mi.get_active_material(s) as BaseMaterial3D
+	return null
+
+## The graded strain material of the READY crown cola (what the buds and the tag card show).
+func _crown_material(plot: GrowPlot) -> BaseMaterial3D:
+	return _surface_material(_plant_node(plot, "Tilt/Bouncer/Grow/Ready/Buds/ColaTop") as MeshInstance3D, "TINT_bud")
 
 # ------------------------------------------------------------------------------------------------
 # tests
@@ -371,11 +393,19 @@ func _test_visuals() -> void:
 	check(_plant_node(plot, "DryIndicator").visible, "DRY indicator shown for a dry seedling")
 	var tilt := _plant_node(plot, "Tilt")
 	var purple_color := Config.balance.get_seed(&"purple").color
-	var bud := _plant_node(plot, "Tilt/Bouncer/Grow/Ready/Buds/BudTop") as MeshInstance3D
-	var bud_mat := bud.material_override as BaseMaterial3D
-	check(bud_mat != null and bud_mat.albedo_color.is_equal_approx(purple_color), "buds tinted with the seed colour")
+	var bud_mat := _crown_material(plot)
+	check(bud_mat != null and _near(bud_mat.albedo_color, Toon.grade(purple_color)), "buds tinted with Toon.grade(seed colour)",
+		str(bud_mat.albedo_color if bud_mat else Color.BLACK))
 	var card := plot.get_node("Visual/Tag/Card") as MeshInstance3D
-	check(card.material_override == bud.material_override, "plant tag shares the tinted material")
+	var plant := plot.get_node("Plant") as PlantVisual
+	check(card.material_override == bud_mat and plant.get_tint_material() == bud_mat,
+		"plant tag shares the buds' graded strain material (get_tint_material())")
+	check(bud_mat != null and not _near(bud_mat.albedo_color, purple_color), "tag / buds are not the raw seed colour")
+	var dummies: PackedStringArray = []
+	for mi in plant.find_children("*", "MeshInstance3D", true, false):
+		if (mi as MeshInstance3D).mesh == null:
+			dummies.append(str(plant.get_path_to(mi)))
+	check(dummies.is_empty(), "PlantVisual has no mesh-less dummy MeshInstance3D", ", ".join(dummies))
 	var soil := plot.get_node("Visual/SoilMound") as MeshInstance3D
 	var dry_color := (soil.material_override as BaseMaterial3D).albedo_color if soil.material_override is BaseMaterial3D else Color.BLACK
 	plot.server_water(1.0)
@@ -394,9 +424,11 @@ func _test_visuals() -> void:
 	other.strain_id = &"golden"
 	other.water = 0.7
 	await get_tree().process_frame
-	var other_bud := _plant_node(other, "Tilt/Bouncer/Grow/Ready/Buds/BudTop") as MeshInstance3D
-	check(_plant_node(other, "Tilt/Bouncer/Grow/Ready").visible and (other_bud.material_override as BaseMaterial3D).albedo_color.is_equal_approx(Config.balance.get_seed(&"golden").color),
-		"setters in any order give the right model + tint (READY golden)")
+	var other_mat := _crown_material(other)
+	check(_plant_node(other, "Tilt/Bouncer/Grow/Ready").visible and other_mat != null
+		and _near(other_mat.albedo_color, Toon.grade(Config.balance.get_seed(&"golden").color))
+		and (other.get_node("Visual/Tag/Card") as MeshInstance3D).material_override == other_mat,
+		"setters in any order give the right model + graded tint on buds and tag (READY golden)")
 	check(not _plant_node(other, "DryIndicator").visible, "no DRY indicator on a READY plant")
 	other.stage_progress = 0.5
 	other.stage = GrowPlot.Stage.VEGETATIVE
@@ -411,8 +443,236 @@ func _test_visuals() -> void:
 	for n in ["Seedling", "Vegetative", "Flowering", "Ready"]:
 		any_visible = any_visible or _plant_node(other, "Tilt/Bouncer/Grow/" + n).visible
 	check(not any_visible and (other.get_node("Body/PlantShape") as CollisionShape3D).disabled, "EMPTY hides the plant and its hitbox")
+	other.strain_id = &""
+	other.server_plant(&"budget")
+	var budget_mat := _crown_material(other)
+	check(budget_mat != null and _near(budget_mat.albedo_color, Toon.grade(Config.balance.get_seed(&"budget").color))
+		and (other.get_node("Visual/Tag/Card") as MeshInstance3D).material_override == budget_mat,
+		"replanting another strain re-tints buds and tag (graded budget)")
 	await _free_node(plot)
 	await _free_node(other)
+
+## Samples a running wilt crossfade once per frame until it ends (or `max_sec`):
+## [{w, healthy (visible), wilted (visible), hy / wy (scale.y), tilt (rotation length)}], plus the blend time.
+func _sample_blend(plant: PlantVisual, healthy: Node3D, wilted: Node3D, max_sec: float = 1.5) -> Dictionary:
+	var samples: Array[Dictionary] = []
+	var t0 := Time.get_ticks_msec()
+	while plant.is_wilt_blending() and Time.get_ticks_msec() - t0 < int(max_sec * 1000.0):
+		await get_tree().process_frame
+		samples.append({"w": plant.get_wilt(), "healthy": healthy.visible, "wilted": wilted.visible,
+			"hy": healthy.scale.y, "wy": wilted.scale.y, "tilt": (_plant_node(plant.get_parent() as GrowPlot, "Tilt")).rotation.length()})
+	return {"samples": samples, "sec": (Time.get_ticks_msec() - t0) / 1000.0}
+
+## Frames with both models on screen mid-blend, and whether w moved monotonically in `dir` (+1 / -1).
+func _blend_stats(samples: Array[Dictionary], dir: float) -> Dictionary:
+	var both := 0
+	var monotonic := true
+	var prev := -INF if dir > 0.0 else INF
+	for smp in samples:
+		var w: float = smp["w"]
+		if smp["healthy"] and smp["wilted"] and w > 0.0 and w < 1.0:
+			both += 1
+		monotonic = monotonic and (w >= prev - 1e-6 if dir > 0.0 else w <= prev + 1e-6)
+		prev = w
+	return {"both": both, "monotonic": monotonic}
+
+func _collision_state(plot: GrowPlot) -> Array:
+	var shape := plot.get_node("Body/PlantShape") as CollisionShape3D
+	var body := plot.get_node("Body") as StaticBody3D
+	return [shape.disabled, shape.transform, shape.shape, (shape.shape as BoxShape3D).size, body.collision_layer, body.transform]
+
+## Dry <-> watered is a ~0.4 s crossfade driven by one PlantVisual tween: idempotent, reversible mid-blend,
+## instant when not animated, never both models at rest, collision untouched.
+func _test_wilt_crossfade() -> void:
+	var plot := await _new_plot()
+	var plant := plot.get_node("Plant") as PlantVisual
+	var tilt := _plant_node(plot, "Tilt")
+	var veg := _plant_node(plot, "Tilt/Bouncer/Grow/Vegetative")
+	var leaves := veg.get_node("Leaves") as Node3D
+	var wilted := veg.get_node("Dry") as Node3D
+	var indicator := _plant_node(plot, "DryIndicator")
+	var seedling := _plant_node(plot, "Tilt/Bouncer/Grow/Seedling")
+	# Planting into dry soil (fx on: offline = server): nothing was on screen, so the seedling pops in wilted.
+	plot.server_plant(&"budget")
+	check(plant.get_wilt() == 1.0 and not plant.is_wilt_blending() and (seedling.get_node("Dry") as Node3D).visible
+		and not (seedling.get_node("Leaves") as Node3D).visible, "planting into dry soil shows the wilted seedling at once (no blend from nothing)")
+	plot.stage = GrowPlot.Stage.VEGETATIVE
+	check(wilted.visible and not leaves.visible and not plant.is_wilt_blending() and tilt.rotation.is_equal_approx(PlantVisual.DROOP_ROTATION),
+		"growing while dry shows the next stage wilted and slumped, no blend")
+	await get_tree().physics_frame
+	var collision := _collision_state(plot)
+	# Watering: the healthy model swells up out of the wilted one, which sinks away.
+	plot.server_water(1.0)
+	check(plant.is_wilt_blending() and not indicator.visible, "watering starts the crossfade; the DRY drop hides at once")
+	var t_start := Time.get_ticks_msec()
+	var mid_w := -1.0
+	while plant.is_wilt_blending() and mid_w < 0.0 and Time.get_ticks_msec() - t_start < 1000:
+		await get_tree().process_frame
+		if plant.get_wilt() < 0.8:
+			mid_w = plant.get_wilt()
+	check(mid_w > 0.0 and leaves.visible and wilted.visible and leaves.scale.y < 1.0 and wilted.scale.y < 1.0
+		and tilt.rotation.length() > 0.0 and tilt.rotation.length() < PlantVisual.DROOP_ROTATION.length(),
+		"mid-blend: both models on screen, both scaled, slump easing off (wilt %.2f)" % mid_w,
+		"healthy %s %.2f wilted %s %.2f" % [leaves.visible, leaves.scale.y, wilted.visible, wilted.scale.y])
+	var repeat_w := plant.get_wilt()
+	for i in 4:
+		plant.set_dry(false, true)
+		plot.water = 1.0 - 0.01 * i   # drain-like updates while wet: _update_dry(false) again and again
+	check(plant.is_wilt_blending() and plant.get_wilt() == repeat_w, "repeated set_dry(false) mid-blend is a no-op (no restart)")
+	var res := await _sample_blend(plant, leaves, wilted)
+	var elapsed := (Time.get_ticks_msec() - t_start) / 1000.0
+	check(elapsed > 0.25 and elapsed < 1.0, "the watering crossfade takes about WILT_TIME (%.2f s)" % elapsed)
+	check(not plant.is_wilt_blending() and plant.get_wilt() == 0.0 and leaves.visible and not wilted.visible
+		and leaves.transform.is_equal_approx(Transform3D.IDENTITY) and tilt.rotation.is_zero_approx(),
+		"watered: only the healthy model, at rest, upright")
+	check(_collision_state(plot) == collision, "the crossfade never touches the plant hitbox")
+	# Drying: sampled frame by frame.
+	plot.water = 0.0
+	check(plant.is_wilt_blending() and indicator.visible, "running dry starts the crossfade; the DRY drop shows at once")
+	res = await _sample_blend(plant, leaves, wilted)
+	var st := _blend_stats(res["samples"], 1.0)
+	check(int(st["both"]) >= 3 and bool(st["monotonic"]), "drying crossfades over several frames (%d with both models), wilt rises steadily" % int(st["both"]))
+	check(float(res["sec"]) > 0.25 and float(res["sec"]) < 1.0, "the drying crossfade takes about WILT_TIME (%.2f s)" % float(res["sec"]))
+	check(plant.get_wilt() == 1.0 and wilted.visible and not leaves.visible and wilted.transform.is_equal_approx(Transform3D.IDENTITY)
+		and tilt.rotation.is_equal_approx(PlantVisual.DROOP_ROTATION), "dry: only the wilted model, at rest, slumped")
+	var ends_ok := true
+	for smp: Dictionary in res["samples"]:
+		if not (smp["healthy"] or smp["wilted"]):
+			ends_ok = false
+	check(ends_ok, "some model is on screen on every frame of the blend")
+	# Reversal mid-blend: watering while it wilts turns around from the current state, no jump.
+	plot.server_water(1.0)
+	await _sample_blend(plant, leaves, wilted)
+	plot.water = 0.0
+	t_start = Time.get_ticks_msec()
+	while plant.is_wilt_blending() and plant.get_wilt() < 0.3 and Time.get_ticks_msec() - t_start < 1000:
+		await get_tree().process_frame
+	var w_before := plant.get_wilt()
+	var hy_before := leaves.scale.y
+	var wy_before := wilted.scale.y
+	plot.server_water(1.0)
+	check(plant.is_wilt_blending() and plant.get_wilt() == w_before and leaves.scale.y == hy_before and wilted.scale.y == wy_before
+		and w_before > 0.0 and w_before < 1.0, "watering mid-wilt reverses from the current blend (%.2f), no jump" % w_before)
+	res = await _sample_blend(plant, leaves, wilted)
+	st = _blend_stats(res["samples"], -1.0)
+	check(bool(st["monotonic"]) and plant.get_wilt() == 0.0 and leaves.visible and not wilted.visible,
+		"the reversed blend heads straight back to healthy and ends with one model")
+	# animate = false (a late joiner's first sync, the settle window) snaps, also mid-blend.
+	plot.water = 0.0
+	await get_tree().process_frame
+	plant.set_dry(true, false)
+	check(not plant.is_wilt_blending() and plant.get_wilt() == 1.0 and wilted.visible and not leaves.visible
+		and tilt.rotation.is_equal_approx(PlantVisual.DROOP_ROTATION), "set_dry(dry, false) mid-blend snaps to the end state")
+	plant.set_dry(false, false)
+	check(not plant.is_wilt_blending() and plant.get_wilt() == 0.0 and leaves.visible and not wilted.visible
+		and leaves.transform.is_equal_approx(Transform3D.IDENTITY) and tilt.rotation.is_zero_approx(), "set_dry(false, false) is instant (no blend)")
+	# Clearing the plot mid-blend (reset / harvest) leaves nothing running.
+	plot.water = 0.0
+	await get_tree().process_frame
+	plot.server_reset()
+	await get_tree().process_frame
+	check(not plant.is_wilt_blending() and plant.get_wilt() == 0.0 and not veg.visible and not indicator.visible,
+		"resetting the plot mid-blend snaps the plant state, nothing left blending")
+	await get_tree().physics_frame
+	check((plot.get_node("Body/PlantShape") as CollisionShape3D).disabled, "EMPTY after the reset: hitbox disabled")
+	await _free_node(plot)
+
+## Eye-height ray like the Interactor's (world|interactable|item, bodies + areas, interact_distance long).
+func _ray(from: Vector3, at: Vector3) -> Dictionary:
+	var to := from + (at - from).normalized() * Config.balance.interact_distance
+	var q := PhysicsRayQueryParameters3D.create(from, to, Const.LAYER_WORLD | Const.LAYER_INTERACTABLE | Const.LAYER_ITEM)
+	q.collide_with_areas = true
+	q.collide_with_bodies = true
+	return _root3d.get_world_3d().direct_space_state.intersect_ray(q)
+
+## "<Interactable name>/<shape node name>" for a ray hit ("" = nothing hit).
+func _hit_name(hit: Dictionary) -> String:
+	if hit.is_empty():
+		return ""
+	var body := hit["collider"] as CollisionObject3D
+	var shape_owner := body.shape_owner_get_owner(body.shape_find_owner(int(hit["shape"]))) as Node
+	var n: Node = body
+	while n != null and not (n is Interactable):
+		n = n.get_parent()
+	return "%s/%s" % [n.name if n != null else "?", shape_owner.name]
+
+## The READY plant is clickable from the player's eye (1.6 m) 2.5 m away, top cola and side leaves, from
+## any side; an EMPTY plot is only its tray (the plant hitbox is off).
+func _test_plant_hitbox() -> void:
+	var plot := (load(PLOT_SCENE) as PackedScene).instantiate() as GrowPlot
+	plot.name = "HitboxPlot"
+	# Placed and turned like a room plot (front towards +X), away from anything else in the test world.
+	plot.transform = Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(40.0, 0.0, 12.0))
+	_root3d.add_child(plot)
+	plot.set_process(false)
+	plot.water = 0.8
+	plot.server_plant(&"purple")
+	plot.stage = GrowPlot.Stage.READY
+	var plant := plot.get_node("Plant") as PlantVisual
+	await _wait(0.6)   # pop-in / bounce / blends settle
+	check(not plant.is_wilt_blending() and plant.get_wilt() == 0.0, "READY plant at rest (upright, healthy)")
+	# Colas pulse around their own base while READY: judge the rest pose.
+	for cola in _plant_node(plot, "Tilt/Bouncer/Grow/Ready/Buds").get_children():
+		Juice.stop(cola)
+	await get_tree().physics_frame
+	var body := plot.get_node("Body") as StaticBody3D
+	var plant_shape := plot.get_node("Body/PlantShape") as CollisionShape3D
+	var box := plant_shape.shape as BoxShape3D
+	var shape_aabb := AABB(plant_shape.position - box.size * 0.5, box.size)  # Body is at the plot origin, unrotated
+	# Every visible READY mesh (leaves + colas, at rest) inside the hitbox, in plot space.
+	var ready := _plant_node(plot, "Tilt/Bouncer/Grow/Ready")
+	var model_box := AABB()
+	var first := true
+	for mi: MeshInstance3D in ready.find_children("*", "MeshInstance3D", true, false):
+		if mi.has_meta(&"toonify_outline") or mi.mesh == null or not mi.is_visible_in_tree():
+			continue
+		var b: AABB = plot.global_transform.affine_inverse() * mi.global_transform * mi.get_aabb()
+		model_box = b if first else model_box.merge(b)
+		first = false
+	check(not first and shape_aabb.grow(0.01).encloses(model_box), "PlantShape %s encloses the READY model %s" % [shape_aabb, model_box])
+	check(model_box.end.y > 1.5 and model_box.end.y < shape_aabb.end.y, "READY cola top %.2f m under the hitbox top %.2f m" % [model_box.end.y, shape_aabb.end.y])
+	var xf := plot.global_transform
+	var cola_top := xf * Vector3(0.0, model_box.end.y - 0.04, 0.0)
+	var leaf_y := model_box.position.y + model_box.size.y * 0.45
+	var targets := {
+		"cola top": cola_top,
+		"left leaves": xf * Vector3(model_box.position.x + 0.05, leaf_y, 0.0),
+		"right leaves": xf * Vector3(model_box.end.x - 0.05, leaf_y, 0.0),
+	}
+	# Eye positions 2.5 m from the plot centre (plot-local directions), 1.6 m up.
+	var eyes := {"front": Vector3(0, 0, 1), "side": Vector3(1, 0, 0), "diagonal": Vector3(-1, 0, 1).normalized(), "back": Vector3(0, 0, -1)}
+	var ready_hits: PackedStringArray = []
+	var ready_ok := true
+	for side: String in eyes:
+		var eye := xf * ((eyes[side] as Vector3) * 2.5) + Vector3.UP * 1.6
+		for what: String in targets:
+			var hit := _ray(eye, targets[what])
+			var got := _hit_name(hit)
+			if hit.is_empty() or hit["collider"] != body or got != "HitboxPlot/PlantShape":
+				ready_ok = false
+				ready_hits.append("%s/%s -> '%s'" % [side, what, got])
+	check(ready_ok, "READY: eye-height rays from 2.5 m (front, side, diagonal, back) hit the plant at the cola top and both side leaves",
+		", ".join(ready_hits))
+	var front_eye := xf * Vector3(0, 0, 2.5) + Vector3.UP * 1.6
+	var soil := xf * Vector3(0.0, 0.45, 0.0)
+	check(_hit_name(_ray(front_eye, soil)).begins_with("HitboxPlot/"), "READY: looking at the soil still targets the plot")
+	# EMPTY: the tray is what you hit; the plant box is off, so aiming where the cola was hits nothing.
+	plot.server_reset()
+	for i in 3:
+		await get_tree().physics_frame
+	check(plant_shape.disabled, "EMPTY: plant hitbox disabled")
+	check(_hit_name(_ray(front_eye, soil)) == "HitboxPlot/Shape", "EMPTY: an eye-height ray from 2.5 m at the soil hits the tray",
+		_hit_name(_ray(front_eye, soil)))
+	check(_hit_name(_ray(front_eye, xf * Vector3(0.0, 0.3, 0.72))) == "HitboxPlot/Shape", "EMPTY: the tray's front rim is hit")
+	check(_ray(front_eye, cola_top).is_empty(), "EMPTY: aiming where the READY cola stood hits nothing (no invisible plant box)",
+		_hit_name(_ray(front_eye, cola_top)))
+	# A growing plant turns the box back on.
+	plot.server_plant(&"budget")
+	for i in 3:
+		await get_tree().physics_frame
+	check(not plant_shape.disabled and _hit_name(_ray(front_eye, xf * Vector3(0.0, 0.7, 0.0))) == "HitboxPlot/PlantShape",
+		"planted: the plant hitbox is back on")
+	await _free_node(plot)
 
 func _test_harvest_with_items() -> void:
 	Game.world = _fake_world

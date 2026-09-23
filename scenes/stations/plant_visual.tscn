@@ -71,8 +71,6 @@ unique_name_in_owner = true
 visible = false
 outline_width = 0.01
 
-[node name="BudTop" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready/Buds"]
-
 [node name="DryIndicator" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
 unique_name_in_owner = true

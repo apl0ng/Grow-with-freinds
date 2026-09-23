@@ -15,6 +15,26 @@ extends CharacterBody3D
 ## toward those values in _process (snaps if more than SNAP_DISTANCE away), so global_position of a remote
 ## player is always a smooth, current-ish value (used by server-side range checks and held items).
 ## Players process before items (process priority -10) so held items read up-to-date socket transforms.
+##
+## First-person view model (LOCAL player only, built at runtime in _ready as the child "ViewModel"):
+##   ViewModel (CanvasLayer, layer VIEW_MODEL_CANVAS_LAYER = -1: above the 3D world, below the HUD on layer 1)
+##   ├─ Viewport (SubViewport: same World3D, transparent, sized/antialiased like the main viewport)
+##   │  └─ Camera (Camera3D, cull mask = VIEW_MODEL_LAYER only, copies %Camera every frame)
+##   └─ Screen (full-screen TextureRect, MOUSE_FILTER_IGNORE, premultiplied-alpha composite of Viewport)
+## An item held by the local player moves every GeometryInstance3D under it to render layer 10 (VIEW_MODEL_LAYER,
+## see Item._update_view_model), which %Camera's cull mask excludes: the world pass never draws it, the view-model
+## pass draws nothing else, so it can never clip into walls or stations. Remote players' items stay on their world
+## layers at %BodyHandSocket. Engine facts this relies on (checked in GL Compatibility and Forward+):
+##   * a camera's cull mask also culls LIGHTS whose `layers` miss it, so every light %Camera sees gets the
+##     view-model bit too (at spawn and for lights added later; removed again when this player leaves);
+##   * shadow casters are culled by the rendering camera's mask as well, so the held item casts no shadow into the
+##     world and receives none from it (only its own self-shadowing, in the tiny view-model pass): no double shadow
+##     rendering, and the view-model pass is cheap (positional shadow atlas 0, far plane VIEW_MODEL_FAR);
+##   * `transparent_bg` keeps the environment's background RGB, so the view-model camera uses a copy of the world
+##     Environment with a black background (and without per-viewport screen-space effects).
+## The SubViewport only renders while an item is registered (add_view_model_user); otherwise it is UPDATE_DISABLED
+## and the Screen is hidden. The held item calls sync_view_model() right after snapping to %HandSocket
+## (process priority 10), so camera and item always come from the same camera state within a frame.
 
 const STAND_HEIGHT: float = 1.8
 const CROUCH_HEIGHT: float = 1.2
@@ -37,6 +57,23 @@ const FACE_PITCH_FACTOR: float = 0.35
 ## up to the item held at %BodyHandSocket, and both swing a little while walking.
 const HOLD_ARM_ROTATION := Vector3(0.86, 0.11, 0.0)
 const ARM_SWING: float = 0.3
+## Render layer 10 ("view model", bit value 512): the LOCAL player's held item is drawn only on this layer, by the
+## view-model pass. %Camera's cull mask excludes it (player.tscn + enforced in _ready).
+const VIEW_MODEL_LAYER: int = 1 << 9
+## Render layer an item's meshes use in the world (VisualInstance3D default); lights that light it light the view model.
+const WORLD_RENDER_LAYER: int = 1
+## Canvas layer of the view-model composite: above the 3D world, below the HUD (1), the ShopUI (5) and overlays.
+const VIEW_MODEL_CANVAS_LAYER: int = -1
+## View-model camera clip planes (metres). Held items sit about 0.4-1.3 m from the eye.
+const VIEW_MODEL_NEAR: float = 0.01
+const VIEW_MODEL_FAR: float = 4.0
+## Meta on a Light3D this player shared with the view model: [original layers, original light_cull_mask].
+const META_VIEW_MODEL_LIGHT: StringName = &"view_model_light"
+
+## LOCAL player only: draw the held item in the first-person view model so it never clips into walls or stations.
+## false puts held items back into the world pass (the old, clipping behaviour; e.g. for before/after captures).
+var view_model_enabled: bool = true:
+	set = set_view_model_enabled
 
 var peer_id: int = 1
 var display_name: String = "Player"
@@ -83,6 +120,17 @@ var _last_visual_pos: Vector3 = Vector3.ZERO
 var _hold_blend: float = 0.0
 var _holding: bool = false
 var _hold_check_left: float = 0.0
+# First-person view model (local player only; see the header).
+var _view_model: CanvasLayer = null
+var _view_model_viewport: SubViewport = null
+var _view_model_camera: Camera3D = null
+var _view_model_screen: TextureRect = null
+var _view_model_users: Dictionary = {}          # instance id -> WeakRef (items drawn in the view model)
+var _view_model_active: bool = false            # the SubViewport renders (someone is registered)
+var _view_model_closing: bool = false           # leaving the tree: uses_view_model() is false from now on
+var _view_model_env_source: Environment = null  # the Environment the view-model copy was made from
+var _view_model_env_ready: bool = false
+var _view_model_lights: Array[WeakRef] = []     # lights this player added the view-model bit to
 
 func _enter_tree() -> void:
 	var id := str(name).to_int()
@@ -91,6 +139,23 @@ func _enter_tree() -> void:
 		set_multiplayer_authority(id, true)
 	_is_local_cache = 1 if peer_id == multiplayer.get_unique_id() else 0
 	add_to_group(Const.GROUP_PLAYERS)
+	if _view_model != null:
+		# Re-entering the tree (never done by the game, but keep the view model consistent if it happens).
+		_view_model_closing = false
+		_share_lights_with_view_model()
+
+func _exit_tree() -> void:
+	if _view_model == null:
+		return
+	# Held items leave the view model (their layers go back to the world ones) before this player is gone, and the
+	# lights lose the view-model bit again. The ViewModel nodes themselves are children: freed with the player.
+	_view_model_closing = true
+	for item in _get_view_model_users():
+		if item.has_method(&"refresh_view_model"):
+			item.call(&"refresh_view_model")
+	_view_model_users.clear()
+	_set_view_model_active(false)
+	_unshare_lights_with_view_model()
 
 func _ready() -> void:
 	process_priority = -10
@@ -111,6 +176,7 @@ func _ready() -> void:
 		# Hide our own body from our camera but keep its shadow.
 		for gi in visual.find_children("*", "GeometryInstance3D", true, false):
 			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		_build_view_model()
 	else:
 		camera.current = false
 		if _has_net_state:
@@ -149,6 +215,121 @@ func get_held_item() -> Item:
 
 func get_interactor() -> Interactor:
 	return get_node_or_null("%Interactor") as Interactor
+
+## True if items held by this player should draw in the first-person view model (local player, view model built
+## and enabled, player in the tree). Items poll this every frame while held (Item._update_view_model).
+func uses_view_model() -> bool:
+	return view_model_enabled and _view_model != null and not _view_model_closing and is_inside_tree() \
+			and not is_queued_for_deletion()
+
+## The view-model SubViewport (ViewModel/Viewport), or null (remote players have none).
+func get_view_model_viewport() -> SubViewport:
+	return _view_model_viewport
+
+## The view-model camera (ViewModel/Viewport/Camera), or null.
+func get_view_model_camera() -> Camera3D:
+	return _view_model_camera
+
+## True while the view-model pass renders (an item is registered and the view model is enabled).
+func is_view_model_active() -> bool:
+	return _view_model_active
+
+## Nodes currently drawn in this player's view model (normally the one held item).
+func get_view_model_users() -> Array[Node]:
+	return _get_view_model_users()
+
+## Called by an item when it moved its meshes to VIEW_MODEL_LAYER for this player: the view-model pass renders.
+func add_view_model_user(user: Node) -> void:
+	if user == null or _view_model == null:
+		return
+	_view_model_users[user.get_instance_id()] = weakref(user)
+	_refresh_view_model_active()
+	sync_view_model()
+
+## Called by an item when it went back to its world layers (dropped, handed over, freed).
+func remove_view_model_user(user: Node) -> void:
+	if user == null:
+		return
+	_view_model_users.erase(user.get_instance_id())
+	_refresh_view_model_active()
+
+## Copies %Camera (transform + projection) into the view-model camera and keeps the view-model Environment current.
+## Held items call this right after they snapped to %HandSocket, so both come from the same camera state.
+func sync_view_model() -> void:
+	if _view_model_camera == null or not is_instance_valid(_view_model_camera):
+		return
+	var vm := _view_model_camera
+	if camera.is_inside_tree() and vm.is_inside_tree():
+		vm.global_transform = camera.global_transform
+	if vm.projection != camera.projection:
+		vm.projection = camera.projection
+	if vm.fov != camera.fov:
+		vm.fov = camera.fov
+	if vm.size != camera.size:
+		vm.size = camera.size
+	if vm.keep_aspect != camera.keep_aspect:
+		vm.keep_aspect = camera.keep_aspect
+	if vm.h_offset != camera.h_offset:
+		vm.h_offset = camera.h_offset
+	if vm.v_offset != camera.v_offset:
+		vm.v_offset = camera.v_offset
+	if vm.frustum_offset != camera.frustum_offset:
+		vm.frustum_offset = camera.frustum_offset
+	if vm.attributes != camera.attributes:
+		vm.attributes = camera.attributes
+	var src := _view_model_environment_source()
+	if not _view_model_env_ready or src != _view_model_env_source:
+		_view_model_env_source = src
+		_view_model_env_ready = true
+		vm.environment = make_view_model_environment(src)
+
+## Rebuilds the view-model Environment from the world's (call after changing the world Environment's properties
+## at runtime; swapping the Environment resource itself is picked up automatically).
+func refresh_view_model_environment() -> void:
+	_view_model_env_ready = false
+	sync_view_model()
+
+func set_view_model_enabled(value: bool) -> void:
+	if view_model_enabled == value:
+		return
+	view_model_enabled = value
+	if _view_model == null:
+		return
+	if not value:
+		for item in _get_view_model_users():
+			if item.has_method(&"refresh_view_model"):
+				item.call(&"refresh_view_model")
+		_view_model_users.clear()
+	_refresh_view_model_active()
+
+## The view-model camera's Environment: a copy of `source` (the world's) with a black background, so the
+## transparent SubViewport clears to (0, 0, 0, 0) and composites as premultiplied alpha, and without the effects
+## that are per viewport and pointless (or wrong) on a transparent overlay: SSAO, SSIL, SSR, SDFGI, glow,
+## volumetric fog. Ambient light taken from the background is converted so the item stays lit the same way.
+static func make_view_model_environment(source: Environment) -> Environment:
+	var env: Environment = source.duplicate() as Environment if source != null else Environment.new()
+	if source != null and source.ambient_light_source == Environment.AMBIENT_SOURCE_BG:
+		match source.background_mode:
+			Environment.BG_SKY:
+				env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+			Environment.BG_COLOR:
+				env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+				env.ambient_light_color = source.background_color
+			Environment.BG_CLEAR_COLOR:
+				env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+				env.ambient_light_color = RenderingServer.get_default_clear_color()
+	if source != null and source.reflected_light_source == Environment.REFLECTION_SOURCE_BG \
+			and source.background_mode == Environment.BG_SKY:
+		env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.0, 0.0, 0.0, 0.0)
+	env.ssao_enabled = false
+	env.ssil_enabled = false
+	env.ssr_enabled = false
+	env.sdfgi_enabled = false
+	env.glow_enabled = false
+	env.volumetric_fog_enabled = false
+	return env
 
 ## Where this player is looking (camera forward), any peer.
 func get_look_direction() -> Vector3:
@@ -243,6 +424,11 @@ func _process(delta: float) -> void:
 		_apply_crouch_visuals()
 	if not is_local():
 		_animate_body(delta)
+	elif _view_model != null:
+		_refresh_view_model_active()
+		if _view_model_active:
+			_match_view_model_viewport()
+			sync_view_model()
 
 func _input_enabled() -> bool:
 	return not Game.is_ui_locked()
@@ -373,3 +559,166 @@ func _on_players_changed() -> void:
 		display_name = new_name
 		player_color = new_color
 		_apply_appearance()
+
+# --- First-person view model (local player only) ----------------------------------------------------------------
+
+func _build_view_model() -> void:
+	if _view_model != null:
+		return
+	camera.cull_mask &= ~VIEW_MODEL_LAYER
+	_view_model = CanvasLayer.new()
+	_view_model.name = "ViewModel"
+	_view_model.layer = VIEW_MODEL_CANVAS_LAYER
+	_view_model_viewport = SubViewport.new()
+	_view_model_viewport.name = "Viewport"
+	_view_model_viewport.own_world_3d = false # render THIS world (lights, environment, items)
+	_view_model_viewport.transparent_bg = true
+	_view_model_viewport.render_target_clear_mode = SubViewport.CLEAR_MODE_ALWAYS
+	_view_model_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_view_model_viewport.positional_shadow_atlas_size = 0 # no omni/spot shadow atlas for a hand-held item
+	_view_model_viewport.audio_listener_enable_3d = false
+	_view_model_viewport.gui_disable_input = true
+	_view_model_camera = Camera3D.new()
+	_view_model_camera.name = "Camera"
+	_view_model_camera.cull_mask = VIEW_MODEL_LAYER
+	_view_model_camera.near = VIEW_MODEL_NEAR
+	_view_model_camera.far = VIEW_MODEL_FAR
+	_view_model_camera.fov = camera.fov
+	_view_model_viewport.add_child(_view_model_camera)
+	_view_model.add_child(_view_model_viewport)
+	_view_model_screen = TextureRect.new()
+	_view_model_screen.name = "Screen"
+	_view_model_screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_view_model_screen.focus_mode = Control.FOCUS_NONE
+	_view_model_screen.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_view_model_screen.stretch_mode = TextureRect.STRETCH_SCALE
+	_view_model_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var composite := CanvasItemMaterial.new()
+	composite.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
+	_view_model_screen.material = composite
+	_view_model_screen.visible = false
+	_view_model.add_child(_view_model_screen)
+	add_child(_view_model)
+	_view_model_camera.current = true # current in the SubViewport only; %Camera stays current in the main one
+	_view_model_screen.texture = _view_model_viewport.get_texture()
+	_match_view_model_viewport()
+	sync_view_model()
+	_share_lights_with_view_model()
+
+func _get_view_model_users() -> Array[Node]:
+	var out: Array[Node] = []
+	for id: int in _view_model_users.keys():
+		var node := (_view_model_users[id] as WeakRef).get_ref() as Node
+		if node == null or not is_instance_valid(node) or node.is_queued_for_deletion():
+			_view_model_users.erase(id)
+		else:
+			out.append(node)
+	return out
+
+func _refresh_view_model_active() -> void:
+	var active := uses_view_model() and not _get_view_model_users().is_empty()
+	_set_view_model_active(active)
+
+func _set_view_model_active(active: bool) -> void:
+	if _view_model_viewport == null or not is_instance_valid(_view_model_viewport):
+		_view_model_active = false
+		return
+	if active == _view_model_active:
+		return
+	_view_model_active = active
+	if active:
+		_match_view_model_viewport()
+	_view_model_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if active else SubViewport.UPDATE_DISABLED
+	_view_model_screen.visible = active
+
+## The view-model SubViewport renders at the main viewport's 3D resolution with its antialiasing / scaling
+## settings (checked every frame while active: window resizes, graphics option changes).
+func _match_view_model_viewport() -> void:
+	var sv := _view_model_viewport
+	var main := get_viewport()
+	if sv == null or main == null or main == sv:
+		return
+	var want := _main_render_size(main)
+	if sv.size != want:
+		sv.size = want
+	if sv.msaa_3d != main.msaa_3d:
+		sv.msaa_3d = main.msaa_3d
+	if sv.screen_space_aa != main.screen_space_aa:
+		sv.screen_space_aa = main.screen_space_aa
+	if sv.scaling_3d_mode != main.scaling_3d_mode:
+		sv.scaling_3d_mode = main.scaling_3d_mode
+	if sv.scaling_3d_scale != main.scaling_3d_scale:
+		sv.scaling_3d_scale = main.scaling_3d_scale
+	if sv.fsr_sharpness != main.fsr_sharpness:
+		sv.fsr_sharpness = main.fsr_sharpness
+	if sv.texture_mipmap_bias != main.texture_mipmap_bias:
+		sv.texture_mipmap_bias = main.texture_mipmap_bias
+	if sv.anisotropic_filtering_level != main.anisotropic_filtering_level:
+		sv.anisotropic_filtering_level = main.anisotropic_filtering_level
+	if sv.mesh_lod_threshold != main.mesh_lod_threshold:
+		sv.mesh_lod_threshold = main.mesh_lod_threshold
+	if sv.use_debanding != main.use_debanding:
+		sv.use_debanding = main.use_debanding
+
+## Pixel size the main viewport renders 3D at: the window size (stretch mode canvas_items / disabled), the base
+## size (stretch mode viewport), or a parent SubViewport's size.
+static func _main_render_size(main: Viewport) -> Vector2i:
+	var size := Vector2i.ONE
+	var window := main as Window
+	if window != null:
+		if window.content_scale_mode == Window.CONTENT_SCALE_MODE_VIEWPORT:
+			size = Vector2i(main.get_visible_rect().size)
+		else:
+			size = window.size
+	elif main is SubViewport:
+		size = (main as SubViewport).size
+	else:
+		size = Vector2i(main.get_visible_rect().size)
+	return size.max(Vector2i.ONE)
+
+func _view_model_environment_source() -> Environment:
+	if camera.environment != null:
+		return camera.environment
+	var w := get_world_3d() if is_inside_tree() else null
+	if w == null:
+		return null
+	return w.environment if w.environment != null else w.fallback_environment
+
+## Every light %Camera sees also lights the view model (a camera's cull mask culls lights by their `layers`).
+func _share_lights_with_view_model() -> void:
+	if not is_inside_tree():
+		return
+	for n in get_tree().root.find_children("*", "Light3D", true, false):
+		_share_light(n as Light3D)
+	if not get_tree().node_added.is_connected(_on_tree_node_added):
+		get_tree().node_added.connect(_on_tree_node_added)
+
+func _share_light(light: Light3D) -> void:
+	if light == null or light.has_meta(META_VIEW_MODEL_LIGHT) or not light.is_inside_tree():
+		return
+	if light.get_world_3d() != get_world_3d() or (light.layers & camera.cull_mask) == 0:
+		return # another world, or a light the player's camera does not see anyway
+	light.set_meta(META_VIEW_MODEL_LIGHT, [light.layers, light.light_cull_mask])
+	light.layers |= VIEW_MODEL_LAYER
+	if (light.light_cull_mask & WORLD_RENDER_LAYER) != 0:
+		light.light_cull_mask |= VIEW_MODEL_LAYER
+	_view_model_lights.append(weakref(light))
+
+func _unshare_lights_with_view_model() -> void:
+	if is_inside_tree() and get_tree().node_added.is_connected(_on_tree_node_added):
+		get_tree().node_added.disconnect(_on_tree_node_added)
+	for ref in _view_model_lights:
+		var light := ref.get_ref() as Light3D
+		if light == null or not is_instance_valid(light) or not light.has_meta(META_VIEW_MODEL_LIGHT):
+			continue
+		var original: Array = light.get_meta(META_VIEW_MODEL_LIGHT)
+		light.remove_meta(META_VIEW_MODEL_LIGHT)
+		if (int(original[0]) & VIEW_MODEL_LAYER) == 0:
+			light.layers &= ~VIEW_MODEL_LAYER
+		if (int(original[1]) & VIEW_MODEL_LAYER) == 0:
+			light.light_cull_mask &= ~VIEW_MODEL_LAYER
+	_view_model_lights.clear()
+
+func _on_tree_node_added(node: Node) -> void:
+	if node is Light3D and not _view_model_closing:
+		_share_light(node as Light3D)

@@ -15,11 +15,21 @@ extends Interactable
 ## station placing a spawned can) is mirrored into the rest values the next frame, so it still replicates.
 ## Remote values arrive through the property setters (before _ready for the spawn state), so every setter here is
 ## idempotent, never calls rpc() and only plays effects once the node is ready (not for the initial spawn values).
+##
+## First-person view model: while the LOCAL player (on this peer) holds the item, every GeometryInstance3D under it
+## (meshes, Toonify outline hulls, Label3Ds) is moved to render layer Player.VIEW_MODEL_LAYER, which only that
+## player's view-model pass draws (see Player), so the item never clips into walls or stations. The world layers
+## are stored per node (meta META_WORLD_LAYERS) and restored when the item is dropped, handed to a remote player,
+## loses its holder or leaves the tree. Re-evaluated every frame while held (_follow_holder), so an item that
+## arrives before its local holder spawned (late join) or a view model switched off/on is handled too.
 
 ## Emitted on every peer when the holder changes after the item spawned (0 = on the floor).
 signal holder_changed(old_holder: int, new_holder: int)
 ## Emitted on every peer when a type-specific synced value (charges, strain, amount) changes after spawn.
 signal props_changed
+
+## Meta on each GeometryInstance3D moved into the view model: its world render layers (restored on the way out).
+const META_WORLD_LAYERS: StringName = &"item_world_layers"
 
 ## One of Const.ITEM_* values. Set by the item scene.
 @export var item_type: StringName = &"item"
@@ -46,6 +56,8 @@ var _hidden_without_holder: bool = false
 ## Cached in _ready: items always belong to the server and never change authority. Caching avoids querying the
 ## multiplayer peer every frame (errors spam if the ENet peer is already closed, e.g. the host just quit).
 var _is_authority: bool = false
+## Instance id of the local Player whose view model draws this item (0 = drawn in the world like any node).
+var _view_model_owner_id: int = 0
 
 func _enter_tree() -> void:
 	super()
@@ -67,6 +79,7 @@ func _ready() -> void:
 		mgr._on_item_ready(self)
 
 func _exit_tree() -> void:
+	_update_view_model(null)
 	var mgr := get_parent() as ItemManager
 	if mgr != null:
 		mgr._on_item_exiting(self)
@@ -97,6 +110,16 @@ func get_label_text() -> String:
 
 func is_held() -> bool:
 	return holder_id != 0
+
+## True while this item is drawn in the local player's first-person view model (render layer
+## Player.VIEW_MODEL_LAYER) instead of the world.
+func is_in_view_model() -> bool:
+	return _view_model_owner_id != 0
+
+## Re-evaluates the view-model state right away (it is re-evaluated every frame while held anyway). The Player calls
+## this when its view model is switched off or goes away.
+func refresh_view_model() -> void:
+	_update_view_model(get_holder() if holder_id != 0 and is_inside_tree() else null)
 
 ## The holding Player node on this peer, or null (on the floor, or the Player has not replicated here yet).
 func get_holder() -> Player:
@@ -196,6 +219,7 @@ func _set_holder_id(value: int) -> void:
 	_holder = null
 	_update_collision()
 	if value == 0:
+		_update_view_model(null)
 		_apply_rest_transform()
 		_set_hidden_without_holder(false)
 	elif is_inside_tree():
@@ -239,14 +263,53 @@ func _follow_holder() -> void:
 	if holder == null:
 		# The holder's Player has not replicated to this peer yet (or just left): hide instead of floating.
 		_set_hidden_without_holder(true)
+		_update_view_model(null)
 		return
 	_set_hidden_without_holder(false)
+	_update_view_model(holder)
 	var socket := holder.get_item_socket()
 	if socket == null or not socket.is_inside_tree():
 		socket = holder
 	var own_scale := scale
 	global_transform = socket.global_transform * _get_hold_transform()
 	scale = own_scale
+	if _view_model_owner_id != 0:
+		# Same instant, same camera state: the view-model camera copies %Camera right after the item snapped to it.
+		holder.sync_view_model()
+
+## Moves the item into `holder`'s view model if that is the local player with a view model, else back into the
+## world. Cheap when nothing changes (called every frame while held).
+func _update_view_model(holder: Player) -> void:
+	var target: Player = holder if holder != null and holder.uses_view_model() else null
+	var target_id := target.get_instance_id() if target != null else 0
+	if target_id == _view_model_owner_id:
+		return
+	var previous: Player = null
+	if _view_model_owner_id != 0:
+		previous = instance_from_id(_view_model_owner_id) as Player
+	_view_model_owner_id = target_id
+	_apply_view_model_layers(target != null)
+	if previous != null and is_instance_valid(previous):
+		previous.remove_view_model_user(self)
+	if target != null:
+		target.add_view_model_user(self)
+
+## on: every GeometryInstance3D below (internal Toonify outline hulls and Label3Ds included) renders on
+## Player.VIEW_MODEL_LAYER only; off: back to the stored world layers. A node created while in the view model (a
+## rebuilt outline hull copies its mesh's layers) has no stored value and gets the view-model bit stripped.
+func _apply_view_model_layers(on: bool) -> void:
+	for n in find_children("*", "GeometryInstance3D", true, false):
+		var gi := n as GeometryInstance3D
+		if on:
+			if not gi.has_meta(META_WORLD_LAYERS):
+				gi.set_meta(META_WORLD_LAYERS, gi.layers)
+			gi.layers = Player.VIEW_MODEL_LAYER
+		elif gi.has_meta(META_WORLD_LAYERS):
+			gi.layers = int(gi.get_meta(META_WORLD_LAYERS))
+			gi.remove_meta(META_WORLD_LAYERS)
+		elif (gi.layers & Player.VIEW_MODEL_LAYER) != 0:
+			var rest := gi.layers & ~Player.VIEW_MODEL_LAYER
+			gi.layers = rest if rest != 0 else Player.WORLD_RENDER_LAYER
 
 func _get_hold_transform() -> Transform3D:
 	var euler := Vector3(deg_to_rad(hold_rotation_degrees.x), deg_to_rad(hold_rotation_degrees.y),

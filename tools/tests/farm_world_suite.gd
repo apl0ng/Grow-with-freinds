@@ -3,6 +3,8 @@ extends Node
 ## Hosts a real session (Game.start_host -> World/Room/ItemManager/items/Player) and plays the farming loop
 ## through the public Interactable.interact() path (local check -> RPC to the server -> distance +
 ## can_interact validation -> _server_interact): starting cans, plant, water, refill, grow, harvest, reset.
+## In the real room the player's own camera + Interactor ray (eye height 1.6 m, 2.5 m from the plot, down the
+## aisle) targets the READY plant at its top cola and side leaves, and the EMPTY plot by its tray only.
 
 ## Emitted once with the number of failed checks.
 signal finished(failures: int)
@@ -89,6 +91,7 @@ func run() -> void:
 	var water_at_ready := plot.water
 	await _frames(20)
 	_check(plot.water == water_at_ready and plot.stage == GrowPlot.Stage.READY, "READY plant stops drinking")
+	await _check_ready_targeting(player, plot)
 
 	# --- harvest
 	_stand_at(player, plot)
@@ -103,6 +106,7 @@ func run() -> void:
 		and int(product.get(&"amount")) == Config.balance.get_seed(&"budget").yield_amount,
 		"harvest puts a Budget Bud product (amount = yield) in the player's hands")
 	_check(plot.stage == GrowPlot.Stage.EMPTY and plot.strain_id == &"", "plot is EMPTY after the harvest")
+	await _check_empty_targeting(player, plot)
 
 	# --- full game reset: plots cleared, cans back at the well
 	plot2.server_plant(&"purple")
@@ -124,6 +128,65 @@ func run() -> void:
 		reset_ok = reset_ok and near and not c.is_held() and int(c.get(&"charges")) == GameState.get_can_capacity()
 	_check(reset_ok, "GameState.game_reset puts every watering can back at the well, full", "%d cans" % cans.size())
 	_finish()
+
+## Plot-local directions (local +Z = the plot's front, towards the gate) of free floor spots EYE_DISTANCE m from
+## GrowPlot1 inside the fenced grow area: the aisle in front of the plot column (by the gate) and the aisle
+## between the two plot columns, clear of the neighbouring trays. From outside the fence the fence blocks.
+const AISLE_SPOTS := {"front aisle": Vector3(2.07, 0.0, 1.4), "middle aisle": Vector3(2.135, 0.0, -1.3)}
+const EYE_DISTANCE := 2.5
+
+## Stands the player with its eye EYE_DISTANCE m (horizontally) from the plot along `local_dir`, looks at
+## `target` and returns what the real Interactor ray targets now.
+func _look_from(player: Player, plot: GrowPlot, local_dir: Vector3, target: Vector3) -> Interactable:
+	player.global_position = plot.global_position + plot.global_basis * (local_dir.normalized() * EYE_DISTANCE)
+	player.velocity = Vector3.ZERO
+	var eye := (player.get_node(^"%Camera") as Camera3D).global_position
+	var d := (target - eye).normalized()
+	player.rotation.y = atan2(-d.x, -d.z)
+	player.head.rotation.x = asin(d.y)
+	var interactor := player.get_interactor()
+	interactor.refresh()
+	return interactor.current_target
+
+func _check_ready_targeting(player: Player, plot: GrowPlot) -> void:
+	await get_tree().create_timer(0.5).timeout   # the READY pop-in / bounce settle
+	var ready := plot.get_node("Plant/Tilt/Bouncer/Grow/Ready") as Node3D
+	var box := AABB()
+	var first := true
+	for mi: MeshInstance3D in ready.find_children("*", "MeshInstance3D", true, false):
+		if mi.has_meta(&"toonify_outline") or mi.mesh == null or not mi.is_visible_in_tree():
+			continue
+		var b: AABB = plot.global_transform.affine_inverse() * mi.global_transform * mi.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	var xf := plot.global_transform
+	var leaf_y := box.position.y + box.size.y * 0.45
+	var misses: PackedStringArray = []
+	var eye_y := 0.0
+	for spot: String in AISLE_SPOTS:
+		for what: String in ["cola top", "left leaves", "right leaves"]:
+			var local: Vector3 = {"cola top": Vector3(0.0, box.end.y - 0.04, 0.0),
+				"left leaves": Vector3(box.position.x + 0.05, leaf_y, 0.0), "right leaves": Vector3(box.end.x - 0.05, leaf_y, 0.0)}[what]
+			var got := _look_from(player, plot, AISLE_SPOTS[spot], xf * local)
+			eye_y = (player.get_node(^"%Camera") as Camera3D).global_position.y
+			if got != plot:
+				misses.append("%s, %s -> %s" % [spot, what, got.name if got != null else "nothing"])
+	_check(misses.is_empty() and absf(eye_y - 1.6) < 0.05, "real room: the player's Interactor ray (eye %.2f m, %.1f m away, both aisles) targets the READY plant at its top cola (%.2f m) and side leaves" % [
+		eye_y, EYE_DISTANCE, box.end.y], ", ".join(misses))
+
+func _check_empty_targeting(player: Player, plot: GrowPlot) -> void:
+	for i in 3:
+		await get_tree().physics_frame   # the plant hitbox is switched off deferred
+	var shape := plot.get_node("Body/PlantShape") as CollisionShape3D
+	var xf := plot.global_transform
+	var bad: PackedStringArray = []
+	for spot: String in AISLE_SPOTS:
+		var tray := _look_from(player, plot, AISLE_SPOTS[spot], xf * Vector3(0.0, 0.45, 0.0))
+		var above := _look_from(player, plot, AISLE_SPOTS[spot], xf * Vector3(0.0, 1.5, 0.0))
+		if tray != plot or above == plot:
+			bad.append("%s: tray -> %s, where the cola was -> %s" % [spot, tray.name if tray else "nothing", above.name if above else "nothing"])
+	_check(shape.disabled and bad.is_empty(), "real room: an EMPTY plot is targeted by its tray only (plant hitbox off)",
+		"disabled %s; %s" % [shape.disabled, ", ".join(bad)])
 
 func _cans(items: ItemManager) -> Array[Item]:
 	var out: Array[Item] = []

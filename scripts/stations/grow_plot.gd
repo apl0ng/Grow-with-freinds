@@ -17,8 +17,11 @@ extends Interactable
 ## Sync ($Sync, server authority): strain_id + stage ON_CHANGE (reliable, instant),
 ## water + stage_progress ALWAYS every 0.1 s (unreliable, bandwidth-limited). Every property has a
 ## setter that refreshes visuals, so the host and clients run the same idempotent presentation code.
-## One-shot effects (sounds, bursts, pops) only fire for natural transitions and are muted on a client
-## until its first sync has settled, so a late joiner does not hear six plots "grow" at once.
+## One-shot effects (sounds, bursts, pops, the wilt crossfade) only fire for natural transitions and are muted
+## on a client until its first sync has settled, so a late joiner does not hear six plots "grow" at once and
+## sees every plant in its synced state straight away.
+## Strain colour: the plant grades SeedDef.color (Toon.grade) for its buds and the tag card shares that exact
+## material (PlantVisual.get_tint_material()); Juice bursts get the raw colour because Juice mutes it itself.
 ##
 ## Items are accessed duck-typed (item_type + "charges"/"strain_id"/get_capacity()) so this file does
 ## not depend on the WateringCan / SeedPacket class names. See the static item helpers at the bottom.
@@ -35,7 +38,9 @@ const FX_SETTLE_MSEC := 600
 const DIRT_COLOR := Color(0.55, 0.36, 0.2)
 const LEAF_BURST_COLOR := Color(0.35, 0.8, 0.35)
 const WATER_BURST_COLOR := Color(0.35, 0.75, 1.0)
-const SPARKLE_COLOR := Color(1.0, 0.95, 0.55)
+## READY: a small grey puff and one low ding (STYLE.md "Mood & tone": no sparkles, no "Ready" text).
+const READY_PUFF_COUNT := 4
+const HARVEST_BURST_COUNT := 10
 const SOIL_MATERIAL: Material = preload("res://art/materials/toon_soil.tres")
 const SOIL_WET_MATERIAL: Material = preload("res://art/materials/toon_soil_wet.tres")
 
@@ -94,7 +99,6 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	_setup_soil_material()
-	_tag_card.material_override = _plant.get_tint_material()
 	_sync.synchronized.connect(_on_synced)
 	_sync.delta_synchronized.connect(_on_synced)
 	# Full game reset (RETRY after a game over): clear the plot.
@@ -335,13 +339,13 @@ func _check_server(what: StringName) -> bool:
 # Presentation (every peer; driven by the property setters)
 
 func _refresh_visuals() -> void:
-	_plant.set_tint(_tint_color())
+	_refresh_tint()
+	_update_dry(false)
 	_plant.set_stage(stage, false)
 	_plant.set_growth(stage_progress)
 	_tag.visible = stage != Stage.EMPTY
 	_update_collision()
 	_update_water_visuals()
-	_update_dry(false)
 
 func _on_stage_changed(old: Stage) -> void:
 	if not is_node_ready():
@@ -350,6 +354,9 @@ func _on_stage_changed(old: Stage) -> void:
 	var natural_growth := old >= Stage.SEEDLING and old < Stage.READY and stage == old + 1
 	var planted := old == Stage.EMPTY and stage == Stage.SEEDLING
 	var harvested := old == Stage.READY and stage == Stage.EMPTY
+	# Wilt state first: while no plant is on screen (planting) PlantVisual snaps it, so a seedling planted in
+	# dry soil pops in already wilted instead of crossfading; a live change on a shown plant crossfades.
+	_update_dry(fx)
 	_plant.set_stage(stage, fx and (planted or natural_growth))
 	# A new stage always starts at progress 0. Clients get `stage` (reliable) before the next 0.1 s
 	# progress update, so do not size the new model with the previous stage's ~1.0 progress.
@@ -358,7 +365,6 @@ func _on_stage_changed(old: Stage) -> void:
 	if fx and planted:
 		Juice.pop_in(_tag)
 	_update_collision()
-	_update_dry(fx)
 	if not fx:
 		return
 	var sound_pos := global_position + Vector3.UP * 0.6
@@ -366,22 +372,25 @@ func _on_stage_changed(old: Stage) -> void:
 		Sfx.play(&"plant", sound_pos)
 		juice_fx(&"puff", _soil_top(), DIRT_COLOR, 10)
 	elif natural_growth:
-		Sfx.play(&"grow", sound_pos)
 		_plant.bounce(0.15)
 		if stage == Stage.READY:
-			var top := _plant.get_top_global_position()
-			Juice.burst(top, _tint_color(), 18)
-			juice_fx(&"sparkle", top, SPARKLE_COLOR, 12)
-			Juice.float_text(top + Vector3.UP * 0.25, "Ready", SPARKLE_COLOR)
+			Sfx.play(&"ready", sound_pos)
+			juice_fx(&"puff", _plant.get_top_global_position(), Juice.GLOOM, READY_PUFF_COUNT)
 		else:
+			Sfx.play(&"grow", sound_pos)
 			Juice.burst(_plant.get_top_global_position(), LEAF_BURST_COLOR, 8)
 	elif harvested:
 		Sfx.play(&"harvest", sound_pos)
-		Juice.burst(_soil_top() + Vector3.UP * 0.4, _tint_color(), 16)
+		Juice.burst(_soil_top() + Vector3.UP * 0.4, _tint_color(), HARVEST_BURST_COUNT)
 
 func _on_strain_changed() -> void:
 	if is_node_ready():
-		_plant.set_tint(_tint_color())
+		_refresh_tint()
+
+## Plant tint + the tag card, which shares the buds' graded strain material (a new tint is a new material).
+func _refresh_tint() -> void:
+	_plant.set_tint(_tint_color())
+	_tag_card.material_override = _plant.get_tint_material()
 
 func _on_water_changed(old: float) -> void:
 	if not is_node_ready():
@@ -439,6 +448,7 @@ func _setup_soil_material() -> void:
 func _soil_top() -> Vector3:
 	return global_position + Vector3.UP * 0.52
 
+## Raw strain colour (PlantVisual grades it; Juice mutes it).
 func _tint_color() -> Color:
 	# Keep the last strain's colour when the strain is cleared so the harvest burst still matches it.
 	var s := get_seed()

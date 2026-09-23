@@ -55,12 +55,24 @@ autowrap_mode = 3
 [node name="ResumeButton" type="Button" parent="Center/Card/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
+focus_neighbor_left = NodePath(".")
+focus_neighbor_top = NodePath("../LeaveButton")
+focus_neighbor_right = NodePath(".")
+focus_neighbor_bottom = NodePath("../LeaveButton")
+focus_next = NodePath("../LeaveButton")
+focus_previous = NodePath("../LeaveButton")
 theme_type_variation = &"BigButton"
 text = "BACK TO WORK"
 
 [node name="LeaveButton" type="Button" parent="Center/Card/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
+focus_neighbor_left = NodePath(".")
+focus_neighbor_top = NodePath("../ResumeButton")
+focus_neighbor_right = NodePath(".")
+focus_neighbor_bottom = NodePath("../ResumeButton")
+focus_next = NodePath("../ResumeButton")
+focus_previous = NodePath("../ResumeButton")
 theme_type_variation = &"DangerButton"
 text = "CLOCK OUT (MAIN MENU)"
 
