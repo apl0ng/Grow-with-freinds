@@ -8,14 +8,14 @@
 
 .EXAMPLE
     .\launch.ps1                       # main menu
-    .\launch.ps1 -Host -Name Alice     # host straight away
+    .\launch.ps1 -HostGame -Name Alice # host straight away
     .\launch.ps1 -Join 192.168.1.20    # join a friend's game
     .\launch.ps1 -Players 2 -Fast      # two local windows (host + client) with fast growth, for testing
     .\launch.ps1 -Editor               # open the Godot editor on the project
 #>
 [CmdletBinding()]
 param(
-    [switch]$Host,                     # host a game immediately
+    [Alias("Serve")][switch]$HostGame, # host a game immediately ($Host is reserved in PowerShell)
     [string]$Join = "",                # join this IP (or ip:port) immediately
     [string]$Name = "",                # player name
     [int]$Port = 7777,
@@ -121,7 +121,7 @@ if ($Players -gt 1) {
 }
 
 $userArgs = @()
-if ($Host) { $userArgs += "--host" }
+if ($HostGame) { $userArgs += "--host" }
 elseif ($Join) {
     $target = $Join
     if ($target -match "^(.+):(\d+)$") { $target = $Matches[1]; $common += "--port=$($Matches[2])" }

@@ -10,7 +10,7 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 
 ## Run
 - Windows: double-click `launch.cmd` (or `.\launch.ps1` in PowerShell). It finds Godot 4.7.2 or offers to download
-  it into `tools\godot\`. Options: `-Host`, `-Join <ip>`, `-Name <name>`, `-Port`, `-Fast`, `-Players 2..4`
+  it into `tools\godot\`. Options: `-HostGame`, `-Join <ip>`, `-Name <name>`, `-Port`, `-Fast`, `-Players 2..4`
   (several local windows for testing), `-Editor`, `-Fullscreen`.
 - Any OS: open the folder in Godot 4.7.x and press Play. Host to play solo; friends join with your IP.
 - Two local instances: `godot --path . -- --host --name=Alice` and `godot --path . -- --join=127.0.0.1 --name=Bob`.
