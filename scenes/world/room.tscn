@@ -31,24 +31,7 @@
 [ext_resource type="PackedScene" path="res://scenes/stations/well.tscn" id="29_well"]
 [ext_resource type="PackedScene" path="res://scenes/stations/turn_in_station.tscn" id="30_turn_in_station"]
 [ext_resource type="PackedScene" path="res://scenes/stations/grow_plot.tscn" id="31_grow_plot"]
-
-[sub_resource type="Environment" id="Environment_room"]
-background_mode = 1
-background_color = Color(0.560784, 0.827451, 1, 1)
-ambient_light_source = 2
-ambient_light_color = Color(1, 0.941176, 0.901961, 1)
-ambient_light_energy = 0.6
-reflected_light_source = 1
-tonemap_mode = 0
-tonemap_exposure = 1
-glow_enabled = true
-glow_intensity = 0.3
-glow_bloom = 0
-glow_blend_mode = 1
-glow_hdr_threshold = 1
-adjustment_enabled = true
-adjustment_contrast = 1.03
-adjustment_saturation = 1.1
+[ext_resource type="Environment" path="res://art/env/toon_environment.tres" id="32_toon_environment"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_1"]
 size = Vector3(16.6, 0.2, 12.6)
@@ -269,13 +252,12 @@ rings = 4
 script = ExtResource("1_room")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_room")
+environment = ExtResource("32_toon_environment")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.866025, 0.409576, -0.286788, 0, 0.573576, 0.819152, 0.5, -0.709406, 0.496732, 0, 5, 0)
+transform = Transform3D(0.819152, -0.469846, 0.32899, 0, 0.573576, 0.819152, -0.573576, -0.67101, 0.469846, 0, 5, 0)
 light_color = Color(1, 0.945098, 0.839216, 1)
-light_energy = 0.6
-light_specular = 0.4
+light_energy = 0.5
 shadow_enabled = true
 shadow_opacity = 0.55
 shadow_blur = 1.5
@@ -286,22 +268,22 @@ directional_shadow_max_distance = 30
 
 [node name="CenterLampLight" type="OmniLight3D" parent="Lights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 1.8)
-light_color = Color(1, 0.85098, 0.658824, 1)
-light_energy = 0.6
+light_color = Color(1, 0.905882, 0.768627, 1)
+light_energy = 0.35
 light_specular = 0.2
-omni_range = 6.5
+omni_range = 7
 
 [node name="WellLampLight" type="OmniLight3D" parent="Lights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 2.5, 0)
-light_color = Color(1, 0.85098, 0.658824, 1)
-light_energy = 0.6
+light_color = Color(1, 0.905882, 0.768627, 1)
+light_energy = 0.35
 light_specular = 0.2
-omni_range = 6.5
+omni_range = 7
 
 [node name="GrowLightGlow" type="OmniLight3D" parent="Lights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.75, 2.55, 0)
 light_color = Color(1, 0.701961, 0.882353, 1)
-light_energy = 0.6
+light_energy = 0.3
 light_specular = 0.2
 omni_range = 4.5
 
