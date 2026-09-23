@@ -41,7 +41,12 @@ func leave() -> void
 func is_online() -> bool
 func get_player_name(peer_id: int) -> String
 func get_player_color(peer_id: int) -> Color
+signal peer_joined(peer_id); signal peer_rejected(reason)     # additions
+const PALETTE; func get_peer_ids() -> Array[int]; func sanitize_name(n) -> String
 ```
+Server slots = max_players + 1 so a 5th joiner gets "Server is full" instead of a timeout. Unregistered peers are dropped
+after 10 s; join attempts time out after 12 s. Names are made unique ("Bob 2"). Colors by join order:
+bubblegum #FF7EB6, sky #4DA8F7, sunshine #FFD23F, mint #33D1B0.
 Use `Net.is_host` for "am I the authority" in `_ready`-time code (before a client is connected,
 `multiplayer.is_server()` is misleadingly true). Inside RPC handlers `multiplayer.is_server()` is fine.
 
@@ -53,15 +58,19 @@ signal toast_requested(text: String, kind: StringName)   # kind: &"info" | &"err
 signal ui_lock_changed(locked: bool)
 var world: World                              # null in the menu
 var local_player: Player
-func start_host(player_name: String, port: int) -> void
-func start_join(ip: String, port: int, player_name: String) -> void
+func start_host(player_name: String, port: int) -> Error
+func start_join(ip: String, port: int, player_name: String) -> Error
 func return_to_menu(message: String = "") -> void   # any peer; disconnects and shows the menu (with message)
 func get_player(peer_id: int) -> Player
 func get_local_peer_id() -> int
 func toast(text: String, kind: StringName = &"info") -> void
 func set_ui_lock(source: StringName, locked: bool) -> void  # shop UI, pause menu, round-end screen
 func is_ui_locked() -> bool                                  # player ignores input + frees mouse while locked
+func is_ui_locked_by(source: StringName) -> bool; func refresh_mouse_mode() -> void
 ```
+`world_ready` / `local_player_spawned` are emitted deferred (end of frame) once the node is in the tree and `_ready` ran.
+`return_to_menu()` is deferred: Net.leave → GameState.reset_local → clear UI locks → remove Players → free World → menu.
+Game owns the mouse mode (captured only with a world and no UI lock).
 Order of operations: **host**: `Net.host()` → world instantiated → `world.server_spawn_player(1)`.
 **client**: world instantiated **first** → `Net.join()` → on `connected_to_server` the client registers
 name/color → server spawns its Player and sends full GameState. (World-before-connect guarantees the client's
@@ -82,6 +91,7 @@ var room: Room; var players_root: Node3D; var items: ItemManager
 func get_player(peer_id) -> Player; func get_players() -> Array[Player]
 func server_spawn_player(peer_id: int) -> Player     # uses room.get_spawn_transform(i)
 func server_despawn_player(peer_id: int) -> void
+func server_reset_player_positions() -> void          # addition; also an OverviewCamera node exists for screenshots
 ```
 Spawned nodes (players, items) are **never reparented** (the spawner would despawn them on clients).
 
@@ -107,6 +117,12 @@ func get_interactor() -> Interactor
 Required unique-named children: `%Camera`, `%HandSocket`, `%BodyHandSocket`, `%Interactor` (script
 scripts/interaction/interactor.gd), `%NameLabel` (Label3D). Local player hides its own body + label.
 Player input is ignored (and the mouse is released) while `Game.is_ui_locked()`.
+Additions: `spawn_index`, `place_at(xf)`, `server_teleport(pos)` (the ONLY way the server may move a client's player:
+plain position writes on the server are overwritten by the owner's sync), `respawn()`, `apply_look_input()`,
+`get_look_direction()`. Sync: owner writes `net_position/net_yaw/net_pitch` each physics tick, `$Sync` sends them
+unreliably ~30 Hz (always, so late joiners get them); remote peers smooth toward them (snap if > 3 m or on first packet).
+**Everything under a Player (Interactor included) has that peer's authority**: `@rpc("authority")` there can only be
+called by the owner; server→owner calls need `any_peer` + a sender check.
 
 ## Interactable (scripts/interaction/interactable.gd, LEAD-OWNED base class; read it)
 Subclasses override `get_prompt(player) -> String`, `can_interact(player) -> bool`,
