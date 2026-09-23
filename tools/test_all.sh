@@ -28,7 +28,7 @@ export GODOT="${GODOT:-godot}"
 LOGDIR="${TEST_ALL_LOGS:-$(mktemp -d -t test_all.XXXXXX)}"
 mkdir -p "$LOGDIR"
 
-ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
+ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test models_char_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
   qa_mouse_x11)
 
@@ -184,6 +184,7 @@ run_suite models_station_test 120 "" "${G[@]}" -s $TESTS/models_station_test.gd
 run_suite models_item_test 120 "" "${G[@]}" -s $TESTS/models_item_test.gd
 run_suite models_props_test 120 "" "${G[@]}" -s $TESTS/models_props_test.gd
 run_suite models_env_test 120 "" "${G[@]}" -s $TESTS/models_env_test.gd
+run_suite models_char_test 120 "" "${G[@]}" -s $TESTS/models_char_test.gd
 run_suite world_test      120 "" "${G[@]}" -s $TESTS/world_test.gd
 run_suite items_test      120 "" "${G[@]}" -s $TESTS/items_test.gd
 run_suite items_test_minimal 120 "" "${G[@]}" -s $TESTS/items_test.gd -- --minimal

@@ -267,7 +267,7 @@ All paths are relative to `scenes/`. ✅ = shipped (in `art/models/manifest.json
 | Model | Size | Scene | Notes |
 |---|---|---|---|
 | ⏳ `player` (character modeler, in progress) | 0.85 × 1.6 × 0.8 (collider capsule r 0.4 h 1.8) | `player/player.tscn` (replaces `Visual/BodyMesh`) | Bean (STYLE §9: capsule r 0.42 h 1.55), slouched 4°, body = `TINT` (player colour), feet `TINT` shade 0.75, wilted sprout (`leaf_dry`). Leave the front of the head clear for `face.tscn` at (0, 1.22, -0.4); keep `Face`, `%NameLabel`, sockets |
-| ⏳ `boss` (character modeler, in progress) | 1.2 × 2.1 × 1.4 | `world/shopkeeper_npc.tscn`, instanced **as** `Visual` | Rigged: `Torso` (origin at the floor) / `HeadPivot` / `EyeL`,`EyeR` / `LidL`,`LidR`; `Torso/ArmLeft/Hand__L/Cash/TopBill`; `Torso/ArmRight/Hand__R/Fingers/...`; `FootLeft`, `FootRight`. Round, heavy, scowling, fedora (`metal_dark`), cash stack (olive). The shop anchor already turns him to face the room |
+| ⏳ `boss` (character modeler, in progress) | 1.2 × 2.1 × 1.4 | `world/shopkeeper_npc.tscn`, instanced **as** `Visual` | Rigged: `Torso` (origin at the floor) / `HeadPivot` / `EyeLeft`,`EyeR` / `LidLeft`,`LidR`; `Torso/ArmLeft/Hand__L/Cash/TopBill`; `Torso/ArmRight/Hand__R/Fingers/...`; `FootLeft`, `FootRight`. Round, heavy, scowling, fedora (`metal_dark`), cash stack (olive). The shop anchor already turns him to face the room |
 
 **Stations** (`kind="station"`, front → Godot +Z towards the room, floor)
 

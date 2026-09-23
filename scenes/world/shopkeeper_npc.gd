@@ -25,7 +25,7 @@ extends Node3D
 @export var wave_radius: float = 3.2
 ## Lines barked at random while idle. Flat and joyless.
 @export var idle_lines: PackedStringArray = PackedStringArray([
-	"Tick tock.", "Back to work.", "You still owe me.", "No breaks.", "Sell more. Talk less.",
+	"Tick tock.", "Back to work.", "You still owe me.", "No breaks.", "Deposit more. Talk less.",
 ])
 @export var auto_bark: bool = true
 ## Seconds between idle barks (random in this range).

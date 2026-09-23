@@ -51,7 +51,7 @@
    2.042,
    1.324
   ],
-  "tris": 7988
+  "tris": 7828
  },
  "cable_tray_2m": {
   "front": "+z",
@@ -446,6 +446,71 @@
    0.324
   ],
   "tris": 1860
+ },
+ "plant_flowering": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_leaf",
+   "toon_olive",
+   "TINT_bud",
+   "toon_cream"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/plant.py",
+  "size": [
+   0.492,
+   0.905,
+   0.574
+  ],
+  "tris": 9906
+ },
+ "plant_seedling": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_lime"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/plant.py",
+  "size": [
+   0.174,
+   0.252,
+   0.189
+  ],
+  "tris": 992
+ },
+ "plant_seedling_dry": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_leaf_dry",
+   "toon_lime"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/plant.py",
+  "size": [
+   0.144,
+   0.141,
+   0.118
+  ],
+  "tris": 992
+ },
+ "plant_vegetative": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_leaf",
+   "toon_lime"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/plant.py",
+  "size": [
+   0.589,
+   0.652,
+   0.523
+  ],
+  "tris": 8474
  },
  "player": {
   "front": "-z",

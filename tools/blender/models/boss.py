@@ -1,7 +1,7 @@
 """boss: the shady Boss behind the supply cage (kind "character": front -> Godot -Z). Rigged: instanced AS
 `Visual` in scenes/world/shopkeeper_npc.tscn, so every path shopkeeper_npc.gd animates stays valid.
 
-1.24 x 2.04 x 1.32 m (W x H x D, Godot, arms reaching forward), floor mount, origin at the feet, ~8k tris.
+1.24 x 2.04 x 1.32 m (W x H x D, Godot, arms reaching forward), floor mount, origin at the feet, ~7.8k tris.
 Heavy-set in a cheap brown suit that can't close over the gut (the shirt bursts out between the lapels), a
 loosened maroon tie hanging crooked, a thick
 tarnished gold chain, a dented charcoal fedora knocked crooked, low gold-rimmed shades with heavy-lidded,
@@ -201,7 +201,7 @@ def torso(mats):
     body.scale = (1.0, DEPTH, 1.0)                       # Blender y = Godot z (depth)
     apply_transform(body)
     parts.append(body)
-    parts.append(gsphere(1.0, BELLY_C, scale=BELLY_R, segments=20, rings=10, mat=mats["suit"], name="belly"))
+    parts.append(gsphere(1.0, BELLY_C, scale=BELLY_R, segments=20, rings=8, mat=mats["suit"], name="belly"))
 
     # The shirt in the opening, from the collar to the hem, lying on the jacket / gut.
     y_lo, y_hi = 0.31, 1.21
@@ -308,8 +308,8 @@ def foot(side, mats):
     """Trouser leg + a cheap shiny shoe; local frame at the foot (Godot local coords via g())."""
     s = side
     leg = lathe([(0.14, 0.075), (0.15, 0.12), (0.135, 0.2), (0.125, 0.3), (0.125, 0.44)],
-                verts=12, mat=mats["trousers"], name="trouser", smooth=60)
-    shoe = gsphere(0.13, (0.0, 0.074, -0.07), scale=(0.95, 0.56, 1.5), segments=12, rings=6, mat=mats["shoe"],
+                verts=10, mat=mats["trousers"], name="trouser", smooth=60)
+    shoe = gsphere(0.13, (0.0, 0.074, -0.07), scale=(0.95, 0.56, 1.5), segments=10, rings=6, mat=mats["shoe"],
                    name="shoe")
     heel = box((0.2, 0.14, 0.05), pos=g(0.0, 0.0, 0.07), bevel=0.02, segments=1, mat=mats["shoe"], name="heel")
     part = join([leg, shoe, heel], "FootLeft" if s < 0 else "FootRight")
