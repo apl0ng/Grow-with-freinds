@@ -151,7 +151,7 @@ func _effect_text(level: int) -> String:
 		"can_capacity":
 			return "+%d can charges" % roundi(total)
 		"sale_bonus":
-			return "+%d%% sale value" % roundi(total * 100.0)
+			return "+%d%% deposit value" % roundi(total * 100.0)
 		"water_retention":
 			return "+%d%% water retention" % roundi(total * 100.0)
 	return "+%s" % str(snappedf(total, 0.01))

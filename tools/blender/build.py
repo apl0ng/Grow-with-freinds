@@ -107,6 +107,65 @@ def write_import_defaults(glb_path, overrides=None):
     return False
 
 
+IMPORTED_DIR = os.path.join(REPO, ".godot", "imported")
+
+
+def drop_import_cache(name):
+    """Delete a model's cached import (.godot/imported/<name>.glb-<hash>.scn + .md5). Godot then MUST
+    re-import it on the next --import. Changing the .import settings alone is not enough: a Godot process
+    that imported the .glb first (with default settings, before build.py wrote the .import) records the
+    import as valid in its filesystem cache and skips it; deleting only the .md5 does not help either.
+    Returns the number of files removed."""
+    if not os.path.isdir(IMPORTED_DIR):
+        return 0
+    pat = re.compile(r"^%s\.glb-[0-9a-f]{32}\.(scn|md5)$" % re.escape(name))
+    n = 0
+    for f in os.listdir(IMPORTED_DIR):
+        if pat.match(f):
+            try:
+                os.remove(os.path.join(IMPORTED_DIR, f))
+                n += 1
+            except OSError:
+                pass
+    return n
+
+
+def imported_mtime(name):
+    """mtime of the model's imported .scn (0 if missing)."""
+    if not os.path.isdir(IMPORTED_DIR):
+        return 0.0
+    pat = re.compile(r"^%s\.glb-[0-9a-f]{32}\.scn$" % re.escape(name))
+    for f in os.listdir(IMPORTED_DIR):
+        if pat.match(f):
+            return os.path.getmtime(os.path.join(IMPORTED_DIR, f))
+    return 0.0
+
+
+def godot_import(verbose, errors):
+    proc = subprocess.run([GODOT, "--headless", "--path", REPO, "--import"], capture_output=True, text=True,
+                          timeout=600)
+    out = proc.stdout + proc.stderr
+    if verbose:
+        print(out)
+    for line in out.splitlines():
+        if ("ERROR" in line or "SCRIPT ERROR" in line) and ("art/models" in line or "toonify" in line):
+            errors.append(line.strip())
+
+
+def roots_missing_toonify(names):
+    """Names whose imported PackedScene root does NOT carry the Toonify script (asks Godot, ~1 s)."""
+    if not names:
+        return []
+    proc = subprocess.run([GODOT, "--headless", "--path", REPO, "-s", "res://tools/tests/models_test.gd", "--",
+                           "--roots-only", "--models=" + ",".join(sorted(names))],
+                          capture_output=True, text=True, timeout=300)
+    ok = set()
+    for line in (proc.stdout + proc.stderr).splitlines():
+        if line.startswith("models_test_root: ") and line.endswith(" ok"):
+            ok.add(line.split()[1])
+    return sorted(n for n in names if n not in ok)
+
+
 def import_state(glb_path):
     """(ok, detail) for a .glb after the Godot import pass."""
     ipath = glb_path + ".import"
@@ -224,45 +283,59 @@ def main(argv):
 
     update_manifest(gwf.EXPORTS, owner)
 
-    # Import params: every model built now, plus any .glb whose .import misses our defaults.
-    changed_imports = 0
+    # Import: settings, forced re-imports, the Godot pass and its verification all happen under one lock, so
+    # concurrent build.py runs (several modelers) never interleave on this project.
     built = {r["name"]: r for r in gwf.EXPORTS if not r["problems"]}
-    for f in sorted(os.listdir(MODELS_DIR)) if os.path.isdir(MODELS_DIR) else []:
-        if not f.endswith(".glb"):
-            continue
-        name = f[:-4]
-        path = os.path.join(MODELS_DIR, f)
-        ipath = path + ".import"
-        needs = name in built or not os.path.exists(ipath) or TOONIFY not in open(ipath, encoding="utf-8").read()
-        if needs and write_import_defaults(path, built.get(name, {}).get("import_params")):
-            changed_imports += 1
-
     godot_errors = []
+    reimport_fail = {}
+    forced = []
     t_import = 0.0
-    if "--no-import" not in flags:
-        t0 = time.time()
-        print("== godot --import (%d model files, %d import settings changed)" % (
-            sum(1 for r in gwf.EXPORTS if r["changed"]), changed_imports))
-        try:
-            # Several modelers may build at once: serialise the Godot import passes on this project.
-            os.makedirs(os.path.join(REPO, ".godot"), exist_ok=True)
-            lock = open(os.path.join(REPO, ".godot", "gwf_import.lock"), "w")
-            fcntl.flock(lock, fcntl.LOCK_EX)
+    os.makedirs(os.path.join(REPO, ".godot"), exist_ok=True)
+    lock = open(os.path.join(REPO, ".godot", "gwf_import.lock"), "w")
+    t0 = time.time()
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        # Import params: every model built now, plus any .glb whose .import misses our defaults. Every model
+        # whose settings get (re)written is force re-imported (its cached import is dropped): a concurrent
+        # Godot may already have imported it with default settings (no Toonify root script).
+        for f in sorted(os.listdir(MODELS_DIR)) if os.path.isdir(MODELS_DIR) else []:
+            if not f.endswith(".glb"):
+                continue
+            name = f[:-4]
+            path = os.path.join(MODELS_DIR, f)
+            ipath = path + ".import"
+            needs = name in built or not os.path.exists(ipath) or TOONIFY not in open(ipath, encoding="utf-8").read()
+            if needs and write_import_defaults(path, built.get(name, {}).get("import_params")):
+                forced.append(name)
+        if "--no-import" not in flags:
+            t_force = time.time()
+            for name in forced:
+                drop_import_cache(name)
+            print("== godot --import (%d model files changed, %d forced re-imports)" % (
+                sum(1 for r in gwf.EXPORTS if r["changed"]), len(forced)))
             try:
-                proc = subprocess.run([GODOT, "--headless", "--path", REPO, "--import"], capture_output=True,
-                                      text=True, timeout=600)
-            finally:
-                fcntl.flock(lock, fcntl.LOCK_UN)
-                lock.close()
-            out = proc.stdout + proc.stderr
-            if verbose:
-                print(out)
-            for line in out.splitlines():
-                if ("ERROR" in line or "SCRIPT ERROR" in line) and ("art/models" in line or "toonify" in line):
-                    godot_errors.append(line.strip())
-        except (OSError, subprocess.TimeoutExpired) as e:
-            godot_errors.append("godot --import failed: %s" % e)
-        t_import = time.time() - t0
+                godot_import(verbose, godot_errors)
+                for name in forced:  # the forced ones must have been re-imported just now
+                    if imported_mtime(name) < t_force - 1.0:
+                        reimport_fail[name] = "Godot did not re-import it"
+                # Every model built now must come out with the Toonify root script; repair once if not
+                # (e.g. another Godot process imported it with stale settings meanwhile).
+                missing = roots_missing_toonify(set(built) | set(forced))
+                if missing:
+                    print("== re-importing %d model(s) without the Toonify root script: %s" % (
+                        len(missing), ", ".join(missing)))
+                    for name in missing:
+                        drop_import_cache(name)
+                        os.utime(os.path.join(MODELS_DIR, name + ".glb.import"))
+                    godot_import(verbose, godot_errors)
+                    for name in roots_missing_toonify(set(missing)):
+                        reimport_fail[name] = "imported without the Toonify root script (re-import failed)"
+            except (OSError, subprocess.TimeoutExpired) as e:
+                godot_errors.append("godot --import failed: %s" % e)
+    finally:
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        lock.close()
+    t_import = time.time() - t0
 
     # Table
     rows = []
@@ -275,6 +348,8 @@ def main(argv):
             notes = rec["problems"] + notes
         elif "--no-import" not in flags:
             ok, detail = import_state(rec["path"])
+            if ok and rec["name"] in reimport_fail:
+                ok, detail = False, reimport_fail[rec["name"]]
             if not ok:
                 status = "FAIL"
                 notes.insert(0, "import: " + detail)
@@ -298,6 +373,10 @@ def main(argv):
         print("  ".join(c.ljust(w) for c, w in zip(r, widths)) + "  " + r[-1])
     for e in godot_errors:
         print("GODOT: " + e)
+    for name, why in sorted(reimport_fail.items()):
+        if name not in built:
+            fails += 1
+            print("FAIL %s: %s" % (name, why))
     if run_all:
         exported = {r["name"] for r in gwf.EXPORTS}
         for f in sorted(os.listdir(MODELS_DIR)) if os.path.isdir(MODELS_DIR) else []:
