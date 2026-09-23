@@ -78,6 +78,7 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | 8.4 | Sad player faces / slumped idle on the player body | B | todo |
 | 8.5 | Blender pipeline: tools/blender (gwf.py, build.py), Toonify, MODELING.md, reference contact sheets, models_test | pipeline | in progress |
 | 8.6 | Modeling wave (Blender): characters, stations, items + plant stages, room props | modelers | todo (after 8.5) |
+| 8.7 | **Plant deep-dive (user request, back of queue):** take extra time on the plant model across seedling, vegetative, flowering ("fruitation") and ready stages; reference real cannabis morphology (cotyledons + first serrated leaflets, fan leaves with 5–7 serrated fingers on nodes, apical dominance, pistils/bud sites forming, dense colas with sugar leaves when ready, drooping when dry) but keep the output chunky/cartoon like the rest of the game | plant modeler | todo (after 8.6) |
 
 ## Decisions
 - **Theme (user direction, after M6): the starting room is a LOW-BUDGET FACTORY.** The crew is here against their
@@ -93,6 +94,8 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
   tools/blender/models/*.py and exported to art/models/*.glb; Kenney CC0 starter kits (from GitHub) are style reference
   only. Godot instances the .glb under each scene's `Visual` node and `Toonify.toonify()` converts materials to the
   toon look at runtime. Primitive-mesh visuals are placeholders until each model lands.
+- **User request (queued last): the plant gets a dedicated modeling pass** with real-world cannabis growth stages as
+  reference, cartoon output. Runs after the general modeling wave so it can take its time.
 - **Quota = sales this round**, not wallet balance. Spending on seeds never lowers quota progress. Wallet carries over.
 - **Round ends immediately when the quota is met** (`end_round_on_quota_met = true`, tweakable). Missing it at 0:00 = game over (host can Retry → full reset).
 - **Plants persist across rounds**; growth and water drain only tick while a round is PLAYING (no free growth on the end screen).
