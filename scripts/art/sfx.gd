@@ -163,7 +163,7 @@ func _get_or_synth(sound: StringName) -> AudioStreamWAV:
 
 ## Plays a sound. No position (Vector3.INF) = 2D/non-positional; otherwise a 3D voice at that world point.
 func play(sound: StringName, position: Vector3 = Vector3.INF) -> void:
-	if not enabled or not is_inside_tree():
+	if not enabled or not is_inside_tree() or _players_2d.is_empty():
 		return
 	var stream := _get_or_synth(sound)
 	if stream == null:

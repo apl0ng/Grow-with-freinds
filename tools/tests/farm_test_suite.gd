@@ -480,7 +480,8 @@ func _test_plot_interactions() -> void:
 	can.set(&"charges", 0)
 	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Watering can is empty", "empty can: 'Watering can is empty'")
 	_hold(null)
-	check(plot.get_denied_reason(_player) == "Still growing…", "watered + empty hands: 'Still growing…'")
+	check(plot.get_denied_reason(_player).begins_with("Still growing… ") and plot.get_denied_reason(_player).ends_with("%"),
+		"watered + empty hands: 'Still growing… N%'", plot.get_denied_reason(_player))
 	# READY
 	plot.stage = GrowPlot.Stage.READY
 	_hold(product)

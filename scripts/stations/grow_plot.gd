@@ -97,9 +97,8 @@ func _ready() -> void:
 	_tag_card.material_override = _plant.get_tint_material()
 	_sync.synchronized.connect(_on_synced)
 	_sync.delta_synchronized.connect(_on_synced)
-	# Full game reset (RETRY after a game over): clear the plot. (Signal not in CONTRACTS.md yet: connect dynamically.)
-	if GameState.has_signal(&"game_reset"):
-		GameState.connect(&"game_reset", _on_game_reset)
+	# Full game reset (RETRY after a game over): clear the plot.
+	GameState.game_reset.connect(_on_game_reset)
 	_refresh_visuals()
 
 func _process(delta: float) -> void:
@@ -216,7 +215,8 @@ func get_denied_reason(player: Player) -> String:
 		return ""
 	if item_is(held, Const.ITEM_SEED_PACKET):
 		return "Already planted"
-	return "Needs water!" if is_dry() else "Still growing…"
+	# The Interactor shows this (greyed) instead of the prompt, so it carries the growth status too.
+	return "Needs water!" if is_dry() else "Still growing… %d%%" % int(get_growth_fraction() * 100.0)
 
 ## SERVER ONLY (called by Interactable after distance + can_interact validation).
 func _server_interact(player: Player) -> void:

@@ -4,6 +4,8 @@ extends Interactable
 ## - Interact while holding a watering can that is not full -> refills it to its capacity (server).
 ## - When the world is ready, the host spawns Config.balance.starting_watering_cans full cans at
 ##   $CanSpots/CanSpot1..N (cycled; extra cans are nudged sideways so they do not overlap).
+## - On GameState.game_reset (RETRY) the host puts every watering can back at the CanSpots, full, and
+##   respawns missing ones (ItemManager despawns seed packets/products but leaves the cans to the Well).
 ## Front of the station is local +Z (the can spots are there).
 
 ## Sideways spacing for cans that share a spot when there are more cans than spots.
@@ -26,9 +28,8 @@ func _ready() -> void:
 	# The world may already be fully ready if this well was added later (world_ready already fired).
 	if Game.world != null and Game.world.is_node_ready() and Game.world.is_ancestor_of(self):
 		_on_world_ready.call_deferred(Game.world)
-	# Full game reset (RETRY after a game over): cans back to the well. (Not in CONTRACTS.md yet: dynamic.)
-	if GameState.has_signal(&"game_reset"):
-		GameState.connect(&"game_reset", _on_game_reset)
+	# Full game reset (RETRY after a game over): every can back to the well, full (ItemManager leaves cans to us).
+	GameState.game_reset.connect(_on_game_reset)
 
 func get_can_spots() -> Array[Marker3D]:
 	var out: Array[Marker3D] = []

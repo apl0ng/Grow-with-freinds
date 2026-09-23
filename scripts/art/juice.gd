@@ -47,6 +47,12 @@ var _flat_particle_mat: StandardMaterial3D
 var _text_font: FontVariation
 
 func _ready() -> void:
+	_ensure_resources()
+
+## Shared particle meshes/materials/font (lazy, so calls made before _ready still work).
+func _ensure_resources() -> void:
+	if _sphere != null:
+		return
 	_sphere = SphereMesh.new()
 	_sphere.radius = 0.085
 	_sphere.height = 0.17
@@ -223,6 +229,7 @@ func shake(node: Node, strength: float = 1.0) -> void:
 func burst(position: Vector3, color: Color, count: int = 12) -> void:
 	if not enabled:
 		return
+	_ensure_resources()
 	var p := _particles(position, clampi(count, 1, 96), 0.65, _sphere, _particle_mat)
 	if p == null:
 		return
@@ -243,6 +250,7 @@ func burst(position: Vector3, color: Color, count: int = 12) -> void:
 func float_text(position: Vector3, text: String, color: Color = Color.WHITE) -> void:
 	if not enabled:
 		return
+	_ensure_resources()
 	var parent := _fx_parent()
 	if parent == null:
 		return
@@ -280,6 +288,7 @@ func float_text(position: Vector3, text: String, color: Color = Color.WHITE) -> 
 func confetti(position: Vector3, count: int = 40) -> void:
 	if not enabled:
 		return
+	_ensure_resources()
 	var p := _particles(position, clampi(count, 1, 160), 1.8, _chunk, _particle_mat)
 	if p == null:
 		return
@@ -313,6 +322,7 @@ func confetti(position: Vector3, count: int = 40) -> void:
 func puff(position: Vector3, color: Color = DUST, count: int = 8) -> void:
 	if not enabled:
 		return
+	_ensure_resources()
 	var p := _particles(position, clampi(count, 1, 48), 0.55, _sphere, _particle_mat)
 	if p == null:
 		return
@@ -335,6 +345,7 @@ func puff(position: Vector3, color: Color = DUST, count: int = 8) -> void:
 func splash(position: Vector3, count: int = 14) -> void:
 	if not enabled:
 		return
+	_ensure_resources()
 	var p := _particles(position, clampi(count, 1, 64), 0.55, _sphere, _particle_mat)
 	if p == null:
 		return
@@ -352,6 +363,7 @@ func splash(position: Vector3, count: int = 14) -> void:
 func sparkle(position: Vector3, color: Color = Color("ffd23f"), count: int = 10) -> void:
 	if not enabled:
 		return
+	_ensure_resources()
 	var p := _particles(position, clampi(count, 1, 48), 1.0, _sphere, _flat_particle_mat)
 	if p == null:
 		return
