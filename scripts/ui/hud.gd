@@ -2,14 +2,15 @@ class_name HUD
 extends CanvasLayer
 ## In-game HUD (scenes/ui/hud.tscn, instanced as World/HUD). Owned by the game-flow/UI agent.
 ##
-##   top-left      ROUND n + big mm:ss timer (red + tick each second under TIMER_WARN_SEC)
-##   top-centre    team quota: "SOLD $x / $y" + progress bar (punches on every sale)
-##   top-right     team wallet (punch on change, +$/-$ floats on sales/purchases) + player list
-##   bottom-left   held item ("Holding: Watering Can (3/4)"), polled every HELD_POLL_SEC
+##   top-left      SHIFT n + big mm:ss timer (red + tick each second under TIMER_WARN_SEC)
+##   top-centre    the payment: "PAYMENT DUE $deposited / $owed" + progress bar (punches on every deposit)
+##   top-right     cash on hand (punch on change, +$/-$ floats on deposits/purchases) + WORKERS list
+##   bottom-left   held item ("Carrying: Watering Can (3/4)"), polled every HELD_POLL_SEC
 ##   bottom-centre interaction prompt, fed by Game.local_player.get_interactor().prompt_changed
-##   centre        phase banner (WAITING: host START ROUND / clients waiting), "ROUND n — GO!"
+##   centre        phase banner (WAITING: host START SHIFT / clients wait), "SHIFT n — GET TO WORK"
 ##   bottom-right  toast stack (Game.toast_requested / show_toast), max MAX_TOASTS visible
 ##   overlays      %RoundEnd (round_end.tscn) and %PauseMenu (pause_menu.tscn)
+## Copy is flat and joyless on purpose (STYLE.md "Mood & tone"): no "!" and no cheer.
 ## Null-safe before the local player spawns and when Net is offline (solo tests).
 
 const TOAST_SCENE: PackedScene = preload("res://scenes/ui/toast.tscn")
@@ -25,6 +26,22 @@ const FLOAT_RISE_PX: float = 40.0
 const FLOAT_WIDTH: float = 160.0
 const FLOAT_SEC: float = 1.1
 const CROSSHAIR_RADIUS: float = 3.5
+
+## Copy (kept here so tests and other UI can reuse the exact strings).
+const TEXT_SHIFT := "SHIFT %d"
+const TEXT_GO := "SHIFT %d — GET TO WORK"
+const TEXT_PAYMENT := "PAYMENT DUE %s / %s"
+const TEXT_CARRYING := "Carrying: %s"
+const TEXT_HOST_TAG := "host"
+const TEXT_YOU_TAG := "you"
+const TEXT_JOINING_TITLE := "CLOCKING IN…"
+const TEXT_JOINING := "Wait."
+const TEXT_WAIT_HOST_TITLE := "CLOCK IN"
+const TEXT_WAIT_HOST := "Shift starts when you press %s.\nNobody leaves until it's paid."
+const TEXT_WAIT_CLIENT_TITLE := "STAND BY"
+const TEXT_WAIT_CLIENT := "Waiting for the shift to start."
+const TEXT_COVERED := "Payment covered. Keep depositing."
+const TEXT_RESET := "Starting over. Shift 1."
 
 @onready var root_control: Control = %Root
 @onready var stats: Control = %Stats
@@ -204,9 +221,9 @@ func refresh_players() -> void:
 		name_label.add_theme_color_override(&"font_color", color)
 		var tags: PackedStringArray = []
 		if peer_id == Const.SERVER_PEER_ID:
-			tags.append("host")
+			tags.append(TEXT_HOST_TAG)
 		if peer_id == local_id:
-			tags.append("you")
+			tags.append(TEXT_YOU_TAG)
 		var shown_name := Net.get_player_name(peer_id)
 		name_label.text = shown_name if tags.is_empty() else "%s (%s)" % [shown_name, ", ".join(tags)]
 		row.add_child(name_label)
@@ -276,7 +293,7 @@ func _on_phase_changed(new_phase: int) -> void:
 func _on_round_started(round_number: int) -> void:
 	_last_tick_second = -1
 	_update_round_label()
-	go_banner.text = "ROUND %d — GO!" % round_number
+	go_banner.text = TEXT_GO % round_number
 	go_banner.modulate.a = 1.0
 	go_banner.visible = true
 	play_sfx(&"round_start", &"ui_open")
@@ -303,7 +320,7 @@ func _on_sales_changed(round_sales: int, quota: int) -> void:
 	_apply_sales(round_sales, quota, _stats_ready and changed)
 	if _stats_ready and changed and not Config.balance.end_round_on_quota_met \
 			and GameState.phase == GameState.Phase.PLAYING and _last_sales < quota and round_sales >= quota:
-		show_toast("Quota met! Keep selling for extra cash.", &"success")
+		show_toast(TEXT_COVERED, &"success")
 	_last_sales = round_sales
 
 
@@ -322,7 +339,7 @@ func _on_purchase_made(cost: int, _buyer_peer: int, _what: String) -> void:
 
 
 func _on_game_reset() -> void:
-	show_toast("Fresh start! Back to round 1.", &"info")
+	show_toast(TEXT_RESET, &"info")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -414,7 +431,7 @@ func _update_held_item() -> void:
 				item_name = str(item.call(&"get_label_text"))
 			elif item.has_method(&"get_display_name"):
 				item_name = str(item.call(&"get_display_name"))
-			text = "Holding: %s" % item_name
+			text = TEXT_CARRYING % item_name
 	if text == _held_text:
 		return
 	_held_text = text
@@ -443,7 +460,7 @@ func _refresh_prompt() -> void:
 
 
 func _update_round_label() -> void:
-	round_label.text = "ROUND %d" % GameState.round_number
+	round_label.text = TEXT_SHIFT % GameState.round_number
 
 
 func _apply_time(time_left: float, allow_tick: bool) -> void:
@@ -469,7 +486,7 @@ func _apply_time(time_left: float, allow_tick: bool) -> void:
 
 
 func _apply_sales(round_sales: int, quota: int, juicy: bool) -> void:
-	quota_label.text = "SOLD %s / %s" % [format_money(round_sales), format_money(quota)]
+	quota_label.text = TEXT_PAYMENT % [format_money(round_sales), format_money(quota)]
 	quota_bar.max_value = float(maxi(quota, 1))
 	var target := float(clampi(round_sales, 0, maxi(quota, 1)))
 	if _bar_tween != null:
@@ -502,19 +519,19 @@ func _update_phase_ui() -> void:
 	var host := GameState.is_local_host()
 	match phase:
 		GameState.Phase.MENU:
-			banner_title.text = "JOINING THE FARM…"
-			banner_text.text = "Hang on a second."
+			banner_title.text = TEXT_JOINING_TITLE
+			banner_text.text = TEXT_JOINING
 			start_button.visible = false
 			banner_tip.visible = false
 		GameState.Phase.WAITING:
 			banner_tip.visible = true
 			if host:
-				banner_title.text = "EVERYONE IN?"
-				banner_text.text = "Press %s or click START ROUND" % action_key_text(&"start_round", "ENTER")
+				banner_title.text = TEXT_WAIT_HOST_TITLE
+				banner_text.text = TEXT_WAIT_HOST % action_key_text(&"start_round", "ENTER")
 				start_button.visible = true
 			else:
-				banner_title.text = "HANG TIGHT!"
-				banner_text.text = "Waiting for the host to start…"
+				banner_title.text = TEXT_WAIT_CLIENT_TITLE
+				banner_text.text = TEXT_WAIT_CLIENT
 				start_button.visible = false
 	var want_banner := (phase == GameState.Phase.MENU or phase == GameState.Phase.WAITING) and not _ui_locked
 	if want_banner and not banner.visible and is_inside_tree():

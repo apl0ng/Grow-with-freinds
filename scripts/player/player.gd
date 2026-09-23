@@ -34,8 +34,6 @@ const SNAP_DISTANCE: float = 3.0
 ## How much of the head pitch the cartoon face follows on remote players.
 const FACE_PITCH_FACTOR: float = 0.35
 
-## Base material for the body tint (duplicated per player, albedo replaced by player_color).
-const BODY_MATERIAL_PATH := "res://art/materials/toon_white.tres"
 
 var peer_id: int = 1
 var display_name: String = "Player"
@@ -57,8 +55,11 @@ var crouching: bool = false:
 @onready var head: Node3D = $Head
 @onready var collision: CollisionShape3D = $Collision
 @onready var visual: Node3D = $Visual
+# Visual (walk bounce/sway + crouch squash) holds the Blender body Visual/Model (art/models/player.glb, a
+# Toonify root: its TINT parts take the player colour) and Visual/Face, a pivot at the head centre that tilts
+# with the look pitch and carries the ToonFace prop (Visual/Face/ToonFace, art/props/face.tscn, sad mood).
 @onready var face: Node3D = $Visual/Face
-@onready var body_mesh: MeshInstance3D = $Visual/BodyMesh
+@onready var body_model: Toonify = get_node_or_null(^"Visual/Model") as Toonify
 @onready var name_label: Label3D = %NameLabel
 @onready var hand_socket: Node3D = %HandSocket
 @onready var body_hand_socket: Node3D = %BodyHandSocket
@@ -71,7 +72,6 @@ var _spawn_net_position: Vector3 = Vector3.ZERO
 var _gravity: float = 9.8
 var _shape: CapsuleShape3D = null
 var _crouch_blend: float = 0.0
-var _body_material: StandardMaterial3D = null
 var _walk_phase: float = 0.0
 var _visual_speed: float = 0.0
 var _last_visual_pos: Vector3 = Vector3.ZERO
@@ -339,11 +339,8 @@ func _apply_crouch_visuals() -> void:
 func _apply_appearance() -> void:
 	name_label.text = display_name
 	name_label.modulate = player_color.lightened(0.2)
-	if _body_material == null:
-		var base := load(BODY_MATERIAL_PATH) as StandardMaterial3D
-		_body_material = base.duplicate() as StandardMaterial3D if base != null else StandardMaterial3D.new()
-		body_mesh.material_override = _body_material
-	_body_material.albedo_color = player_color
+	if body_model != null:
+		body_model.tint = Toon.grade(player_color) # recolours the model's TINT_* parts (shared, cached)
 
 func _on_players_changed() -> void:
 	if not Net.players.has(peer_id):

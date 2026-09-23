@@ -2,7 +2,8 @@ class_name HudToast
 extends PanelContainer
 ## One toast pill in the HUD toast stack (scenes/ui/toast.tscn). Created by HUD.show_toast():
 ## pops in, stays for LIFETIME_SEC, fades out and frees itself. The same message arriving again
-## while it is still up bumps it ("Hands full x2") instead of stacking a duplicate.
+## while it is still up bumps it ("Hands full.  x2") instead of stacking a duplicate. Copy that ends up here
+## is flat (STYLE.md "Mood & tone"): "Not enough cash.", "Hands full.", never "!".
 
 const LIFETIME_SEC: float = 2.8
 const FADE_SEC: float = 0.35

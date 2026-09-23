@@ -1,61 +1,21 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/interaction/interactor.gd" id="2_interactor"]
-[ext_resource type="Material" path="res://art/materials/toon_white.tres" id="3_white"]
-[ext_resource type="Material" path="res://art/materials/toon_eye_black.tres" id="4_dark"]
-[ext_resource type="Material" path="res://art/materials/toon_leaf.tres" id="5_leaf"]
-[ext_resource type="Material" path="res://art/materials/toon_blush.tres" id="6_pink"]
-[ext_resource type="Material" path="res://art/materials/toon_green.tres" id="7_green"]
-[ext_resource type="Material" path="res://art/materials/toon_eye_white.tres" id="8_eye_white"]
-[ext_resource type="Material" path="res://art/materials/toon_outline.tres" id="9_outline"]
+[ext_resource type="PackedScene" path="res://art/models/player.glb" id="3_model"]
+[ext_resource type="PackedScene" path="res://art/props/face.tscn" id="4_face"]
+[ext_resource type="Material" path="res://art/materials/toon_blob_shadow.tres" id="5_shadow"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
 height = 1.8
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
-radius = 0.4
-height = 1.8
-radial_segments = 32
-rings = 12
-
-[sub_resource type="SphereMesh" id="SphereMesh_eye"]
-radius = 0.13
-height = 0.26
+[sub_resource type="CylinderMesh" id="CylinderMesh_shadow"]
+top_radius = 0.48
+bottom_radius = 0.48
+height = 0.01
 radial_segments = 24
-rings = 12
-
-[sub_resource type="SphereMesh" id="SphereMesh_pupil"]
-radius = 0.068
-height = 0.136
-radial_segments = 16
-rings = 8
-
-[sub_resource type="SphereMesh" id="SphereMesh_shine"]
-radius = 0.022
-height = 0.044
-radial_segments = 8
-rings = 4
-
-[sub_resource type="SphereMesh" id="SphereMesh_cheek"]
-radius = 0.065
-height = 0.13
-radial_segments = 12
-rings = 6
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_stem"]
-top_radius = 0.022
-bottom_radius = 0.03
-height = 0.2
-radial_segments = 8
 rings = 1
-
-[sub_resource type="SphereMesh" id="SphereMesh_leaf"]
-radius = 0.09
-height = 0.18
-radial_segments = 12
-rings = 6
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_player"]
 properties/0/path = NodePath(".:net_position")
@@ -83,72 +43,20 @@ shape = SubResource("CapsuleShape3D_body")
 
 [node name="Visual" type="Node3D" parent="."]
 
-[node name="BodyMesh" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
-material_overlay = ExtResource("9_outline")
-mesh = SubResource("CapsuleMesh_body")
-surface_material_override/0 = ExtResource("3_white")
+[node name="Model" parent="Visual" instance=ExtResource("3_model")]
+outline_width = 0.025
 
 [node name="Face" type="Node3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.36, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.26, -0.029)
 
-[node name="EyeL" type="MeshInstance3D" parent="Visual/Face"]
-transform = Transform3D(1, 0, 0, 0, 1.1, 0, 0, 0, 1, -0.155, 0.06, -0.31)
-mesh = SubResource("SphereMesh_eye")
-surface_material_override/0 = ExtResource("8_eye_white")
+[node name="ToonFace" parent="Visual/Face" instance=ExtResource("4_face")]
+transform = Transform3D(1, 0, 0, 0, 0.9914449, 0.1305262, 0, -0.1305262, 0.9914449, 0, 0, -0.312)
 
-[node name="Pupil" type="MeshInstance3D" parent="Visual/Face/EyeL"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.012, -0.005, -0.088)
-mesh = SubResource("SphereMesh_pupil")
-surface_material_override/0 = ExtResource("4_dark")
-
-[node name="Shine" type="MeshInstance3D" parent="Visual/Face/EyeL/Pupil"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.022, 0.025, -0.055)
-mesh = SubResource("SphereMesh_shine")
-surface_material_override/0 = ExtResource("8_eye_white")
-
-[node name="EyeR" type="MeshInstance3D" parent="Visual/Face"]
-transform = Transform3D(1, 0, 0, 0, 1.1, 0, 0, 0, 1, 0.155, 0.06, -0.31)
-mesh = SubResource("SphereMesh_eye")
-surface_material_override/0 = ExtResource("8_eye_white")
-
-[node name="Pupil" type="MeshInstance3D" parent="Visual/Face/EyeR"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.012, -0.005, -0.088)
-mesh = SubResource("SphereMesh_pupil")
-surface_material_override/0 = ExtResource("4_dark")
-
-[node name="Shine" type="MeshInstance3D" parent="Visual/Face/EyeR/Pupil"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.022, 0.025, -0.055)
-mesh = SubResource("SphereMesh_shine")
-surface_material_override/0 = ExtResource("8_eye_white")
-
-[node name="CheekL" type="MeshInstance3D" parent="Visual/Face"]
-transform = Transform3D(1, 0, 0, 0, 0.65, 0, 0, 0, 0.6, -0.25, -0.12, -0.28)
-mesh = SubResource("SphereMesh_cheek")
-surface_material_override/0 = ExtResource("6_pink")
-
-[node name="CheekR" type="MeshInstance3D" parent="Visual/Face"]
-transform = Transform3D(1, 0, 0, 0, 0.65, 0, 0, 0, 0.6, 0.25, -0.12, -0.28)
-mesh = SubResource("SphereMesh_cheek")
-surface_material_override/0 = ExtResource("6_pink")
-
-[node name="Sprout" type="Node3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.78, 0)
-
-[node name="Stem" type="MeshInstance3D" parent="Visual/Sprout"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
-mesh = SubResource("CylinderMesh_stem")
-surface_material_override/0 = ExtResource("7_green")
-
-[node name="LeafL" type="MeshInstance3D" parent="Visual/Sprout"]
-transform = Transform3D(1.039, 0.175, 0, -0.6, 0.303, 0, 0, 0, 0.7, -0.085, 0.2, 0)
-mesh = SubResource("SphereMesh_leaf")
-surface_material_override/0 = ExtResource("5_leaf")
-
-[node name="LeafR" type="MeshInstance3D" parent="Visual/Sprout"]
-transform = Transform3D(1.039, -0.175, 0, 0.6, 0.303, 0, 0, 0, 0.7, 0.085, 0.2, 0)
-mesh = SubResource("SphereMesh_leaf")
-surface_material_override/0 = ExtResource("5_leaf")
+[node name="BlobShadow" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.006, 0)
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_shadow")
+surface_material_override/0 = ExtResource("5_shadow")
 
 [node name="BodyHandSocket" type="Node3D" parent="."]
 unique_name_in_owner = true

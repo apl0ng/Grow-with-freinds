@@ -42,16 +42,16 @@ theme_override_constants/separation = 14
 [node name="Title" type="Label" parent="Center/Card/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"BannerLabel"
-theme_override_font_sizes/font_size = 64
-text = "QUOTA MET!"
+theme_type_variation = &"TitleLabel"
+text = "PAYMENT ACCEPTED…
+for now"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="Center/Card/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudLabel"
-text = "Round 1 complete"
+text = "Shift 1 paid. The Boss raises the number."
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -69,7 +69,7 @@ columns = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"HudLabel"
-text = "Round"
+text = "Shift"
 
 [node name="RoundValue" type="Label" parent="Center/Card/VBox/Stats/Grid"]
 unique_name_in_owner = true
@@ -83,7 +83,7 @@ horizontal_alignment = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"HudLabel"
-text = "Sold"
+text = "Deposited"
 
 [node name="SoldValue" type="Label" parent="Center/Card/VBox/Stats/Grid"]
 unique_name_in_owner = true
@@ -98,7 +98,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"HudLabel"
-text = "Time to spare"
+text = "Time left"
 
 [node name="TimeValue" type="Label" parent="Center/Card/VBox/Stats/Grid"]
 unique_name_in_owner = true
@@ -112,7 +112,7 @@ horizontal_alignment = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"HudLabel"
-text = "Team wallet"
+text = "Cash on hand"
 
 [node name="WalletValue" type="Label" parent="Center/Card/VBox/Stats/Grid"]
 unique_name_in_owner = true
@@ -128,7 +128,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"HudLabel"
-text = "Next quota"
+text = "Next payment"
 
 [node name="NextValue" type="Label" parent="Center/Card/VBox/Stats/Grid"]
 unique_name_in_owner = true
@@ -143,7 +143,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
 theme_override_font_sizes/font_size = 20
-text = "Waiting for the host…"
+text = "Waiting for the Boss's decision…"
 horizontal_alignment = 1
 
 [node name="Buttons" type="HBoxContainer" parent="Center/Card/VBox"]
@@ -157,7 +157,7 @@ custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
 theme_type_variation = &"BigButton"
 theme_override_font_sizes/font_size = 30
-text = "NEXT ROUND"
+text = "NEXT SHIFT"
 
 [node name="MenuButton" type="Button" parent="Center/Card/VBox/Buttons"]
 unique_name_in_owner = true

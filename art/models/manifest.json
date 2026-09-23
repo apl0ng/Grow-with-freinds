@@ -1,4 +1,98 @@
 {
+ "cot": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_metal_dark",
+   "toon_concrete_dark",
+   "toon_rust",
+   "toon_olive",
+   "toon_cream",
+   "stain_yellow",
+   "blanket"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/cot.py",
+  "size": [
+   2.016,
+   0.561,
+   0.857
+  ],
+  "tris": 4904
+ },
+ "crate": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "crate_inside",
+   "toon_wood",
+   "toon_metal_dark",
+   "toon_brown",
+   "TINT_band",
+   "toon_dark"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/crate.py",
+  "size": [
+   0.912,
+   0.924,
+   0.912
+  ],
+  "tris": 2368
+ },
+ "fence_gate": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_metal_dark",
+   "toon_chainlink",
+   "toon_rust",
+   "toon_caution"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/fence_panel.py",
+  "size": [
+   5.28,
+   3.357,
+   0.284
+  ],
+  "tris": 5552
+ },
+ "fence_gate_leaf": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_chainlink",
+   "toon_rust",
+   "toon_metal_dark",
+   "toon_dark"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/fence_panel.py",
+  "size": [
+   2.475,
+   2.05,
+   0.1
+  ],
+  "tris": 2424
+ },
+ "fence_panel": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_metal_dark",
+   "toon_chainlink",
+   "toon_rust"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/fence_panel.py",
+  "size": [
+   2.662,
+   2.325,
+   0.369
+  ],
+  "tris": 2340
+ },
  "oil_drum": {
   "front": "+z",
   "kind": "prop",
@@ -19,6 +113,24 @@
    0.706
   ],
   "tris": 2928
+ },
+ "pallet": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "wood_dark",
+   "toon_brown",
+   "toon_wood",
+   "toon_concrete_dark"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/pallet.py",
+  "size": [
+   1.215,
+   0.153,
+   1.016
+  ],
+  "tris": 1812
  },
  "pendant_lamp": {
   "front": "+z",
@@ -57,5 +169,77 @@
    0.614
   ],
   "tris": 2588
+ },
+ "player": {
+  "front": "-z",
+  "kind": "character",
+  "materials": [
+   "TINT_body",
+   "toon_olive",
+   "toon_metal_dark",
+   "grime",
+   "toon_white",
+   "toon_caution",
+   "toon_dark",
+   "TINT_legs",
+   "toon_brown"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/player.py",
+  "size": [
+   0.927,
+   1.752,
+   0.877
+  ],
+  "tris": 5814
+ },
+ "shop_cage": {
+  "front": "+z",
+  "kind": "station",
+  "materials": [
+   "toon_metal_dark",
+   "toon_olive",
+   "toon_metal",
+   "toon_caution",
+   "toon_rust",
+   "toon_concrete_dark",
+   "toon_dark",
+   "toon_cream",
+   "toon_brown",
+   "chalkboard",
+   "toon_gray",
+   "TINT_seeds",
+   "toon_glass",
+   "TINT_badge"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/shop_cage.py",
+  "size": [
+   3.414,
+   3.016,
+   2.012
+  ],
+  "tris": 5718
+ },
+ "watering_can": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "toon_olive",
+   "toon_rust",
+   "toon_metal",
+   "toon_dark",
+   "toon_cream",
+   "toon_caution",
+   "toon_water"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/watering_can.py",
+  "size": [
+   0.393,
+   0.422,
+   0.53
+  ],
+  "tris": 2974
  }
 }

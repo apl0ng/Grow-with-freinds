@@ -42,13 +42,13 @@ theme_override_constants/separation = 14
 [node name="Title" type="Label" parent="Center/Card/VBox"]
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
-text = "PAUSED"
+text = "ON BREAK"
 horizontal_alignment = 1
 
 [node name="Note" type="Label" parent="Center/Card/VBox"]
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
-text = "The game keeps running while you're here!"
+text = "The clock doesn't stop. Nobody else does either."
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -56,19 +56,19 @@ autowrap_mode = 3
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"BigButton"
-text = "RESUME"
+text = "BACK TO WORK"
 
 [node name="LeaveButton" type="Button" parent="Center/Card/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"DangerButton"
-text = "LEAVE TO MAIN MENU"
+text = "CLOCK OUT (MAIN MENU)"
 
 [node name="HostNote" type="Label" parent="Center/Card/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
-text = "You're the host: leaving ends the game for everyone."
+text = "You're the host. If you leave, the floor closes for everyone."
 horizontal_alignment = 1
 autowrap_mode = 3
 

@@ -1,7 +1,8 @@
 class_name PauseMenu
 extends Control
-## Pause overlay (scenes/ui/pause_menu.tscn, instanced by the HUD as %PauseMenu).
-## Toggled by the "pause" action (Escape). It does NOT pause the tree (multiplayer keeps running).
+## Pause overlay, "ON BREAK" (scenes/ui/pause_menu.tscn, instanced by the HUD as %PauseMenu).
+## Toggled by the "pause" action (Escape). It does NOT pause the tree (multiplayer keeps running: the shift
+## clock does not stop, and the copy says so).
 ## Opens only when nobody else holds the UI lock (e.g. with the shop open, Escape closes the shop
 ## instead); closing our own menu always works. Holds Game.set_ui_lock(&"pause") while open.
 

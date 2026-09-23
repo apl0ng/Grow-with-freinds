@@ -47,7 +47,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudLabel"
 theme_override_font_sizes/font_size = 22
-text = "ROUND 1"
+text = "SHIFT 1"
 horizontal_alignment = 1
 
 [node name="TimerLabel" type="Label" parent="Root/Stats/RoundPanel/VBox"]
@@ -77,7 +77,7 @@ theme_override_constants/separation = 6
 [node name="QuotaTitle" type="Label" parent="Root/Stats/QuotaPanel/VBox"]
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
-text = "TEAM QUOTA"
+text = "THIS SHIFT"
 horizontal_alignment = 1
 
 [node name="QuotaLabel" type="Label" parent="Root/Stats/QuotaPanel/VBox"]
@@ -85,7 +85,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudLabel"
 theme_override_font_sizes/font_size = 28
-text = "SOLD $0 / $0"
+text = "PAYMENT DUE $0 / $0"
 horizontal_alignment = 1
 
 [node name="QuotaBar" type="ProgressBar" parent="Root/Stats/QuotaPanel/VBox"]
@@ -120,7 +120,7 @@ theme_override_constants/separation = 0
 [node name="WalletTitle" type="Label" parent="Root/Stats/WalletPanel/VBox"]
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
-text = "TEAM WALLET"
+text = "CASH ON HAND"
 horizontal_alignment = 1
 
 [node name="MoneyLabel" type="Label" parent="Root/Stats/WalletPanel/VBox"]
@@ -153,7 +153,7 @@ theme_override_constants/separation = 4
 [node name="PlayersTitle" type="Label" parent="Root/Stats/PlayersPanel/VBox"]
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
-text = "FARMERS"
+text = "WORKERS"
 horizontal_alignment = 1
 
 [node name="PlayerList" type="VBoxContainer" parent="Root/Stats/PlayersPanel/VBox"]
@@ -180,7 +180,7 @@ theme_type_variation = &"HudPanel"
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudLabel"
-text = "Holding: nothing"
+text = "Carrying: nothing"
 
 [node name="PromptPanel" type="PanelContainer" parent="Root"]
 unique_name_in_owner = true
@@ -249,7 +249,7 @@ theme_override_constants/separation = 2
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HeaderLabel"
-text = "EVERYONE IN?"
+text = "CLOCK IN"
 horizontal_alignment = 1
 
 [node name="BannerText" type="Label" parent="Root/Banner/HBox/VBox"]
@@ -257,14 +257,15 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudLabel"
 theme_override_font_sizes/font_size = 20
-text = "Press ENTER or click START ROUND"
+text = "Shift starts when you press ENTER.
+Nobody leaves until it's paid."
 horizontal_alignment = 1
 
 [node name="BannerTip" type="Label" parent="Root/Banner/HBox/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
-text = "Tip: plant now. Growing starts with the round!"
+text = "Plant now. Nothing grows until the shift starts."
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -274,7 +275,7 @@ layout_mode = 2
 size_flags_vertical = 4
 focus_mode = 0
 theme_type_variation = &"BigButton"
-text = "START ROUND"
+text = "START SHIFT"
 
 [node name="GoBanner" type="Label" parent="Root"]
 unique_name_in_owner = true
@@ -288,7 +289,8 @@ anchor_bottom = 0.32
 grow_horizontal = 2
 grow_vertical = 2
 theme_type_variation = &"BannerLabel"
-text = "ROUND 1 — GO!"
+theme_override_font_sizes/font_size = 60
+text = "SHIFT 1 — GET TO WORK"
 horizontal_alignment = 1
 vertical_alignment = 1
 

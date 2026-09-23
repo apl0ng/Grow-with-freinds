@@ -69,6 +69,8 @@ func _ready() -> void:
 	#  - any peer: back to MENU (reset_local) once that world has left the tree.
 	if Game.has_signal(&"world_ready"):
 		Game.world_ready.connect(_on_world_ready)
+	# Host, WAITING: the coming shift's payment follows the team size while workers clock in.
+	Net.players_changed.connect(_on_players_changed)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -87,6 +89,15 @@ func is_local_host() -> bool:
 ## True while a round has ended (success or failure) and the end screen is up.
 func is_round_over() -> bool:
 	return phase == Phase.ROUND_SUCCESS or phase == Phase.ROUND_FAILED
+
+## Workers in the session (Net registry size, at least 1). The payment due scales with it:
+## Config.balance.quota_for_round(round, get_team_size()) (+quota_per_extra_player per extra worker).
+func get_team_size() -> int:
+	return maxi(Net.players.size(), 1)
+
+## Payment due for shift `round_n` with the current team (what the next shift will ask for).
+func get_quota_for(round_n: int) -> int:
+	return Config.balance.quota_for_round(round_n, get_team_size())
 
 ## Sales progress towards the quota, 0..1 (1 when quota is 0).
 func get_quota_progress() -> float:
@@ -219,7 +230,7 @@ func server_start_round() -> void:
 			return
 	var next_round: int = s["round"]
 	s["phase"] = Phase.PLAYING
-	s["quota"] = Config.balance.quota_for_round(next_round)
+	s["quota"] = get_quota_for(next_round)
 	s["sales"] = 0 # quota = sales made during THIS round
 	s["time"] = Config.balance.round_length_sec
 	s["serial"] = _serial + 1
@@ -239,7 +250,7 @@ func server_reset_game() -> void:
 		"phase": Phase.WAITING,
 		"money": Config.balance.starting_money,
 		"round": 1,
-		"quota": Config.balance.quota_for_round(1),
+		"quota": get_quota_for(1),
 		"sales": 0,
 		"time": Config.balance.round_length_sec,
 		"upgrades": {},
@@ -478,6 +489,17 @@ func _reset_if_world_gone() -> void:
 	var w: Node = Game.world
 	if phase != Phase.MENU and (w == null or not is_instance_valid(w) or not w.is_inside_tree()):
 		reset_local()
+
+## Host, WAITING only: re-price the coming shift when workers join or leave (a running shift keeps its number).
+func _on_players_changed() -> void:
+	if phase != Phase.WAITING or not is_local_host():
+		return
+	var q := get_quota_for(round_number)
+	if q == quota:
+		return
+	var s := _snapshot()
+	s["quota"] = q
+	_rpc_state.rpc(s)
 
 func _host_init_session() -> void:
 	if phase == Phase.MENU and Net.is_host and multiplayer.has_multiplayer_peer() and multiplayer.is_server():
