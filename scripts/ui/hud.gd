@@ -7,7 +7,8 @@ extends CanvasLayer
 ##   top-right     cash on hand (punch on change, +$/-$ floats on deposits/purchases) + WORKERS list
 ##   bottom-left   held item ("Carrying: Watering Can (3/4)"), polled every HELD_POLL_SEC
 ##   bottom-centre interaction prompt, fed by Game.local_player.get_interactor().prompt_changed
-##   centre        phase banner (WAITING: host START SHIFT / clients wait), "SHIFT n — GET TO WORK"
+##   centre        phase banner (WAITING: host "ENTER · START SHIFT" hint; the mouse is captured while waiting so
+##                 Enter is the real path and the button only reacts if the mouse is somehow free / clients wait)
 ##   bottom-right  toast stack (Game.toast_requested / show_toast), max MAX_TOASTS visible
 ##   overlays      %RoundEnd (round_end.tscn) and %PauseMenu (pause_menu.tscn)
 ## Copy is flat and joyless on purpose (STYLE.md "Mood & tone"): no "!" and no cheer.

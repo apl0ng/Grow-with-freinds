@@ -96,7 +96,7 @@
   "kind": "part",
   "materials": [
    "toon_concrete_dark",
-   "toon_rust",
+   "rust_dim",
    "grime",
    "toon_metal_dark",
    "toon_dark"
@@ -117,7 +117,7 @@
    "toon_concrete_dark",
    "toon_void",
    "grime",
-   "toon_rust",
+   "rust_dim",
    "toon_metal_dark",
    "toon_dark"
   ],
@@ -136,7 +136,7 @@
   "materials": [
    "toon_concrete_dark",
    "grime",
-   "toon_rust",
+   "rust_dim",
    "toon_metal_dark",
    "toon_dark"
   ],
@@ -144,7 +144,7 @@
   "script": "tools/blender/models/ceiling_panel.py",
   "size": [
    5.0,
-   0.144,
+   0.145,
    5.0
   ],
   "tris": 2328
@@ -273,6 +273,7 @@
    "toon_concrete_dark",
    "stain",
    "oil",
+   "stain_deep",
    "toon_dark"
   ],
   "mount": "free",
@@ -282,7 +283,7 @@
    0.024,
    5.0
   ],
-  "tris": 202
+  "tris": 198
  },
  "floor_slab_b": {
   "front": "+z",
@@ -290,9 +291,9 @@
   "materials": [
    "toon_concrete",
    "toon_concrete_dark",
-   "grime",
    "stain",
    "oil",
+   "stain_deep",
    "toon_dark"
   ],
   "mount": "free",
@@ -302,7 +303,7 @@
    0.024,
    5.0
   ],
-  "tris": 166
+  "tris": 162
  },
  "floor_slab_drain": {
   "front": "+z",
@@ -311,6 +312,7 @@
    "toon_concrete",
    "toon_concrete_dark",
    "stain",
+   "stain_deep",
    "oil",
    "toon_dark",
    "toon_void",
@@ -324,7 +326,7 @@
    0.166,
    5.0
   ],
-  "tris": 766
+  "tris": 727
  },
  "fluoro_light": {
   "front": "+z",

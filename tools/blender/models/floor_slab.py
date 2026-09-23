@@ -84,9 +84,9 @@ class Slab:
                             r * (0.22 - 0.05 * i), r * (0.18 - 0.04 * i), seed + i, n=10), "oil", L1)
 
     def tide(self, x, y, rx, ry, seed):
-        """A dried puddle: a faint patch with a darker tide-mark ring."""
-        self.decal(blob(x, y, rx, ry, seed, n=18, wob=0.12), "stain", L0)
-        self.decal(blob(x, y, rx * 0.86, ry * 0.84, seed, n=18, wob=0.12), "concrete", L1)
+        """A dried puddle: a flat patch one step darker, with a smaller damp core."""
+        self.decal(blob(x, y, rx, ry, seed, n=18, wob=0.14), "stain", L0)
+        self.decal(blob(x + rx * 0.12, y - ry * 0.1, rx * 0.45, ry * 0.4, seed + 2.1, n=14, wob=0.2), "stain_deep", L1)
 
     def crack(self, pts, w=0.018):
         for q in crack_quads(pts, w):
@@ -96,8 +96,8 @@ class Slab:
         """A chipped patch along a joint edge (clipped to the slab top)."""
         self.decal(blob(x, y, rx, ry, seed, n=12, wob=0.3), "concrete_dark", L1)
 
-    def tyre(self, pts, w=0.13):
-        """Forklift tyre scuff: a long faint band along a curve (two of them, 0.9 m apart)."""
+    def tyre(self, pts, w=0.22):
+        """Forklift tyre scuffs: two broad faint bands along a curve, 0.9 m apart, fading at both ends."""
         for off in (-0.45, 0.45):
             left, right = [], []
             for i, (x, y) in enumerate(pts):
@@ -106,12 +106,12 @@ class Slab:
                 dx, dy = pts[j][0] - pts[k][0], pts[j][1] - pts[k][1]
                 ln = math.hypot(dx, dy) or 1.0
                 nx, ny = -dy / ln, dx / ln
-                ww = w * (0.35 + 0.65 * math.sin(math.pi * i / (len(pts) - 1)))
+                ww = w * math.sin(math.pi * i / (len(pts) - 1)) ** 0.7
                 cx, cy = x + nx * off, y + ny * off
                 left.append((cx - nx * ww / 2, cy - ny * ww / 2))
                 right.append((cx + nx * ww / 2, cy + ny * ww / 2))
             for i in range(len(pts) - 1):
-                self.decal([left[i], left[i + 1], right[i + 1], right[i]], "grime", L0)
+                self.decal([left[i], left[i + 1], right[i + 1], right[i]], "stain", L0)
 
     def obj(self, name):
         return self.mb.obj(name, smooth=30.0)
@@ -138,7 +138,7 @@ def floor_b():
     s = Slab(seed=9)
     s.top()
     s.saw_cuts()
-    s.tyre([(-T0, -1.8), (-1.5, -1.2), (-0.4, -0.35), (0.7, 0.2), (1.8, 0.45), (T0, 0.5)])
+    s.tyre([(-T0 + 0.3, -1.75), (-1.6, -1.25), (-0.8, -0.72), (0.0, -0.3), (0.8, 0.02), (1.6, 0.22), (T0 - 0.3, 0.3)])
     s.oil(-1.3, 1.1, 0.28, 4.2)
     s.tide(1.45, 1.35, 0.55, 0.7, 3.3)
     s.crack(zigzag(0.4, -T0, 0.05, -1.35, 5, 0.05, 1.3))
@@ -155,10 +155,9 @@ def floor_drain():
     s = Slab(seed=13, hole=(-G, G, -G, G))
     s.top()
     s.saw_cuts()
-    # the floor is wet round the drain: dark stain, rust ring, a tide mark further out
-    s.tide(0.25, -0.1, 1.45, 1.2, 0.9)
-    s.decal(blob(0.05, 0.0, 0.8, 0.72, 2.2, n=18, wob=0.14), "stain", L1)
-    s.decal(blob(0.0, 0.0, 0.52, 0.5, 5.1, n=16, wob=0.1), "oil", L2)
+    # the floor is wet round the drain: a damp patch running towards it, darker right at the grate
+    s.decal(blob(0.15, -0.05, 1.25, 1.0, 0.9, n=20, wob=0.14), "stain", L0)
+    s.decal(blob(0.05, 0.0, 0.7, 0.62, 2.2, n=18, wob=0.12), "stain_deep", L1)
     s.oil(-1.7, 1.6, 0.22, 1.9)
     s.crack(zigzag(G + 0.02, -0.15, 1.35, -0.75, 5, 0.04, 0.6))
     s.crack(zigzag(-G - 0.02, 0.2, -1.2, 1.1, 6, 0.05, 2.4), 0.014)
@@ -195,7 +194,7 @@ def floor_drain():
     parts.append(box((2 * G - 2 * fw, 0.02, 0.03), pos=(0, 0, -0.06), bevel=0.003, mat="metal_dark", name="grate_tie"))
     # rust ring on the concrete round the frame
     ring = MB()
-    poly = blob(0.0, 0.0, G + 0.13, G + 0.1, 1.4, n=20, wob=0.12)
+    poly = blob(0.0, 0.0, G + 0.1, G + 0.08, 1.4, n=20, wob=0.1)
     for c in (clip_rect(poly, -T0, T0, -T0, -G), clip_rect(poly, -T0, T0, G, T0), clip_rect(poly, -T0, -G, -G, G),
               clip_rect(poly, G, T0, -G, G)):
         if c:

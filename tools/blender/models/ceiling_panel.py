@@ -138,7 +138,7 @@ def fasteners(deform, missing=()):
             y = -S + k * P
             z = deform(x, y, -R, 0)
             if (sx, k) in missing:
-                mb.face([(u, v, z - 0.004) for u, v in blob(x, y, 0.045, 0.04, k, n=10, wob=0.2)], M["rust"], DOWN)
+                mb.face([(u, v, z - 0.004) for u, v in blob(x, y, 0.045, 0.04, k, n=10, wob=0.2)], M["rust_dim"], DOWN)
                 mb.face([(u, v, z - 0.006) for u, v in blob(x, y, 0.016, 0.016, k, n=8, wob=0.05)], M["dark"], DOWN)
                 continue
             parts.append(cyl(0.02, 0.014, verts=6, pos=(x, y, z - 0.014), bevel=0, mat="metal_dark", name="fastener"))
@@ -158,8 +158,8 @@ def ceiling_a():
     deck = Deck(deform=sag_a, fine=(-1.95, 0.35, [-0.8 + i * 0.3 for i in range(11)]))
     deck.sheet()
     deck.closures()
-    deck.decal_on_ribs(blob(0.6, -0.7, 0.9, 0.55, 1.3, n=18, wob=0.2), "rust")
-    deck.decal_on_ribs(blob(-1.6, 1.4, 0.5, 0.35, 4.0, n=14, wob=0.25), "rust")
+    deck.decal_on_ribs(blob(0.6, -0.7, 0.9, 0.55, 1.3, n=18, wob=0.2), "rust_dim")
+    deck.decal_on_ribs(blob(-1.6, 1.4, 0.5, 0.35, 4.0, n=14, wob=0.25), "rust_dim")
     deck.decal_on_ribs(blob(1.5, 1.2, 0.35, 0.9, 2.2, n=14, wob=0.2), "grime")
     parts = [deck.obj("Deck")] + fasteners(sag_a, missing={(1, 3), (1, 5), (-1, 11)})
     export(join(parts, "Deck"), "ceiling_panel", kind="part", mount="ceiling", budget=3500)
@@ -192,8 +192,8 @@ def ceiling_b():
         mb.face([(x0, LAP_Y, 0.0), (x1, LAP_Y, 0.0), (x1, LAP_Y, g1), (x0, LAP_Y, g0)], deck.M["void"], (0, 1, 0))
         mb.face([(x0, LAP_Y, 0.0), (x1, LAP_Y, 0.0), (x1, LAP_Y, g1), (x0, LAP_Y, g0)], deck.M["concrete_dark"], (0, -1, 0))
     deck.decal_on_ribs(blob(-1.2, -1.3, 1.1, 0.8, 2.7, n=18, wob=0.22), "grime")
-    deck.decal_on_ribs(blob(-1.1, -1.25, 0.6, 0.45, 5.5, n=16, wob=0.25), "rust", off=0.004)
-    deck.decal_on_ribs(blob(1.7, 0.4, 0.4, 0.3, 1.1, n=14, wob=0.25), "rust")
+    deck.decal_on_ribs(blob(-1.1, -1.25, 0.6, 0.45, 5.5, n=16, wob=0.25), "rust_dim", off=0.005)
+    deck.decal_on_ribs(blob(1.7, 0.4, 0.4, 0.3, 1.1, n=14, wob=0.25), "rust_dim")
     parts = [deck.obj("Deck")] + fasteners(sag_b, missing={(-1, 5), (-1, 7), (1, 9)})
     export(join(parts, "Deck"), "ceiling_panel_b", kind="part", mount="ceiling", budget=3500)
 
@@ -209,7 +209,7 @@ def ceiling_hole():
     deck.closures()
     # soot / water staining spreading from the hole along the ribs, rust at the torn edges
     deck.decal_on_ribs(blob(-0.95, 1.55, 1.8, 1.25, 0.6, n=20, wob=0.12), "grime")
-    deck.decal_on_ribs(blob(-0.95, 1.55, 1.45, 0.98, 2.2, n=20, wob=0.14), "rust", off=0.004)
+    deck.decal_on_ribs(blob(-0.95, 1.55, 1.45, 0.98, 2.2, n=20, wob=0.14), "rust_dim", off=0.005)
     parts = [deck.obj("Deck")] + fasteners(warp, missing={(-1, 13), (1, 1), (1, 3)})
     export(join(parts, "Deck"), "ceiling_panel_hole", kind="part", mount="ceiling", budget=3500)
 

@@ -315,6 +315,8 @@ def arch_mats():
         "block_light": material("block_light", "#a8a598", "matte"),  # replaced blocks, bare patches
         "olive_dark": material("olive_dark", "#5b6447", "matte"),   # the painted band + dado mortar + drips
         "stain": material("stain", "#8a877c", "matte"),             # water / grime stains on concrete
+        "stain_deep": material("stain_deep", "#7b786e", "matte"),   # the damp core of a stain
         "oil": material("oil", "#6c6961", "matte"),                 # oil stains on the floor
-        "grime": material("grime", "#56544e", "matte"),             # scuffs on the dark skirting, drain muck
+        "grime": material("grime", "#56544e", "matte"),             # scuffs on the dark skirting, soot on the deck
+        "rust_dim": material("rust_dim", "#7a5038", "matte"),       # rust on the dim ceiling (toned down)
     }

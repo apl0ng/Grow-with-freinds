@@ -269,7 +269,7 @@ func _test_ui() -> void:
 	await _frames_wait(2)
 	_check(hud.stats.visible, "WAITING: stats visible")
 	_check(hud.banner.visible and hud.banner_title.text == "CLOCK IN", "WAITING host: 'CLOCK IN' banner")
-	_check(hud.start_button.visible and hud.start_button.text == "START SHIFT", "WAITING host: START SHIFT button")
+	_check(hud.start_button.visible and hud.start_button.text == "ENTER · START SHIFT", "WAITING host: START SHIFT hint")
 	_check(hud.banner_text.text == "Shift starts when you press ENTER.\nNobody leaves until it's paid.",
 		"WAITING host: ENTER + nobody leaves (%s)" % hud.banner_text.text.c_escape())
 	_check(hud.money_label.text == HUD.format_money(_balance.starting_money), "wallet shows %s" % hud.money_label.text)

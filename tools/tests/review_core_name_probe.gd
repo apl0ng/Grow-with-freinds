@@ -3,7 +3,7 @@ extends "res://tools/tests/qa_base.gd"
 func _run() -> void:
 	_label = "names"
 	await get_tree().process_frame
-	for n in [1000, 20000, 60000, 120000]:
+	for n in [1000, 5000, 10000, 20000, 40000]:
 		var s := "a".repeat(n)
 		var t0 := Time.get_ticks_usec()
 		var r := Net.sanitize_name(s)

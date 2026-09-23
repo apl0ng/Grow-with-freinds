@@ -90,7 +90,7 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | 8.6 | Modeling wave (Blender): characters, stations, items + plant stages, room props | modelers | todo (after 8.5) |
 | 9.1 | Adversarial code review + fixes: core/net/player/flow | R1 | in progress |
 | 9.2 | Adversarial code review + fixes: items/interaction/stations | R2 | done (favor double-buy race fixed) |
-| 9.3 | Adversarial code review + fixes: UI/HUD/overlays/Story | R3 | in progress |
+| 9.3 | Adversarial code review + fixes: UI/HUD/overlays/Story | R3 | done (6 focus/layout bugs fixed; START SHIFT is now an Enter hint since the mouse is captured while waiting) |
 | 9.4 | Architecture models (Blender): cinder-block wall panels, floor slabs, ceiling beams/panels, hole rim | A2 | in progress |
 | 9.5 | Farming polish: graded tag color, drop BudTop workaround, wilt crossfade, ready-plant hitbox verified | D2 | done |
 | 9.6 | First-person view-model layer for held items (no wall clipping) | V | in progress |

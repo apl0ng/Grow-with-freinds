@@ -256,7 +256,7 @@ horizontal_alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudLabel"
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 18
 text = "Shift starts when you press ENTER.
 Nobody leaves until it's paid."
 horizontal_alignment = 1
@@ -275,7 +275,8 @@ layout_mode = 2
 size_flags_vertical = 4
 focus_mode = 0
 theme_type_variation = &"BigButton"
-text = "START SHIFT"
+theme_override_font_sizes/font_size = 18
+text = "ENTER · START SHIFT"
 
 [node name="GoBanner" type="Label" parent="Root"]
 unique_name_in_owner = true
