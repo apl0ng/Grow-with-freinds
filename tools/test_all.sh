@@ -28,7 +28,7 @@ export GODOT="${GODOT:-godot}"
 LOGDIR="${TEST_ALL_LOGS:-$(mktemp -d -t test_all.XXXXXX)}"
 mkdir -p "$LOGDIR"
 
-ALL_SUITES=(check art_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
+ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
   qa_mouse_x11)
 
@@ -127,9 +127,10 @@ run_suite() {
     fails_n=$(grep -oE 'loaded [0-9]+ resources, [0-9]+ failures' "$log" | grep -oE '[0-9]+ failures' | grep -oE '[0-9]+' | head -1)
     passed=$(( ${loaded:-0} - ${fails_n:-0} ))
     failed=$(( ${fails_n:-0} + $(grep -c "CHECK FAILED" "$log") ))
-  elif [[ "$name" == "art_test" ]]; then
+  elif grep -qE '^[a-z_]+: ([0-9]+ models, )?[0-9]+ checks, [0-9]+ failures' "$log"; then
+    # Suites that print "<name>: N checks, M failures" (art_test, models_*_test)
     local summary
-    summary=$(grep -oE 'art_test: [0-9]+ checks, [0-9]+ failures' "$log" | tail -1)
+    summary=$(grep -oE '^[a-z_]+: ([0-9]+ models, )?[0-9]+ checks, [0-9]+ failures' "$log" | tail -1)
     local checks fails_a
     checks=$(echo "$summary" | grep -oE '[0-9]+ checks' | grep -oE '[0-9]+')
     fails_a=$(echo "$summary" | grep -oE '[0-9]+ failures' | grep -oE '[0-9]+')
@@ -178,6 +179,11 @@ export LOGDIR
 echo "test_all: logs in $LOGDIR, port base $BASE"
 run_suite check           420 "" tools/check.sh
 run_suite art_test        120 "" "${G[@]}" -s $TESTS/art_test.gd
+run_suite models_test     180 "" "${G[@]}" -s $TESTS/models_test.gd
+run_suite models_station_test 120 "" "${G[@]}" -s $TESTS/models_station_test.gd
+run_suite models_item_test 120 "" "${G[@]}" -s $TESTS/models_item_test.gd
+run_suite models_props_test 120 "" "${G[@]}" -s $TESTS/models_props_test.gd
+run_suite models_env_test 120 "" "${G[@]}" -s $TESTS/models_env_test.gd
 run_suite world_test      120 "" "${G[@]}" -s $TESTS/world_test.gd
 run_suite items_test      120 "" "${G[@]}" -s $TESTS/items_test.gd
 run_suite items_test_minimal 120 "" "${G[@]}" -s $TESTS/items_test.gd -- --minimal
