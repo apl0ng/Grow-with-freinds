@@ -75,7 +75,7 @@ def build():
     parts += flange_pair(JOINT2, metal, metal)
     # Wall clamps: a strap round the pipe + a foot screwed to the wall (the lower one hangs crooked).
     for z, tilt in ((1.15, 7.0), (3.25, 0.0), (5.1, -3.0)):
-        clamp = [torus(PR + 0.012, 0.014, pos=(0, PY, 0), major_segments=20, minor_segments=4, mat=metal,
+        clamp = [torus(PR + 0.012, 0.014, pos=(0, PY, 0), major_segments=18, minor_segments=4, mat=metal,
                        name="strap"),
                  box((0.06, 0.042, 0.05), pos=(0, -0.031, -0.025), bevel=0.008, segments=1, mat=metal,
                      name="foot"),
@@ -92,18 +92,14 @@ def build():
     parts.append(band(PR, JOINT - 0.3, JOINT - 0.035, thickness=0.004, verts=24, rows=1, pos=(0, PY, 0), mat=rust,
                       name="rust_weep", bottom=lambda a: -0.25 * max(0.0, math.cos(a)) ** 3
                       - 0.06 * math.sin(3 * a + 1.0)))
-    # The wet run: a thin trickle down the front of the pipe from the joint, wobbling, thinning out.
-    wet = arc_panel(PR + 0.005, 0.5, angle=12, thickness=0.003, pos=(0, PY, JOINT - 0.54), segments=2, mat=water,
-                    name="wet")
-    subdivide(wet, 5)
-
-    def trickle(co):
-        k = max(0.0, min(1.0, co.z / 0.5))          # 1 at the joint .. 0 at the bottom tip
-        a = math.atan2(co.x, -(co.y - PY)) * (0.35 + 0.65 * k) + 0.12 * math.sin(co.z * 9.0)
-        r = math.hypot(co.x, co.y - PY)
-        return Vector((r * math.sin(a), PY - r * math.cos(a), co.z))
-    move_verts(wet, trickle)
-    parts.append(wet)
+    # The wet run: a rivulet trickling down the front of the pipe from the joint, wobbling, a bead at its end.
+    riv = []
+    for k in range(9):
+        z = JOINT - 0.045 - 0.06 * k
+        a = 0.22 * math.sin(k * 1.3 + 0.4) - 0.05 * k
+        riv.append((0.099 * math.sin(a), PY - 0.099 * math.cos(a), z))
+    parts.append(pipe(riv, 0.0075, verts=8, bend=0.0, mat=water, name="rivulet"))
+    parts.append(sphere(0.012, pos=riv[-1], scale=(1, 1, 1.3), segments=8, rings=5, mat=water, name="bead"))
 
     # Wall stains behind the pipe: a damp dark tongue from the joint to the floor with a rust streak in it.
     # (They spread out wider than the pipe and drift to its left, so they show beside it, not just behind.)
@@ -137,4 +133,4 @@ def build():
     set_origin(puddle, PUDDLE)
 
     # A 6 m floor-to-ceiling run with two flanged joints and three clamps: a little over the 3k prop budget.
-    export([pipe_obj, drop, puddle], "leaky_pipe", kind="prop", mount="wall", budget=3600)
+    export([pipe_obj, drop, puddle], "leaky_pipe", kind="prop", mount="wall", budget=3800)

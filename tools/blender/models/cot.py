@@ -184,8 +184,8 @@ def build():
     def rumple(u, s):
         """Fold height (>= 0) on the mattress: ridges across the sheet, a heap towards the foot."""
         k = (u + 0.32) / 0.64                               # 0 at the head side of the sheet .. 1 at the foot
-        ridge = math.sin(11 * u + 4.0 * s + 0.6) ** 2 * 0.03 + math.sin(19 * u - 7 * s) ** 2 * 0.012
-        heap = 0.05 * math.exp(-((k - 0.72) / 0.25) ** 2) * math.exp(-((s - 0.3) / 0.28) ** 2)
+        ridge = math.sin(11 * u + 4.0 * s + 0.6) ** 2 * 0.045 + math.sin(19 * u - 7 * s) ** 2 * 0.015
+        heap = 0.07 * math.exp(-((k - 0.72) / 0.25) ** 2) * math.exp(-((s - 0.3) / 0.28) ** 2)
         curl = 0.03 * math.exp(-s / 0.05)                   # front edge rolled up
         fade = min(1.0, (top_len - s) / 0.1)                 # flat where it slides over the edge
         return (ridge * min(1.0, k * 2.5) + heap) * max(0.0, fade) + curl

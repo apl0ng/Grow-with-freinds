@@ -161,9 +161,16 @@ func _studio() -> void:
 func _world() -> void:
 	var game: Node = root.get_node("Game")
 	var net: Node = root.get_node("Net")
-	game.call("start_host", "Alice", 7898)
-	await _settle(10)
-	var world: Node3D = game.get("world")
+	var world: Node3D = null
+	for attempt in 5:                        # other agents' tests may hold a port: try a few
+		game.call("start_host", "Alice", 7900 + randi() % 800)
+		await _settle(10)
+		world = game.get("world")
+		if world != null:
+			break
+	if world == null:
+		push_error("models_char_preview: could not host a world")
+		return
 	for id: int in [2, 3, 4]:
 		net.get("players")[id] = {"name": ["", "", "Bob", "Chloe", "Dmitri"][id], "color": COLORS[id - 1]}
 		world.call("server_spawn_player", id)

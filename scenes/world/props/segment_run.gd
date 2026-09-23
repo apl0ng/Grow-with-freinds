@@ -31,17 +31,34 @@ func rebuild() -> void:
 	if entry.is_empty() or count <= 0:
 		multimesh = null
 		return
-	var rel: Transform3D = entry[1]
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = entry[0]
 	mm.instance_count = count
 	for i in count:
-		var b := Basis.IDENTITY
-		if flip_alternate and i % 2 == 1:
-			b = Basis(Vector3.UP, PI)
-		mm.set_instance_transform(i, Transform3D(b, Vector3(step * float(i), 0.0, 0.0)) * rel)
+		mm.set_instance_transform(i, copy_transform(i))
 	multimesh = mm
+
+
+## Local transform of copy `i` (what rebuild() puts in the MultiMesh; headless runs use a dummy renderer that
+## keeps no MultiMesh transforms or bounds, so tests and tools ask here).
+func copy_transform(i: int) -> Transform3D:
+	var entry := toon_mesh(model, tint)
+	var rel: Transform3D = entry[1] if not entry.is_empty() else Transform3D.IDENTITY
+	var b := Basis(Vector3.UP, PI) if flip_alternate and i % 2 == 1 else Basis.IDENTITY
+	return Transform3D(b, Vector3(step * float(i), 0.0, 0.0)) * rel
+
+
+## Bounds of the whole run in this node's space (computed, so they also work headless).
+func get_run_aabb() -> AABB:
+	var entry := toon_mesh(model, tint)
+	if entry.is_empty() or count <= 0:
+		return AABB()
+	var local: AABB = (entry[0] as Mesh).get_aabb()
+	var box := copy_transform(0) * local
+	for i in range(1, count):
+		box = box.merge(copy_transform(i) * local)
+	return box
 
 
 ## [mesh, transform of the mesh node inside the model] for `scene`, the mesh's surfaces set to the toon
