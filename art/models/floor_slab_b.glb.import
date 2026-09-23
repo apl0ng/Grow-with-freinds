@@ -1,0 +1,19 @@
+[remap]
+
+importer="scene"
+importer_version=1
+type="PackedScene"
+
+[params]
+
+nodes/root_type="Node3D"
+nodes/root_name=""
+nodes/root_script=Resource("uid://cv5u3wnhjrb12", "res://scripts/art/toonify.gd")
+nodes/apply_root_scale=true
+nodes/root_scale=1.0
+nodes/use_name_suffixes=false
+meshes/ensure_tangents=false
+meshes/generate_lods=false
+meshes/create_shadow_meshes=true
+animation/import=false
+import_script/path="res://tools/blender/gwf_post_import.gd"

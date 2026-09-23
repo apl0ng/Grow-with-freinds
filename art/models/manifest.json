@@ -188,6 +188,67 @@
   ],
   "tris": 2172
  },
+ "floor_slab": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_concrete",
+   "toon_concrete_dark",
+   "stain",
+   "oil",
+   "toon_dark"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/floor_slab.py",
+  "size": [
+   5.0,
+   0.024,
+   5.0
+  ],
+  "tris": 202
+ },
+ "floor_slab_b": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_concrete",
+   "toon_concrete_dark",
+   "grime",
+   "stain",
+   "oil",
+   "toon_dark"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/floor_slab.py",
+  "size": [
+   5.0,
+   0.024,
+   5.0
+  ],
+  "tris": 166
+ },
+ "floor_slab_drain": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_concrete",
+   "toon_concrete_dark",
+   "stain",
+   "oil",
+   "toon_dark",
+   "toon_void",
+   "toon_metal_dark",
+   "toon_rust"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/floor_slab.py",
+  "size": [
+   5.0,
+   0.166,
+   5.0
+  ],
+  "tris": 766
+ },
  "fluoro_light": {
   "front": "+z",
   "kind": "prop",
