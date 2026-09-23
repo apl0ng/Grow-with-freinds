@@ -62,6 +62,23 @@ def place(obj, world_g):
     return obj
 
 
+def scale_about(objs, pivot_g, k):
+    """Uniformly scale a node subtree (objs parents-first) about a Godot point, baked: meshes are scaled in
+    place and node positions spread out, rotations stay as they are, no node gets a scale."""
+    bpy.context.view_layer.update()
+    pivot = g(*pivot_g)
+    worlds = [o.matrix_world.copy() for o in objs]
+    for o in objs:
+        if o.type == 'MESH':
+            o.data.transform(Matrix.Scale(k, 4))
+            o.data.update()
+    for o, mw in zip(objs, worlds):
+        new = mw.copy()
+        new.translation = pivot + (mw.translation - pivot) * k
+        o.matrix_world = new
+        bpy.context.view_layer.update()
+
+
 def place_baked(obj, parent_g, pos, rot):
     """A static extra: bake its local rotation `rot` (Godot degrees) into the mesh, so the node itself only
     has a translation (tight bounds; nothing animates it)."""
@@ -304,6 +321,7 @@ def foot(side, mats):
 HEAD = [(0.0, -0.04), (0.2, -0.03), (0.3, 0.02), (0.352, 0.08), (0.366, 0.155), (0.362, 0.23), (0.35, 0.3),
         (0.33, 0.38), (0.3, 0.45), (0.264, 0.5), (0.2, 0.555), (0.1, 0.6), (0.0, 0.612)]
 HEAD_DEPTH = 0.92
+HEAD_SCALE = 1.12        # the finished head subtree is scaled up around the neck (see build())
 STUBBLE_TOP = 0.155
 
 
@@ -348,8 +366,9 @@ def head(mats):
     apply_transform(skull)
     # A heavy double chin pushed forward, then stubble on everything below the nose line (front half).
     move_verts(skull, lambda co: g(*chin((-co.x, co.z, co.y))))
-    # (Blender: z up, -y front) below the nose at the front, along the jaw on the sides
-    paint(skull, mats["stubble"], lambda c, n: c.y < 0.06 and c.z < STUBBLE_TOP - 0.1 * max(0.0, abs(c.x) - 0.2) / 0.16)
+    # (Blender: z up, -y front) below the nose at the front, sloping down to the jaw at the sides
+    paint(skull, mats["stubble"], lambda c, n: c.y < 0.1 and
+          c.z < STUBBLE_TOP - (STUBBLE_TOP - 0.02) * smooth01((abs(c.x) - 0.14) / 0.2))
     nose = gsphere(0.082, nose_c(), scale=(1.05, 0.95, 0.9), segments=14, rings=7, mat=mats["nose"],
                    name="nose")
     ears = [gsphere(0.075, (s * 0.35, 0.29, 0.03), scale=(0.45, 1.0, 0.75), segments=10, rings=5, mat=mats["skin"],
@@ -630,6 +649,11 @@ def build():
     cig = cigar(mats)
     place(cig, head_w @ gmat((0.088, 0.078, face_z(0.088, 0.078) + 0.005)))
     set_parent(cig, head_obj)
+    # A big head reads through the bars at the counter: the whole head subtree 12 % up, around the neck.
+    subtree = [head_obj]
+    for o in subtree:
+        subtree += [c for c in o.children if c not in subtree]
+    scale_about(subtree, (0.0, 1.2, 0.0), HEAD_SCALE)
 
     # --- Arms (rest pose reaching onto the counter; the script records it)
     for s, nm in ((-1, "ArmLeft"), (1, "ArmRight")):

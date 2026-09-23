@@ -5,10 +5,10 @@ origin): scenes/world/props/sign_board.gd stretches `Visual/Board` to `board_siz
 `board_size + 2 * frame_width` and swaps their materials (`board_material` / `frame_material`: dark
 chalkboard + wood frame for "PAY UP", rust or caution boards on steel for the posters), so the model
 carries the SHAPE and the scene/instance carries the colours; the text stays the scene's `Text` Label3D
-(at 7.5 cm in front of the wall, so everything here stays behind 7 cm). Instanced AS `Visual`.
+(at 7.5 cm in front of the wall, so everything here stays behind 7.2 cm). Instanced AS `Visual`.
   Frame  a chunky backing slab, 5 cm deep, rounded front edges, one knocked-in corner, a ledge along the
          bottom (the chalk tray)
-  Board  a 3 cm plate standing proud of the frame, bowed a little, its bottom-right corner curling off
+  Board  a 3 cm plate standing 1 cm proud of the frame, bowed a little, its bottom-right corner curling off
 Bevels are small (they stretch with the board). Default colours (no override): caution board on a
 metal_dark frame, like the placeholder.
 """
@@ -67,13 +67,14 @@ def build():
                 name="ledge")
     frame = join([frame, ledge], "Frame")
 
-    # Board: proud of the frame (y -0.035 .. -0.065), bowed ~4 mm, the bottom-right corner curling out.
-    board = grid_plate("Board", 8, 0.03, lib("caution"), -0.035)
+    # Board: proud of the frame (y -0.03 .. -0.06), bowed ~4 mm, the bottom-right corner curling out 12 mm
+    # (everything stays behind the Text label at 7.5 cm).
+    board = grid_plate("Board", 8, 0.03, lib("caution"), -0.03)
 
     def warp(c):
         bow = 0.004 * (1 - (2 * c.x) ** 2) * (1 - (2 * c.z) ** 2)
         d = math.hypot(c.x - 0.5, c.z + 0.5)            # distance from the bottom-right corner
-        curl = 0.022 * max(0.0, 1 - d / 0.22) ** 2
+        curl = 0.012 * max(0.0, 1 - d / 0.22) ** 2
         return Vector((c.x, c.y - bow - curl, c.z))
     move_verts(board, warp)
     bevel(board, 0.006, segments=1)

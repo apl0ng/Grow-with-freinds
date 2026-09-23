@@ -53,7 +53,7 @@ def side_slat(face, z0, z1, x0=-0.36, x1=0.36, yaw=0.0, roll=0.0, mat=None, name
 def build():
     wood = lib("wood")                                     # honey slats + lid
     damp = lib("brown")                                    # bottom slats: damp, darker
-    inside = material("crate_inside", "#3a2d26", "matte")  # the dark gaps between slats
+    inside = material("crate_inside", pal("SOIL_WET"), "matte")  # the dark gaps between slats
     steel = lib("metal_dark")
     band = tint_material("TINT_band")                      # painted band: per-instance colour
     ink = lib("dark")                                      # stencil paint

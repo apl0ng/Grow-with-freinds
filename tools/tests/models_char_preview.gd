@@ -10,8 +10,8 @@ extends SceneTree
 ##
 ## studio: players_front (4 colours), players_side, player_face, player_back, boss_front, boss_34, boss_side,
 ##         boss_face, boss_cheer, boss_wave, lineup (players + Boss + oil drum at true scale)
-## world:  world_counter (2 players at the Boss's cage, player eye height), world_players (3 players + Boss in the
-##         back), world_wide
+## world:  world_counter (players queue at the Boss's cage, player eye height), world_players (3 players facing
+##         you, the Boss behind), world_boss (+ _cheer, _wave: at the counter), world_wide
 ## Autoloads are reached through the root (this script compiles before they are registered).
 
 const PLAYER := "res://scenes/player/player.tscn"
@@ -203,12 +203,35 @@ func _world() -> void:
 	(local.get_node("Head") as Node3D).rotation.x = -0.12
 	await _settle(40)
 	await _shot("world_players")
-	# 3. Wide view from the entrance side.
+	# 3. At the counter: two players waiting beside you, the Boss glaring through the bars (+ cheer, + wave).
+	var keeper: Node = null
+	var room: Node = world.get("room")
+	if room != null and room.has_method("get_station"):
+		var counter: Node = room.call("get_station", "ShopCounter")
+		if counter != null:
+			keeper = counter.get_node_or_null("ShopkeeperAnchor/Shopkeeper")
+	_place(others[0], Vector3(-1.05, 0, -2.25), -0.45)
+	_place(others[1], Vector3(1.15, 0, -2.3), 0.5)
+	_place(others[2], Vector3(2.6, 0, 0.5), 0.3)
+	local.global_position = Vector3(0.15, 0, -1.65)
+	local.rotation.y = 0.0
+	(local.get_node("Head") as Node3D).rotation.x = 0.05
+	await _settle(50)
+	await _shot("world_boss")
+	if keeper != null:
+		keeper.call("cheer")
+		await create_timer(0.3).timeout
+		await _shot("world_boss_cheer")
+		await create_timer(1.8).timeout
+		keeper.call("wave")
+		await create_timer(0.55).timeout
+		await _shot("world_boss_wave")
+	# 4. Wide view from the well side.
 	var wide := Camera3D.new()
 	world.add_child(wide)
-	wide.fov = 70.0
-	wide.global_position = Vector3(4.5, 2.6, 3.5)
-	wide.look_at(Vector3(0.0, 1.0, -2.5))
+	wide.fov = 60.0
+	wide.global_position = Vector3(-3.6, 2.3, 0.9)
+	wide.look_at(Vector3(0.2, 1.1, -2.9))
 	wide.current = true
 	await _settle(10)
 	await _shot("world_wide")

@@ -37,7 +37,7 @@ def build():
     grime = lib("concrete_dark")
     glass = lib("dark")
     glint = lib("eye_white")                                  # flat
-    led_mat = material("led_red", "#e0453a", "flat")          # the one bright signal: it is recording
+    led_mat = material("led_red", pal("TOMATO"), "flat")      # the one bright signal: it is recording
 
     # ---- Bracket (static): wall plate, arm, screws, sagging cable.
     plate = extrude_profile(rounded_rect(0.15, 0.22, 0.035, n=3), 0.024, pos=(0, 0, 0.0), bevel=0.008, segments=1,

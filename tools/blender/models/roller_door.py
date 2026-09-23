@@ -261,7 +261,8 @@ def build():
                                 lambda x, s=sx: 0.36 + 0.09 * math.sin(20 * x + s), "rail_rust"))
 
     # The coil drum (axis along X) with end plates, hubs and wall gussets; rust on its belly and a drip.
-    dz, dy, dr = 3.98, -0.35, 0.3        # end plates (r + 0.04) stay just in front of the wall
+    dz, dy, dr = 3.92, -0.32, 0.27       # end plates (r + 0.04) stay just in front of the wall; the top
+    #                                      (4.19) stays under the sign that hangs above the door in the room
     parts.append(cyl(dr, 4.3, verts=24, pos=(0, dy, dz), rot=(0, 90, 0), bevel=0.018, mat="metal_dark", name="drum",
                      anchor="center"))
     for sx in (-1, 1):
@@ -269,9 +270,9 @@ def build():
                          mat="metal_dark", name="end_plate", anchor="center"))
         parts.append(cyl(0.075, 0.08, verts=12, pos=(sx * 2.22, dy, dz), rot=(0, 90, 0), bevel=0,
                          mat="dark", name="hub", anchor="center"))
-        parts.append(extrude_profile([(sx * 2.15, 3.62), (sx * 2.28, 3.62), (sx * 2.28, 4.3), (sx * 2.15, 4.3)],
+        parts.append(extrude_profile([(sx * 2.15, 3.62), (sx * 2.28, 3.62), (sx * 2.28, 4.2), (sx * 2.15, 4.2)],
                                      0.02, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.005, mat="metal_dark", name="gusset"))
-        g = box((0.04, 0.37, 0.08), pos=(sx * 2.19, -0.185, 3.6), bevel=0.005, mat="metal_dark", name="strut")
+        g = box((0.04, 0.34, 0.08), pos=(sx * 2.19, -0.17, 3.56), bevel=0.005, mat="metal_dark", name="strut")
         parts.append(g)
     # Rust on the drum: an underside patch + a drip, built round a Z axis and turned onto the drum's X axis.
     belly = arc_panel(dr + 0.002, 3.2, angle=110, thickness=0.004, pos=(0, 0, -1.6), rot=(0, 0, 70), segments=10,

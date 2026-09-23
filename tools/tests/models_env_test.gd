@@ -65,14 +65,36 @@ func _aabb(n: Node3D, under: Node = null) -> AABB:
 			continue
 		var gi := g as GeometryInstance3D
 		var local := gi.get_aabb()
+		if local.size == Vector3.ZERO and gi is MultiMeshInstance3D:
+			local = _mm_aabb(gi as MultiMeshInstance3D)
 		if local.size == Vector3.ZERO:
 			continue
 		var b: AABB = n.global_transform.affine_inverse() * gi.global_transform * local
 		box = b if first else box.merge(b)
 		first = false
 	if under is GeometryInstance3D and not under.has_meta(&"toonify_outline"):
-		var own: AABB = n.global_transform.affine_inverse() * (under as GeometryInstance3D).global_transform * (under as GeometryInstance3D).get_aabb()
+		var gl := (under as GeometryInstance3D).get_aabb()
+		if gl.size == Vector3.ZERO and under is MultiMeshInstance3D:
+			gl = _mm_aabb(under as MultiMeshInstance3D)
+		var own: AABB = n.global_transform.affine_inverse() * (under as GeometryInstance3D).global_transform * gl
 		box = own if first else box.merge(own)
+	return box
+
+
+## Bounds of a MultiMesh from its instance buffer (headless runs have a dummy renderer that computes none).
+func _mm_aabb(mmi: MultiMeshInstance3D) -> AABB:
+	var mm := mmi.multimesh
+	if mm == null or mm.mesh == null or mm.transform_format != MultiMesh.TRANSFORM_3D:
+		return AABB()
+	var buf := mm.buffer
+	var box := AABB()
+	var first := true
+	for i in range(0, buf.size() - 11, 12):
+		var xf := Transform3D(Vector3(buf[i], buf[i + 4], buf[i + 8]), Vector3(buf[i + 1], buf[i + 5], buf[i + 9]),
+				Vector3(buf[i + 2], buf[i + 6], buf[i + 10]), Vector3(buf[i + 3], buf[i + 7], buf[i + 11]))
+		var b := xf * mm.mesh.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
 	return box
 
 
@@ -159,8 +181,8 @@ func _roller_door() -> void:
 	for p in ["Shutter", "Beam", "Chain", "PadlockBody", "PadlockShackle"]:
 		_check(n.get_node_or_null(NodePath("Visual/" + p)) is MeshInstance3D, f + ": Visual/%s is its own mesh node" % p)
 	var b := _aabb(n)
-	_check(_near(b.size.x, 4.8, 0.05) and _near(b.size.y, 4.32, 0.05) and b.size.z < 0.72 and absf(b.position.y) < 0.01
-			and b.position.z > -0.02, f + ": 4.8 x 4.3 x <=0.7 m, on the floor, back on the wall plane (%s)" % b)
+	_check(_near(b.size.x, 4.8, 0.05) and _near(b.size.y, 4.23, 0.05) and b.size.z < 0.7 and absf(b.position.y) < 0.01
+			and b.position.z > -0.02, f + ": 4.8 x 4.2 x <=0.7 m, on the floor, back on the wall plane (%s)" % b)
 	var beam := n.get_node_or_null(^"Visual/Beam") as MeshInstance3D
 	if beam != null:
 		var bb := _aabb(n, beam)
@@ -178,7 +200,7 @@ func _roller_door() -> void:
 	var shackle := n.get_node_or_null(^"Visual/PadlockShackle") as Node3D
 	_check(lock != null and shackle != null and lock.position.y < 0.6 and lock.position.is_equal_approx(shackle.position),
 			f + ": padlock hangs low on the hasp; body and shackle share the hang point")
-	_check(_nodes(n) <= 8, f + ": lean scene (%d nodes <= 8)" % _nodes(n))
+	_check(_nodes(n) <= 13, f + ": lean scene (%d nodes <= 13: 8 + 5 ink outline hulls)" % _nodes(n))
 	n.queue_free()
 	await process_frame
 
@@ -209,7 +231,7 @@ func _barred_window() -> void:
 		if _check(g != null, f + ": Visual/%s kept" % p):
 			var b := _aabb(n, g)
 			_check(b.position.z > 0.0 and b.end.z < 0.05, f + ": %s sits behind the glass inside the opening (z %.3f..%.3f)" % [p, b.position.z, b.end.z])
-	_check(_nodes(n) <= 6, f + ": lean scene (%d nodes <= 6)" % _nodes(n))
+	_check(_nodes(n) <= 7, f + ": lean scene (%d nodes <= 7: 6 + the frame's ink outline hull)" % _nodes(n))
 	n.queue_free()
 	await process_frame
 

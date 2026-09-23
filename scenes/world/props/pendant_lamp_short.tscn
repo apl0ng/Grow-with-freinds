@@ -1,0 +1,25 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/world/props/pendant_lamp.gd" id="1_pendant"]
+[ext_resource type="PackedScene" path="res://art/models/pendant_lamp_short.glb" id="2_lamp"]
+
+[node name="PendantLampShort" type="Node3D"]
+script = ExtResource("1_pendant")
+
+[node name="Visual" parent="." instance=ExtResource("2_lamp")]
+outline_width = 0.015
+
+[node name="Lamp" parent="Visual" index="0"]
+cast_shadow = 0
+
+[node name="Bulb" parent="Visual" index="1"]
+cast_shadow = 0
+
+[node name="Light" type="SpotLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -0.88, 0)
+light_color = Color(1, 0.823529, 0.603922, 1)
+light_energy = 1.8
+light_specular = 0.2
+spot_range = 3.6
+spot_angle = 44
+spot_angle_attenuation = 0.8

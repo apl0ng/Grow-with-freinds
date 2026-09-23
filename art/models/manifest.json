@@ -48,8 +48,8 @@
   "script": "tools/blender/models/boss.py",
   "size": [
    1.244,
-   1.981,
-   1.265
+   2.075,
+   1.324
   ],
   "tris": 7976
  },
@@ -530,8 +530,8 @@
   "script": "tools/blender/models/roller_door.py",
   "size": [
    4.801,
-   4.32,
-   0.68
+   4.23,
+   0.634
   ],
   "tris": 4984
  },
@@ -637,7 +637,7 @@
   "size": [
    1.0,
    1.0,
-   0.085
+   0.071
   ],
   "tris": 1004
  },

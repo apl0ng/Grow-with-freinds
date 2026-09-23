@@ -66,7 +66,7 @@ def build():
         r = 1.0 + 0.18 * math.sin(3 * a + 0.7) + 0.1 * math.sin(5 * a + 1.9)
         pts.append((-0.2 + 0.13 * r * math.cos(a), 0.2 + 0.1 * r * math.sin(a)))
     stain = extrude_profile(pts, 0.0015, rot=(-90, 0, 0), bevel=0,
-                            mat=material("damp", "#a79c86", "matte"), name="stain")   # cream, 20 % darker
+                            mat=material("damp", pal("SAND"), "matte"), name="stain")   # a shade under cream
     apply_transform(stain)
     stain.location = (0, 0, FACE_Z + 0.0022)
     parts.append(stain)

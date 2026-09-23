@@ -48,7 +48,7 @@ def plan_board(x0, x1, y, w, z, t, jag0=None, jag1=None, mat=None, name="board",
 
 def build():
     deck = lib("brown")                                  # tired cocoa boards
-    frame = material("wood_dark", "#5e4634", "matte")   # blocks + stringers: cocoa one step darker, damp
+    frame = material("wood_dark", pal("SOIL"), "matte")  # blocks + stringers: darker than the deck, damp
     fresh = lib("wood")                                  # one replaced board (a cheap patch job)
     grime = lib("concrete_dark")
     parts = []
