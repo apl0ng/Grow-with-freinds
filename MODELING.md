@@ -257,35 +257,35 @@ new ones from any pack: `models_preview.gd -- --models=none --dir=/abs/pack/mode
 
 ---
 
-## 8. Models needed (targets taken from the current scenes)
+## 8. Model list (targets taken from the current scenes)
 
 W × H × D in Godot metres (x × y × z); "collider" is the scene's collision shape the model must fill.
-All paths are relative to `scenes/`. ✅ = done (worked examples).
+All paths are relative to `scenes/`. ✅ = shipped (in `art/models/manifest.json`; sizes there are the real ones), ⏳ = pending.
 
 **Characters** (`kind="character"`, front → Godot -Z, floor)
 
 | Model | Size | Scene | Notes |
 |---|---|---|---|
-| `player_body` | 0.85 × 1.6 × 0.8 (collider capsule r 0.4 h 1.8) | `player/player.tscn` (replaces `Visual/BodyMesh`) | Bean (STYLE §9: capsule r 0.42 h 1.55), slouched 4°, body = `TINT` (player colour), feet `TINT` shade 0.75, wilted sprout (`leaf_dry`). Leave the front of the head clear for `face.tscn` at (0, 1.22, -0.4); keep `Face`, `%NameLabel`, sockets |
-| `boss` | 1.2 × 2.1 × 1.4 | `world/shopkeeper_npc.tscn`, instanced **as** `Visual` | Rigged: `Torso` (origin at the floor) / `HeadPivot` / `EyeL`,`EyeR` / `LidL`,`LidR`; `Torso/ArmLeft/Hand__L/Cash/TopBill`; `Torso/ArmRight/Hand__R/Fingers/...`; `FootLeft`, `FootRight`. Round, heavy, scowling, fedora (`metal_dark`), cash stack (olive). The shop anchor already turns him to face the room |
+| ⏳ `player` (character modeler, in progress) | 0.85 × 1.6 × 0.8 (collider capsule r 0.4 h 1.8) | `player/player.tscn` (replaces `Visual/BodyMesh`) | Bean (STYLE §9: capsule r 0.42 h 1.55), slouched 4°, body = `TINT` (player colour), feet `TINT` shade 0.75, wilted sprout (`leaf_dry`). Leave the front of the head clear for `face.tscn` at (0, 1.22, -0.4); keep `Face`, `%NameLabel`, sockets |
+| ⏳ `boss` (character modeler, in progress) | 1.2 × 2.1 × 1.4 | `world/shopkeeper_npc.tscn`, instanced **as** `Visual` | Rigged: `Torso` (origin at the floor) / `HeadPivot` / `EyeL`,`EyeR` / `LidL`,`LidR`; `Torso/ArmLeft/Hand__L/Cash/TopBill`; `Torso/ArmRight/Hand__R/Fingers/...`; `FootLeft`, `FootRight`. Round, heavy, scowling, fedora (`metal_dark`), cash stack (olive). The shop anchor already turns him to face the room |
 
 **Stations** (`kind="station"`, front → Godot +Z towards the room, floor)
 
 | Model | Size | Scene | Notes |
 |---|---|---|---|
-| `shop_cage` | ≈ 3.4 × 3.2 × 1.95 (counter collider 3.4 × 1.04 × 1.2; the Boss stands at z -0.9) | `stations/shop_counter.tscn` | The Boss's barred pay window / cage: counter, bars, a slot tray, a "PAY HERE" plate. Keep `ShopkeeperAnchor` and what `shop_counter.gd` addresses (`Visual/Jars`, `Visual/Badges`, `PriceTag` today; check the script first, the economy agent may change them) |
-| `deposit_chute` | 1.6 × ≤ 2.6 × 1.4 (collider 1.6 × 1.08 × 1.4) | `stations/turn_in_station.tscn` | Rusty hopper mouth on a box, chute into the wall, "NO REFUNDS" plate. The script spins `Visual/Sign/Coin` and uses `SoldLabel`: keep them (or export a `Sign/Coin` node and instance the model as `Visual`) |
-| `water_tank` | ≈ 2.8 × 2.7 × 2.2 (collider: ring r 1.0 h 0.76, posts ±0.98 × 2.05, roof 2.6 × 0.5 × 1.6) | `stations/well.tscn` | Replaces the well: a dented tank with a tap and drip tray (fits the colliders or ask the farming agent to update them). `well.gd` uses `%Water`, `%Bucket`, `%CanSpots`: they stay Godot nodes |
-| `grow_tray` | 1.5 × 0.5 × 1.5 (collider 1.46 × 0.52 × 1.46) | `stations/grow_plot.tscn` | Planter tray + rim on a plinth, soil top at y ≈ 0.4 (the plant origin). The model is the tray only: `grow_plot.gd` recolours `%SoilBed`/`%SoilMound` (dry/wet) and moves `%FillPivot`/`%Fill`, `%Tag`/`%Card`, so those stay Godot nodes (`%unique` names can't live inside a glb) |
-| `plant_seedling` / `_vegetative` / `_flowering` / `_ready` + `*_dry` | 0.3 × 0.24 × 0.3 / 0.6 × 0.58 × 0.6 / 0.75 × 0.8 × 0.75 / 0.85 × 1.05 × 0.85 (`PlantVisual.STAGE_HEIGHTS`) | `stations/plant_visual.tscn` stage nodes | `kind="part"`, origin at the soil top. One family script `plant_stages.py`. Nodes `Leaves` (`lib("leaf")`, dry: `lib("leaf_dry")` + droop 8–15°) and `Buds` (`tint_material("TINT_bud", finish="glow")`). The farming agent maps them onto the stage nodes; buds pulse. PLAN 8.7 is a later dedicated pass with real cannabis morphology (cotyledons, fan leaves with 5–7 serrated fingers: `extrude_profile` + `move_verts` for the fold; dense colas with sugar leaves), still chunky |
+| ✅ `shop_cage` | ≈ 3.4 × 3.2 × 1.95 (counter collider 3.4 × 1.04 × 1.2; the Boss stands at z -0.9) | `stations/shop_counter.tscn` | The Boss's barred pay window / cage: counter, bars, a slot tray, a "PAY HERE" plate. Keep `ShopkeeperAnchor` and what `shop_counter.gd` addresses (`Visual/Jars`, `Visual/Badges`, `PriceTag` today; check the script first, the economy agent may change them) |
+| ✅ `deposit_chute` | 1.6 × ≤ 2.6 × 1.4 (collider 1.6 × 1.08 × 1.4) | `stations/turn_in_station.tscn` | Rusty hopper mouth on a box, chute into the wall, "NO REFUNDS" plate. The script spins `Visual/Sign/Coin` and uses `SoldLabel`: keep them (or export a `Sign/Coin` node and instance the model as `Visual`) |
+| ✅ `water_tank` + `water_tank_bucket` (part) | ≈ 2.8 × 2.7 × 2.2 (collider: ring r 1.0 h 0.76, posts ±0.98 × 2.05, roof 2.6 × 0.5 × 1.6) | `stations/well.tscn` | Replaces the well: a dented tank with a tap and drip tray (fits the colliders or ask the farming agent to update them). `well.gd` uses `%Water`, `%Bucket`, `%CanSpots`: they stay Godot nodes |
+| ✅ `grow_tray` | 1.5 × 0.5 × 1.5 (collider 1.46 × 0.52 × 1.46) | `stations/grow_plot.tscn` | Planter tray + rim on a plinth, soil top at y ≈ 0.4 (the plant origin). The model is the tray only: `grow_plot.gd` recolours `%SoilBed`/`%SoilMound` (dry/wet) and moves `%FillPivot`/`%Fill`, `%Tag`/`%Card`, so those stay Godot nodes (`%unique` names can't live inside a glb) |
+| ⏳ `plant_seedling` / `_vegetative` / `_flowering` / `_ready` + `*_dry` (dedicated pass, PLAN 8.7) | 0.3 × 0.24 × 0.3 / 0.6 × 0.58 × 0.6 / 0.75 × 0.8 × 0.75 / 0.85 × 1.05 × 0.85 (`PlantVisual.STAGE_HEIGHTS`) | `stations/plant_visual.tscn` stage nodes | `kind="part"`, origin at the soil top. One family script `plant_stages.py`. Nodes `Leaves` (`lib("leaf")`, dry: `lib("leaf_dry")` + droop 8–15°) and `Buds` (`tint_material("TINT_bud", finish="glow")`). The farming agent maps them onto the stage nodes; buds pulse. PLAN 8.7 is a later dedicated pass with real cannabis morphology (cotyledons, fan leaves with 5–7 serrated fingers: `extrude_profile` + `move_verts` for the fold; dense colas with sugar leaves), still chunky |
 
 **Held items** (`kind="item"`, front → Godot -Z, floor, budget 1500)
 
 | Model | Size | Scene | Notes |
 |---|---|---|---|
-| `watering_can` | ≈ 0.5 nose-to-handle × 0.42 H (collider cyl r 0.19 h 0.42) | `items/watering_can.tscn` | Dented tin can, the spout pointing to the front. Keep `Visual/WaterTop` (level) and the gauge |
-| `seed_packet` | 0.3 × 0.36 × 0.12 (collider box) | `items/seed_packet.tscn` | Crumpled paper packet, `TINT` = strain colour, crimped top. Keep `Visual/Packet/NameLabel`, `Icon/Bud` |
-| `product_bundle` | ≈ 0.4 × 0.35 × 0.4 (collider sphere r 0.2 at y 0.15) | `items/product.tscn` | A twine-tied brick or bag of product, `TINT` buds poking out. `Visual/Cluster` |
+| ✅ `watering_can` | ≈ 0.5 nose-to-handle × 0.42 H (collider cyl r 0.19 h 0.42) | `items/watering_can.tscn` | Dented tin can, the spout pointing to the front. Keep `Visual/WaterTop` (level) and the gauge |
+| ✅ `seed_packet` | 0.3 × 0.36 × 0.12 (collider box) | `items/seed_packet.tscn` | Crumpled paper packet, `TINT` = strain colour, crimped top. Keep `Visual/Packet/NameLabel`, `Icon/Bud` |
+| ✅ `product_bundle` | ≈ 0.4 × 0.35 × 0.4 (collider sphere r 0.2 at y 0.15) | `items/product.tscn` | A twine-tied brick or bag of product, `TINT` buds poking out. `Visual/Cluster` |
 
 **Room props** (`kind="prop"`, `scenes/world/props/`, front → Godot +Z)
 
@@ -293,21 +293,21 @@ All paths are relative to `scenes/`. ✅ = done (worked examples).
 |---|---|---|---|
 | ✅ `oil_drum` | 0.70 × 0.94 × 0.71, floor (collider cyl r 0.33 h 0.92) | `oil_drum.tscn` | `TINT` paint (faded blue `#4f6d8f` / olive `#6f7a4f` / red `#8f4a3f`), stripe shade 0.7 |
 | ✅ `pendant_lamp` / `pendant_lamp_short` | 0.94 × 2.94 × 0.94 / 0.62 × 0.92 × 0.61, ceiling | `pendant_lamp.tscn` | Nodes `Lamp` + `Bulb` (flat, flicker/hide it). The SpotLight stays in the scene at y ≈ -2.86 |
-| `pallet` | 1.2 × 0.15 × 1.0, floor | `pallet.tscn` | `plank`s + blocks, one board cracked/missing |
-| `crate` | 0.9 × 0.9 × 0.9, floor | `crate.tscn` | Slatted, banded, dented; `TINT` stencil optional |
-| `fence_panel` | 2.5 × 2.2 × 0.1, floor (back on y = 0) | `fence_panel.tscn` | Frame `pipe`s + chain-link (`chainlink`): a diamond lattice of thin boxes via `array`, ≤ 2.5k tris, or keep the MultiMesh wires and model only the frame. Sagging, one torn corner |
-| `cot` | 1.92 × 0.65 × 0.92, floor | `cot.tscn` | Steel frame, thin stained mattress, flat pillow, rumpled blanket |
-| `security_camera` | 0.26 × 0.4 × 0.73, wall | `security_camera.tscn` | Rigged: `Bracket`, `Pan` / `Tilt` / `Led` (flat red; the script toggles it) |
-| `punch_clock` | ≈ 0.5 × 1.9 × 0.3, wall | `punch_clock.tscn` | Box, clock face, card slot, card rack. The "CLOCK IN" Label3D stays in the scene |
-| `debt_board` | 2.16 × 1.16 × 0.06, wall | `sign_board.tscn` | `sign_board.gd` scales `Visual/Board` and `Visual/Frame` to `board_size`: model them as **1 × 1 m** meshes named `Board` and `Frame` (small bevels, they stretch); the `Text` Label3D stays |
-| `wall_clock` | 0.92 × 0.92 × 0.13, wall | `wall_clock.tscn` | Rigged: `HourHand`, `MinuteHand`, `SecondHand` pivoting at the centre, pointing at 12 at rest; cracked glass |
-| `sad_plant` | 0.5 × 0.6 × 0.4, floor | `sad_plant.tscn` | Chipped pot, drooping stem, one fallen leaf |
-| `roller_door` + `door_beam` | 4.8 × 4.3 × 0.64, floor (back on y = 0) | `roller_door.tscn` | Slatted shutter, rails, top drum, rust drip; the wooden beam bar + chain + padlock as separate nodes (`Beam`, `Chain`, `PadlockBody`, `PadlockShackle`) |
-| `barred_window` | 1.8 × 1.9 × 0.23, wall | `barred_window.tscn` | Frame, bars, sill, rust streak; keep the Sky/Moon/Stars meshes in the scene |
-| `tube_light` | 1.5 × 1.9 × 0.34, ceiling | `fluoro_light.tscn` | Housing on two chains; tubes as node `Tubes` (`lib("neon_green")`; the flicker script toggles it) |
-| `grow_light_bar` | 3.7 m segment, ceiling | `grow_light.tscn` (7.4 m = 2 segments) | Housing + glowing strip + cables |
-| `pipe_straight_2m`, `pipe_elbow`, `pipe_valve`, `pipe_flange` | Ø 0.2, modules | room ceiling/walls, `leaky_pipe.tscn` (6 m = segments) | `metal_dark` + rust, flanges with bolts. Keep the leaky pipe's `Puddle`/`Drop` in the scene |
-| `cable_tray_2m` | 2 × 0.1 × 0.3, ceiling | room | Sagging cables (`sag_points`) |
+| ✅ `pallet` | 1.2 × 0.15 × 1.0, floor | `pallet.tscn` | `plank`s + blocks, one board cracked/missing |
+| ✅ `crate` | 0.9 × 0.9 × 0.9, floor | `crate.tscn` | Slatted, banded, dented; `TINT` stencil optional |
+| ✅ `fence_panel`, `fence_gate`, `fence_gate_leaf` (part) | 2.5 × 2.2 × 0.1, floor (back on y = 0) | `fence_panel.tscn` | Frame `pipe`s + chain-link (`chainlink`): a diamond lattice of thin boxes via `array`, ≤ 2.5k tris, or keep the MultiMesh wires and model only the frame. Sagging, one torn corner |
+| ✅ `cot` | 1.92 × 0.65 × 0.92, floor | `cot.tscn` | Steel frame, thin stained mattress, flat pillow, rumpled blanket |
+| ✅ `security_camera` | 0.26 × 0.4 × 0.73, wall | `security_camera.tscn` | Rigged: `Bracket`, `Pan` / `Tilt` / `Led` (flat red; the script toggles it) |
+| ✅ `punch_clock` | ≈ 0.5 × 1.9 × 0.3, wall | `punch_clock.tscn` | Box, clock face, card slot, card rack. The "CLOCK IN" Label3D stays in the scene |
+| ✅ `sign_board` (the debt board) | 2.16 × 1.16 × 0.06, wall | `sign_board.tscn` | `sign_board.gd` scales `Visual/Board` and `Visual/Frame` to `board_size`: model them as **1 × 1 m** meshes named `Board` and `Frame` (small bevels, they stretch); the `Text` Label3D stays |
+| ✅ `wall_clock` | 0.92 × 0.92 × 0.13, wall | `wall_clock.tscn` | Rigged: `HourHand`, `MinuteHand`, `SecondHand` pivoting at the centre, pointing at 12 at rest; cracked glass |
+| ✅ `sad_plant` | 0.5 × 0.6 × 0.4, floor | `sad_plant.tscn` | Chipped pot, drooping stem, one fallen leaf |
+| ✅ `roller_door` (beam, chain, padlock as nodes) | 4.8 × 4.3 × 0.64, floor (back on y = 0) | `roller_door.tscn` | Slatted shutter, rails, top drum, rust drip; the wooden beam bar + chain + padlock as separate nodes (`Beam`, `Chain`, `PadlockBody`, `PadlockShackle`) |
+| ✅ `barred_window` | 1.8 × 1.9 × 0.23, wall | `barred_window.tscn` | Frame, bars, sill, rust streak; keep the Sky/Moon/Stars meshes in the scene |
+| ✅ `fluoro_light` / `fluoro_light_broken` | 1.5 × 1.9 × 0.34, ceiling | `fluoro_light.tscn` | Housing on two chains; tubes as node `Tubes` (`lib("neon_green")`; the flicker script toggles it) |
+| ✅ `grow_light_bar` | 3.7 m segment, ceiling | `grow_light.tscn` (7.4 m = 2 segments) | Housing + glowing strip + cables |
+| ✅ `pipe_straight_2m`, `pipe_straight_1m`, `pipe_elbow`, `pipe_valve`, `pipe_hanger`, `leaky_pipe` (flanges are built into the straights) | Ø 0.2, modules | room ceiling/walls, `leaky_pipe.tscn` (6 m = segments) | `metal_dark` + rust, flanges with bolts. Keep the leaky pipe's `Puddle`/`Drop` in the scene |
+| ✅ `cable_tray_2m` | 2 × 0.1 × 0.3, ceiling | room | Sagging cables (`sag_points`) |
 | Caution stripes, posters, decals | – | room | Stay flat Godot meshes / `sign_board` (not worth modelling) |
 
 ---
