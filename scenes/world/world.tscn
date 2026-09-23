@@ -1,0 +1,25 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scenes/world/world.gd" id="1_world"]
+[ext_resource type="PackedScene" path="res://scenes/world/room.tscn" id="2_room"]
+[ext_resource type="Script" path="res://scripts/items/item_manager.gd" id="3_items"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="4_hud"]
+
+[node name="World" type="Node3D"]
+script = ExtResource("1_world")
+
+[node name="Room" parent="." instance=ExtResource("2_room")]
+
+[node name="Players" type="Node3D" parent="."]
+
+[node name="PlayerSpawner" type="MultiplayerSpawner" parent="."]
+spawn_path = NodePath("../Players")
+spawn_limit = 8
+
+[node name="Items" type="Node3D" parent="."]
+script = ExtResource("3_items")
+
+[node name="ItemSpawner" type="MultiplayerSpawner" parent="."]
+spawn_path = NodePath("../Items")
+
+[node name="HUD" parent="." instance=ExtResource("4_hud")]

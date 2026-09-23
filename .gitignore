@@ -1,0 +1,8 @@
+# Godot 4
+.godot/
+*.tmp
+export/
+*.log
+# OS
+.DS_Store
+Thumbs.db
