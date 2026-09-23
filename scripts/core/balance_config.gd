@@ -66,7 +66,7 @@ func get_upgrade(id: StringName) -> UpgradeDef:
 func quota_for_round(round_number: int, player_count: int = 1) -> int:
 	var n: int = max(round_number, 1)
 	var base := base_quota * pow(quota_scale, n - 1) + quota_add * (n - 1)
-	var team := 1.0 + quota_per_extra_player * max(player_count - 1, 0)
+	var team: float = 1.0 + quota_per_extra_player * float(maxi(player_count - 1, 0))
 	return int(round(base * team))
 
 func total_grow_time(seed: SeedDef) -> float:
