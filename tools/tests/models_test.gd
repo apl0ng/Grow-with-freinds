@@ -9,6 +9,9 @@ extends SceneTree
 ## 2. Toonify rules on synthetic meshes (independent of which models exist): library swap, finish from
 ##    roughness, FLAT, TINT shade scaling, emission kept, hand overrides respected, caching, outline hull
 ##    (outwards, size-aware per part, removable).
+## Quick mode (tools/blender/build.py runs it after every import): only "does the imported PackedScene root
+## carry the Toonify script", one line per model ("models_test_root: <name> ok|MISSING"):
+##   godot --headless --path . -s res://tools/tests/models_test.gd -- --roots-only [--models=a,b]
 
 const MODELS_DIR := "res://art/models"
 const MANIFEST := "res://art/models/manifest.json"
@@ -31,7 +34,48 @@ func _check(ok: bool, what: String) -> void:
 		print("  FAIL: ", what)
 
 
+## The script on the imported PackedScene's root node, read from its SceneState (no instancing, no _ready).
+## A model imported with default settings (e.g. by a concurrent Godot before build.py wrote its .import)
+## has none: it would render without the toon look.
+static func root_script_path(ps: PackedScene) -> String:
+	if ps == null:
+		return ""
+	var st := ps.get_state()
+	if st.get_node_count() == 0:
+		return ""
+	for i in st.get_node_property_count(0):
+		if st.get_node_property_name(0, i) == &"script":
+			var scr := st.get_node_property_value(0, i) as Script
+			return scr.resource_path if scr else ""
+	return ""
+
+
+func _roots_only(only: PackedStringArray) -> void:
+	var missing := 0
+	var names: PackedStringArray = []
+	for f in DirAccess.get_files_at(MODELS_DIR):
+		if f.get_extension() == "glb" and (only.is_empty() or f.get_basename() in only):
+			names.append(f.get_basename())
+	names.sort()
+	for n in names:
+		var ok := root_script_path(load("%s/%s.glb" % [MODELS_DIR, n]) as PackedScene) == TOONIFY_PATH
+		missing += 0 if ok else 1
+		print("models_test_root: %s %s" % [n, "ok" if ok else "MISSING"])
+	print("models_test: roots-only, %d models, %d without the Toonify root script" % [names.size(), missing])
+	quit(1 if missing > 0 else 0)
+
+
 func _run() -> void:
+	var only: PackedStringArray = []
+	var roots_only := false
+	for a in OS.get_cmdline_user_args():
+		if a == "--roots-only":
+			roots_only = true
+		elif a.begins_with("--models="):
+			only = a.trim_prefix("--models=").split(",", false)
+	if roots_only:
+		_roots_only(only)
+		return
 	var t0 := Time.get_ticks_msec()
 	var holder := Node3D.new()
 	root.add_child(holder)
@@ -80,6 +124,8 @@ func _check_model(model: String, holder: Node3D) -> void:
 	_check(ps != null, tag + "loads as PackedScene")
 	if ps == null:
 		return
+	_check(root_script_path(ps) == TOONIFY_PATH, tag + "imported PackedScene root has the Toonify script "
+			+ "(missing = imported with stale settings: python3 tools/blender/build.py <family> re-imports it)")
 	var a := ps.instantiate() as Node3D
 	var b := ps.instantiate() as Node3D
 	_check(a != null, tag + "instantiates as Node3D")
