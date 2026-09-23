@@ -15,7 +15,12 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
   `godot --headless --path . -s res://tools/tests/<suite>.gd` for `art_test`, `world_test`, `items_test`,
   `farm_test`, `econ_test`, `flow_test`; multi-process: `tools/tests/net_test.sh`, `items_net_test`, `items_e2e_test`,
   `farm_net_test`, `farm_world_test`, `econ_mp_test` (host/client roles), `flow_mp_test`.
-- Unified runner: `tools/test_all.sh` (QA milestone).
+- Unified runner: `tools/test_all.sh` runs every suite (about 3 min) and prints a results table; exit 0 means all green.
+  `--list` shows the suites, `--only a,b` runs a subset. Env: `QA_BASE_PORT` (default 7900), `TEST_ALL_LOGS`, `GODOT`.
+  Standalone QA: `tools/tests/qa_4p.sh` (4-player stress), `tools/tests/qa_mp_robust.sh`, and
+  `godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/qa_{robust,solo}_body.gd --port=N [--fast]`.
+  Balance estimate: `... --body=res://tools/tests/qa_balance_sim.gd [--sim-round=2 --sim-money=300 --sim-quota=350]`.
+- Models: `python3 tools/blender/build.py [family ...] --test --shots DIR` (see MODELING.md).
 - Screenshots without a GPU: `xvfb-run -a godot --path . --rendering-driver opengl3 -s res://tools/tests/net_preview.gd`
   (see also world_preview.gd, art_preview.gd).
 
@@ -28,7 +33,7 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | 4 | Interaction + carry systems | DONE |
 | 5 | Shop, planting, watering, growth, harvesting, selling | DONE |
 | 6 | Quota, timer, round flow, HUD | DONE |
-| 7 | QA: multi-instance tests, desync fixes, solo play | in progress |
+| 7 | QA: multi-instance tests, desync fixes, solo play | DONE (21 suites, 2525 checks green) |
 
 ## Team & ownership (wave 1 runs in parallel; nobody edits files they don't own)
 | Agent | Scope | Owns |
@@ -70,12 +75,12 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | A.1 | STYLE.md + toon material library + UI theme | A | done |
 | A.2 | Sfx autoload (procedural placeholder sounds) + Juice autoload (pop/bounce/burst/float text) | A | done |
 | 7.1 | Lead smoke tests (solo + host/client loop) | lead | done |
-| 7.2 | Unified runner, 4-player stress test, robustness sweep, bug fixes | H | in progress |
+| 7.2 | Unified runner, 4-player stress test, robustness sweep, bug fixes (3 found/fixed) | H | done |
 | 7.3 | Room lighting cool-down per art measurements | C | done |
 | 8.1 | Factory retheme: room, props, Boss NPC, station visuals, factory palette | C | done |
-| 8.2 | Narrative/text pass: HUD, menu, shop UI, overlays, NPC barks, debt board wiring (+ test updates) | lead/writer | todo (after QA) |
+| 8.2 | Narrative/text pass: HUD, menu, shop UI, overlays, Story autoload (Boss barks, debt board), team quota scaling (+ test updates) | writer | in progress |
 | 8.3 | Dark undertone: material library re-tune, colder environment, sad ToonFace, mood rules in STYLE.md | A | in progress |
-| 8.4 | Sad player faces / slumped idle on the player body | B | todo |
+| 8.4 | Sad player faces / slumped idle on the player body | folded into 8.6a | — |
 | 8.5 | Blender pipeline: tools/blender (gwf.py, build.py), Toonify, MODELING.md, reference contact sheets, models_test | pipeline | done |
 | 8.6a | Modeling: player body (sad) + Boss | M1 | in progress |
 | 8.6b | Modeling: shop cage counter, deposit chute, water tank, grow tray | M2 | in progress |
@@ -150,6 +155,14 @@ plots with 4 visible stages that pop in and pulse when ready, water gauge + DRY 
 well refills cans (2 spawn at start), harvest into hands, selling adds to quota with float text / burst / sound,
 team upgrades (Fertilizer, Bigger Cans, Sweet Talk). Test: `farm_test` (99), `farm_net_test`, `farm_world_test`,
 `econ_test` (116), `econ_mp_test`, and `tools/smoke.sh solo` (51 checks through the real RPC path).
+
+### M7 QA (done)
+Works: `tools/test_all.sh` = 21 suites / 2525 checks green in ~3 min; 4-player stress test (same-frame pickup races,
+plant/water/harvest by different players, late joiner mid-round, disconnect while holding, retry with clients,
+next round, leave + rejoin), robustness sweep (garbage RPCs, double presses, drops near walls, full server, host
+leaving, overlays vs return-to-menu), solo full round through real inputs, X11 mouse-mode check. Bugs fixed: items
+dropped inside colliders, holder's double-press error toast, same-frame multi-disconnect ERROR lines.
+Balance after QA sim: starting money 150, round-1 payment 350 (+150/shift, ×1.5), +20% per extra worker.
 
 ### M6 Quota / timer / rounds / HUD (done)
 Works: WAITING → PLAYING (host presses Enter) → ROUND_SUCCESS (quota met, immediately) / ROUND_FAILED (timer) →
