@@ -4,8 +4,8 @@
 resource_name = "toon_skin"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(1, 0.8156863, 0.6901961, 1)
-metallic_specular = 0.35
-roughness = 0.4
+albedo_color = Color(0.80784315, 0.6901961, 0.6156863, 1)
+metallic_specular = 0.25
+roughness = 0.45
 rim_enabled = true
-rim = 0.3
+rim = 0.15

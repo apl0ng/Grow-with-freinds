@@ -168,6 +168,7 @@ func _run_solo() -> void:
 	_check(not Net.is_online() and multiplayer.multiplayer_peer is OfflineMultiplayerPeer, "offline after return_to_menu")
 	var blocker := ENetMultiplayerPeer.new()
 	blocker.create_server(port + 1, 1)
+	print("(expected error next: ENet \"Couldn't create an ENet host\" for the busy port)")
 	err = Game.start_host("SoloBot", port + 1)
 	_check(err != OK and Game.world == null, "start_host on a busy port fails (%s)" % error_string(err))
 	menu = get_tree().get_first_node_in_group(Game.MENU_GROUP)

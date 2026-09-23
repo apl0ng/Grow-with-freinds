@@ -4,8 +4,8 @@
 resource_name = "toon_leaf"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.23921569, 0.74509805, 0.33333334, 1)
-metallic_specular = 0.35
-roughness = 0.4
+albedo_color = Color(0.28627452, 0.6156863, 0.35686275, 1)
+metallic_specular = 0.25
+roughness = 0.45
 rim_enabled = true
-rim = 0.3
+rim = 0.15

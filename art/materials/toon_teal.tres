@@ -4,8 +4,8 @@
 resource_name = "toon_teal"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.2, 0.81960785, 0.6901961, 1)
-metallic_specular = 0.35
-roughness = 0.4
+albedo_color = Color(0.26666668, 0.6745098, 0.59607846, 1)
+metallic_specular = 0.25
+roughness = 0.45
 rim_enabled = true
-rim = 0.3
+rim = 0.15

@@ -4,9 +4,9 @@
 resource_name = "toon_floor"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.9411765, 0.8666667, 0.6901961, 1)
-metallic_specular = 0.1
+albedo_color = Color(0.7647059, 0.7176471, 0.60784316, 1)
+metallic_specular = 0.08
 roughness = 0.8
 rim_enabled = true
-rim = 0.12
+rim = 0.06
 rim_tint = 0.7

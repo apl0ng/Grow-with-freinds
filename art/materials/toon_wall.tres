@@ -4,9 +4,9 @@
 resource_name = "toon_wall"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(1, 0.8901961, 0.7607843, 1)
-metallic_specular = 0.1
+albedo_color = Color(0.80784315, 0.7411765, 0.6627451, 1)
+metallic_specular = 0.08
 roughness = 0.8
 rim_enabled = true
-rim = 0.12
+rim = 0.06
 rim_tint = 0.7

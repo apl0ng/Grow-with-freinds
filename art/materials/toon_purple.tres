@@ -4,8 +4,8 @@
 resource_name = "toon_purple"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.6039216, 0.41960785, 1, 1)
-metallic_specular = 0.35
-roughness = 0.4
+albedo_color = Color(0.54901963, 0.43529412, 0.81960785, 1)
+metallic_specular = 0.25
+roughness = 0.45
 rim_enabled = true
-rim = 0.3
+rim = 0.15

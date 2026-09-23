@@ -185,6 +185,7 @@ func _test_spawning() -> void:
 	check(full != null and full.charges == full.get_capacity(), "watering can without props spawns full")
 	if full != null:
 		mgr.server_despawn_item(full)
+	print("(expected error next: ItemManager: unknown item type 'banana')")
 	check(mgr.server_spawn_item(&"banana", {}, AREA) == null, "unknown item type -> null (error expected above)")
 	await frames(1)
 

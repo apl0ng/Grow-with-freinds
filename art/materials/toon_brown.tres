@@ -4,8 +4,8 @@
 resource_name = "toon_brown"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.627451, 0.4, 0.22745098, 1)
-metallic_specular = 0.35
-roughness = 0.4
+albedo_color = Color(0.5254902, 0.38039216, 0.27450982, 1)
+metallic_specular = 0.25
+roughness = 0.45
 rim_enabled = true
-rim = 0.3
+rim = 0.15

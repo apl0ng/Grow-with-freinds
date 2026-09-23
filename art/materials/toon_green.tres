@@ -4,8 +4,8 @@
 resource_name = "toon_green"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.30980393, 0.79607844, 0.41960785, 1)
-metallic_specular = 0.35
-roughness = 0.4
+albedo_color = Color(0.3372549, 0.654902, 0.41568628, 1)
+metallic_specular = 0.25
+roughness = 0.45
 rim_enabled = true
-rim = 0.3
+rim = 0.15

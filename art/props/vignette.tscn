@@ -1,0 +1,24 @@
+[gd_scene format=3]
+
+[sub_resource type="Gradient" id="Gradient_rc31i"]
+offsets = PackedFloat32Array(0, 0.5, 0.78, 1)
+colors = PackedColorArray(0.1, 0.1, 0.15, 0, 0.1, 0.1, 0.15, 0, 0.1, 0.1, 0.15, 0.28, 0.07, 0.07, 0.11, 0.62)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_xgbex"]
+gradient = SubResource("Gradient_rc31i")
+width = 256
+height = 256
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 1)
+
+[node name="Vignette" type="CanvasLayer" unique_id=1244931394]
+layer = -1
+
+[node name="Shade" type="TextureRect" parent="." unique_id=199715595]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+texture = SubResource("GradientTexture2D_xgbex")
+expand_mode = 1

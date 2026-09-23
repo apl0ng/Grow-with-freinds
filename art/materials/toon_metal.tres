@@ -4,9 +4,9 @@
 resource_name = "toon_metal"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.7647059, 0.8039216, 0.84705883, 1)
-metallic_specular = 0.8
-roughness = 0.18
+albedo_color = Color(0.6392157, 0.6666667, 0.7019608, 1)
+metallic_specular = 0.55
+roughness = 0.22
 rim_enabled = true
-rim = 0.35
-rim_tint = 0.3
+rim = 0.18
+rim_tint = 0.4

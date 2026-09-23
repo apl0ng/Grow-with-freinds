@@ -4,8 +4,8 @@
 resource_name = "toon_yellow"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(1, 0.8235294, 0.24705882, 1)
-metallic_specular = 0.35
-roughness = 0.4
+albedo_color = Color(0.80784315, 0.69803923, 0.32941177, 1)
+metallic_specular = 0.25
+roughness = 0.45
 rim_enabled = true
-rim = 0.3
+rim = 0.15

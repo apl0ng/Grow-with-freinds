@@ -3,4 +3,4 @@
 [resource]
 resource_name = "toon_eye_white"
 shading_mode = 0
-albedo_color = Color(0.972549, 0.9764706, 0.98039216, 1)
+albedo_color = Color(0.8392157, 0.8352941, 0.8156863, 1)

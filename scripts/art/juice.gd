@@ -9,6 +9,10 @@ extends Node
 ##   Juice.float_text(pos, "+$120", Toon.GOLD)
 ##   extras: grow_to, pop_out, shake, confetti, puff, splash, sparkle
 ##
+## MOOD (nobody is happy): motion is scaled down by `intensity` (0.7), bursts are smaller and muted,
+## float text rises slowly in muted colours, `confetti` does nothing and `sparkle` is a small grey drift
+## unless `allow_celebration` is set. Feedback stays readable, never cheerful. See STYLE.md "Mood & tone".
+##
 ## Rules: Juice the VISUAL child (e.g. a "Visual"/"Mesh" Node3D), never a physics body, an Interactable
 ## root, or anything whose scale/transform is synced over the network. Everything here is local-only
 ## cosmetics: trigger it from code that runs on every peer (synced setters, call_local RPCs, signals).
@@ -31,7 +35,8 @@ const PUNCH_TIME := 0.3
 const PUNCH_AMOUNT := 0.3
 const GROW_TIME := 0.45
 
-const DUST := Color("eadbc0")
+const DUST := Color("b9b1a3")          # grimy dust
+const GLOOM := Color("8d93a0")         # the grey that muted effects drift towards
 const CONFETTI_COLORS: Array[Color] = [
 	Color("ff5a5f"), Color("ffd23f"), Color("4fcb6b"), Color("4da8f7"), Color("9a6bff"), Color("ff7eb6"),
 ]
@@ -39,6 +44,12 @@ const CONFETTI_COLORS: Array[Color] = [
 ## Global switch (e.g. reduced-motion setting, or perf tests). When false every call is a no-op except
 ## that pop_in/grow_to still set the final scale/visibility so gameplay state never looks wrong.
 var enabled: bool = true
+## Mood: celebratory effects (confetti, bright sparkles, pop flashes) only run when this is true. The game
+## never sets it; it exists so a future non-grim mode or a test can opt back in.
+var allow_celebration: bool = false
+## Mood: multiplier on every overshoot / squash / pulse / punch amount and on particle counts (1.0 = the
+## original bouncy pass). 0.7 keeps feedback readable but tired.
+var intensity: float = 0.7
 
 var _sphere: SphereMesh
 var _chunk: BoxMesh
@@ -103,7 +114,7 @@ func bounce(node: Node, strength: float = 0.2) -> void:
 	var base := _rest_scale(node)
 	if node is Control:
 		(node as Control).pivot_offset_ratio = Vector2(0.5, 1.0)
-	var s := clampf(strength, 0.0, 0.8)
+	var s := clampf(strength * intensity, 0.0, 0.8)
 	var tw := _begin(node)
 	tw.tween_method(func(t: float) -> void: _apply(node, base, _bounce_curve(t, s)), 0.0, 1.0, BOUNCE_TIME)
 	_end(node, tw, base)
@@ -164,10 +175,10 @@ func grow_to(node: Node, target_scale: Vector3, duration: float = GROW_TIME) -> 
 			return
 		# Size follows an overshooting ease; the squash & stretch wobble is relative to the size, so even a
 		# small stage change visibly "puffs".
-		var c1 := 2.4
+		var c1 := 2.4 * intensity
 		var u := t - 1.0
 		var s := 1.0 + (c1 + 1.0) * u * u * u + c1 * u * u
-		var w := 0.2 * sin(TAU * t) * (1.0 - t)
+		var w := 0.2 * intensity * sin(TAU * t) * (1.0 - t)
 		var size := from + (target_scale - from) * s
 		_set_scale(node, Vector3(size.x * (1.0 - w * 0.5), size.y * (1.0 + w), size.z * (1.0 - w * 0.5)))
 	tw.tween_method(step, 0.0, 1.0, maxf(duration, 0.05))
@@ -230,21 +241,23 @@ func burst(position: Vector3, color: Color, count: int = 12) -> void:
 	if not enabled:
 		return
 	_ensure_resources()
-	var p := _particles(position, clampi(count, 1, 96), 0.65, _sphere, _particle_mat)
+	var c := color if allow_celebration else _mute(color)
+	var p := _particles(position, _scaled_count(count, 96), 0.6, _sphere, _particle_mat)
 	if p == null:
 		return
 	p.direction = Vector3.UP
-	p.spread = 75.0
-	p.initial_velocity_min = 2.4
-	p.initial_velocity_max = 4.6
+	p.spread = 70.0
+	p.initial_velocity_min = 1.8
+	p.initial_velocity_max = 3.6
 	p.gravity = Vector3(0, -11.0, 0)
 	p.damping_min = 0.5
 	p.damping_max = 1.5
-	p.scale_amount_min = 0.8
-	p.scale_amount_max = 1.6
+	p.scale_amount_min = 0.7
+	p.scale_amount_max = 1.3
 	p.color = Color.WHITE
-	p.color_initial_ramp = _ramp([color.lightened(0.35), color, color.darkened(0.12)])
-	_flash(position, color.lightened(0.45), 0.42)
+	p.color_initial_ramp = _ramp([c.lightened(0.15), c, c.darkened(0.2)])
+	if allow_celebration:
+		_flash(position, c.lightened(0.45), 0.42)
 
 ## Rising, fading billboard text ("+$120"). Always drawn on top, outlined in ink, frees itself (~1.3 s).
 func float_text(position: Vector3, text: String, color: Color = Color.WHITE) -> void:
@@ -261,6 +274,8 @@ func float_text(position: Vector3, text: String, color: Color = Color.WHITE) -> 
 	l.font_size = 72
 	l.outline_size = 22
 	l.pixel_size = 0.005
+	if not allow_celebration:
+		color = Toon.grade(color, 0.5).lerp(GLOOM, 0.1)
 	l.modulate = color
 	l.outline_modulate = Color("2e2a3d")
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -276,17 +291,18 @@ func float_text(position: Vector3, text: String, color: Color = Color.WHITE) -> 
 	l.scale = Vector3.ONE * 0.2
 	var tw := l.create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(l, "global_position", start + Vector3(0, 1.1, 0), 1.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(l, "scale", Vector3.ONE * 1.25, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(l, "global_position", start + Vector3(0, 0.8, 0), 1.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(l, "scale", Vector3.ONE * (1.0 + 0.25 * intensity), 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_property(l, "scale", Vector3.ONE, 0.18).set_delay(0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	var clear := Color(color, 0.0)
-	tw.tween_property(l, "modulate", clear, 0.4).set_delay(0.8)
-	tw.tween_property(l, "outline_modulate", Color(0.18, 0.165, 0.24, 0.0), 0.4).set_delay(0.8)
+	tw.tween_property(l, "modulate", clear, 0.5).set_delay(0.9)
+	tw.tween_property(l, "outline_modulate", Color(0.18, 0.165, 0.24, 0.0), 0.5).set_delay(0.9)
 	tw.chain().tween_callback(l.queue_free)
 
 ## Party confetti (multi-colour tumbling chips) for round wins / big sales. Frees itself (~2 s).
+## MOOD: a no-op unless Juice.allow_celebration is true (there is nothing to celebrate here).
 func confetti(position: Vector3, count: int = 40) -> void:
-	if not enabled:
+	if not enabled or not allow_celebration:
 		return
 	_ensure_resources()
 	var p := _particles(position, clampi(count, 1, 160), 1.8, _chunk, _particle_mat)
@@ -323,7 +339,7 @@ func puff(position: Vector3, color: Color = DUST, count: int = 8) -> void:
 	if not enabled:
 		return
 	_ensure_resources()
-	var p := _particles(position, clampi(count, 1, 48), 0.55, _sphere, _particle_mat)
+	var p := _particles(position, _scaled_count(count, 48), 0.55, _sphere, _particle_mat)
 	if p == null:
 		return
 	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
@@ -346,7 +362,7 @@ func splash(position: Vector3, count: int = 14) -> void:
 	if not enabled:
 		return
 	_ensure_resources()
-	var p := _particles(position, clampi(count, 1, 64), 0.55, _sphere, _particle_mat)
+	var p := _particles(position, _scaled_count(count, 64), 0.55, _sphere, _particle_mat)
 	if p == null:
 		return
 	p.direction = Vector3.UP
@@ -357,13 +373,30 @@ func splash(position: Vector3, count: int = 14) -> void:
 	p.scale_amount_min = 0.5
 	p.scale_amount_max = 1.0
 	p.color = Color.WHITE
-	p.color_initial_ramp = _ramp([Color("9fe3ff"), Color("45c4ff"), Color("2f9be0")])
+	p.color_initial_ramp = _ramp([Color("9fbfd0"), Toon.WATER, Color("3f7fa6")])
 
-## Floating glints (plant READY, upgrades, "you can do this now"). Frees itself (~1.2 s).
+## Floating glints. MOOD: unless Juice.allow_celebration, this is a small grey dust drift instead (a few
+## dull motes that sink), which still says "something changed here". Frees itself (~1 s).
 func sparkle(position: Vector3, color: Color = Color("ffd23f"), count: int = 10) -> void:
 	if not enabled:
 		return
 	_ensure_resources()
+	if not allow_celebration:
+		var d := _particles(position, maxi(2, int(count * 0.4)), 0.8, _sphere, _particle_mat)
+		if d == null:
+			return
+		d.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+		d.emission_sphere_radius = 0.25
+		d.direction = Vector3.UP
+		d.spread = 40.0
+		d.initial_velocity_min = 0.2
+		d.initial_velocity_max = 0.5
+		d.gravity = Vector3(0, -0.3, 0)
+		d.scale_amount_min = 0.4
+		d.scale_amount_max = 0.7
+		d.color = Color.WHITE
+		d.color_initial_ramp = _ramp([GLOOM.lightened(0.1), _mute(color).lerp(GLOOM, 0.5)])
+		return
 	var p := _particles(position, clampi(count, 1, 48), 1.0, _sphere, _flat_particle_mat)
 	if p == null:
 		return
@@ -474,11 +507,11 @@ func _finish_pop_out(node: Node, base: Vector3, free_after: bool) -> void:
 
 ## Overshoot "back-out" (peak ~1.18 at t~0.55) with y leading (stretch up) then a small squash.
 func _pop_curve(t: float) -> Vector3:
-	var c1 := 2.4
+	var c1 := 2.4 * intensity          # 0.7 -> ~10% overshoot
 	var c3 := c1 + 1.0
 	var u := t - 1.0
 	var s := 1.0 + c3 * u * u * u + c1 * u * u
-	var w := 0.16 * sin(TAU * t) * (1.0 - t)
+	var w := 0.16 * intensity * sin(TAU * t) * (1.0 - t)
 	return Vector3(s * (1.0 - w * 0.5), s * (1.0 + w), s * (1.0 - w * 0.5))
 
 ## Damped squash -> stretch -> settle; x/z = 1/sqrt(y) keeps the volume.
@@ -488,19 +521,19 @@ func _bounce_curve(t: float, strength: float) -> Vector3:
 	return Vector3(xz, y, xz)
 
 func _pulse_curve(t: float) -> Vector3:
-	var a := PULSE_AMOUNT * sin(TAU * t)
+	var a := PULSE_AMOUNT * intensity * sin(TAU * t)
 	return Vector3(1.0 + a * 0.7, 1.0 + a, 1.0 + a * 0.7)
 
 func _punch_curve(t: float) -> Vector3:
-	var a := PUNCH_AMOUNT * pow(1.0 - t, 3.0) * sin(t * 9.0) / 0.6
+	var a := PUNCH_AMOUNT * intensity * pow(1.0 - t, 3.0) * sin(t * 9.0) / 0.6
 	return Vector3(1.0 + a, 1.0 + a, 1.0 + a)
 
 ## Anticipation (swell +12%), then collapse with a vertical squash.
 func _pop_out_curve(t: float) -> Vector3:
 	if t < 0.3:
-		var a := 1.0 + 0.12 * sin(t / 0.3 * PI * 0.5)
+		var a := 1.0 + 0.12 * intensity * sin(t / 0.3 * PI * 0.5)
 		return Vector3(a, a, a)
-	var k := 1.12 * (1.0 - pow((t - 0.3) / 0.7, 2.0))
+	var k := (1.0 + 0.12 * intensity) * (1.0 - pow((t - 0.3) / 0.7, 2.0))
 	return Vector3(k * 1.05, k * 0.9, k * 1.05)
 
 ## Where 3D effects live: the World if there is one, else the current scene (if 3D), else the root.
@@ -549,6 +582,13 @@ func _particles(position: Vector3, amount: int, lifetime: float, mesh: Mesh, mat
 	tw.tween_interval(lifetime * 2.0 + 1.0)
 	tw.tween_callback(p.queue_free)
 	return p
+
+## Mood-muted effect colour: graded, then 25% towards GLOOM.
+func _mute(c: Color) -> Color:
+	return Toon.grade(c).lerp(Color(GLOOM, c.a), 0.25)
+
+func _scaled_count(count: int, cap: int) -> int:
+	return clampi(int(round(count * lerpf(1.0, intensity, 0.8))), 1, cap)
 
 func _ramp(colors: Array[Color]) -> Gradient:
 	var g := Gradient.new()

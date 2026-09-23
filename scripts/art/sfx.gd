@@ -9,6 +9,9 @@ extends Node
 ## worker reached it is synthesised on the spot and cached. Playback uses small pools of players (max MAX_2D + MAX_3D voices; the oldest voice is stolen),
 ## a little random pitch variation, and a per-sound retrigger guard so ten plots finishing on the same
 ## frame do not stack into one deafening sound. Unknown names warn once and are ignored (never crash).
+## MOOD (nobody is happy): everything is a little duller and lower than a party game. round_win is a
+## muffled end-of-shift bell (relief, not joy), round_start a flat factory buzzer, buy/sell/ready are
+## single low dings instead of sparkly jingles.
 ## Works headless (dummy audio driver). Sounds are local only: call play() from code that runs on every
 ## peer (synced setters, call_local RPCs, GameState signals). See STYLE.md "Sound".
 ## Do NOT add a class_name (autoload).
@@ -30,7 +33,7 @@ const SOUNDS: Array[StringName] = [
 
 ## Per-sound playback settings: [volume_db, pitch_variation (+-fraction), 3D unit_size].
 const SETTINGS := {
-	&"buy": [-4.0, 0.03, 6.0],
+	&"buy": [-6.0, 0.04, 6.0],
 	&"plant": [-2.0, 0.08, 6.0],
 	&"water": [-4.0, 0.08, 6.0],
 	&"harvest": [-3.0, 0.06, 6.0],
@@ -39,20 +42,20 @@ const SETTINGS := {
 	&"drop": [-3.0, 0.10, 5.0],
 	&"error": [-9.0, 0.0, 5.0],
 	&"grow": [-5.0, 0.07, 6.0],
-	&"round_win": [-3.0, 0.0, 10.0],
+	&"round_win": [-6.0, 0.0, 10.0],
 	&"round_lose": [-4.0, 0.0, 10.0],
 	&"tick": [-9.0, 0.0, 5.0],
 	&"ui_click": [-8.0, 0.05, 5.0],
 	&"ui_open": [-8.0, 0.03, 5.0],
 	&"ui_close": [-8.0, 0.03, 5.0],
-	&"ready": [-7.0, 0.04, 7.0],
+	&"ready": [-9.0, 0.03, 7.0],
 	&"refill": [-4.0, 0.06, 6.0],
 	&"ui_hover": [-16.0, 0.08, 5.0],
 	&"coin": [-6.0, 0.06, 6.0],
 	&"pop": [-6.0, 0.12, 5.0],
 	&"whoosh": [-8.0, 0.08, 5.0],
 	&"countdown": [-6.0, 0.0, 5.0],
-	&"round_start": [-4.0, 0.0, 10.0],
+	&"round_start": [-8.0, 0.0, 10.0],
 }
 
 enum Wave { SINE, TRIANGLE, SQUARE, SAW, CHIP }
@@ -267,25 +270,21 @@ func _apply_bus_volume() -> void:
 # Tiny additive synth. Each recipe mixes layers into a float buffer; _to_wav() peak-normalises it and
 # converts to 16-bit PCM. Noise uses a fixed seed per sound so every peer/run hears the same thing.
 
-const C5 := 523.25
-const E5 := 659.25
-const G5 := 783.99
-const C6 := 1046.5
-
 func _synth(sound: StringName) -> AudioStreamWAV:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(String(sound))
 	var b: PackedFloat32Array
 	match sound:
-		&"buy":
-			b = _buf(0.42)
-			_tone(b, 0.0, 0.08, 987.77, 987.77, 0.7, Wave.CHIP, 0.002, 1.5)
-			_tone(b, 0.07, 0.35, 1318.5, 1318.5, 0.8, Wave.CHIP, 0.002, 4.0)
-			_tone(b, 0.07, 0.3, 2637.0, 2637.0, 0.12, Wave.SINE, 0.002, 6.0)
+		&"buy":   # dull coin clink: money leaves, nobody cheers
+			b = _buf(0.34)
+			_noise(b, rng, 0.0, 0.015, 0.3, 0.9, 0.4, 0.0005, 8.0)
+			_tone(b, 0.0, 0.07, 740.0, 740.0, 0.6, Wave.SINE, 0.002, 2.5)
+			_tone(b, 0.06, 0.26, 587.3, 587.3, 0.7, Wave.SINE, 0.002, 4.5)
+			_lowpass(b, 0.5)
 		&"coin":
-			b = _buf(0.3)
-			_tone(b, 0.0, 0.05, 1567.98, 1567.98, 0.6, Wave.CHIP, 0.002, 1.0)
-			_tone(b, 0.045, 0.25, 2093.0, 2093.0, 0.7, Wave.CHIP, 0.002, 5.0)
+			b = _buf(0.25)
+			_tone(b, 0.0, 0.2, 880.0, 870.0, 0.7, Wave.SINE, 0.002, 5.0)
+			_noise(b, rng, 0.0, 0.01, 0.25, 0.9, 0.4, 0.0005, 8.0)
 		&"plant":
 			b = _buf(0.26)
 			_tone(b, 0.0, 0.2, 230.0, 65.0, 1.0, Wave.SINE, 0.003, 5.0)
@@ -312,12 +311,12 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_tone(b, 0.07, 0.02, 3400.0, 3100.0, 0.18, Wave.SINE, 0.0005, 6.0)
 			_tone(b, 0.13, 0.12, 280.0, 950.0, 0.85, Wave.SINE, 0.004, 3.0)
 			_tone(b, 0.13, 0.12, 560.0, 1900.0, 0.2, Wave.SINE, 0.004, 4.0)
-		&"sell":
-			b = _buf(0.95)
-			_noise(b, rng, 0.0, 0.03, 0.45, 0.6, 0.15, 0.001, 6.0)
-			_tone(b, 0.0, 0.06, 160.0, 90.0, 0.45, Wave.SINE, 0.002, 4.0)
-			_bell(b, 0.06, 0.85, 1760.0, 0.8)
-			_bell(b, 0.11, 0.7, 2349.3, 0.45)
+		&"sell":   # old register drawer: a clunk and one tired ding
+			b = _buf(0.8)
+			_noise(b, rng, 0.0, 0.05, 0.5, 0.4, 0.1, 0.001, 5.0)
+			_tone(b, 0.0, 0.09, 130.0, 70.0, 0.6, Wave.SINE, 0.002, 4.0)
+			_bell(b, 0.07, 0.7, 880.0, 0.55)
+			_lowpass(b, 0.45)
 		&"pickup":
 			b = _buf(0.12)
 			_tone(b, 0.0, 0.1, 360.0, 980.0, 1.0, Wave.SINE, 0.002, 3.5)
@@ -337,31 +336,26 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_tone(b, 0.15, 0.13, 140.0, 132.0, 0.55, Wave.SQUARE, 0.004, 0.8)
 			_tone(b, 0.15, 0.13, 146.0, 138.0, 0.35, Wave.SQUARE, 0.004, 0.8)
 			_lowpass(b, 0.35)
-		&"grow":
-			b = _buf(0.4)
-			_tone(b, 0.0, 0.3, 260.0, 780.0, 0.9, Wave.SINE, 0.02, 2.5, 18.0, 0.03)
-			_tone(b, 0.0, 0.3, 520.0, 1560.0, 0.25, Wave.SINE, 0.02, 3.0, 18.0, 0.03)
-			_tone(b, 0.26, 0.1, 1568.0, 1568.0, 0.15, Wave.SINE, 0.002, 5.0)
-		&"ready":
-			b = _buf(0.7)
-			var notes := [1318.5, 1661.2, 1975.5, 2637.0]
-			for i in notes.size():
-				_bell(b, i * 0.055, 0.4, notes[i], 0.45)
-		&"round_win":
-			b = _buf(1.25)
-			_tone(b, 0.0, 0.12, C5, C5, 0.7, Wave.CHIP, 0.004, 1.5)
-			_tone(b, 0.12, 0.12, E5, E5, 0.7, Wave.CHIP, 0.004, 1.5)
-			_tone(b, 0.24, 0.12, G5, G5, 0.7, Wave.CHIP, 0.004, 1.5)
-			_tone(b, 0.36, 0.85, C6, C6, 0.75, Wave.CHIP, 0.004, 2.2, 6.0, 0.008)
-			_tone(b, 0.36, 0.85, G5, G5, 0.35, Wave.CHIP, 0.004, 2.5)
-			_tone(b, 0.36, 0.85, E5, E5, 0.3, Wave.CHIP, 0.004, 2.5)
-			_bell(b, 0.38, 0.6, 2093.0, 0.25)
-			_bell(b, 0.46, 0.6, 2637.0, 0.2)
-		&"round_start":
-			b = _buf(0.7)
-			_tone(b, 0.0, 0.1, G5, G5, 0.6, Wave.CHIP, 0.004, 1.5)
-			_tone(b, 0.1, 0.5, C6, C6, 0.7, Wave.CHIP, 0.004, 2.5, 6.0, 0.006)
-			_bell(b, 0.1, 0.5, 2093.0, 0.2)
+		&"grow":   # a small, low bloop (it grew. that's all.)
+			b = _buf(0.3)
+			_tone(b, 0.0, 0.24, 200.0, 420.0, 0.9, Wave.SINE, 0.02, 3.0)
+			_tone(b, 0.0, 0.24, 400.0, 840.0, 0.15, Wave.SINE, 0.02, 3.5)
+		&"ready":   # one soft low ding, like a microwave in the break room
+			b = _buf(0.6)
+			_bell(b, 0.0, 0.55, 659.25, 0.6)
+			_lowpass(b, 0.5)
+		&"round_win":   # "shift over": a clunk, then a muffled two-tone bell going DOWN. Relief, not joy.
+			b = _buf(1.5)
+			_noise(b, rng, 0.0, 0.06, 0.4, 0.3, 0.05, 0.001, 5.0)
+			_tone(b, 0.0, 0.1, 110.0, 70.0, 0.5, Wave.SINE, 0.002, 4.0)
+			_bell(b, 0.08, 0.9, 392.0, 0.7)      # G4
+			_bell(b, 0.5, 1.0, 329.63, 0.6)      # E4
+			_lowpass(b, 0.3)
+		&"round_start":   # flat factory shift buzzer
+			b = _buf(0.75)
+			_tone(b, 0.0, 0.7, 98.0, 98.0, 0.6, Wave.SQUARE, 0.03, 0.5)
+			_tone(b, 0.0, 0.7, 147.0, 146.0, 0.3, Wave.SQUARE, 0.03, 0.5)
+			_lowpass(b, 0.12)
 		&"round_lose":
 			b = _buf(2.0)
 			var lose := [392.0, 369.99, 349.23]

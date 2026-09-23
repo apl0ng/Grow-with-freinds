@@ -1,7 +1,7 @@
 [gd_resource type="StandardMaterial3D" format=3]
 
 [resource]
-resource_name = "toon_blush"
+resource_name = "toon_eyebag"
 transparency = 1
 shading_mode = 0
-albedo_color = Color(0.55, 0.45, 0.55, 0.18)
+albedo_color = Color(0.3, 0.26, 0.38, 0.4)

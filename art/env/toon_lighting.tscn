@@ -2,16 +2,16 @@
 
 [ext_resource type="Environment" path="res://art/env/toon_environment.tres" id="1_h7soi"]
 
-[node name="ToonLighting" type="Node3D" unique_id=2050668370]
+[node name="ToonLighting" type="Node3D" unique_id=1618979989]
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1706480721]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1322451602]
 environment = ExtResource("1_h7soi")
 
-[node name="Sun" type="DirectionalLight3D" parent="." unique_id=600168253]
-transform = Transform3D(0.81915206, -0.46984634, 0.32898995, 0, 0.57357645, 0.81915206, -0.57357645, -0.6710101, 0.46984634, 0, 0, 0)
-light_color = Color(1, 0.94509804, 0.8392157, 1)
-light_energy = 0.5
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=2119833140]
+transform = Transform3D(0.76604444, -0.34062552, 0.54511476, 0, 0.8480481, 0.52991927, -0.6427876, -0.4059417, 0.6496425, 0, 0, 0)
+light_color = Color(0.83137256, 0.87058824, 0.92156863, 1)
+light_energy = 0.6
 shadow_enabled = true
-shadow_opacity = 0.55
+shadow_opacity = 0.65
 shadow_blur = 1.5
 directional_shadow_max_distance = 40.0

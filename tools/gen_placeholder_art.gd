@@ -622,8 +622,8 @@ func _gen_face() -> void:
 	lid.rings = 6
 	var bag := _sphere_mesh(0.05, 12)
 	var mouth_seg := CapsuleMesh.new()
-	mouth_seg.radius = 0.011
-	mouth_seg.height = 0.07
+	mouth_seg.radius = 0.014
+	mouth_seg.height = 0.075
 	mouth_seg.radial_segments = 8
 	mouth_seg.rings = 2
 	for side in [-1.0, 1.0]:
@@ -641,7 +641,7 @@ func _gen_face() -> void:
 		_mesh_node(face, face, "EyeBagL" if side < 0.0 else "EyeBagR", bag, "eyebag", Vector3(0.12 * side, -0.075, 0.006), Vector3(1.25, 0.42, 0.3))
 	var mouth := Node3D.new()
 	mouth.name = "Mouth"
-	mouth.position = Vector3(0, -0.14, -0.004)
+	mouth.position = Vector3(0, -0.14, -0.026)   # proud of the surface: capsule bodies bulge ~2 cm there
 	face.add_child(mouth)
 	mouth.owner = face
 	for side in [-1.0, 1.0]:

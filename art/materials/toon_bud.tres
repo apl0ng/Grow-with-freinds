@@ -4,11 +4,11 @@
 resource_name = "toon_bud"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.60784316, 0.88235295, 0.3647059, 1)
-metallic_specular = 0.35
-roughness = 0.4
+albedo_color = Color(0.5411765, 0.72156864, 0.39215687, 1)
+metallic_specular = 0.25
+roughness = 0.45
 emission_enabled = true
-emission = Color(0.60784316, 0.88235295, 0.3647059, 1)
-emission_energy_multiplier = 0.35
+emission = Color(0.5411765, 0.72156864, 0.39215687, 1)
+emission_energy_multiplier = 0.12
 rim_enabled = true
-rim = 0.3
+rim = 0.15

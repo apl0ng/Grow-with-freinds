@@ -57,7 +57,7 @@ func _run() -> void:
 			await _frames(8)
 		_save(shot)
 		if shot == "kit":
-			for view in [1, 2, 3]:
+			for view in [1, 2, 3, 5]:
 				KitBuilder.aim_camera(node, view)
 				await _frames(4)
 				_save("kit_%d" % view)

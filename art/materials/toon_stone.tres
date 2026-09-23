@@ -4,9 +4,9 @@
 resource_name = "toon_stone"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.6039216, 0.6509804, 0.70980394, 1)
-metallic_specular = 0.1
+albedo_color = Color(0.5176471, 0.5529412, 0.59607846, 1)
+metallic_specular = 0.08
 roughness = 0.8
 rim_enabled = true
-rim = 0.12
+rim = 0.06
 rim_tint = 0.7

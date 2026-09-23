@@ -83,30 +83,33 @@ static func label(parent: Node3D, text: String, pos: Vector3, color: Color, size
 
 # ------------------------------------------------------------------------------------------ characters
 
-## Player "bean": capsule body in the player colour, googly face, sprout on the head, stubby feet.
+## Player "bean": capsule body in the player colour, sad face, a wilted sprout on the head, stubby feet,
+## a slight slouch (MOOD: everyone is tired).
 ## Visual only; the collision capsule (radius 0.4, height 1.8) belongs to the player scene.
 static func player(color: Color, player_name: String) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Player_" + player_name
 	var visual := Node3D.new()
 	visual.name = "Visual"            # Juice.bounce() this, never the CharacterBody3D
+	visual.rotation_degrees.x = -4.0  # slouch forward
 	root.add_child(visual)
 	blob_shadow(root, 0.48)
 	mesh(visual, "Body", capsule(0.42, 1.55), Toon.material(color), Vector3(0, 0.84, 0))
 	for side in [-1.0, 1.0]:
-		mesh(visual, "Foot", sphere(0.14, 16), Toon.material(color.darkened(0.25)), Vector3(0.17 * side, 0.08, -0.06), Vector3(1.0, 0.6, 1.35))
+		mesh(visual, "Foot", sphere(0.14, 16), Toon.material(color.darkened(0.3)), Vector3(0.17 * side, 0.08, -0.06), Vector3(1.0, 0.6, 1.35))
 	var face := FACE.instantiate() as Node3D
 	face.position = Vector3(0, 1.22, -0.4)
 	visual.add_child(face)
-	# Sprout "hat": the farm identity. Stem + two leaves.
-	mesh(visual, "Stem", cylinder(0.022, 0.028, 0.16, 8), mat("leaf"), Vector3(0, 1.66, 0), Vector3.ONE, Vector3.ZERO, false)
-	mesh(visual, "LeafL", sphere(0.09, 12), mat("lime"), Vector3(-0.08, 1.75, 0), Vector3(1.4, 0.4, 0.8), Vector3(0, 0, 25))
-	mesh(visual, "LeafR", sphere(0.09, 12), mat("lime"), Vector3(0.08, 1.77, 0), Vector3(1.4, 0.4, 0.8), Vector3(0, 0, -25))
+	# Sprout "hat": the farm identity, wilted. Bent stem + two drooping, dry-ish leaves.
+	mesh(visual, "Stem", cylinder(0.022, 0.028, 0.16, 8), mat("leaf"), Vector3(0.02, 1.66, 0), Vector3.ONE, Vector3(0, 0, -18), false)
+	mesh(visual, "LeafL", sphere(0.09, 12), mat("leaf_dry"), Vector3(-0.05, 1.7, 0), Vector3(1.4, 0.4, 0.8), Vector3(0, 0, -35))
+	mesh(visual, "LeafR", sphere(0.09, 12), mat("leaf_dry"), Vector3(0.12, 1.69, 0), Vector3(1.4, 0.4, 0.8), Vector3(0, 0, 40))
 	var l := label(root, player_name, Vector3(0, 2.1, 0), Toon.lighter(color, 0.35), 48)
 	l.name = "NameLabel"
 	return root
 
-## Shopkeeper: a 1.3x bigger, rounder bean with apron, moustache and a little cap. Idles with pulse().
+## Shopkeeper: a 1.3x bigger, rounder bean with a grubby apron, moustache, flat cap and a GRIM face
+## (MOOD: he works for the Boss too). Idles with a slow pulse().
 static func shopkeeper() -> Node3D:
 	var root := Node3D.new()
 	root.name = "Shopkeeper"
@@ -119,12 +122,12 @@ static func shopkeeper() -> Node3D:
 	var face := FACE.instantiate() as Node3D
 	face.position = Vector3(0, 1.45, -0.55)
 	face.scale = Vector3.ONE * 1.3
+	(face as ToonFace).default_mood = &"grim"
 	visual.add_child(face)
 	for side in [-1.0, 1.0]:
 		mesh(visual, "Moustache", capsule(0.05, 0.26), mat("brown"), Vector3(0.1 * side, 1.28, -0.56), Vector3.ONE, Vector3(0, 0, 90 + 20 * side), false)
 	mesh(visual, "Cap", sphere(0.38, 24), mat("red"), Vector3(0, 1.86, 0), Vector3(1, 0.55, 1))
 	mesh(visual, "Brim", cylinder(0.3, 0.3, 0.04, 24), mat("red"), Vector3(0, 1.84, -0.28), Vector3(1, 1, 1.2), Vector3.ZERO, false)
-	mesh(visual, "Pompom", sphere(0.08, 12), mat("cream"), Vector3(0, 2.07, 0))
 	return root
 
 # ------------------------------------------------------------------------------------------- stations
@@ -169,7 +172,7 @@ static func plant_stage(stage: int, c: Color) -> Node3D:
 			mesh(p, "BushMid", sphere(0.22 * k, 20), mat("leaf"), Vector3(0.04, 0.46 * k, 0.02))
 			mesh(p, "BushTop", sphere(0.17 * k, 20), mat("leaf"), Vector3(-0.02, 0.64 * k, -0.02))
 			var buds := 7 if big else 5
-			var bud_mat := Toon.material(c, Toon.Finish.GLOW if big else Toon.Finish.SOFT)
+			var bud_mat := Toon.tint(c, Toon.Finish.GLOW if big else Toon.Finish.SOFT)
 			for i in buds:
 				var a := i * TAU / buds
 				var y := (0.3 + 0.35 * float(i % 3) / 2.0) * k
@@ -254,8 +257,8 @@ static func watering_can() -> Node3D:
 static func seed_packet(c: Color) -> Node3D:
 	var root := Node3D.new()
 	root.name = "SeedPacket"
-	mesh(root, "Body", capsule(0.17, 0.46), Toon.material(c), Vector3(0, 0.23, 0), Vector3(1, 1, 0.3))
-	mesh(root, "Crimp", capsule(0.035, 0.3), Toon.material(c.darkened(0.2)), Vector3(0, 0.43, 0), Vector3.ONE, Vector3(0, 0, 90))
+	mesh(root, "Body", capsule(0.17, 0.46), Toon.tint(c), Vector3(0, 0.23, 0), Vector3(1, 1, 0.3))
+	mesh(root, "Crimp", capsule(0.035, 0.3), Toon.tint(c.darkened(0.2)), Vector3(0, 0.43, 0), Vector3.ONE, Vector3(0, 0, 90))
 	mesh(root, "Badge", cylinder(0.1, 0.1, 0.02, 20), mat("cream"), Vector3(0, 0.22, -0.05), Vector3.ONE, Vector3(90, 0, 0), false)
 	mesh(root, "SproutL", sphere(0.035, 10), mat("leaf"), Vector3(-0.03, 0.24, -0.062), Vector3(1.4, 0.7, 0.5), Vector3(0, 0, 25), false)
 	mesh(root, "SproutR", sphere(0.035, 10), mat("leaf"), Vector3(0.03, 0.245, -0.062), Vector3(1.4, 0.7, 0.5), Vector3(0, 0, -25), false)
@@ -267,7 +270,7 @@ static func seed_packet(c: Color) -> Node3D:
 static func product(c: Color) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Product"
-	var bud_mat := Toon.material(c, Toon.Finish.GLOW)
+	var bud_mat := Toon.tint(c, Toon.Finish.GLOW)
 	var spots := [Vector3(-0.05, 0.08, 0.02), Vector3(0.05, 0.1, -0.02), Vector3(0.0, 0.17, 0.03),
 		Vector3(-0.04, 0.22, -0.03), Vector3(0.05, 0.23, 0.02), Vector3(0.0, 0.29, 0.0)]
 	for i in spots.size():
@@ -280,7 +283,7 @@ static func product(c: Color) -> Node3D:
 # ---------------------------------------------------------------------------------------------- diorama
 
 const STRAINS: Array[Color] = [Color(0.55, 0.85, 0.35), Color(0.7, 0.45, 0.9), Color(1, 0.8, 0.25)]
-const PLAYER_COLORS: Array[Color] = [Color("4da8f7"), Color("ff7eb6"), Color("ffd23f"), Color("9a6bff")]
+const PLAYER_COLORS: Array[Color] = [Toon.PLAYER_COLORS[0], Toon.PLAYER_COLORS[1], Toon.PLAYER_COLORS[2], Toon.PLAYER_COLORS[3]]
 
 static func build_diorama() -> Node3D:
 	var root := Node3D.new()
@@ -338,7 +341,7 @@ static func build_diorama() -> Node3D:
 	root.add_child(cam)
 	return root
 
-## 0 overview, 1 plant stages, 2 players + shopkeeper, 3 items close-up, 4 juice (plots + confetti).
+## 0 overview, 1 plant stages, 2 players + shopkeeper, 3 items close-up, 4 juice, 5 faces close-up.
 static func aim_camera(root: Node3D, view: int) -> void:
 	var cam := root.get_node("Camera") as Camera3D
 	var views := [
@@ -347,6 +350,7 @@ static func aim_camera(root: Node3D, view: int) -> void:
 		[Vector3(-0.5, 2.3, 8.2), Vector3(-0.5, 1.2, 2.0), 50.0],
 		[Vector3(4.5, 1.4, 5.3), Vector3(4.4, 0.2, 3.3), 45.0],
 		[Vector3(0.2, 2.6, 6.2), Vector3(0.6, 1.1, 1.0), 55.0],
+		[Vector3(-1.45, 1.45, 5.3), Vector3(-1.35, 1.22, 3.6), 40.0],
 	]
 	var v: Array = views[clampi(view, 0, views.size() - 1)]
 	cam.fov = v[2]

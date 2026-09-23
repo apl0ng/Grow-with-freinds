@@ -20,7 +20,7 @@ const MOODS := {
 	&"tired": {"lid_y": -0.028, "tilt": 5.0, "mouth": 4.0, "mouth_w": 0.75, "bags": true, "pupil_y": -0.7},
 	&"grim": {"lid_y": 0.02, "tilt": -14.0, "mouth": 6.0, "mouth_w": 1.25, "bags": true, "pupil_y": -0.2},
 }
-const MOUTH_HALF := 0.035   # half length of one mouth segment
+const MOUTH_HALF := 0.037   # half length of one mouth segment (CapsuleMesh height 0.075 in face.tscn)
 
 ## Mood used on spawn and by set_happy(false).
 @export var default_mood: StringName = &"sad"
@@ -31,11 +31,14 @@ const MOUTH_HALF := 0.035   # half length of one mouth segment
 
 var mood: StringName = &"sad"
 
-@onready var _eyes: Array[Node3D] = [$EyeL as Node3D, $EyeR as Node3D]
-@onready var _pupils: Array[Node3D] = [$EyeL/Pupil as Node3D, $EyeR/Pupil as Node3D]
-@onready var _lids: Array[Node3D] = [$EyeL/Lid as Node3D, $EyeR/Lid as Node3D]
-@onready var _bags: Array[Node3D] = [$EyeBagL as Node3D, $EyeBagR as Node3D]
-@onready var _mouth: Array[Node3D] = [$Mouth/MouthL as Node3D, $Mouth/MouthR as Node3D]
+# Parts are looked up BY NAME anywhere below this node (e.g. under a Blender-imported "Visual" child),
+# so the script also drives modelled faces. Any part may be missing: every use is null-safe.
+# Names: EyeL, EyeR (blink pivots), Pupil + Lid (below each eye), EyeBagL, EyeBagR, MouthL, MouthR.
+var _eyes: Array[Node3D] = []
+var _pupils: Array[Node3D] = []
+var _lids: Array[Node3D] = []
+var _bags: Array[Node3D] = []
+var _mouth: Array[Node3D] = []
 
 var _next_blink: float = 1.0
 var _pupil_rest: Array[Vector3] = []
@@ -43,14 +46,31 @@ var _eye_rest: Array[Vector3] = []
 var _look := Vector2.ZERO
 var _tween: Tween          # blink / surprise (eye scale)
 var _mood_tween: Tween     # lids, mouth, pupils
+var _mood_steps: int = 0
 
 func _ready() -> void:
-	for p in _pupils:
-		_pupil_rest.append(p.position)
-	for e in _eyes:
-		_eye_rest.append(e.scale)
+	refresh_parts()
 	_next_blink = randf_range(0.5, blink_interval.y)
 	set_mood(default_mood, true)
+
+## Re-finds the face parts (call after swapping the model under this node). Null-safe.
+func refresh_parts() -> void:
+	_eyes = [_part(self, "EyeL"), _part(self, "EyeR")]
+	_pupils = [_part(_eyes[0], "Pupil"), _part(_eyes[1], "Pupil")]
+	_lids = [_part(_eyes[0], "Lid"), _part(_eyes[1], "Lid")]
+	_bags = [_part(self, "EyeBagL"), _part(self, "EyeBagR")]
+	_mouth = [_part(self, "MouthL"), _part(self, "MouthR")]
+	_pupil_rest.clear()
+	_eye_rest.clear()
+	for p in _pupils:
+		_pupil_rest.append(p.position if p else Vector3.ZERO)
+	for e in _eyes:
+		_eye_rest.append(e.scale if e else Vector3.ONE)
+
+func _part(root: Node, part_name: String) -> Node3D:
+	if root == null:
+		return null
+	return root.find_child(part_name, true, false) as Node3D
 
 func _process(delta: float) -> void:
 	_next_blink -= delta
@@ -67,20 +87,29 @@ func set_mood(new_mood: StringName, instant: bool = false) -> void:
 	if not is_node_ready():
 		default_mood = new_mood
 		return
-	var m: Dictionary = MOODS[new_mood]
+	_pose(new_mood, instant)
+
+## Shows a mood's pose without changing the requested `mood` (surprise() uses this).
+func _pose(pose_mood: StringName, instant: bool = false) -> void:
+	var m: Dictionary = MOODS[pose_mood]
 	if _mood_tween != null and _mood_tween.is_valid():
 		_mood_tween.kill()
 	_mood_tween = null if instant else create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_mood_steps = 0
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
 		_prop(_lids[i], "position", Vector3(0.0, m["lid_y"], 0.0))
 		_prop(_lids[i], "rotation", Vector3(0.0, 0.0, deg_to_rad(-side * float(m["tilt"]))))
-		_bags[i].visible = m["bags"]
+		if _bags[i]:
+			_bags[i].visible = m["bags"]
 		var a := deg_to_rad(float(m["mouth"]))
 		var half := MOUTH_HALF * float(m["mouth_w"])
 		_prop(_mouth[i], "position", Vector3(side * half * cos(a), -half * sin(a), 0.0))
 		_prop(_mouth[i], "rotation", Vector3(0.0, 0.0, deg_to_rad(90.0) - side * a))
 		_prop(_mouth[i], "scale", Vector3(1.0, float(m["mouth_w"]), 1.0))
+	if _mood_tween != null and _mood_steps == 0:
+		_mood_tween.kill()   # nothing to animate (partial face): an empty Tween would error
+		_mood_tween = null
 	_apply_look()
 
 ## Best it gets is neutral: set_happy(true) -> &"neutral"; set_happy(false) -> default_mood.
@@ -106,16 +135,15 @@ func blink() -> void:
 func surprise() -> void:
 	if not is_inside_tree():
 		return
-	var back := mood
 	_restart_tween()
 	var wide: Array[Vector3] = []
 	for r in _eye_rest:
 		wide.append(r * 1.15)
 	_eye_step(wide, 0.08, Tween.TRANS_QUAD)
 	_eye_step(_eye_rest, 0.4, Tween.TRANS_SINE)
-	set_mood(&"neutral")
-	mood = back
-	_tween.tween_callback(func() -> void: set_mood(back))
+	_pose(&"neutral")
+	# Back to whatever mood is requested by then (a set_mood() during the startle wins).
+	_tween.tween_callback(func() -> void: _pose(mood))
 
 ## Move both pupils inside the eyes, in the face's local space: dir.x +1 = the character's right (+X),
 ## dir.y +1 = up. Vector2.ZERO recentres (moods still add their downcast gaze).
@@ -129,20 +157,30 @@ func _apply_look() -> void:
 	var down: float = MOODS.get(mood, MOODS[&"sad"])["pupil_y"]
 	var d := Vector2(_look.x, clampf(_look.y + down, -1.0, 1.0))
 	for i in _pupils.size():
-		_pupils[i].position = _pupil_rest[i] + Vector3(d.x * 0.022, d.y * 0.022, 0.0)
+		if _pupils[i]:
+			_pupils[i].position = _pupil_rest[i] + Vector3(d.x * 0.022, d.y * 0.022, 0.0)
 
 func _prop(node: Node3D, prop: String, value: Variant) -> void:
+	if node == null:
+		return
 	if _mood_tween == null:
 		node.set(prop, value)
 	else:
 		_mood_tween.tween_property(node, prop, value, 0.25)
+		_mood_steps += 1
 
 ## One tween step: both eyes animate together to the given scales.
 func _eye_step(scales: Array[Vector3], time: float, trans: Tween.TransitionType) -> void:
+	var first := true
 	for i in _eyes.size():
-		var tweener := _tween.tween_property(_eyes[i], "scale", scales[i], time) if i == 0 \
+		if _eyes[i] == null:
+			continue
+		var tweener := _tween.tween_property(_eyes[i], "scale", scales[i], time) if first \
 				else _tween.parallel().tween_property(_eyes[i], "scale", scales[i], time)
 		tweener.set_trans(trans).set_ease(Tween.EASE_IN_OUT)
+		first = false
+	if first:
+		_tween.tween_interval(time)   # no eyes found: keep the tween valid (a Tween with no steps errors)
 
 func _restart_tween() -> void:
 	if _tween != null and _tween.is_valid():

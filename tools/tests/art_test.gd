@@ -9,7 +9,7 @@ const REQUIRED_MATERIALS: Array[String] = [
 ]
 const EXTRA_MATERIALS: Array[String] = [
 	"gold", "cream", "stone", "leaf_dry", "eye_white", "eye_black", "blush", "sparkle", "glass",
-	"blob_shadow", "outline", "outline_thin",
+	"blob_shadow", "outline", "outline_thin", "eyelid", "eyebag",
 ]
 ## variation -> [base type, expected font size or -1]
 const VARIATIONS := {
@@ -87,12 +87,27 @@ func _test_materials() -> void:
 			_check(m.specular_mode == BaseMaterial3D.SPECULAR_TOON, n + " uses SPECULAR_TOON")
 			_check(m.rim_enabled and m.rim > 0.0, n + " has rim light")
 			_check(m.roughness < 0.95, n + " roughness < 0.95 (rim would flatten the colour)")
-	for n in ["bud", "water"]:
+			_check(m.rim <= 0.2, n + " rim toned down (mood: <= 0.2, got %.2f)" % m.rim)
+	for n in ["bud", "water", "gold"]:
 		var m := load("res://art/materials/toon_%s.tres" % n) as StandardMaterial3D
-		_check(m != null and m.emission_enabled, n + " glows (emission)")
+		_check(m != null and m.emission_enabled and m.emission_energy_multiplier <= 0.15, n + " glows only faintly (mood)")
+	var blush := load("res://art/materials/toon_blush.tres") as StandardMaterial3D
+	_check(blush != null and blush.albedo_color.a <= 0.25 and blush.albedo_color.s < 0.3, "blush is a faint grey flush, not pink (mood)")
 	var o := load("res://art/materials/toon_outline.tres") as StandardMaterial3D
 	_check(o != null and o.grow and o.cull_mode == BaseMaterial3D.CULL_FRONT, "outline = grow + cull front")
-	_check(load("res://art/env/toon_environment.tres") is Environment, "toon_environment loads")
+	var env := load("res://art/env/toon_environment.tres") as Environment
+	_check(env != null, "toon_environment loads")
+	if env:
+		_check(env.ambient_light_energy <= 0.5 and env.ambient_light_color.b > env.ambient_light_color.r, "ambient is dim and cold (mood)")
+		_check(env.background_color.v < 0.5 and not env.glow_enabled, "background darker, no glow (mood)")
+	var vig := load("res://art/props/vignette.tscn") as PackedScene
+	_check(vig != null and vig.can_instantiate(), "vignette.tscn loads")
+	if vig:
+		var vi := vig.instantiate()
+		_check(vi is CanvasLayer and (vi as CanvasLayer).layer < 0, "vignette is a CanvasLayer below the HUD")
+		var shade := vi.get_node_or_null(^"Shade") as Control
+		_check(shade != null and shade.mouse_filter == Control.MOUSE_FILTER_IGNORE, "vignette ignores the mouse")
+		vi.free()
 	var lighting := load("res://art/env/toon_lighting.tscn") as PackedScene
 	_check(lighting != null and lighting.can_instantiate(), "toon_lighting.tscn instantiates")
 	if lighting:
@@ -171,22 +186,62 @@ func _test_toon_and_props() -> void:
 	_check(Toon.outline() is StandardMaterial3D and Toon.outline(true) is StandardMaterial3D, "Toon.outline loads")
 	var lib_red := load("res://art/materials/toon_red.tres") as StandardMaterial3D
 	_check(lib_red.albedo_color.is_equal_approx(Toon.TOMATO), "library red == Toon.TOMATO (generator in sync)")
+	var raw := Color("ff5a5f")
+	var g := Toon.grade(raw)
+	_check(g.s < raw.s and g.v < raw.v, "Toon.grade darkens + desaturates")
+	_check(g.is_equal_approx(Toon.TOMATO) or g.to_html(false) == Toon.TOMATO.to_html(false) or absf(g.r - Toon.TOMATO.r) < 0.01, "palette constants are grade(base hue)")
+	_check(Toon.tint(raw) == Toon.material(Toon.grade(raw)), "Toon.tint = material(grade(c))")
 	var face_scene := load("res://art/props/face.tscn") as PackedScene
 	_check(face_scene != null and face_scene.can_instantiate(), "face.tscn loads")
 	if face_scene:
 		var face := face_scene.instantiate() as ToonFace
 		_check(face != null, "face root is ToonFace")
 		if face:
+			_check(face.find_child("Blush*", true, false) == null, "face has no blush (mood)")
+			_check(face.find_child("Lid", true, false) != null and face.find_child("MouthL", true, false) != null, "face has lids + mouth")
 			root.add_child(face)
 			await _frames(1)
+			_check(face.mood == &"sad", "default mood is sad")
+			for m: StringName in [&"tired", &"grim", &"neutral", &"sad"]:
+				face.set_mood(m)
+				await _frames(1)
+				_check(face.mood == m, "set_mood(%s)" % m)
+			face.set_happy(true)
+			_check(face.mood == &"neutral", "set_happy(true) is at most neutral")
+			face.set_happy(false)
+			_check(face.mood == &"sad", "set_happy(false) -> default mood")
+			face.set_mood(&"ecstatic")   # unknown -> warns, falls back to sad
+			_check(face.mood == &"sad", "unknown mood falls back to sad")
 			face.blink()
 			face.surprise()
 			face.look(Vector2(1, 0.5))
-			face.set_happy(true)
-			face.set_happy(false)
-			face.show_blush = false
-			await _frames(3)
+			face.show_blush = true       # deprecated no-op
+			await _wait(0.6)
+			_check(face.mood == &"sad", "surprise returns to the mood")
+			var mouth_l := face.find_child("MouthL", true, false) as Node3D
+			_check(mouth_l != null and mouth_l.position.y < -0.005, "sad mouth is a frown (segments droop)")
 			face.queue_free()
+		# Null-safety: a Blender-style face with parts under a "Visual" child and most parts missing.
+		var partial := Node3D.new()
+		partial.set_script(load("res://scripts/art/toon_face.gd"))
+		var visual := Node3D.new()
+		visual.name = "Visual"
+		partial.add_child(visual)
+		var eye := Node3D.new()
+		eye.name = "EyeL"
+		visual.add_child(eye)
+		root.add_child(partial)
+		await _frames(1)
+		var pf := partial as ToonFace
+		pf.set_mood(&"tired")
+		pf.blink()
+		pf.surprise()
+		pf.look(Vector2.ONE)
+		pf.set_happy(true)
+		await _wait(0.5)
+		_check(pf.mood == &"neutral" and is_equal_approx(eye.scale.y, 1.0), "partial face (EyeL under Visual only) works null-safe")
+		partial.queue_free()
+		await _frames(1)
 
 # ------------------------------------------------------------------------------------------------ sfx
 func _test_sfx() -> void:
@@ -312,7 +367,6 @@ func _test_juice() -> void:
 	juice.burst(Vector3(0, 1, 0), Color("ff5a5f"))
 	juice.burst(Vector3(0, 1, 0), Color("4fcb6b"), 30)
 	juice.float_text(Vector3(0, 2, 0), "+$120", Color("ffd23f"))
-	juice.confetti(Vector3.ZERO)
 	juice.puff(Vector3.ZERO)
 	juice.splash(Vector3.ZERO)
 	juice.sparkle(Vector3.ZERO)
@@ -320,6 +374,20 @@ func _test_juice() -> void:
 	_check(_count_fx() > before, "3D effects spawned")
 	await _wait(3.5)
 	_check(_count_fx() == before, "3D effects freed themselves (left: %d)" % (_count_fx() - before))
+	# MOOD: confetti is a no-op unless celebration is explicitly allowed.
+	_check(juice.allow_celebration == false, "celebration is off by default")
+	juice.confetti(Vector3.ZERO)
+	await _frames(2)
+	_check(_count_fx() == before, "confetti does nothing by default")
+	juice.allow_celebration = true
+	juice.confetti(Vector3.ZERO)
+	juice.sparkle(Vector3.ZERO)
+	juice.burst(Vector3.ZERO, Color.RED)
+	await _frames(2)
+	_check(_count_fx() > before, "confetti works when allow_celebration")
+	juice.allow_celebration = false
+	await _wait(3.0)
+	_check(_count_fx() == before, "celebration effects freed themselves")
 	world.queue_free()
 	ctrl.queue_free()
 

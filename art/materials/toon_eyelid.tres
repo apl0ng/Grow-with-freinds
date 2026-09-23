@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "toon_eyelid"
+cull_mode = 2
+shading_mode = 0
+albedo_color = Color(0.2901961, 0.27058825, 0.3372549, 1)
