@@ -9,7 +9,7 @@
 # Order: tools/check.sh -> single-process suites -> multi-process suites -> tools/smoke.sh -> QA suites.
 # Ports: multi-process suites get unique UDP ports from QA_BASE_PORT (default 7900): econ_mp +11, net_test
 #   +21..+32, qa_robust +71, qa_solo +72, qa_mouse_x11 +73, qa_4p +50, qa_mp_robust +80, review_core +74,
-#   review_core_mp review_core_slots +95/+96. A base whose ports are already bound
+#   review_core_mp +95/+96, review_core_slots +97. A base whose ports are already bound
 #   (e.g. by a leftover process) is skipped in steps of 100. smoke.sh keeps its fixed 7801/7802; the
 #   self-spawning suites (items_net/items_e2e/farm_net/farm_world/flow_mp/econ_test) pick random ports.
 # Leftovers: every suite runs in its own session (setsid) under `timeout`; afterwards any process still in that
@@ -31,7 +31,7 @@ mkdir -p "$LOGDIR"
 
 ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test models_arch_test models_char_test models_plant_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
-  review_play_mp review_ui review_core review_core_mp review_viewmodel qa_mouse_x11)
+  review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel qa_mouse_x11)
 
 ONLY=""
 case "${1:-}" in

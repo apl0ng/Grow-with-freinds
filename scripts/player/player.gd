@@ -82,12 +82,21 @@ var player_color: Color = Color.WHITE
 var spawn_index: int = 0
 
 # --- Synced by $Sync (authority = owning peer) ---
+# Non-finite values (NaN / inf from a buggy or hostile owner) are ignored: every peer keeps the last valid pose.
 var net_position: Vector3 = Vector3.ZERO:
 	set(value):
+		if not value.is_finite():
+			return
 		net_position = value
 		_has_net_state = true
-var net_yaw: float = 0.0
-var net_pitch: float = 0.0
+var net_yaw: float = 0.0:
+	set(value):
+		if is_finite(value):
+			net_yaw = value
+var net_pitch: float = 0.0:
+	set(value):
+		if is_finite(value):
+			net_pitch = clampf(value, -MAX_PITCH, MAX_PITCH)
 var crouching: bool = false:
 	set = _set_crouching
 
@@ -483,6 +492,8 @@ func _rpc_teleport(xform: Transform3D) -> void:
 
 func _smooth_remote(delta: float) -> void:
 	var snap := position.distance_to(net_position) > SNAP_DISTANCE
+	if not position.is_finite() or not is_finite(rotation.y) or not is_finite(head.rotation.x):
+		snap = true # never lerp from a broken pose (the net_* values are always finite)
 	if _awaiting_first_sync and not net_position.is_equal_approx(_spawn_net_position):
 		_awaiting_first_sync = false
 		snap = true

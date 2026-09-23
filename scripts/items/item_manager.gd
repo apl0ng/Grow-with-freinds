@@ -165,7 +165,7 @@ func server_release_holder(peer_id: int) -> void:
 	else:
 		# The item stopped following when the player vanished: put it on the floor below where it is.
 		var here := item.global_position if item.is_inside_tree() else item.position
-		_server_place(item, _project_to_floor(here, null), Vector3.ZERO)
+		_server_place(item, _project_to_floor(here, null) if here.is_finite() else _safe_drop_spot(null), Vector3.ZERO)
 
 ## SERVER ONLY. Removes every item (e.g. full game reset).
 func server_despawn_all() -> void:
@@ -239,6 +239,8 @@ func get_player(peer_id: int) -> Player:
 func compute_drop_position(player: Player) -> Vector3:
 	var feet := player.global_position
 	var forward := _flat_forward(player)
+	if not feet.is_finite():
+		return _safe_drop_spot(null) # a holder transform gone bad: never feed NaN / inf into physics queries
 	var reach := DROP_FORWARD
 	var space := _get_space()
 	if space == null:
@@ -260,7 +262,8 @@ func compute_drop_position(player: Player) -> Vector3:
 ## Yaw (radians) that turns a dropped item's front (+Z face, labels) towards the player who dropped it.
 func compute_drop_yaw(player: Player) -> float:
 	var forward := _flat_forward(player)
-	return atan2(-forward.x, -forward.z)
+	var yaw := atan2(-forward.x, -forward.z)
+	return yaw if is_finite(yaw) else 0.0
 
 # --- Spawning ---------------------------------------------------------------------------------------------------
 
@@ -349,6 +352,10 @@ func _server_place(item: Item, at_position: Vector3, rotation_euler: Vector3) ->
 		return
 	if not _is_live(item):
 		return
+	if not at_position.is_finite():
+		at_position = _safe_drop_spot(get_player(item.holder_id))
+	if not rotation_euler.is_finite():
+		rotation_euler = Vector3.ZERO
 	# Rest first, then release: the release snaps the node to the new rest transform on every peer.
 	item.server_set_rest(_to_items_space(at_position), rotation_euler)
 	item.holder_id = 0
@@ -371,6 +378,8 @@ func _flat_forward(player: Player) -> Vector3:
 	var cam := player.get_node_or_null(^"%Camera") as Node3D
 	var look := cam.global_transform.basis if cam != null and cam.is_inside_tree() else player.global_transform.basis
 	var forward := -look.z
+	if not forward.is_finite():
+		return Vector3.FORWARD
 	var looking_down := forward.y < 0.0
 	forward.y = 0.0
 	if forward.length_squared() < 0.0001:
@@ -380,6 +389,20 @@ func _flat_forward(player: Player) -> Vector3:
 	if forward.length_squared() < 0.0001:
 		forward = Vector3.FORWARD
 	return forward.normalized()
+
+## A finite floor spot for an item whose computed drop / release position is not finite (NaN / inf from a bad holder
+## transform): below the holder if its position is finite, else below the room's first spawn point (the room centre
+## without a room).
+func _safe_drop_spot(player: Player) -> Vector3:
+	if player != null and player.is_inside_tree() and player.global_position.is_finite():
+		return _project_to_floor(player.global_position, player)
+	var world := get_parent() as World
+	var spot := Vector3.ZERO
+	if world != null and world.is_node_ready() and world.room != null:
+		spot = world.room.get_spawn_transform(0).origin
+	elif world != null and world.is_inside_tree():
+		spot = world.global_position
+	return _project_to_floor(spot, null) if spot.is_finite() else Vector3.ZERO
 
 ## Raycasts down onto static geometry (layer 1: floor, station tops) below `point`.
 ## Falls back to the player's feet height (or the point's own height without a player).
