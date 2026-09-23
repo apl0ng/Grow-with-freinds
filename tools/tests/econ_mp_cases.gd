@@ -5,7 +5,7 @@ extends Node
 ##
 ## Choreography (each side polls replicated state, no extra channel):
 ##   client: too far -> unknown seed -> buy Budget Bud -> hands full -> UI BUY while holding -> drop
-##           -> buy Bigger Cans (signals the host) -> waits for PLAYING + a product in hands -> sells it -> leaves
+##           -> buy Dented Cans (signals the host) -> waits for PLAYING + a product in hands -> sells it -> leaves
 ##   host:   waits for the client, then for Bigger Cans level 1 -> starts the round and spawns Golden Kush x2 in the
 ##           client's hands -> waits for the sale -> waits for the client to leave -> back to menu
 
@@ -56,7 +56,7 @@ func _run_host(port: int) -> void:
 			client_id = p.peer_id
 	var money_start := GameState.money
 	var got_upgrade := await _until(func() -> bool: return GameState.get_upgrade_level(&"big_can") >= 1, 45.0)
-	_check(got_upgrade, "host: client bought Bigger Cans through the RPC")
+	_check(got_upgrade, "host: client bought Dented Cans through the RPC")
 	if not got_upgrade:
 		return
 	var budget := Config.balance.get_seed(&"budget")
@@ -110,7 +110,7 @@ func _run_client(port: int) -> void:
 	# Too far (server-side range check uses the synced position)
 	await _move(me, counter.to_global(Vector3(6.5, 0.0, 1.5)))
 	counter.request_buy_seed(&"budget")
-	_expect_toast(await _next_toast(), false, "Too far away", "client: buying from 6 m away")
+	_expect_toast(await _next_toast(), false, "Too far.", "client: buying from 6 m away")
 
 	await _move(me, counter.to_global(Vector3(0.0, 0.0, 1.9)))
 	counter.request_buy_seed(&"no_such_seed")
@@ -145,7 +145,7 @@ func _run_client(port: int) -> void:
 	var dropped := await _until(func() -> bool: return me.get_held_item() == null, 5.0)
 	_check(dropped, "client: drop request emptied my hands")
 	counter.request_buy_upgrade(&"big_can")
-	_expect_toast(await _next_toast(), true, "Bigger Cans, level 1. Noted.", "client: buy Bigger Cans")
+	_expect_toast(await _next_toast(), true, "Dented Cans, level 1. Noted.", "client: buy Dented Cans")
 	var leveled := await _until(func() -> bool: return GameState.get_upgrade_level(&"big_can") == 1, 5.0)
 	_check(leveled, "client: replicated upgrade level 1")
 

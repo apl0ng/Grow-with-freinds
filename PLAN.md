@@ -78,7 +78,7 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | 7.2 | Unified runner, 4-player stress test, robustness sweep, bug fixes (3 found/fixed) | H | done |
 | 7.3 | Room lighting cool-down per art measurements | C | done |
 | 8.1 | Factory retheme: room, props, Boss NPC, station visuals, factory palette | C | done |
-| 8.2 | Narrative/text pass: HUD, menu, shop UI, overlays, Story autoload (Boss barks, debt board), team quota scaling (+ test updates) | writer | in progress |
+| 8.2 | Narrative/text pass: HUD, menu, shop UI, overlays, Story autoload (Boss barks, debt board), team quota scaling (+ test updates) | writer | done |
 | 8.3 | Dark undertone: material library re-tune, colder environment, sad ToonFace, mood rules in STYLE.md | A | in progress |
 | 8.4 | Sad player faces / slumped idle on the player body | folded into 8.6a | — |
 | 8.5 | Blender pipeline: tools/blender (gwf.py, build.py), Toonify, MODELING.md, reference contact sheets, models_test | pipeline | done |
@@ -153,7 +153,7 @@ Test: `items_test` (111), `items_net_test` (45, one process, real ENet), `items_
 Works: shop UI (seeds + upgrades tabs, wallet, disabled states), server-validated purchases straight into your hands,
 plots with 4 visible stages that pop in and pulse when ready, water gauge + DRY indicator, growth pauses when dry,
 well refills cans (2 spawn at start), harvest into hands, selling adds to quota with float text / burst / sound,
-team upgrades (Fertilizer, Bigger Cans, Sweet Talk). Test: `farm_test` (99), `farm_net_test`, `farm_world_test`,
+team favors (Cheap Fertilizer, Dented Cans, Better Cut). Test: `farm_test` (99), `farm_net_test`, `farm_world_test`,
 `econ_test` (116), `econ_mp_test`, and `tools/smoke.sh solo` (51 checks through the real RPC path).
 
 ### M7 QA (done)

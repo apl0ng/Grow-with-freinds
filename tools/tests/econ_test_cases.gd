@@ -10,7 +10,7 @@ extends Node
 ## Part 2 - solo host session (Game.start_host on a random port, real World / ItemManager / GameState):
 ##   unknown seed, too far, successful purchase (packet in hands, money spent), hands full, not enough money,
 ##   upgrades (unknown, level ups, max level), purchases through the ShopUI buttons, Escape closing the shop
-##   without opening the pause menu, selling (denials, WAITING gate, value with Sweet Talk, sales/money/label),
+##   without opening the pause menu, selling (denials, WAITING gate, value with Better Cut, sales/money/label),
 ##   the double-sell guard, and the shop closing when the quota ends the round.
 
 signal finished(failures: int)
@@ -305,7 +305,7 @@ func _part2_purchases(player: Player, counter: ShopCounter, items: ItemManager) 
 	_expect(counter.server_buy_seed(1, &"no_such_seed"), false, "Unknown seed.", "unknown seed is rejected")
 
 	_place_at(player, counter.to_global(Vector3(0.0, 0.0, 30.0)))
-	_expect(counter.server_buy_seed(1, &"budget"), false, "Too far away", "buying from far away is rejected")
+	_expect(counter.server_buy_seed(1, &"budget"), false, "Too far.", "buying from far away is rejected")
 	_place_near(player, counter)
 
 	var money := GameState.money
@@ -346,7 +346,7 @@ func _part2_purchases(player: Player, counter: ShopCounter, items: ItemManager) 
 	_expect(counter.server_buy_upgrade(1, cans.id), false, "Maxed out.", "maxed upgrade is rejected")
 	_check(GameState.money == money, "maxed upgrade costs nothing")
 	_place_at(player, counter.to_global(Vector3(0.0, 0.0, 30.0)))
-	_expect(counter.server_buy_upgrade(1, &"fertilizer"), false, "Too far away", "upgrade from far away is rejected")
+	_expect(counter.server_buy_upgrade(1, &"fertilizer"), false, "Too far.", "upgrade from far away is rejected")
 	_place_near(player, counter)
 	await _frames(1)
 
@@ -384,7 +384,7 @@ func _part2_shop_ui(player: Player, counter: ShopCounter, items: ItemManager) ->
 		var money := GameState.money
 		talk_card.get_buy_button().pressed.emit()
 		_check(GameState.get_upgrade_level(talk.id) == 1 and GameState.money == money - talk.cost_for_level(1),
-				"UI buys Sweet Talk level 1 for $%d" % talk.cost_for_level(1))
+				"UI buys Better Cut level 1 for $%d" % talk.cost_for_level(1))
 		_check(talk_card.get_buy_button().text.contains("$%d" % talk.cost_for_level(2)),
 				"upgrade card now shows the level 2 price", talk_card.get_buy_button().text)
 	# Escape with the real HUD present: closes the shop and must not open the pause menu.

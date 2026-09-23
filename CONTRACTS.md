@@ -257,6 +257,18 @@ Pause menu on `pause` action (Resume / Leave to menu). All overlays use `Game.se
 Classes: `HUD` (`show_toast`, `set_prompt_source`, `refresh_all`, static `format_money`, `action_key_text`),
 `RoundEndOverlay`, `PauseMenu`, `HudToast`. The ShopUI lives on CanvasLayer 5 (above the HUD on layer 1).
 
+## Story (autoload, owner: narrative pass) — local-only narrative glue, no RPCs
+Listens to GameState/Net/Game signals on every peer: writes the debt board (`Room.set_debt_board_text`: "OWED $x /
+SHIFT n" counting down, "PAID… FOR NOW", "YOU'RE DONE"), and makes the Boss `bark()` on events (shift start, first
+deposit, 50%, payment met, missed, purchase, worker joined/left, last 30 s "Tick tock.") with a 6 s rate limit and a
+one-slot queue; falls back to a toast if the NPC has no `bark()`. API: `lines`, `blurbs`, `line(key)`, `get_blurb(id)`,
+`bark_now(text)`, `get_board_text()`, `refresh_board()`, `find_boss()`, `reset_state()`, `last_bark`, `bark_log`,
+signal `bark_shown`; `boss_override` / `board_override` for tests.
+GameState additions: `get_team_size()` (Net registry size, ≥1), `get_quota_for(round)`; shift start and reset use
+`Config.balance.quota_for_round(round, team_size)`; while WAITING the host re-prices the coming shift when workers
+join or leave; a running shift keeps its number.
+Vocabulary (all copy): shift, payment due, cash on hand, workers, supply window, favors (upgrades), deposit (sell).
+
 ## Sfx / Juice (autoloads, owner: art agent)
 ```gdscript
 Sfx.play(name: StringName, position: Vector3 = Vector3.INF)   # 2D when no position

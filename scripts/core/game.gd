@@ -81,7 +81,7 @@ func start_join(ip: String, port: int, player_name: String) -> Error:
 		var why := "Could not resolve \"%s\"" % ip if err == ERR_CANT_RESOLVE else error_string(err)
 		_return_to_menu_now("Could not connect to %s:%d (%s)" % [ip, port, why])
 		return err
-	_show_connecting_overlay("Connecting to %s:%d" % [ip, port])
+	_show_connecting_overlay("Reporting for shift at %s:%d" % [ip, port])
 	_join_attempt += 1
 	get_tree().create_timer(JOIN_TIMEOUT_SEC, true).timeout.connect(
 		_on_join_timeout.bind(_join_attempt, "%s:%d" % [ip, port]))
@@ -304,8 +304,8 @@ func _on_peer_registered(peer_id: int) -> void:
 
 func _on_peer_joined(peer_id: int) -> void:
 	if world != null:
-		toast("%s joined the farm!" % Net.get_player_name(peer_id), &"info")
+		toast("%s clocked in." % Net.get_player_name(peer_id), &"info")
 
 func _on_peer_left(peer_id: int) -> void:
 	if world != null and peer_id != multiplayer.get_unique_id():
-		toast("%s left" % Net.get_player_name(peer_id), &"info")
+		toast("%s left." % Net.get_player_name(peer_id), &"info")

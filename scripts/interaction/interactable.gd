@@ -53,7 +53,7 @@ func _rpc_request_interact() -> void:
 		return
 	var max_dist: float = Config.balance.interact_distance + server_range_slack
 	if player.global_position.distance_to(global_position) > max_dist:
-		_rpc_denied.rpc_id(sender, "Too far away")
+		_rpc_denied.rpc_id(sender, "Too far.")
 		return
 	if not can_interact(player):
 		_rpc_denied.rpc_id(sender, get_denied_reason(player))

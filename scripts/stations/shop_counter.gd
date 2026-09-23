@@ -22,7 +22,7 @@ const KIND_UPGRADE: StringName = &"upgrade"
 
 const REASON_NOT_SERVER := "Only the host can process purchases"
 const REASON_NO_PLAYER := "Player not found"
-const REASON_TOO_FAR := "Too far away"
+const REASON_TOO_FAR := "Too far."
 const REASON_UNKNOWN_SEED := "Unknown seed."
 const REASON_UNKNOWN_UPGRADE := "Unknown favor."
 const REASON_HANDS_FULL := "Hands full."

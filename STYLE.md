@@ -411,7 +411,7 @@ are faded blueberry `#5d53a3` (dark `#413a74`, card `#6f66b3`); HUD panels are i
 |---|---|---|---|
 | *(plain)* `Label` | - | 20 px, light + ink outline 6 | body text anywhere |
 | `TitleLabel` | Label | 48 px chunky, outline 14 | menu/overlay titles |
-| `BannerLabel` | Label | 72 px chunky **sunshine**, outline 18 | "ROUND COMPLETE!" (override colour to `Toon.ERROR` for "TIME'S UP!") |
+| `BannerLabel` | Label | 72 px chunky **sunshine**, outline 18 | "PAYMENT ACCEPTED" (override colour to `Toon.ERROR` for "YOU MISSED THE PAYMENT") |
 | `HeaderLabel` | Label | 32 px chunky, outline 10 | section headers, card titles |
 | `HudLabel` | Label | 24 px chunky, outline 8 + shadow | every HUD text, text inside toasts / HudPanels |
 | `MoneyLabel` | Label | 32 px chunky **sunshine** | wallet, prices |

@@ -6,7 +6,7 @@ extends "res://tools/tests/qa_net_base.gd"
 ##   M3  Ghost (no Player): buy / interact / drop requests are refused without errors or state changes
 ##   M1  malformed RPCs from Alpha (wrong types, wrong arg count, authority-only RPC, teleporting another player):
 ##       the engine rejects them before game code runs (expected ERROR lines on the host), nothing changes
-##   M2  requests from far away: interact + buy -> "Too far away", nothing changes
+##   M2  requests from far away: interact + buy -> "Too far.", nothing changes
 ##   M4  double requests in one frame from a real client: pickup (no "Someone's carrying that."), buy (bypassing
 ##       the UI), ShopUI double click inside the round trip, plant, harvest, sell -> every effect exactly once
 ##   M7  a client's GameState.request_* calls are ignored
@@ -91,7 +91,7 @@ func _host_main() -> void:
 	step("M2: requests from far away")
 	r = await run_cmd(_ids["a"], "far_requests")
 	var far_toasts: Array = r.get("toasts", [])
-	check(far_toasts.count("Too far away") >= 2, "interact + buy from across the room -> 'Too far away' %s" % [far_toasts])
+	check(far_toasts.count("Too far.") >= 2, "interact + buy from across the room -> 'Too far away' %s" % [far_toasts])
 	check(GameState.money == money and Game.world.items.get_held_by(_ids["a"]) == null, "nothing bought, nothing held")
 
 	step("M4: double requests in one frame from a client")

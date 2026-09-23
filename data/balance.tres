@@ -9,7 +9,7 @@ resource_name = "Budget Bud"
 script = ExtResource("2_75r0e")
 id = &"budget"
 display_name = "Budget Bud"
-description = "Cheap and cheerful. Grows fast, sells low."
+description = "Cheap. Grows fast. Pays little."
 color = Color(0.55, 0.85, 0.35, 1)
 
 [sub_resource type="Resource" id="Resource_icusp"]
@@ -17,7 +17,7 @@ resource_name = "Purple Haze"
 script = ExtResource("2_75r0e")
 id = &"purple"
 display_name = "Purple Haze"
-description = "A slower grow with a much better payout."
+description = "Slower. Pays better. The Boss prefers it."
 cost = 45
 grow_time_multiplier = 1.3
 sale_value_per_unit = 130
@@ -28,7 +28,7 @@ resource_name = "Golden Kush"
 script = ExtResource("2_75r0e")
 id = &"golden"
 display_name = "Golden Kush"
-description = "Premium strain. Long grow, double yield."
+description = "Long grow. Double yield. He counts these."
 cost = 90
 grow_time_multiplier = 1.6
 yield_amount = 2
@@ -36,19 +36,19 @@ sale_value_per_unit = 120
 color = Color(1, 0.8, 0.25, 1)
 
 [sub_resource type="Resource" id="Resource_htc7v"]
-resource_name = "Fertilizer"
+resource_name = "Cheap Fertilizer"
 script = ExtResource("3_njojm")
 id = &"fertilizer"
-display_name = "Fertilizer"
-description = "Plants grow 25% faster per level."
+display_name = "Cheap Fertilizer"
+description = "Plants grow 25% faster per level. Don't ask what's in it."
 base_cost = 150
 
 [sub_resource type="Resource" id="Resource_4r1k0"]
-resource_name = "Bigger Cans"
+resource_name = "Dented Cans"
 script = ExtResource("3_njojm")
 id = &"big_can"
-display_name = "Bigger Cans"
-description = "+2 charges on every watering can per level."
+display_name = "Dented Cans"
+description = "+2 charges on every can per level. They leak a little."
 base_cost = 80
 cost_scale = 1.5
 max_level = 2
@@ -56,11 +56,11 @@ effect_key = &"can_capacity"
 effect_per_level = 2.0
 
 [sub_resource type="Resource" id="Resource_h2r3a"]
-resource_name = "Sweet Talk"
+resource_name = "Better Cut"
 script = ExtResource("3_njojm")
 id = &"sweet_talk"
-display_name = "Sweet Talk"
-description = "Sell everything for 10% more per level."
+display_name = "Better Cut"
+description = "Deposits pay 10% more per level. He keeps the rest."
 base_cost = 200
 cost_scale = 1.7
 effect_key = &"sale_bonus"

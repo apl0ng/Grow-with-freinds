@@ -175,7 +175,7 @@ func _host_main() -> void:
 	check(can_b.holder_id == 1, "host holds the second can")
 	# An upgrade changes derived values (can capacity) that a late joiner must also get right.
 	GameState.server_add_money(100)
-	check(GameState.server_buy_upgrade(&"big_can", 1), "team bought Bigger Cans (capacity %d)" % GameState.get_can_capacity())
+	check(GameState.server_buy_upgrade(&"big_can", 1), "team bought Dented Cans (capacity %d)" % GameState.get_can_capacity())
 	await checkpoint("mid-growth, 3 items held", ["a", "b"])
 
 	# ---------------------------------------------------------------- (d) late joiner
@@ -511,7 +511,7 @@ func _visual_report() -> String:
 		elif not it.visible or it.global_position.distance_to(it.rest_position) > 0.01:
 			bad.append("%s floor item misplaced/hidden" % it.name)
 		if it is WateringCan:
-			# Derived from synced charges + the synced upgrade levels: "3/6" with Bigger Cans.
+			# Derived from synced charges + the synced upgrade levels: "3/6" with Dented Cans.
 			var want_label := "%d/%d" % [(it as WateringCan).charges, GameState.get_can_capacity()]
 			var label := it.get_node("ChargeLabel") as Label3D
 			if label.text != want_label or it.get_label_text() != "Watering Can (%s)" % want_label:

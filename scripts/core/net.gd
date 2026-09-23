@@ -159,7 +159,7 @@ static func sanitize_name(raw: String) -> String:
 		if ch.unicode_at(0) >= 32 and ch.unicode_at(0) != 127:
 			clean += ch
 	clean = clean.strip_edges().left(MAX_NAME_LENGTH).strip_edges()
-	return clean if clean != "" else "Farmer"
+	return clean if clean != "" else "Worker"
 
 # --- Server side -------------------------------------------------------------------------------------------
 

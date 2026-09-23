@@ -311,7 +311,7 @@ func _ui_scene() -> Control:
 	var tv := VBoxContainer.new()
 	tv.position = Vector2(1010, 100)
 	ui.add_child(tv)
-	for t in [["Toast", "Round started!"], ["ToastError", "Hands full"], ["ToastSuccess", "+$120 sold!"]]:
+	for t in [["Toast", "Shift started."], ["ToastError", "Hands full"], ["ToastSuccess", "+$120 deposited."]]:
 		var tp := PanelContainer.new()
 		tp.theme_type_variation = t[0]
 		tv.add_child(tp)
@@ -325,7 +325,7 @@ func _ui_scene() -> Control:
 		pb.value = v
 		pb.custom_minimum_size = Vector2(240, 26)
 		pv.add_child(pb)
-	var banner := _lbl(ui, "ROUND COMPLETE!", &"BannerLabel")
+	var banner := _lbl(ui, "PAYMENT ACCEPTED", &"BannerLabel")
 	banner.position = Vector2(520, 575)
 	_lbl(ui, "Error: not enough money", &"ErrorLabel").position = Vector2(520, 668)
 	_lbl(ui, "Success: purchased!", &"SuccessLabel").position = Vector2(840, 668)
