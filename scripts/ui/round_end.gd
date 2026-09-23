@@ -124,8 +124,8 @@ func focus_default() -> void:
 		return
 	if Game.is_ui_locked_by(PauseMenu.LOCK_SOURCE):
 		return
-	var owner := get_viewport().gui_get_focus_owner()
-	if owner != null and is_ancestor_of(owner):
+	var focused := get_viewport().gui_get_focus_owner()
+	if focused != null and is_ancestor_of(focused):
 		return
 	primary_button.grab_focus()
 

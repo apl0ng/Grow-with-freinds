@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://b0urkis0q33y1"
-path="res://.godot/imported/floor_slab_drain.glb-afd30553ec57b00a19a0d3ebbee43e08.scn"
+uid="uid://t27m8656yj1v"
+path="res://.godot/imported/ceiling_panel_hole.glb-7dfcf1c3b31003fc47c404d56ff873dc.scn"
 
 [deps]
 
-source_file="res://art/models/floor_slab_drain.glb"
-dest_files=["res://.godot/imported/floor_slab_drain.glb-afd30553ec57b00a19a0d3ebbee43e08.scn"]
+source_file="res://art/models/ceiling_panel_hole.glb"
+dest_files=["res://.godot/imported/ceiling_panel_hole.glb-7dfcf1c3b31003fc47c404d56ff873dc.scn"]
 
 [params]
 

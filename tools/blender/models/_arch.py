@@ -27,6 +27,37 @@ ROOM_W, ROOM_H, ROOM_D = 20.0, 6.0, 15.0   # Room.INTERIOR_SIZE (x, y, z)
 PANEL = 5.0                                 # every architecture module is 5 m on the grid
 DECK_RIB = 0.1                              # ceiling deck: crests at y 6.0 (the collider face), valleys 0.1 above
 
+# Ceiling deck rib profile across a panel (Blender y; the ribs run along X): 16 trapezoidal ribs, crests (the
+# low faces, z = -DECK_RIB below the valleys) centred on y = -2.5 + k * RIB_PITCH, so both panel edges along X
+# sit in a crest's middle (seams invisible, symmetric when a panel is turned round).
+N_RIBS = 16
+RIB_PITCH = PANEL / N_RIBS                  # 0.3125
+CREST_HALF = 0.055                          # crest flat 0.11
+RIB_SLOPE = 0.045
+RIB_VALLEY = RIB_PITCH - 2 * CREST_HALF - 2 * RIB_SLOPE   # 0.1125
+
+
+def _deck_breaks():
+    s, r = PANEL / 2, DECK_RIB
+    pts = []
+    for k in range(N_RIBS):
+        c = -s + k * RIB_PITCH
+        pts += [(c, -r), (c + CREST_HALF, -r), (c + CREST_HALF + RIB_SLOPE, 0.0),
+                (c + CREST_HALF + RIB_SLOPE + RIB_VALLEY, 0.0), (c + RIB_PITCH - CREST_HALF, -r)]
+    pts.append((s, -r))
+    return pts
+
+
+DECK_BREAKS = _deck_breaks()                # (y, z) corners of the profile, y ascending
+
+
+def deck_z(y):
+    """Height of the (undeformed) deck sheet at panel coord y (0 = valleys, -DECK_RIB = crests)."""
+    for (y0, z0), (y1, z1) in zip(DECK_BREAKS, DECK_BREAKS[1:]):
+        if y0 - 1e-9 <= y <= y1 + 1e-9:
+            return z0 + (z1 - z0) * (y - y0) / (y1 - y0) if y1 > y0 else z0
+    return -DECK_RIB
+
 # The ceiling hole (room.tscn: Ceiling/HoleVoid is a 2.6 x 1.6 x 2 inside-out black box centred on
 # (-3.5, 6.75, 3.2); Lights/HoleDustLight and Decor/HoleDust sit on the same x/z). The hole lives in the ceiling
 # panel whose cell is x -5..0, z 2.5..7.5 (centre (-2.5, 5.0)); its north edge runs along the panel seam at
@@ -45,11 +76,29 @@ HOLE_OUTLINE = [
 ]
 
 
+HOLE_OFFSET = (HOLE_CENTER[0] - HOLE_PANEL_CENTER[0], -(HOLE_CENTER[1] - HOLE_PANEL_CENTER[1]))  # (-1.0, 1.8)
+
+
 def hole_outline_in_panel():
     """HOLE_OUTLINE in the hole panel's Blender coords (its origin on the panel cell centre)."""
-    dx = HOLE_CENTER[0] - HOLE_PANEL_CENTER[0]          # Godot x offset
-    dz = HOLE_CENTER[1] - HOLE_PANEL_CENTER[1]          # Godot z offset -> Blender y = -dz
-    return [(x + dx, y - dz) for x, y in HOLE_OUTLINE]
+    return [(x + HOLE_OFFSET[0], y + HOLE_OFFSET[1]) for x, y in HOLE_OUTLINE]
+
+
+def hole_warp(x, y):
+    """How far (m, >= 0) the deck sheet round the hole is bent down at panel coords (x, y): most at the
+    torn edge (4 cm), fading out over 0.6 m and to nothing at the panel edges (the seams stay level). ceiling_panel
+    bends the sheet with it, hole_rim hangs its torn lip from it."""
+    pts = hole_outline_in_panel()
+    d = min(_seg_dist(x, y, p, q) for p, q in zip(pts, pts[1:] + pts[:1]))
+    fade = max(0.0, min(1.0, (PANEL / 2 - abs(x)) / 0.35, (PANEL / 2 - abs(y)) / 0.35))
+    return 0.04 * max(0.0, 1 - d / 0.6) ** 2 * fade
+
+
+def _seg_dist(x, y, p, q):
+    dx, dy = q[0] - p[0], q[1] - p[1]
+    ln2 = dx * dx + dy * dy
+    t = 0.0 if ln2 < 1e-12 else max(0.0, min(1.0, ((x - p[0]) * dx + (y - p[1]) * dy) / ln2))
+    return math.hypot(x - p[0] - t * dx, y - p[1] - t * dy)
 
 
 # ------------------------------------------------------------------------------------------ mesh builder
@@ -145,6 +194,34 @@ def clip_rect(poly, x0, x1, y0, y1):
         if not pts:
             return []
         pts = clip(pts, inside, cut)
+    return pts if len(pts) >= 3 and area2(pts) > 1e-6 else []
+
+
+def clip_convex(poly, convex):
+    """Sutherland-Hodgman against a convex polygon (any winding)."""
+    cw = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(convex, convex[1:] + convex[:1])) < 0
+    pts = list(poly)
+    for a, b in zip(convex, convex[1:] + convex[:1]):
+        if not pts:
+            return []
+
+        def side(p, a=a, b=b):
+            c = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])
+            return -c if cw else c
+
+        out = []
+        for i, p in enumerate(pts):
+            q = pts[i - 1]
+            sp, sq = side(p), side(q)
+            if sp >= 0:
+                if sq < 0:
+                    t = sq / (sq - sp)
+                    out.append((q[0] + (p[0] - q[0]) * t, q[1] + (p[1] - q[1]) * t))
+                out.append(p)
+            elif sq >= 0:
+                t = sq / (sq - sp)
+                out.append((q[0] + (p[0] - q[0]) * t, q[1] + (p[1] - q[1]) * t))
+        pts = out
     return pts if len(pts) >= 3 and area2(pts) > 1e-6 else []
 
 

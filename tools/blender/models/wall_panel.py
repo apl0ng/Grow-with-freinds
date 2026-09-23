@@ -45,6 +45,7 @@ SK_H = CH_H + GAP / 2                 # skirting top (course 0 hides behind it)
 SK_D = 0.05                           # skirting sticks out 5 cm
 SK_BEV = 0.028
 REVEAL = 0.3                          # depth of an opening (the wall thickness it shows)
+TUCK = D + 0.008                      # the mortar plane runs this far past each end (see Wall.mortar)
 DADO = (1, 2, 3)                      # olive courses
 BAND = 4                              # the darker band, 1.0-1.25 m
 LAYER = (-0.0025, -0.0045, -0.0065)   # decal offsets in front of the surface (y)
@@ -135,7 +136,9 @@ class Wall:
         fz0, fz1 = bz0 + CH, bz1 - CH
         F = [Vector((fx0, 0, fz0)), Vector((fx1, 0, fz0)), Vector((fx1, 0, fz1)), Vector((fx0, 0, fz1))]
         B = [Vector((bx0, D, bz0)), Vector((bx1, D, bz0)), Vector((bx1, D, bz1)), Vector((bx0, D, bz1))]
-        side_hint = [(0, -1, -1), (1, -1, 0), (0, -1, 1), (-1, -1, 0)]   # bottom, right, top, left
+        # bottom, right, top, left. A flat (cut) end faces INTO the panel: at a room corner it closes the end of
+        # the horizontal grooves against the other wall; at a seam it is sandwiched inside the whole block.
+        side_hint = [(0, -1, -1), (1, -1, 0) if rj else (-1, 0, 0), (0, -1, 1), (-1, -1, 0) if lj else (1, 0, 0)]
         side_mat = [bottom_mat or mat, mat, mat, mat]
         front = list(F)
         sides = [[F[i], F[(i + 1) % 4], B[(i + 1) % 4], B[i]] for i in range(4)]
@@ -164,30 +167,46 @@ class Wall:
             self.faces.append((fx0, fx1, fz0, fz1))
 
     def cored_front(self, fx0, fx1, fz0, fz1, mat):
-        """A block whose face was knocked in: a broken rim around its two hollow cores."""
+        """A block whose face was knocked in: a jagged hole into the hollow core, a pale broken edge round it."""
         mb, M = self.mb, self.M
-        w, h = fx1 - fx0, fz1 - fz0
-        cz0, cz1 = fz0 + 0.22 * h, fz1 - 0.16 * h
-        cores = [(fx0 + 0.16 * w, fx0 + 0.44 * w), (fx0 + 0.56 * w, fx0 + 0.85 * w)]
-        mb.face([(fx0, 0, fz0), (fx1, 0, fz0), (fx1, 0, cz0), (fx0, 0, cz0)], mat, (0, -1, 0))
-        mb.face([(fx0, 0, cz1), (fx1, 0, cz1), (fx1, 0, fz1), (fx0, 0, fz1)], mat, (0, -1, 0))
-        xs = [fx0, cores[0][0], cores[0][1], cores[1][0], cores[1][1], fx1]
-        for a, b in ((xs[0], xs[1]), (xs[2], xs[3]), (xs[4], xs[5])):
-            mb.face([(a, 0, cz0), (b, 0, cz0), (b, 0, cz1), (a, 0, cz1)], mat, (0, -1, 0))
-        dd = D - 0.003
-        for j, (a, b) in enumerate(cores):
-            jag = 0.012 * (1 if j else -1)
-            q = [Vector((a, 0, cz0)), Vector((b, 0, cz0)), Vector((b, 0, cz1)), Vector((a, 0, cz1))]
-            r = [Vector((a + 0.01, dd, cz0 + 0.012 + jag)), Vector((b - 0.012, dd, cz0 + 0.01)),
-                 Vector((b - 0.01, dd, cz1 - 0.014)), Vector((a + 0.014, dd, cz1 - 0.01 - jag))]
-            hints = [(0, 0, 1), (-1, 0, 0), (0, 0, -1), (1, 0, 0)]
-            for i in range(4):
-                mb.face([q[i], q[(i + 1) % 4], r[(i + 1) % 4], r[i]], M["concrete_dark"], hints[i])
-            mb.face(r, M["void"], (0, -1, 0))
-        # rubble bits knocked loose: two chunks sitting on the joint below
-        for cx in (fx0 + 0.3 * w, fx0 + 0.7 * w):
-            mb.face([(cx - 0.03, -0.001, fz0 - 0.004), (cx + 0.028, -0.001, fz0 - 0.004),
-                     (cx + 0.012, -0.001, fz0 + 0.03)], M["block_light"], (0, -1, 0))
+        cx, cz = (fx0 + fx1) / 2 + 0.02, (fz0 + fz1) / 2 - 0.005
+        n = 12
+        hole, rim = [], []
+        for i in range(n):
+            a = 2 * math.pi * i / n
+            r = 1.0 + (0.22 if i % 2 else -0.12) + 0.08 * math.sin(3 * a + 1.3)
+            hx, hz = 0.165 * r * math.cos(a), 0.07 * r * math.sin(a)
+            hole.append(Vector((cx + hx, 0.0, cz + hz)))
+            rim.append(Vector((cx + hx * 1.28, 0.0, cz + hz * 1.3)))
+        rim = [Vector((min(max(p.x, fx0 + 0.004), fx1 - 0.004), 0.0, min(max(p.z, fz0 + 0.004), fz1 - 0.004)))
+               for p in rim]
+        # the face: a ring of quads from the face's border to the pale rim (a fan from the corners)
+        border = []
+        for i in range(n):
+            a = 2 * math.pi * i / n
+            ca, sa = math.cos(a), math.sin(a)
+            t = min(abs((fx1 - fx0) / 2 / ca) if abs(ca) > 1e-6 else 1e9, abs((fz1 - fz0) / 2 / sa) if abs(sa) > 1e-6 else 1e9)
+            border.append(Vector(((fx0 + fx1) / 2 + ca * t, 0.0, (fz0 + fz1) / 2 + sa * t)))
+        corners = [Vector((fx1, 0, fz1)), Vector((fx0, 0, fz1)), Vector((fx0, 0, fz0)), Vector((fx1, 0, fz0))]
+        for i in range(n):
+            j = (i + 1) % n
+            mb.face([border[i], border[j], rim[j], rim[i]], mat, (0, -1, 0))
+            if i in (n // 4 - 1, n // 2 - 1, 3 * n // 4 - 1, n - 1):
+                c = corners[[n // 4 - 1, n // 2 - 1, 3 * n // 4 - 1, n - 1].index(i)]
+                mb.face([border[i], c, border[j]], mat, (0, -1, 0))
+        # broken edge (pale, sloping into the hole), dark core behind it
+        dd = D - 0.004
+        for i in range(n):
+            j = (i + 1) % n
+            mb.face([rim[i], rim[j], hole[j], hole[i]], M["block_light"], (0, -1, 0))
+            inner = [Vector((p.x, dd, p.z)) for p in (hole[i], hole[j])]
+            mb.face([hole[i], hole[j], inner[1], inner[0]], M["concrete_dark"], Vector((cx, 0, cz)) - hole[i])
+        mb.face([Vector((p.x, dd, p.z)) for p in hole], M["void"], (0, -1, 0))
+        # rubble chips knocked loose onto the joint below
+        for dx in (-0.09, 0.1):
+            x0 = cx + dx
+            mb.face([(x0 - 0.028, -0.001, fz0 - 0.004), (x0 + 0.026, -0.001, fz0 - 0.004), (x0 + 0.01, -0.001, fz0 + 0.026)],
+                    M["block_light"], (0, -1, 0))
 
     def course_blocks(self, k):
         bz0 = k * CH_H + GAP / 2
@@ -206,9 +225,16 @@ class Wall:
 
     # ------------------------------------------------------------------------------------------ mortar
     def mortar(self):
-        rects = [(X0, X1, 0.2, TOP)]
+        """The mortar plane behind the blocks (minus openings). It tucks TUCK past both panel ends, 4 mm deeper:
+        where two walls meet at a room corner the two tucks close the corner column behind the joints (no
+        background shows through the grooves); on a seam the tuck hides behind the neighbour's mortar."""
+        rects = [(X0 - TUCK, X1 + TUCK, 0.2, TOP)]
         for ox0, ox1, oz0, oz1 in self.openings:
-            ox0, ox1 = max(ox0, X0), min(ox1, X1)
+            ox0, ox1 = max(ox0, X0 - TUCK), min(ox1, X1 + TUCK)
+            if ox0 <= X0:
+                ox0 = X0 - TUCK
+            if ox1 >= X1:
+                ox1 = X1 + TUCK
             nxt = []
             for x0, x1, z0, z1 in rects:
                 if x1 <= ox0 or x0 >= ox1 or z1 <= oz0 or z0 >= oz1:
@@ -225,9 +251,12 @@ class Wall:
             rects = nxt
         split = (BAND + 1) * CH_H + GAP / 2
         for x0, x1, z0, z1 in rects:
-            for a, b, m in ((z0, min(z1, split), "olive_dark"), (max(z0, split), z1, "concrete_dark")):
-                if b - a > 1e-4:
-                    self.mb.face([(x0, D, a), (x1, D, a), (x1, D, b), (x0, D, b)], self.M[m], (0, -1, 0))
+            for a, b, y in ((x0, min(x1, X0), D + 0.004), (max(x0, X0), min(x1, X1), D), (max(x0, X1), x1, D + 0.004)):
+                if b - a < 1e-5:
+                    continue
+                for za, zb, m in ((z0, min(z1, split), "olive_dark"), (max(z0, split), z1, "concrete_dark")):
+                    if zb - za > 1e-4:
+                        self.mb.face([(a, y, za), (b, y, za), (b, y, zb), (a, y, zb)], self.M[m], (0, -1, 0))
 
     def reveals(self):
         """Openings: jambs / head / sill running back REVEAL m to a dark back face."""

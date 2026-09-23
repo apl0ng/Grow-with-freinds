@@ -5,8 +5,9 @@ extends "res://tools/tests/qa_base.gd"
 ## Keys are pushed through the viewport like real presses (press + release), so GUI focus / ui_accept routing is real.
 ## Sections:
 ##   D  connecting overlay: Escape cancels the join attempt (the Cancel button had no keyboard route)
-##   E  WORKERS list never slides under the WAITING banner / payment panel at 1280 px (long names are trimmed,
-##      short names and the "(host, you)" tags stay whole)
+##   E  at 1280x720: the WORKERS list never slides under the WAITING banner / payment panel (long names are
+##      trimmed, short names and the "(host, you)" tags stay whole), the "SHIFT n — GET TO WORK" banner does not
+##      cover it, and held item / longest prompt / full toast stack do not collide
 ##   A  pause menu on top of the round-end overlay keeps the keyboard: the overlay must not steal focus, Tab / arrows
 ##      stay inside the pause card, Enter acts on BACK TO WORK (never NEXT SHIFT hidden underneath); afterwards the
 ##      overlay gets its focus back
@@ -16,6 +17,11 @@ extends "res://tools/tests/qa_base.gd"
 
 ## Longer than any reasonable "arm" delay of the round-end overlay's default focus.
 const FOCUS_SETTLE_SEC := 1.2
+
+
+## Stands in for the local Interactor as the HUD's prompt source (the HUD re-attaches the real one otherwise).
+class FakePromptSource extends Node:
+	signal prompt_changed(text: String, enabled: bool)
 
 var hud: HUD
 var port: int = 7991
@@ -122,8 +128,11 @@ func _section_d_connecting() -> void:
 func _section_e_workers_layout() -> void:
 	step("E: WORKERS list vs the WAITING banner and the payment panel (1280 px wide)")
 	var saved: Dictionary = Net.players.duplicate(true)
-	check(get_viewport().get_visible_rect().size.x <= 1280.0, "logical width %d (the narrowest the stretch mode allows)"
-			% int(get_viewport().get_visible_rect().size.x))
+	# Headless windows report 1280x1280; force the base size (the smallest logical size stretch "expand" allows).
+	get_tree().root.size = Vector2i(1280, 720)
+	await wait_frames(2)
+	check(get_viewport().get_visible_rect().size == Vector2(1280, 720), "logical viewport 1280x720 (%s)"
+			% get_viewport().get_visible_rect().size)
 	var cases := [
 		["realistic names", {1: "Stephanie", 2: "Christopher", 3: "Bartholomew", 4: "Maximilian 2"}],
 		["16-character names", {1: "MMMMMMMMMMMMMMMM", 2: "WWWWWWWWWWWWWWWW", 3: "WWWWWWWWWWWWWW 2", 4: "Bartholomew Jr.."}],
@@ -163,6 +172,44 @@ func _section_e_workers_layout() -> void:
 			if l != null and l.size.x + 0.5 < _text_width(l):
 				all_fit = false
 	check(all_fit and hud.player_list.get_child_count() == 2, "short names shown in full")
+	# The "SHIFT n — GET TO WORK" banner (2.4 s at every shift start) must not cover the WORKERS list either.
+	Net.call(&"_apply_players", {1: {"name": "Stephanie", "color": Net.PALETTE[0]}, 2: {"name": "Christopher", "color": Net.PALETTE[1]},
+			3: {"name": "Bartholomew", "color": Net.PALETTE[2]}, 4: {"name": "Maximilian 2", "color": Net.PALETTE[3]}})
+	await wait_frames(2)
+	for shift: int in [1, 12]:
+		hud.call(&"_on_round_started", shift) # the HUD's own handler; GameState stays WAITING
+		await wait_sec(0.5)
+		var go := hud.go_banner.get_global_rect()
+		var workers := hud.players_panel.get_global_rect()
+		check(hud.go_banner.visible and get_viewport().get_visible_rect().encloses(go) and not go.intersects(workers)
+				and not go.intersects(hud.quota_panel.get_global_rect()),
+				"'%s' banner %s on screen, clear of the WORKERS list %s and the payment panel" % [hud.go_banner.text, go, workers])
+	hud.call(&"_hide_go_banner")
+	# Bottom of the screen: held item, the longest real prompt and a full toast stack must not collide.
+	var can: Item = Game.world.items.get_items_of_type(Const.ITEM_WATERING_CAN)[0]
+	Game.world.items.server_give_item(can, 1)
+	var fake := FakePromptSource.new()
+	add_child(fake)
+	hud.set_prompt_source(fake)
+	fake.prompt_changed.emit("Deposit Golden Kush x3 (+$360)", true)
+	for t: String in ["Not enough cash.", "Someone's carrying that.", "Christopher clocked in.",
+			"Boss: …Acceptable. Next number's bigger."]:
+		hud.show_toast(t, &"info")
+	await wait_sec(0.5)
+	var vp := get_viewport().get_visible_rect()
+	var held := hud.held_panel.get_global_rect()
+	var prompt := hud.prompt_panel.get_global_rect()
+	var stack := hud.toasts.get_global_rect()
+	check(hud.held_panel.visible and hud.prompt_panel.visible and hud.get_toast_count() == 4,
+			"held item, prompt and 4 toasts up (held %s, prompt %s '%s', toasts %d)" % [hud.held_panel.visible,
+			hud.prompt_panel.visible, hud.prompt_label.text, hud.get_toast_count()])
+	check(not held.intersects(prompt) and not held.intersects(stack) and not prompt.intersects(stack),
+			"held %s / prompt %s / toasts %s do not overlap" % [held, prompt, stack])
+	check(vp.encloses(held) and vp.encloses(prompt) and vp.encloses(stack), "held item, prompt and toasts on screen")
+	check(not stack.intersects(hud.players_panel.get_global_rect()), "toast stack clear of the WORKERS list")
+	Game.world.items.server_drop_item(can, can.global_position)
+	hud.set_prompt_source(null) # the HUD re-attaches the real Interactor on its next poll
+	fake.queue_free()
 	Net.call(&"_apply_players", saved)
 	await wait_frames(2)
 
@@ -183,6 +230,9 @@ func _section_a_pause_over_round_end() -> void:
 	await wait_sec(FOCUS_SETTLE_SEC)
 	check(GameState.phase == GameState.Phase.ROUND_SUCCESS and re.is_open() and pm.is_open(),
 			"shift paid while on break: round-end overlay up, pause menu still on top")
+	var vp := get_viewport().get_visible_rect()
+	check(vp.encloses(re.card.get_global_rect()) and vp.encloses(pm.card.get_global_rect()),
+			"round-end card %s and pause card %s fit the 1280x720 screen" % [re.card.get_global_rect(), pm.card.get_global_rect()])
 	check(_is_under(_focus(), pm.card), "the round-end overlay underneath did not steal the keyboard focus (%s)" % _focus_name())
 	for key: Key in [KEY_DOWN, KEY_DOWN, KEY_DOWN, KEY_TAB, KEY_TAB, KEY_TAB, KEY_UP, KEY_UP, KEY_LEFT, KEY_RIGHT]:
 		await _tap(key)

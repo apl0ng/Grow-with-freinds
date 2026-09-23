@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://b0urkis0q33y1"
-path="res://.godot/imported/floor_slab_drain.glb-afd30553ec57b00a19a0d3ebbee43e08.scn"
+uid="uid://lxmav637mkau"
+path="res://.godot/imported/ceiling_beam.glb-f04d08db2e101ccc1fb1daf266597bcc.scn"
 
 [deps]
 
-source_file="res://art/models/floor_slab_drain.glb"
-dest_files=["res://.godot/imported/floor_slab_drain.glb-afd30553ec57b00a19a0d3ebbee43e08.scn"]
+source_file="res://art/models/ceiling_beam.glb"
+dest_files=["res://.godot/imported/ceiling_beam.glb-f04d08db2e101ccc1fb1daf266597bcc.scn"]
 
 [params]
 

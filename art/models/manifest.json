@@ -72,6 +72,83 @@
   ],
   "tris": 1612
  },
+ "ceiling_beam": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_metal_dark",
+   "toon_rust",
+   "grime",
+   "toon_dark",
+   "toon_caution"
+  ],
+  "mount": "ceiling",
+  "script": "tools/blender/models/ceiling_beam.py",
+  "size": [
+   5.0,
+   0.79,
+   0.253
+  ],
+  "tris": 1168
+ },
+ "ceiling_panel": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_concrete_dark",
+   "toon_rust",
+   "grime",
+   "toon_metal_dark",
+   "toon_dark"
+  ],
+  "mount": "ceiling",
+  "script": "tools/blender/models/ceiling_panel.py",
+  "size": [
+   5.0,
+   0.177,
+   5.0
+  ],
+  "tris": 1654
+ },
+ "ceiling_panel_b": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_concrete_dark",
+   "toon_void",
+   "grime",
+   "toon_rust",
+   "toon_metal_dark",
+   "toon_dark"
+  ],
+  "mount": "ceiling",
+  "script": "tools/blender/models/ceiling_panel.py",
+  "size": [
+   5.0,
+   0.156,
+   5.0
+  ],
+  "tris": 1624
+ },
+ "ceiling_panel_hole": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_concrete_dark",
+   "grime",
+   "toon_rust",
+   "toon_metal_dark",
+   "toon_dark"
+  ],
+  "mount": "ceiling",
+  "script": "tools/blender/models/ceiling_panel.py",
+  "size": [
+   5.0,
+   0.144,
+   5.0
+  ],
+  "tris": 2328
+ },
  "cot": {
   "front": "+z",
   "kind": "prop",
@@ -326,6 +403,28 @@
    1.501
   ],
   "tris": 2580
+ },
+ "hole_rim": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_concrete_dark",
+   "toon_rust",
+   "toon_olive",
+   "toon_cream",
+   "toon_metal_dark",
+   "toon_dark",
+   "toon_caution",
+   "toon_gold"
+  ],
+  "mount": "ceiling",
+  "script": "tools/blender/models/hole_rim.py",
+  "size": [
+   2.571,
+   1.906,
+   1.62
+  ],
+  "tris": 2598
  },
  "leaky_pipe": {
   "front": "+z",
@@ -864,11 +963,11 @@
   "mount": "floor",
   "script": "tools/blender/models/wall_panel.py",
   "size": [
-   5.0,
+   5.076,
    5.995,
-   0.182
+   0.186
   ],
-  "tris": 3550
+  "tris": 3612
  },
  "wall_panel_b": {
   "front": "+z",
@@ -890,11 +989,11 @@
   "mount": "floor",
   "script": "tools/blender/models/wall_panel.py",
   "size": [
-   5.0,
+   5.076,
    5.995,
-   0.374
+   0.378
   ],
-  "tris": 3250
+  "tris": 3312
  },
  "wall_panel_door": {
   "front": "+z",
@@ -917,11 +1016,11 @@
   "mount": "floor",
   "script": "tools/blender/models/wall_panel.py",
   "size": [
-   5.0,
+   5.076,
    5.995,
    0.36
   ],
-  "tris": 2008
+  "tris": 2070
  },
  "wall_panel_door_b": {
   "front": "+z",
@@ -944,11 +1043,11 @@
   "mount": "floor",
   "script": "tools/blender/models/wall_panel.py",
   "size": [
-   5.0,
+   5.076,
    5.995,
    0.36
   ],
-  "tris": 2370
+  "tris": 2432
  },
  "wall_panel_window": {
   "front": "+z",
@@ -970,11 +1069,11 @@
   "mount": "floor",
   "script": "tools/blender/models/wall_panel.py",
   "size": [
-   5.0,
+   5.076,
    5.995,
    0.36
   ],
-  "tris": 2784
+  "tris": 2854
  },
  "water_tank": {
   "front": "+z",

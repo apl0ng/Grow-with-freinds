@@ -10,16 +10,18 @@ extends Node
 ## Hosts a solo game and renders, from the local player's first-person camera:
 ##   wall_before_after.png   pushed into a wall holding the watering can: view model OFF (the old behaviour: the can
 ##                           clips) | view model ON (the can is whole)
-##   tank_before_after.png   the same against the water tank (Well), looking down at it
+##   tank_before_after.png   the same crouching against the water tank (Well): the can dips into the tank
 ##   remote_view.png         a second (remote) worker holding a can, seen from the local player (who holds one too:
 ##                           view model bottom right, the remote can in the world at the other body's hand) | the
 ##                           same remote worker from an overview camera (the local view model switches off)
 ##   resized.png             the window resized to 1000x700: the view model follows (size + placement)
-## and prints PASS/FAIL lines: the share of the can's pixels (its view-model alpha mask) that actually show in each
-## capture, the composite alignment, the SubViewport following the window.
+## and prints PASS/FAIL lines. The can's pixels come from the view-model SubViewport itself (alpha mask, same frame);
+## over the pixels where can and background are distinguishable, a capture "shows the can" where it is closer to
+## the expected composite (SubViewport premultiplied over the can-less frame) than to the can-less frame. With the
+## view model the capture must also EQUAL that composite (mean error), which checks blending, alignment and order.
 
 const PORT := 29777
-const THRESHOLD := 0.07 # colour distance at which a pixel counts as "changed by the can"
+const THRESHOLD := 0.08 # colour distance at which can and background count as distinguishable
 
 var _out := "user://viewmodel_preview"
 var _passes := 0
@@ -64,6 +66,7 @@ func _run() -> void:
 	await frames(30)
 	var p: Player = Game.local_player
 	var world: World = Game.world
+	_freeze_light_animation(world)
 	var mgr := world.items
 	var can := mgr.server_spawn_item(Const.ITEM_WATERING_CAN, {}, Vector3(0, 0, 3.0), 1) as WateringCan
 	await frames(10)
@@ -72,13 +75,16 @@ func _run() -> void:
 	# --- 1. pushed into a wall -------------------------------------------------------------------------------------
 	# Walk into the west wall north of the tank (a plain cinder-block stretch) until the capsule touches it.
 	await _walk_into(p, Vector3(-8.0, 0.0, -3.4), PI * 0.5, -0.12)
-	await _before_after(p, can, "wall")
+	await _before_after(p, can, "wall", 0.05)
 
 	# --- 2. pushed into the water tank ---------------------------------------------------------------------------------
 	var well := world.room.get_station("Well") as Node3D
 	var tank := well.global_position
-	await _walk_into(p, tank + Vector3(2.2, 0.0, 0.25), PI * 0.5, -0.55)
-	await _before_after(p, can, "tank")
+	Input.action_press(&"crouch")
+	await _walk_into(p, tank + Vector3(2.2, 0.0, 0.25), PI * 0.5, -0.3)
+	await _before_after(p, can, "tank", 0.95) # the rim and the water cut the can's bottom off
+	Input.action_release(&"crouch")
+	await physics_frames(20)
 
 	# --- 3. remote view ------------------------------------------------------------------------------------------------
 	Net.players[2] = {"name": "Bob", "color": Net.PALETTE[1]}
@@ -132,6 +138,22 @@ func _run() -> void:
 	await frames(3)
 	get_tree().quit(1 if _fails > 0 else 0)
 
+## Stops the flickering fluoros (lights back on) and the swinging pendant lamps, so the captures compared with each
+## other differ only by the can.
+func _freeze_light_animation(world: World) -> void:
+	var frozen := 0
+	for n in world.room.find_children("*", "Node3D", true, false):
+		var script := n.get_script() as Script
+		if script == null:
+			continue
+		var path := script.resource_path.get_file()
+		if path == "flicker_light.gd" or path == "pendant_lamp.gd":
+			n.process_mode = Node.PROCESS_MODE_DISABLED # also pauses tweens bound to it
+			if n.has_method(&"_set_on"):
+				n.call(&"_set_on", true)
+			frozen += 1
+	print("   froze %d flickering / swinging lights for stable captures" % frozen)
+
 ## Places the player at `from` facing `yaw` (0 = -Z), pitches the head, then walks forward until blocked.
 func _walk_into(p: Player, from: Vector3, yaw: float, pitch: float) -> void:
 	p.place_at(Transform3D(Basis(Vector3.UP, yaw), from + Vector3(0, 0.05, 0)))
@@ -153,10 +175,9 @@ func _walk_into(p: Player, from: Vector3, yaw: float, pitch: float) -> void:
 	print("   player at %s facing yaw %.2f, pitch %.2f" % [p.global_position, p.rotation.y, p.head.rotation.x])
 
 ## Three captures of the same pose: without the can, view model OFF (world pass: clips), view model ON.
-func _before_after(p: Player, can: Item, tag: String) -> void:
+## `max_before`: the share of the can that may still show without the view model (the pose must clip it).
+func _before_after(p: Player, can: Item, tag: String, max_before: float) -> void:
 	await frames(4)
-	var mask := _mask(p)
-	var area := _count(mask)
 	can.visible = false
 	var empty := await _capture()
 	can.visible = true
@@ -166,16 +187,24 @@ func _before_after(p: Player, can: Item, tag: String) -> void:
 	p.view_model_enabled = true
 	await frames(3)
 	var after := await _capture()
-	mask = _mask(p)
-	area = _count(mask)
-	var shown_before := _shown(before, empty, mask)
-	var shown_after := _shown(after, empty, mask)
-	print("   %s: the can covers %d px; visible without the view model %.1f %%, with it %.1f %%"
-			% [tag, area, 100.0 * shown_before / maxf(area, 1.0), 100.0 * shown_after / maxf(area, 1.0)])
-	check(area > 2000, "%s: the can has a sizeable view-model mask (%d px)" % [tag, area])
-	check(shown_before < 0.6 * area, "%s: without the view model the can clips (%.0f %% visible)" % [tag, 100.0 * shown_before / maxf(area, 1.0)])
-	check(shown_after > 0.97 * area, "%s: with the view model the whole can shows (%.1f %%)" % [tag, 100.0 * shown_after / maxf(area, 1.0)])
+	var mask := _mask(p) # same frame as `after`
+	var b := _stats(before, empty, mask)
+	var a := _stats(after, empty, mask)
+	var n := maxf(float(a["distinct"]), 1.0)
+	print("   %s: can mask %d px (%d distinguishable from the background); can visible without the view model %.1f %%, with it %.1f %%; composite error mean %.4f, %.2f %% of pixels > 0.1"
+			% [tag, a["area"], a["distinct"], 100.0 * b["shown"] / n, 100.0 * a["shown"] / n, a["mean_err"], 100.0 * a["bad"] / maxf(a["area"], 1.0)])
+	check(int(a["distinct"]) > 2000, "%s: the can has a sizeable view-model mask (%d px)" % [tag, a["distinct"]])
+	check(b["shown"] < max_before * n, "%s: without the view model the can clips (%.1f %% visible, max %.0f %%)"
+			% [tag, 100.0 * b["shown"] / n, 100.0 * max_before])
+	check(a["shown"] > 0.99 * n, "%s: with the view model the whole can shows (%.1f %%)" % [tag, 100.0 * a["shown"] / n])
+	check(a["mean_err"] < 0.02 and a["bad"] < 0.01 * a["area"],
+			"%s: the frame equals the view model composited over the world (mean error %.4f)" % [tag, a["mean_err"]])
 	check(_aligned(p, can, mask), "%s: the composite lines up with where %%Camera projects the can" % tag)
+	if int(b["shown"]) > 1000:
+		# Lights are shared: where the world pass still shows the can, it looks like the view-model can.
+		print("   %s: view-model can minus world-pass can, mean luminance %+.4f" % [tag, b["shown_lum"]])
+		check(b["shown_err"] < 0.04, "%s: the can looks the same in the world pass and the view model (mean colour difference %.4f over %d px)"
+				% [tag, b["shown_err"], b["shown"]])
 	_side_by_side([before, after], [Color(0.9, 0.2, 0.2), Color(0.2, 0.8, 0.3)], "%s_before_after.png" % tag)
 
 func _capture() -> Image:
@@ -191,28 +220,53 @@ func _mask(p: Player) -> Image:
 	img.convert(Image.FORMAT_RGBA8)
 	return img
 
-func _count(mask: Image) -> int:
-	var n := 0
-	for y in mask.get_height():
-		for x in mask.get_width():
-			if mask.get_pixel(x, y).a > 0.5:
-				n += 1
-	return n
+static func _dist(a: Color, b: Color) -> float:
+	return maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b)))
 
-func _shown(img: Image, empty: Image, mask: Image) -> int:
-	var n := 0
+## Over the can's mask (view-model alpha > 0.5): expected = view model premultiplied over `empty`.
+## area: mask pixels; distinct: those where expected and empty differ by > THRESHOLD; shown: distinct pixels where
+## `img` is closer to expected than to empty (shown_err: their mean |img - expected|); mean_err / bad:
+## |img - expected| over the whole mask (mean, count > 0.1).
+func _stats(img: Image, empty: Image, mask: Image) -> Dictionary:
+	var out := {"area": 0, "distinct": 0, "shown": 0, "mean_err": 1.0, "bad": 0, "shown_err": 1.0, "shown_lum": 0.0}
 	if img.get_size() != mask.get_size() or empty.get_size() != mask.get_size():
 		print("   size mismatch: capture %s, empty %s, mask %s" % [img.get_size(), empty.get_size(), mask.get_size()])
-		return 0
+		return out
+	var area := 0
+	var distinct := 0
+	var shown := 0
+	var bad := 0
+	var err_sum := 0.0
+	var shown_err_sum := 0.0
+	var shown_lum_sum := 0.0
 	for y in mask.get_height():
 		for x in mask.get_width():
-			if mask.get_pixel(x, y).a <= 0.5:
+			var m := mask.get_pixel(x, y)
+			if m.a <= 0.5:
 				continue
-			var a := img.get_pixel(x, y)
-			var b := empty.get_pixel(x, y)
-			if maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b))) > THRESHOLD:
-				n += 1
-	return n
+			var e := empty.get_pixel(x, y)
+			var expected := Color(m.r + e.r * (1.0 - m.a), m.g + e.g * (1.0 - m.a), m.b + e.b * (1.0 - m.a))
+			var c := img.get_pixel(x, y)
+			var err := _dist(c, expected)
+			area += 1
+			err_sum += err
+			if err > 0.1:
+				bad += 1
+			var sep := _dist(expected, e)
+			if sep > THRESHOLD:
+				distinct += 1
+				if err < _dist(c, e):
+					shown += 1
+					shown_err_sum += err
+					shown_lum_sum += expected.get_luminance() - c.get_luminance()
+	out["area"] = area
+	out["distinct"] = distinct
+	out["shown"] = shown
+	out["bad"] = bad
+	out["mean_err"] = err_sum / maxf(float(area), 1.0)
+	out["shown_err"] = shown_err_sum / maxf(float(shown), 1.0)
+	out["shown_lum"] = shown_lum_sum / maxf(float(shown), 1.0)
+	return out
 
 ## The can's body centre projected by %Camera (canvas units -> pixels) falls inside the mask's bounding box.
 func _aligned(p: Player, can: Item, mask: Image) -> bool:
