@@ -1,71 +1,80 @@
 class_name PlantVisual
 extends Node3D
-## Cartoon plant model used by GrowPlot (scenes/stations/plant_visual.tscn). Pure presentation:
+## Cannabis plant model used by GrowPlot (scenes/stations/plant_visual.tscn). Pure presentation:
 ## it holds no game state and every setter is idempotent and cheap (called from synced-property setters
 ## on every peer, possibly every frame).
 ##
 ## Stage index matches GrowPlot.Stage: 0 = nothing, 1 seedling, 2 vegetative, 3 flowering, 4 ready.
-## Node layout (Juice targets always keep a nominal scale of 1):
-##   Tilt (droop rotation when dry) / Bouncer (Juice.bounce) / Grow (scale 0.8..1 with stage progress)
-##     / Seedling | Vegetative | Flowering | Ready   (Juice.pop_in on stage change)
-##     Ready/Buds (Juice.pulse while READY)
+## The stage models are Blender GLBs (tools/blender/models/plant.py, Toonify roots) instanced AS the stage nodes:
+##   Tilt (lean when dry) / Bouncer (Juice.bounce) / Grow (scale 0.8..1 with stage progress)
+##     / Seedling | Vegetative | Flowering | Ready        (plant_<stage>.glb, Juice.pop_in on stage change)
+##         Leaves (+ Buds on Flowering)                  the healthy plant
+##         Dry                                           plant_<stage>_dry.glb: the same plant wilted, shown
+##                                                       instead of the healthy parts while the plot is dry
+##     Ready/Buds/ColaTop, Cola1..                       one mesh per cola, each pulses in place while READY
+##     Ready/Buds/BudTop                                 an empty MeshInstance3D (no mesh) that carries the
+##                                                       per-plant strain material (get_tint_material(), which
+##                                                       the plot's tag card shares; the farm tests read it)
 ##   DryIndicator / Bob (bobbing water drop + "DRY!" label, stays upright)
+## Strain colour: every model's TINT parts (calyxes, frosty tips) take Toon.grade(seed colour) via Toonify.tint.
+## Leaves are library greens (never tinted); the wilted models use toon_leaf_dry.
 
 const BUD_MATERIAL: Material = preload("res://art/materials/toon_bud.tres")
-const LEAF_MATERIAL: Material = preload("res://art/materials/toon_leaf.tres")
 
 const STAGE_COUNT := 5
-## Local height of the top of each stage's model at full growth (index = stage).
-const STAGE_HEIGHTS: Array[float] = [0.0, 0.24, 0.58, 0.8, 1.05]
+## Local height of the top of each stage's model at full growth (index = stage; measured on the GLBs).
+const STAGE_HEIGHTS: Array[float] = [0.0, 0.31, 0.66, 0.98, 1.07]
 ## Scale of the Grow node at the start of a stage; it reaches 1.0 when the stage completes.
 const GROW_MIN_SCALE := 0.8
-## Droop applied to Tilt while the plant is dry (radians).
-const DROOP_ROTATION := Vector3(0.3, 0.0, -0.16)
-## Thirsty leaves take the art library's dry-leaf colour (fallback if the material is missing).
-const LEAF_DRY_MATERIAL_PATH := "res://art/materials/toon_leaf_dry.tres"
-const DRY_LEAF_FALLBACK := Color(0.72, 0.69, 0.29)
-## How far the leaves move from their normal colour towards the dry colour.
-const DRY_LEAF_BLEND := 0.8
+## Lean applied to Tilt while the plant is dry (radians). The wilted models already hang their leaves and nod
+## their tops over; this adds a tired slump of the whole plant.
+const DROOP_ROTATION := Vector3(0.14, 0.0, -0.09)
+## Ink outline of the buds / colas (Toonify.outline; parts 0.1-0.25 m get 48 % of it). The leaves keep the
+## thinner outline set on the model instances in the scene, so their fingers do not drown in ink.
+const BUD_OUTLINE := 0.024
+## Squash when the plant wilts (the model swap happens inside it).
+const WILT_BOUNCE := 0.14
 const DRY_INDICATOR_GAP := 0.22
 const DRY_BOB_HEIGHT := 0.06
 const DRY_BOB_TIME := 0.55
+const DRY_NODE := &"Dry"
+const TINT_CARRIER := &"BudTop"
 
 @onready var _tilt: Node3D = %Tilt
 @onready var _bouncer: Node3D = %Bouncer
 @onready var _grow: Node3D = %Grow
-@onready var _ready_buds: Node3D = %Buds
 @onready var _dry_indicator: Node3D = %DryIndicator
 @onready var _dry_bob: Node3D = %Bob
 @onready var _stage_nodes: Array[Node3D] = [null, %Seedling, %Vegetative, %Flowering, %Ready]
+@onready var _ready_buds: Node3D = (%Ready as Node3D).get_node(^"Buds") as Node3D
 
 var _stage: int = 0
 var _progress: float = 0.0
 var _dry: bool = false
 var _tint: Color = Color(0.55, 0.85, 0.35)
 var _bud_material: Material
-var _leaf_material: Material
-var _leaf_base_color: Color = Color(0.25, 0.75, 0.35)
-var _leaf_dry_color: Color = DRY_LEAF_FALLBACK
+## Every Toonify model root below (stage models + their Dry variants), for the strain tint.
+var _models: Array[Toonify] = []
 var _tilt_tween: Tween
 var _bob_tween: Tween
 
 func _ready() -> void:
-	# Per-plant material copies so each plot can tint its buds (seed colour) and yellow its leaves (dry).
+	# Per-plant strain material (raw seed colour) for the plot's tag card; BudTop carries it.
 	_bud_material = _make_instance_material(BUD_MATERIAL)
-	_leaf_material = _make_instance_material(LEAF_MATERIAL)
-	if _leaf_material is BaseMaterial3D:
-		_leaf_base_color = (_leaf_material as BaseMaterial3D).albedo_color
-	if ResourceLoader.exists(LEAF_DRY_MATERIAL_PATH):
-		var dry_mat := load(LEAF_DRY_MATERIAL_PATH) as BaseMaterial3D
-		if dry_mat != null:
-			_leaf_dry_color = dry_mat.albedo_color
-	for node in find_children("*", "MeshInstance3D", true, false):
-		var mi := node as MeshInstance3D
-		if mi.name.begins_with("Bud"):
-			mi.material_override = _bud_material
-		elif mi.name.begins_with("Leaf") or mi.name.begins_with("Bush"):
-			mi.material_override = _leaf_material
+	var carrier := _ready_buds.get_node_or_null(NodePath(TINT_CARRIER)) as MeshInstance3D
+	if carrier != null:
+		carrier.material_override = _bud_material
+	for n in _stage_nodes:
+		if n == null:
+			continue
+		for m in [n, n.get_node_or_null(NodePath(DRY_NODE))]:
+			if m is Toonify:
+				_models.append(m as Toonify)
+	# Buds get a heavier ink line than the leaves (the model roots already outlined everything thinly).
+	for bud in _bud_nodes():
+		Toonify.outline(bud, BUD_OUTLINE)
 	_set_albedo(_bud_material, _tint)
+	_apply_tint()
 	_apply_stage_visibility()
 	_apply_growth()
 	_apply_dry(false)
@@ -80,8 +89,7 @@ func set_stage(stage: int, animate: bool) -> void:
 	if not is_node_ready():
 		return
 	if old == STAGE_COUNT - 1:
-		Juice.stop(_ready_buds)
-		_ready_buds.scale = Vector3.ONE
+		_stop_bud_pulse()
 	_apply_stage_visibility()
 	_apply_growth()
 	if stage > 0 and animate:
@@ -96,10 +104,14 @@ func set_growth(progress: float) -> void:
 	if is_node_ready():
 		_apply_growth()
 
-## Bud (and plant tag) colour, normally SeedDef.color.
+## Strain colour, normally SeedDef.color (raw data colour: the models show Toon.grade() of it).
 func set_tint(color: Color) -> void:
+	if color == _tint and is_node_ready() and not _models.is_empty() and _models[0].tint.a > 0.0:
+		return
 	_tint = color
 	_set_albedo(_bud_material, color)
+	if is_node_ready():
+		_apply_tint()
 
 func get_tint() -> Color:
 	return _tint
@@ -108,7 +120,7 @@ func get_tint() -> Color:
 func get_tint_material() -> Material:
 	return _bud_material
 
-## Droops the plant, yellows the leaves and shows the bobbing "DRY!" drop.
+## Wilts the plant (swaps in the stage's wilted model, slumps it) and shows the bobbing "DRY!" drop.
 func set_dry(dry: bool, animate: bool) -> void:
 	if dry == _dry:
 		return
@@ -138,7 +150,8 @@ func _apply_stage_visibility() -> void:
 		if i != _stage:
 			n.scale = Vector3.ONE
 	if _stage == STAGE_COUNT - 1:
-		Juice.pulse(_ready_buds)
+		for cola in _pulse_nodes():
+			Juice.pulse(cola)
 	_dry_indicator.position.y = STAGE_HEIGHTS[_stage] + DRY_INDICATOR_GAP
 
 func _apply_growth() -> void:
@@ -150,7 +163,25 @@ func _grow_scale() -> float:
 		return 1.0
 	return lerpf(GROW_MIN_SCALE, 1.0, _progress)
 
+func _apply_tint() -> void:
+	var graded := Toon.grade(_tint)
+	for m in _models:
+		m.tint = graded
+
+## Healthy parts visible when watered, the wilted model when dry (every growing stage, so a stage change while
+## dry already shows the right one).
+func _apply_wilt_models() -> void:
+	for i in range(1, STAGE_COUNT):
+		var n := _stage_nodes[i]
+		var dry_model := n.get_node_or_null(NodePath(DRY_NODE)) as Node3D
+		if dry_model == null:
+			continue
+		for c in n.get_children():
+			if c is Node3D:
+				(c as Node3D).visible = _dry if c == dry_model else not _dry
+
 func _apply_dry(animate: bool) -> void:
+	_apply_wilt_models()
 	var target := DROOP_ROTATION if _dry else Vector3.ZERO
 	if _tilt_tween != null:
 		_tilt_tween.kill()
@@ -159,10 +190,10 @@ func _apply_dry(animate: bool) -> void:
 		_tilt_tween = create_tween()
 		_tilt_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		_tilt_tween.tween_property(_tilt, "rotation", target, 0.45)
+		if _dry and _stage > 0:
+			Juice.bounce(_bouncer, WILT_BOUNCE)
 	else:
 		_tilt.rotation = target
-	var leaf_color := _leaf_base_color.lerp(_leaf_dry_color, DRY_LEAF_BLEND) if _dry else _leaf_base_color
-	_set_albedo(_leaf_material, leaf_color)
 	_dry_indicator.visible = _dry
 	if _bob_tween != null:
 		_bob_tween.kill()
@@ -175,6 +206,28 @@ func _apply_dry(animate: bool) -> void:
 		_bob_tween.tween_property(_dry_bob, "position:y", 0.0, DRY_BOB_TIME)
 		if animate:
 			Juice.pop_in(_dry_indicator)
+
+## The colas of the READY model (each pulses around its own base, so none tears off its branch).
+func _pulse_nodes() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	for c in _ready_buds.get_children():
+		if c is MeshInstance3D and c.name != TINT_CARRIER:
+			out.append(c as Node3D)
+	return out
+
+## Bud meshes of every model (heavier outline): Flowering/Buds (+ its wilted twin) and the READY colas.
+func _bud_nodes() -> Array[Node3D]:
+	var out: Array[Node3D] = _pulse_nodes()
+	for m in _models:
+		var b := m.get_node_or_null(^"Buds") as Node3D
+		if b != null and b != _ready_buds:
+			out.append(b)
+	return out
+
+func _stop_bud_pulse() -> void:
+	for cola in _pulse_nodes():
+		Juice.stop(cola)
+		cola.scale = Vector3.ONE
 
 static func _make_instance_material(base: Material) -> Material:
 	if base == null:

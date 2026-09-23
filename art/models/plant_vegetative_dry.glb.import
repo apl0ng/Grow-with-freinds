@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bwdm7deepdlw3"
-path="res://.godot/imported/plant_flowering.glb-65f3fd810c76f565d1f391670239a6d0.scn"
+uid="uid://5ylyc8y3vrru"
+path="res://.godot/imported/plant_vegetative_dry.glb-e0182feebd4d2105a2eae95e776b6ccc.scn"
 
 [deps]
 
-source_file="res://art/models/plant_flowering.glb"
-dest_files=["res://.godot/imported/plant_flowering.glb-65f3fd810c76f565d1f391670239a6d0.scn"]
+source_file="res://art/models/plant_vegetative_dry.glb"
+dest_files=["res://.godot/imported/plant_vegetative_dry.glb-e0182feebd4d2105a2eae95e776b6ccc.scn"]
 
 [params]
 

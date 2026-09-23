@@ -452,18 +452,56 @@
   "kind": "part",
   "materials": [
    "toon_leaf",
-   "toon_olive",
+   "toon_lime",
    "TINT_bud",
    "toon_cream"
   ],
   "mount": "floor",
   "script": "tools/blender/models/plant.py",
   "size": [
-   0.492,
-   0.905,
-   0.574
+   0.779,
+   0.983,
+   0.906
   ],
-  "tris": 9906
+  "tris": 5932
+ },
+ "plant_flowering_dry": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_leaf_dry",
+   "toon_lime",
+   "TINT_bud",
+   "toon_cream"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/plant.py",
+  "size": [
+   1.059,
+   0.882,
+   1.082
+  ],
+  "tris": 5932
+ },
+ "plant_ready": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_leaf",
+   "toon_lime",
+   "toon_leaf_dry",
+   "TINT_bud",
+   "TINT_frost",
+   "toon_rust"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/plant.py",
+  "size": [
+   0.907,
+   1.068,
+   0.911
+  ],
+  "tris": 5984
  },
  "plant_seedling": {
   "front": "+z",
@@ -474,11 +512,11 @@
   "mount": "floor",
   "script": "tools/blender/models/plant.py",
   "size": [
-   0.174,
-   0.252,
-   0.189
+   0.315,
+   0.31,
+   0.237
   ],
-  "tris": 992
+  "tris": 776
  },
  "plant_seedling_dry": {
   "front": "+z",
@@ -490,11 +528,11 @@
   "mount": "floor",
   "script": "tools/blender/models/plant.py",
   "size": [
-   0.144,
-   0.141,
-   0.118
+   0.161,
+   0.205,
+   0.139
   ],
-  "tris": 992
+  "tris": 776
  },
  "plant_vegetative": {
   "front": "+z",
@@ -506,11 +544,27 @@
   "mount": "floor",
   "script": "tools/blender/models/plant.py",
   "size": [
-   0.589,
-   0.652,
-   0.523
+   0.96,
+   0.664,
+   0.753
   ],
-  "tris": 8474
+  "tris": 5728
+ },
+ "plant_vegetative_dry": {
+  "front": "+z",
+  "kind": "part",
+  "materials": [
+   "toon_leaf_dry",
+   "toon_lime"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/plant.py",
+  "size": [
+   0.507,
+   0.544,
+   0.538
+  ],
+  "tris": 5728
  },
  "player": {
   "front": "-z",
