@@ -460,13 +460,13 @@ GLASSES_Z = -0.35          # the lens plane (HeadPivot local z), just in front o
 def fedora(mats):
     """Charcoal fedora (node origin = the crown's base centre): tall pinched crown with the centre crease and a
     band, a dent, snap brim down at the front and curled up at the sides."""
-    crown_prof = [(0.278, 0.0), (0.273, 0.07), (0.262, 0.14), (0.243, 0.2), (0.215, 0.24), (0.15, 0.262),
-                  (0.07, 0.262), (0.0, 0.258)]
+    crown_prof = [(0.278, 0.0), (0.273, 0.065), (0.262, 0.13), (0.243, 0.185), (0.215, 0.222), (0.15, 0.242),
+                  (0.07, 0.242), (0.0, 0.238)]
     crown = lathe(crown_prof, verts=20, mat=mats["hat"], name="crown", smooth=180)
     crown.scale = (1.0, 1.12, 1.0)                                    # oval: longer front to back
 
     def shape(co):
-        k_top = smooth01((co.z - 0.14) / 0.12)
+        k_top = smooth01((co.z - 0.13) / 0.11)
         crease = 0.07 * math.exp(-(co.x / 0.085) ** 2) * k_top        # the long centre dent, front to back
         front = max(0.0, -co.y) / 0.32
         pinch = smooth01((co.z - 0.1) / 0.14) * front ** 2           # pinched at the front
@@ -644,7 +644,7 @@ def build():
     place_baked(glasses, head_w, (0.0, NOSE_BRIDGE_Y, GLASSES_Z), (0, 0, -3))
     set_parent(glasses, head_obj)
     hat = fedora(mats)
-    place_baked(hat, head_w, (0.0, 0.505, 0.02), (-4, 4, 7))
+    place_baked(hat, head_w, (0.0, 0.495, 0.02), (-4, 4, 7))
     set_parent(hat, head_obj)
     cig = cigar(mats)
     place(cig, head_w @ gmat((0.088, 0.078, face_z(0.088, 0.078) + 0.005)))
