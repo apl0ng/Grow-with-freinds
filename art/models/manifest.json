@@ -51,7 +51,7 @@
    2.042,
    1.324
   ],
-  "tris": 7976
+  "tris": 7988
  },
  "cable_tray_2m": {
   "front": "+z",
@@ -458,6 +458,8 @@
    "toon_white",
    "toon_caution",
    "toon_dark",
+   "toon_leaf",
+   "toon_leaf_dry",
    "TINT_legs",
    "toon_brown"
   ],
@@ -465,10 +467,10 @@
   "script": "tools/blender/models/player.py",
   "size": [
    0.927,
-   1.807,
+   1.872,
    0.915
   ],
-  "tris": 5966
+  "tris": 6266
  },
  "product_bundle": {
   "front": "-z",

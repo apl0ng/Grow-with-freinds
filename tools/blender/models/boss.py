@@ -441,15 +441,18 @@ def sunglasses(mats):
         parts.append(lp)
         parts.append(pipe([g(s_ * 0.205, 0.022, 0.012), g(s_ * 0.255, 0.035, 0.1), g(s_ * 0.32, 0.06, 0.3)],
                           0.009, verts=4, bend=0.03, mat=mats["frame"], name="temple"))
+    # The bridge: one clean arc over the top of the nose, from lens to lens.
     nc = nose_c()
-    pts = []
-    for x in (-0.05, -0.03, -0.012, 0.012, 0.03, 0.05):              # hugging the nose's upper front
-        y = nc[1] + 0.046 - 0.35 * abs(x)
-        k = 0.082 ** 2 - (x / 1.05) ** 2 - ((y - nc[1]) / 0.95) ** 2
-        z = nc[2] - 0.9 * math.sqrt(max(0.0, k)) - 0.012
+    pts = [g(-0.034, 0.036, -0.012)]
+    for k in range(7):
+        ang = math.radians(-70 + 140 * k / 6)                        # round the nose, seen from the front
+        x = 0.05 * math.sin(ang)
+        y = nc[1] + 0.052 * math.cos(ang) ** 0.6
+        kk = 0.082 ** 2 - (x / 1.05) ** 2 - ((y - nc[1]) / 0.95) ** 2
+        z = nc[2] - 0.9 * math.sqrt(max(0.0, kk)) - 0.008
         pts.append(g(x, y - NOSE_BRIDGE_Y, z - GLASSES_Z))
-    pts = [g(-0.03, 0.036, -0.012)] + pts + [g(0.03, 0.036, -0.012)]
-    parts.append(pipe(pts, 0.01, verts=4, bend=0.0, mat=mats["frame"], name="bridge"))
+    pts.append(g(0.034, 0.036, -0.012))
+    parts.append(pipe(pts, 0.008, verts=4, bend=0.0, mat=mats["frame"], name="bridge"))
     return join(parts, "Sunglasses")
 
 
