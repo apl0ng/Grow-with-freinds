@@ -4,22 +4,31 @@
 server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRACTS.md**, art rules in **STYLE.md**.
 
 ## How to run / test
-- Editor: open the folder in Godot 4.7.x. Main scene is the main menu (Host / Join by IP).
+- Editor: open the folder in Godot 4.7.x. Main scene is the main menu (Host / Join by IP). Solo = just Host.
 - Two local instances: `godot --path . -- --host --name=Alice` and `godot --path . -- --join=127.0.0.1 --name=Bob`.
-- Fast testing: add `--fast` (growth 20x, 60 s rounds).
+- Fast testing: add `--fast` (growth 20x, 60 s rounds), or `--growth-mult=N`, `--round-sec=N`.
+- Controls: WASD move, Shift sprint, Space jump, Ctrl/C crouch, mouse look, E / LMB interact, Q / G drop,
+  Enter = host starts the round, Esc = pause menu (or closes the shop).
 - Headless validation: `tools/check.sh` (loads every script/scene/resource, boots the menu).
-- Automated multiplayer smoke test: `tools/test_multiplayer.sh` (QA milestone).
+- End-to-end smoke tests: `tools/smoke.sh` (solo loop + real host/client pair over ENet).
+- Per-area suites (all headless, all green at integration):
+  `godot --headless --path . -s res://tools/tests/<suite>.gd` for `art_test`, `world_test`, `items_test`,
+  `farm_test`, `econ_test`, `flow_test`; multi-process: `tools/tests/net_test.sh`, `items_net_test`, `items_e2e_test`,
+  `farm_net_test`, `farm_world_test`, `econ_mp_test` (host/client roles), `flow_mp_test`.
+- Unified runner: `tools/test_all.sh` (QA milestone).
+- Screenshots without a GPU: `xvfb-run -a godot --path . --rendering-driver opengl3 -s res://tools/tests/net_preview.gd`
+  (see also world_preview.gd, art_preview.gd).
 
 ## Milestones
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Project skeleton, folders, PLAN/CONTRACTS, balance resource, check tooling, menu stub | DONE (lead) |
-| 2 | Networked first-person player, 4-player sync, host/join menu | in progress |
-| 3 | Starting room blockout with all four stations | in progress |
-| 4 | Interaction + carry systems | in progress |
-| 5 | Shop, planting, watering, growth, harvesting, selling | in progress |
-| 6 | Quota, timer, round flow, HUD | in progress |
-| 7 | QA: multi-instance tests, desync fixes, solo play | todo |
+| 2 | Networked first-person player, 4-player sync, host/join menu | DONE |
+| 3 | Starting room blockout with all four stations | DONE |
+| 4 | Interaction + carry systems | DONE |
+| 5 | Shop, planting, watering, growth, harvesting, selling | DONE |
+| 6 | Quota, timer, round flow, HUD | DONE |
+| 7 | QA: multi-instance tests, desync fixes, solo play | in progress |
 
 ## Team & ownership (wave 1 runs in parallel; nobody edits files they don't own)
 | Agent | Scope | Owns |
@@ -41,26 +50,28 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | 1.2 | BalanceConfig / SeedDef / UpgradeDef + data/balance.tres | lead | done |
 | 1.3 | Interactable base class + stubs for every contract | lead | done |
 | 1.4 | tools/check.sh headless validation | lead | done |
-| 2.1 | Net autoload: host/join/leave, player registry sync, disconnect handling | B | todo |
-| 2.2 | Game autoload: menu↔world flow, ui lock, toasts, local player tracking | B | todo |
-| 2.3 | Main menu: name, host, join by IP, port, error message, CLI auto host/join | B | todo |
-| 2.4 | Player: FP controller (walk/sprint/jump/crouch/mouse look), sync, capsule + name label | B | todo |
-| 2.5 | World: player spawner (spawn_function), spawn points, despawn on leave | B | todo |
-| 3.1 | Room blockout: walls/floor/ceiling with collision, lights, props, station placement | C | todo |
-| 3.2 | Shopkeeper NPC visual (bubbly, idle animation) | C | todo |
-| 4.1 | Interactor: raycast, prompt signal, interact/drop input | F | todo |
-| 4.2 | Item base + ItemManager (spawn/despawn/give/drop/release) via MultiplayerSpawner | F | todo |
-| 4.3 | Item scenes: watering can, seed packet, product (synced props, visuals) | F | todo |
-| 5.1 | GrowPlot: plant/water/harvest interactions, growth tick, stage visuals + puff animation | D | todo |
-| 5.2 | Well: refill can, spawn starting cans | D | todo |
-| 5.3 | ShopCounter + ShopUI: seeds tab, upgrades tab, server-validated purchases | E | todo |
-| 5.4 | TurnInStation: sell product, float text, quota progress | E | todo |
-| 6.1 | GameState: phases, money, quota, timer, rounds, upgrades, full-state sync | G | todo |
-| 6.2 | HUD: quota/money/timer/round, prompt, held item, toasts, players | G | todo |
-| 6.3 | Round-end overlay + pause menu | G | todo |
-| A.1 | STYLE.md + toon material library + UI theme | A | todo |
-| A.2 | Sfx autoload (procedural placeholder sounds) + Juice autoload (pop/bounce/burst/float text) | A | todo |
-| 7.1 | Headless smoke tests (solo + host/client loop), fix desyncs | H | todo |
+| 2.1 | Net autoload: host/join/leave, player registry sync, disconnect handling | B | done |
+| 2.2 | Game autoload: menu↔world flow, ui lock, toasts, local player tracking | B | done |
+| 2.3 | Main menu: name, host, join by IP, port, error message, CLI auto host/join | B | done |
+| 2.4 | Player: FP controller (walk/sprint/jump/crouch/mouse look), sync, capsule + name label | B | done |
+| 2.5 | World: player spawner (spawn_function), spawn points, despawn on leave | B | done |
+| 3.1 | Room blockout: walls/floor/ceiling with collision, lights, props, station placement | C | done |
+| 3.2 | Shopkeeper NPC visual (bubbly, idle animation) | C | done |
+| 4.1 | Interactor: raycast, prompt signal, interact/drop input | F | done |
+| 4.2 | Item base + ItemManager (spawn/despawn/give/drop/release) via MultiplayerSpawner | F | done |
+| 4.3 | Item scenes: watering can, seed packet, product (synced props, visuals) | F | done |
+| 5.1 | GrowPlot: plant/water/harvest interactions, growth tick, stage visuals + puff animation | D | done |
+| 5.2 | Well: refill can, spawn starting cans | D | done |
+| 5.3 | ShopCounter + ShopUI: seeds tab, upgrades tab, server-validated purchases | E | done |
+| 5.4 | TurnInStation: sell product, float text, quota progress | E | done |
+| 6.1 | GameState: phases, money, quota, timer, rounds, upgrades, full-state sync | G | done |
+| 6.2 | HUD: quota/money/timer/round, prompt, held item, toasts, players | G | done |
+| 6.3 | Round-end overlay + pause menu | G | done |
+| A.1 | STYLE.md + toon material library + UI theme | A | done |
+| A.2 | Sfx autoload (procedural placeholder sounds) + Juice autoload (pop/bounce/burst/float text) | A | done |
+| 7.1 | Lead smoke tests (solo + host/client loop) | lead | done |
+| 7.2 | Unified runner, 4-player stress test, robustness sweep, bug fixes | H | in progress |
+| 7.3 | Room lighting cool-down per art measurements | C | in progress |
 
 ## Decisions
 - **Quota = sales this round**, not wallet balance. Spending on seeds never lowers quota progress. Wallet carries over.
@@ -73,8 +84,48 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 - **Upgrades** (fertilizer, bigger cans, sweet talk) are included as team-wide levels because they are cheap to add once the shop exists; values in balance.tres.
 - Renderer: Forward+. Primitive meshes + `StandardMaterial3D` toon diffuse/specular + rim (no custom shader required).
 - Godot 4.4+ `.uid` sidecar files are committed. `.godot/` is not.
+- **Items sync `rest_position`/`rest_rotation`, not `position`**: a held item follows the holder's hand locally on every
+  peer, so nothing streams while carrying. Server-side position writes on floor items still replicate (copied next frame).
+- **Selling only while PLAYING** (`TurnInStation.sell_only_while_playing`), so sales between rounds are never lost.
+- **ShopCounter overrides `interact()` locally** (opening a menu is not a server action); purchases are RPCs.
+- **ENet slots = max_players + 1** so a 5th joiner is told "Server is full" instead of timing out.
+- **Effects run on every peer** from synced-property setters or cosmetic `call_local` RPCs, never from server-only code.
+- **`-s` test scripts use a launcher + body split** (tools/tests/run_test.gd + a Node script) because a SceneTree
+  script run with `-s` compiles before autoloads exist.
 
 ## Milestone notes
 ### M1 (done)
 Works: project loads headless, balance resource generated from `tools/gen_balance.gd`, check tooling.
 Placeholder: menu, HUD, stations, player are stubs that define the contracts. Test: `tools/check.sh`.
+
+### M2 Networked player + menu (done)
+Works: main menu (name / IP / port, remembers settings, CLI auto host/join), host + join by IP, 1–4 players with
+unique names and palette colours, first-person controller (walk/sprint/jump/crouch/mouse look), ~30 Hz position sync
+with smoothing, late joiners see everyone, clean handling of host leaving / client crash / full server / bad IP.
+Placeholder: bean-shaped capsule bodies with eyes; no host migration; client-authoritative movement (no anti-cheat).
+Test: `tools/tests/net_test.sh` (6 scenarios, 14 processes) and `tools/smoke.sh mp`.
+
+### M3 Room blockout (done)
+Works: closed 16×12×4 m room with collision, warm lighting, rug, windows, shelves, lamps, grow lights, pipes,
+crates; shop (north), 6 plots (east, 2×3), well (west), turn-in (south); 4 spawn points; bubbly shopkeeper NPC that
+idles, blinks, looks at players, waves and cheers. Placeholder: all primitive meshes; lighting tuned for the GL preview.
+Test: `godot --headless --path . -s res://tools/tests/world_test.gd` (183 checks incl. reachability flood fill).
+
+### M4 Interaction + carry (done)
+Works: look-at + E prompts (enabled / greyed reason), one held item, pickup / drop (Q) with wall-safe drop spots,
+watering can / seed packet / product world items spawned by the server, synced holders, late-join correct state.
+Placeholder: held items can clip into walls in first person (needs a view-model layer later).
+Test: `items_test` (111), `items_net_test` (45, one process, real ENet), `items_e2e_test` (27, two processes).
+
+### M5 Shop / plant / water / grow / harvest / sell (done)
+Works: shop UI (seeds + upgrades tabs, wallet, disabled states), server-validated purchases straight into your hands,
+plots with 4 visible stages that pop in and pulse when ready, water gauge + DRY indicator, growth pauses when dry,
+well refills cans (2 spawn at start), harvest into hands, selling adds to quota with float text / burst / sound,
+team upgrades (Fertilizer, Bigger Cans, Sweet Talk). Test: `farm_test` (99), `farm_net_test`, `farm_world_test`,
+`econ_test` (116), `econ_mp_test`, and `tools/smoke.sh solo` (51 checks through the real RPC path).
+
+### M6 Quota / timer / rounds / HUD (done)
+Works: WAITING → PLAYING (host presses Enter) → ROUND_SUCCESS (quota met, immediately) / ROUND_FAILED (timer) →
+next round with scaled quota or RETRY (full reset, plants/items cleared) / main menu; HUD with round, timer (red +
+ticks under 30 s), quota bar, wallet, player list, prompt, held item, toasts; round-end overlay; pause menu.
+Test: `flow_test` (145), `flow_mp_test` (two processes).
