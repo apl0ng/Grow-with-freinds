@@ -3,8 +3,9 @@ extends RefCounted
 ## Shared palette + toon material factory (owned by the art agent; rules in STYLE.md).
 ##
 ##   mesh.material_override = Toon.lib(&"leaf")                  # a library material (res://art/materials/toon_leaf.tres)
-##   mesh.material_override = Toon.material(seed.color)          # runtime tint (per strain / per player), cached + shared
-##   mesh.material_override = Toon.material(seed.color, Toon.Finish.GLOW)   # glowing bud
+##   mesh.material_override = Toon.tint(seed.color)              # data colour, graded to the mood, cached + shared
+##   mesh.material_override = Toon.tint(seed.color, Toon.Finish.GLOW)       # (faintly) glowing bud
+##   mesh.material_override = Toon.material(Toon.SKY)             # palette colour (already graded)
 ##   mesh.material_overlay  = Toon.outline()                     # cartoon ink outline on round meshes
 ##   label.modulate = Toon.GOLD
 ##
@@ -12,51 +13,54 @@ extends RefCounted
 ## If you really need a unique one, call Toon.make(...) (uncached) or .duplicate() it.
 
 # --- Palette (keep in sync with the palette table in STYLE.md) ---------------------------------
-const TOMATO := Color("ff5a5f")      # red: errors, danger, roofs, red props
-const TANGERINE := Color("ff9a3c")   # orange: turn-in bin, warm accents
-const SUNSHINE := Color("ffd23f")    # yellow: money, highlights, warnings
-const LIME := Color("a8e04a")        # yellow-green: fresh growth, seedlings
-const GRASS := Color("4fcb6b")       # green: success, go buttons
-const MINT := Color("33d1b0")        # teal: accents, alt cans
-const SKY := Color("4da8f7")         # blue: info, default buttons, watering cans
-const GRAPE := Color("9a6bff")       # purple: purple strain, fun accents
-const BUBBLEGUM := Color("ff7eb6")   # pink: blush, fun accents
-const COCOA := Color("a0663a")       # brown: trunks, sacks, crates
-const HONEY_WOOD := Color("d8964f")  # wood: planters, counters, furniture
-const SOIL := Color("7a4a2a")        # dry soil
-const SOIL_WET := Color("4a2c19")    # watered soil
-const WATER := Color("45c4ff")       # water (slight glow)
-const LEAF := Color("3dbe55")        # plant leaves
-const LEAF_DRY := Color("b8b04a")    # thirsty / dry leaves
-const BUD := Color("9be15d")         # default buds (glow)
-const CREAM := Color("fff4e0")       # warm off-white: labels, aprons, signs
-const WHITE := Color("f8f9fa")       # cool white: eyes, clouds, trims
-const PEBBLE := Color("b4bcc6")      # gray: neutral props
-const STONE := Color("9aa6b5")       # bluish stone: well
+# MOOD: every colour is the original candy hue passed through grade() (value x0.85, saturation x0.85,
+# 10% cool slate mixed in): a slight dark undertone that stays chunky and readable. Nobody is happy here.
+const COOL_GRAY := Color("6f7787")   # the slate every colour is nudged towards
+const TOMATO := Color("ce6469")      # red: errors, danger, roofs, red props
+const TANGERINE := Color("ce8d52")   # orange: turn-in bin, warm accents
+const SUNSHINE := Color("ceb254")    # yellow: money, highlights, warnings
+const LIME := Color("92b757")        # yellow-green: seedlings
+const GRASS := Color("56a76a")       # green: confirm buttons
+const MINT := Color("44ac98")        # teal: accents, alt cans
+const SKY := Color("5a95ca")         # blue: info, default buttons, watering cans
+const GRAPE := Color("8c6fd1")       # purple: purple strain, accents
+const BUBBLEGUM := Color("ce7ba1")   # pink: accents (no blush anywhere)
+const COCOA := Color("866146")       # brown: rims, beams, sacks
+const HONEY_WOOD := Color("b0865a")  # wood: planters, counters, furniture
+const SOIL := Color("684a37")        # dry soil
+const SOIL_WET := Color("443126")    # watered soil
+const WATER := Color("55a9d1")       # water (faint glow)
+const LEAF := Color("499d5b")        # plant leaves
+const LEAF_DRY := Color("989353")    # thirsty / dry leaves
+const BUD := Color("8ab864")         # default buds (faint glow)
+const CREAM := Color("cec8bc")       # dingy off-white: labels, aprons, signs
+const WHITE := Color("c9cacd")       # grubby white: trims, poles
+const PEBBLE := Color("979da5")      # gray: neutral props
+const STONE := Color("848d98")       # bluish stone: well
 const INK := Color("2e2a3d")         # near-black purple: outlines, pupils, text outline
-const SAND := Color("f0ddb0")        # floor
-const PEACH := Color("ffe3c2")       # walls
-const TIN := Color("c3cdd8")         # metal
-const SKIN := Color("ffd0b0")        # shopkeeper skin
-const GOLD := Color("ffc53d")        # coins, "$", golden things (glossy)
+const SAND := Color("c3b79b")        # floor
+const PEACH := Color("cebda9")       # walls
+const TIN := Color("a3aab3")         # metal
+const SKIN := Color("ceb09d")        # skin
+const GOLD := Color("cea952")        # coins, "$", tarnished gold
 
 # --- Semantic colors (UI + feedback) ---------------------------------------------------------
-const INFO := Color("4da8f7")
-const SUCCESS := Color("4fcb6b")
-const ERROR := Color("ff5a5f")
-const WARNING := Color("ffd23f")
-const MONEY := Color("ffd23f")
-const TEXT := Color("fffdf7")        # default UI text (always with INK outline)
-const TEXT_SUBTLE := Color("d9d2f2")
-const UI_PANEL := Color("5b4bc4")    # main panel fill (blueberry)
-const UI_PANEL_DARK := Color("3b2f86")
-const UI_CARD := Color("7465d8")
+const INFO := Color("5a95ca")
+const SUCCESS := Color("56a76a")
+const ERROR := Color("ce6469")
+const WARNING := Color("ceb254")
+const MONEY := Color("ceb254")
+const TEXT := Color("ecebe6")        # default UI text (always with INK outline): tired off-white
+const TEXT_SUBTLE := Color("b4b0c7")
+const UI_PANEL := Color("5d53a3")    # main panel fill (faded blueberry)
+const UI_PANEL_DARK := Color("413a74")
+const UI_CARD := Color("6f66b3")
 
-## Suggested player colours (menu colour picker / default per join order). Bright, distinct from the
-## plant greens and from the error red; all read well with white text + ink outline.
+## Suggested player colours (menu colour picker / default per join order). Muted like everything else,
+## still distinct from the plant greens and from the error red; all read with light text + ink outline.
 const PLAYER_COLORS: Array[Color] = [
-	Color("4da8f7"), Color("ff7eb6"), Color("ffd23f"), Color("9a6bff"),
-	Color("ff9a3c"), Color("33d1b0"), Color("ff5a5f"), Color("a8e04a"),
+	Color("5a95ca"), Color("ce7ba1"), Color("ceb254"), Color("8c6fd1"),
+	Color("ce8d52"), Color("44ac98"), Color("ce6469"), Color("92b757"),
 ]
 
 ## Surface finish presets. See STYLE.md "Material library".
@@ -91,21 +95,21 @@ static func make(color: Color, finish: Finish = Finish.SOFT, emission_energy: fl
 	match finish:
 		Finish.MATTE:
 			m.roughness = 0.8
-			m.metallic_specular = 0.1
-			m.rim = 0.12
+			m.metallic_specular = 0.08
+			m.rim = 0.06
 			m.rim_tint = 0.7
 		Finish.GLOSSY:
-			m.roughness = 0.18
-			m.metallic_specular = 0.8
-			m.rim = 0.35
-			m.rim_tint = 0.3
+			m.roughness = 0.22
+			m.metallic_specular = 0.55
+			m.rim = 0.18
+			m.rim_tint = 0.4
 		_: # SOFT, GLOW
-			m.roughness = 0.4
-			m.metallic_specular = 0.35
-			m.rim = 0.3
+			m.roughness = 0.45
+			m.metallic_specular = 0.25
+			m.rim = 0.15
 			m.rim_tint = 0.5
 	if finish == Finish.GLOW and emission_energy < 0.0:
-		emission_energy = 0.35
+		emission_energy = 0.12
 	if emission_energy > 0.0:
 		m.emission_enabled = true
 		m.emission = color
@@ -122,6 +126,17 @@ static func material(color: Color, finish: Finish = Finish.SOFT) -> StandardMate
 		m = make(color, finish)
 		_cache[key] = m
 	return m
+
+## The mood grade: value x0.85, saturation x0.85, then 10% towards COOL_GRAY (alpha kept). The palette
+## constants above are already graded; use this on colours that come from DATA (SeedDef.color, anything
+## a designer typed in) before showing them, or call tint() which does it for you.
+static func grade(c: Color, amount: float = 1.0) -> Color:
+	var g := Color.from_hsv(c.h, c.s * lerpf(1.0, 0.85, amount), c.v * lerpf(1.0, 0.85, amount), c.a)
+	return g.lerp(Color(COOL_GRAY, c.a), 0.1 * amount)
+
+## Cached toon material for a DATA colour (strain, player pick...): grade(color) then material().
+static func tint(color: Color, finish: Finish = Finish.SOFT) -> StandardMaterial3D:
+	return material(grade(color), finish)
 
 ## A library material by short name: Toon.lib(&"leaf") == load("res://art/materials/toon_leaf.tres").
 ## Unknown names warn (no loader error) and return a magenta placeholder so the mistake is obvious.

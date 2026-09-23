@@ -1,0 +1,12 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "toon_metal_dark"
+diffuse_mode = 3
+specular_mode = 1
+albedo_color = Color(0.30588236, 0.34509805, 0.36862746, 1)
+metallic_specular = 0.55
+roughness = 0.22
+rim_enabled = true
+rim = 0.18
+rim_tint = 0.4

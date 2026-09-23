@@ -9,7 +9,8 @@ extends SceneTree
 ##   res://art/env/toon_environment.tres Environment for the room (sky colour, lavender ambient, glow)
 ##   res://art/env/toon_lighting.tscn    WorldEnvironment + warm Sun, instance it in a level
 ##   res://art/shaders/toon_example.tres ShaderMaterial using res://art/shaders/toon.gdshader
-##   res://art/props/face.tscn           googly blinking eyes + blush (script ToonFace)
+##   res://art/props/face.tscn           sad googly eyes: heavy lids, eye bags, frown (script ToonFace)
+##   res://art/props/vignette.tscn       optional dark full-screen vignette (CanvasLayer -1)
 ##   res://art/reference/style_kit.tscn  reference diorama of every STYLE.md recipe (open it in the editor)
 
 const ToonLib := preload("res://scripts/art/toon.gd")
@@ -31,9 +32,9 @@ var MATERIALS: Dictionary = {
 	"wood": [ToonLib.HONEY_WOOD, F.SOFT, -1.0],
 	"soil": [ToonLib.SOIL, F.MATTE, -1.0],
 	"soil_wet": [ToonLib.SOIL_WET, F.MATTE, -1.0],
-	"water": [ToonLib.WATER, F.GLOSSY, 0.25],
+	"water": [ToonLib.WATER, F.GLOSSY, 0.08],
 	"leaf": [ToonLib.LEAF, F.SOFT, -1.0],
-	"bud": [ToonLib.BUD, F.GLOW, 0.35],
+	"bud": [ToonLib.BUD, F.GLOW, 0.12],
 	"white": [ToonLib.WHITE, F.SOFT, -1.0],
 	"gray": [ToonLib.PEBBLE, F.SOFT, -1.0],
 	"dark": [ToonLib.INK, F.SOFT, -1.0],
@@ -42,14 +43,18 @@ var MATERIALS: Dictionary = {
 	"metal": [ToonLib.TIN, F.GLOSSY, -1.0],
 	"skin": [ToonLib.SKIN, F.SOFT, -1.0],
 	# --- additions (art pass 1) ---
-	"gold": [ToonLib.GOLD, F.GLOSSY, 0.15],
+	"gold": [ToonLib.GOLD, F.GLOSSY, 0.05],
 	"cream": [ToonLib.CREAM, F.SOFT, -1.0],
 	"stone": [ToonLib.STONE, F.MATTE, -1.0],
 	"leaf_dry": [ToonLib.LEAF_DRY, F.SOFT, -1.0],
-	"eye_white": [ToonLib.WHITE, F.FLAT, -1.0],
+	"eye_white": [Color("d6d5d0"), F.FLAT, -1.0],
 	"eye_black": [ToonLib.INK, F.FLAT, -1.0],
-	"blush": [Color(ToonLib.BUBBLEGUM, 0.55), F.FLAT, -1.0],
-	"sparkle": [Color("fff3b0"), F.FLAT, -1.0],
+	# MOOD: nobody blushes. Kept (other scenes reference it) as a faint tired mauve flush.
+	"blush": [Color(0.55, 0.45, 0.55, 0.18), F.FLAT, -1.0],
+	"sparkle": [ToonLib.grade(Color("fff3b0")), F.FLAT, -1.0],
+	# --- mood pass: sad faces ---
+	"eyelid": [Color("4a4556"), F.FLAT, -1.0],
+	"eyebag": [Color(0.3, 0.26, 0.38, 0.4), F.FLAT, -1.0],
 }
 
 var _fail := 0
@@ -62,6 +67,7 @@ func _initialize() -> void:
 	_gen_environment()
 	_gen_shader_example()
 	_gen_face()
+	_gen_vignette()
 	_gen_style_kit()
 	print("art generated (%d failures)" % _fail)
 	quit(1 if _fail > 0 else 0)
@@ -78,12 +84,14 @@ func _gen_materials() -> void:
 		var spec: Array = MATERIALS[key]
 		var m: StandardMaterial3D = ToonLib.make(spec[0], spec[1], spec[2])
 		m.resource_name = "toon_" + key
+		if key == "eyelid":
+			m.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_save(m, "res://art/materials/toon_%s.tres" % key)
 
 	# Glass: see-through glossy (product jars, windows). Transparent = no shadow casting, draws after opaques.
-	var glass: StandardMaterial3D = ToonLib.make(Color(0.75, 0.93, 1.0, 0.38), F.GLOSSY)
+	var glass: StandardMaterial3D = ToonLib.make(Color(0.62, 0.72, 0.78, 0.4), F.GLOSSY)
 	glass.resource_name = "toon_glass"
-	glass.rim = 0.6
+	glass.rim = 0.3
 	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_save(glass, "res://art/materials/toon_glass.tres")
 
@@ -92,7 +100,7 @@ func _gen_materials() -> void:
 	blob.resource_name = "toon_blob_shadow"
 	blob.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	blob.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	blob.albedo_color = Color(ToonLib.INK, 0.28)
+	blob.albedo_color = Color(ToonLib.INK, 0.32)
 	blob.cull_mode = BaseMaterial3D.CULL_DISABLED
 	blob.no_depth_test = false
 	blob.render_priority = -1
@@ -110,6 +118,10 @@ func _gen_materials() -> void:
 		_save(o, "res://art/materials/%s.tres" % pair[0])
 
 # ---------------------------------------------------------------------------------------------- theme
+## Mood grade for literal UI colours (see Toon.grade).
+func _g(hex: String, amount: float = 1.0) -> Color:
+	return ToonLib.grade(Color(hex), amount)
+
 const R_SMALL := 12
 const R_MED := 16
 const R_LARGE := 24
@@ -151,15 +163,15 @@ func _button_styles(th: Theme, type: StringName, base: Color, lip_color: Color, 
 	pressed.shadow_size = 2
 	pressed.shadow_offset = Vector2(0, 1)
 	var disabled := normal.duplicate() as StyleBoxFlat
-	disabled.bg_color = Color("a39fb8")
-	disabled.border_color = Color("7d7894")
+	disabled.bg_color = _g("a39fb8")
+	disabled.border_color = _g("7d7894")
 	disabled.shadow_color = Color(ToonLib.INK, 0.12)
 	var focus := StyleBoxFlat.new()
 	focus.draw_center = false
 	focus.set_corner_radius_all(radius + 4)
 	focus.corner_detail = 10
 	focus.set_border_width_all(3)
-	focus.border_color = Color(1, 1, 1, 0.85)
+	focus.border_color = Color(0.85, 0.85, 0.88, 0.6)
 	focus.set_expand_margin_all(4)
 	th.set_stylebox(&"normal", type, normal)
 	th.set_stylebox(&"hover", type, hover)
@@ -169,11 +181,11 @@ func _button_styles(th: Theme, type: StringName, base: Color, lip_color: Color, 
 
 func _button_fonts(th: Theme, type: StringName, outline: int) -> void:
 	th.set_color(&"font_color", type, ToonLib.TEXT)
-	th.set_color(&"font_hover_color", type, Color.WHITE)
-	th.set_color(&"font_pressed_color", type, Color("f1edff"))
-	th.set_color(&"font_hover_pressed_color", type, Color("f1edff"))
-	th.set_color(&"font_focus_color", type, Color.WHITE)
-	th.set_color(&"font_disabled_color", type, Color("ece9f5"))
+	th.set_color(&"font_hover_color", type, Color("f6f5f1"))
+	th.set_color(&"font_pressed_color", type, Color("dcdae2"))
+	th.set_color(&"font_hover_pressed_color", type, Color("dcdae2"))
+	th.set_color(&"font_focus_color", type, Color("f6f5f1"))
+	th.set_color(&"font_disabled_color", type, Color("c4c1cc"))
 	th.set_color(&"font_outline_color", type, ToonLib.INK)
 	th.set_constant(&"outline_size", type, outline)
 	th.set_constant(&"h_separation", type, 10)
@@ -230,8 +242,8 @@ func _gen_theme() -> void:
 	_label(th, &"TimerLabel", 32, ToonLib.TEXT, 10, 4, 0.5)
 	th.set_font(&"font", &"TimerLabel", chunky_font)
 	_label(th, &"SubtleLabel", 16, ToonLib.TEXT_SUBTLE, 4, 1, 0.25)
-	_label(th, &"ErrorLabel", 20, Color("ff8a8d"), 6, 2, 0.35)
-	_label(th, &"SuccessLabel", 20, Color("7fe396"), 6, 2, 0.35)
+	_label(th, &"ErrorLabel", 20, _g("ff8a8d", 0.6), 6, 2, 0.35)
+	_label(th, &"SuccessLabel", 20, _g("7fe396", 0.6), 6, 2, 0.35)
 
 	th.set_color(&"font_color", &"TooltipLabel", ToonLib.TEXT)
 	th.set_color(&"font_outline_color", &"TooltipLabel", ToonLib.INK)
@@ -248,21 +260,21 @@ func _gen_theme() -> void:
 	th.set_constant(&"shadow_outline_size", &"RichTextLabel", 5)
 
 	# --- Buttons ----------------------------------------------------------------------------------
-	_button_styles(th, &"Button", ToonLib.SKY, Color("2f7fd0"), R_MED, 20, 8, LIP)
+	_button_styles(th, &"Button", ToonLib.SKY, _g("2f7fd0"), R_MED, 20, 8, LIP)
 	_button_fonts(th, &"Button", 6)
 	th.set_type_variation(&"BigButton", &"Button")
-	_button_styles(th, &"BigButton", ToonLib.GRASS, Color("2e9e4a"), 22, 36, 12, 8)
+	_button_styles(th, &"BigButton", ToonLib.GRASS, _g("2e9e4a"), 22, 36, 12, 8)
 	_button_fonts(th, &"BigButton", 10)
 	th.set_font_size(&"font_size", &"BigButton", 30)
 	th.set_font(&"font", &"BigButton", chunky_font)
 	th.set_type_variation(&"DangerButton", &"Button")
-	_button_styles(th, &"DangerButton", ToonLib.TOMATO, Color("c93a3f"), R_MED, 20, 8, LIP)
+	_button_styles(th, &"DangerButton", ToonLib.TOMATO, _g("c93a3f"), R_MED, 20, 8, LIP)
 	_button_fonts(th, &"DangerButton", 6)
 	th.set_type_variation(&"GoldButton", &"Button")
-	_button_styles(th, &"GoldButton", Color("ffc233"), Color("d18a12"), R_MED, 20, 8, LIP)
+	_button_styles(th, &"GoldButton", _g("ffc233"), _g("d18a12"), R_MED, 20, 8, LIP)
 	_button_fonts(th, &"GoldButton", 6)
 	th.set_type_variation(&"SmallButton", &"Button")
-	_button_styles(th, &"SmallButton", ToonLib.SKY, Color("2f7fd0"), R_SMALL, 12, 4, 4)
+	_button_styles(th, &"SmallButton", ToonLib.SKY, _g("2f7fd0"), R_SMALL, 12, 4, 4)
 	_button_fonts(th, &"SmallButton", 5)
 	th.set_font_size(&"font_size", &"SmallButton", 16)
 
@@ -297,23 +309,23 @@ func _gen_theme() -> void:
 	th.set_stylebox(&"normal", &"LinkButton", StyleBoxEmpty.new())
 
 	# --- Panels -----------------------------------------------------------------------------------
-	var panel := _panel(ToonLib.UI_PANEL, R_LARGE, Vector4(24, 20, 24, 20), 4, Color("8a7cf0"), 14, 8, 0.35)
+	var panel := _panel(ToonLib.UI_PANEL, R_LARGE, Vector4(24, 20, 24, 20), 4, _g("8a7cf0"), 14, 8, 0.35)
 	th.set_stylebox(&"panel", &"PanelContainer", panel)
 	th.set_stylebox(&"panel", &"Panel", panel)
 	th.set_type_variation(&"Card", &"PanelContainer")
-	th.set_stylebox(&"panel", &"Card", _panel(ToonLib.UI_CARD, 18, Vector4(16, 14, 16, 14), 3, Color("a095f5"), 6, 4, 0.3))
+	th.set_stylebox(&"panel", &"Card", _panel(ToonLib.UI_CARD, 18, Vector4(16, 14, 16, 14), 3, _g("a095f5"), 6, 4, 0.3))
 	th.set_type_variation(&"HudPanel", &"PanelContainer")
-	th.set_stylebox(&"panel", &"HudPanel", _panel(Color(ToonLib.INK, 0.55), 18, Vector4(16, 8, 16, 8), 0, Color.TRANSPARENT, 0, 0, 0.0))
+	th.set_stylebox(&"panel", &"HudPanel", _panel(Color(ToonLib.INK, 0.62), 18, Vector4(16, 8, 16, 8), 0, Color.TRANSPARENT, 0, 0, 0.0))
 	th.set_type_variation(&"Toast", &"PanelContainer")
-	th.set_stylebox(&"panel", &"Toast", _panel(ToonLib.INFO, 22, Vector4(22, 10, 22, 12), 3, Color(1, 1, 1, 0.9), 8, 5, 0.35))
+	th.set_stylebox(&"panel", &"Toast", _panel(ToonLib.INFO, 22, Vector4(22, 10, 22, 12), 3, Color(0.82, 0.82, 0.86, 0.7), 8, 5, 0.4))
 	th.set_type_variation(&"ToastError", &"PanelContainer")
-	th.set_stylebox(&"panel", &"ToastError", _panel(ToonLib.ERROR, 22, Vector4(22, 10, 22, 12), 3, Color(1, 1, 1, 0.9), 8, 5, 0.35))
+	th.set_stylebox(&"panel", &"ToastError", _panel(ToonLib.ERROR, 22, Vector4(22, 10, 22, 12), 3, Color(0.82, 0.82, 0.86, 0.7), 8, 5, 0.4))
 	th.set_type_variation(&"ToastSuccess", &"PanelContainer")
-	th.set_stylebox(&"panel", &"ToastSuccess", _panel(ToonLib.SUCCESS, 22, Vector4(22, 10, 22, 12), 3, Color(1, 1, 1, 0.9), 8, 5, 0.35))
+	th.set_stylebox(&"panel", &"ToastSuccess", _panel(ToonLib.SUCCESS, 22, Vector4(22, 10, 22, 12), 3, Color(0.82, 0.82, 0.86, 0.7), 8, 5, 0.4))
 	th.set_type_variation(&"OverlayPanel", &"Panel")   # full-screen dim behind modal panels
 	th.set_stylebox(&"panel", &"OverlayPanel", _flat(Color(ToonLib.INK, 0.6), 0))
 	th.set_type_variation(&"CrosshairDot", &"Panel")   # 10x10 Panel in the screen centre
-	th.set_stylebox(&"panel", &"CrosshairDot", _panel(Color(1, 1, 1, 0.95), 6, Vector4(0, 0, 0, 0), 2, Color(ToonLib.INK, 0.85), 0, 0, 0.0))
+	th.set_stylebox(&"panel", &"CrosshairDot", _panel(Color(0.9, 0.9, 0.9, 0.9), 6, Vector4(0, 0, 0, 0), 2, Color(ToonLib.INK, 0.85), 0, 0, 0.0))
 	th.set_type_variation(&"KeyCap", &"PanelContainer")   # "[E]" key hint in prompts
 	var key := _panel(ToonLib.CREAM, 8, Vector4(9, 1, 9, 4), 2, ToonLib.INK, 0, 0, 0.0)
 	key.border_width_bottom = 5
@@ -326,7 +338,7 @@ func _gen_theme() -> void:
 	th.set_color(&"font_shadow_color", &"KeyCapLabel", Color(0, 0, 0, 0))
 
 	# --- LineEdit ---------------------------------------------------------------------------------
-	var le := _panel(ToonLib.CREAM, R_SMALL, Vector4(14, 8, 14, 8), 3, Color("c8bfe8"), 0, 0, 0.0)
+	var le := _panel(ToonLib.CREAM, R_SMALL, Vector4(14, 8, 14, 8), 3, _g("c8bfe8"), 0, 0, 0.0)
 	var le_focus := StyleBoxFlat.new()
 	le_focus.draw_center = false
 	le_focus.set_corner_radius_all(R_SMALL + 3)
@@ -334,7 +346,7 @@ func _gen_theme() -> void:
 	le_focus.set_border_width_all(3)
 	le_focus.border_color = ToonLib.SUNSHINE
 	le_focus.set_expand_margin_all(2)
-	var le_ro := _panel(Color("d9d4e8"), R_SMALL, Vector4(14, 8, 14, 8), 3, Color("b3abd1"), 0, 0, 0.0)
+	var le_ro := _panel(_g("d9d4e8"), R_SMALL, Vector4(14, 8, 14, 8), 3, _g("b3abd1"), 0, 0, 0.0)
 	th.set_stylebox(&"normal", &"LineEdit", le)
 	th.set_stylebox(&"focus", &"LineEdit", le_focus)
 	th.set_stylebox(&"read_only", &"LineEdit", le_ro)
@@ -350,11 +362,11 @@ func _gen_theme() -> void:
 	th.set_constant(&"caret_width", &"LineEdit", 2)
 
 	# --- ProgressBar + QuotaBar ---------------------------------------------------------------------
-	var pb_bg := _panel(Color(ToonLib.INK, 0.5), R_SMALL, Vector4(0, 0, 0, 0), 3, Color(1, 1, 1, 0.8), 0, 0, 0.0)
+	var pb_bg := _panel(Color(ToonLib.INK, 0.55), R_SMALL, Vector4(0, 0, 0, 0), 3, Color(0.82, 0.82, 0.86, 0.7), 0, 0, 0.0)
 	var pb_fill := _flat(ToonLib.GRASS, R_SMALL - 3, Vector4(0, 0, 0, 0))
 	pb_fill.set_expand_margin_all(-3)   # sit inside the white border
 	pb_fill.border_width_bottom = 3
-	pb_fill.border_color = Color("2e9e4a")
+	pb_fill.border_color = _g("2e9e4a")
 	th.set_stylebox(&"background", &"ProgressBar", pb_bg)
 	th.set_stylebox(&"fill", &"ProgressBar", pb_fill)
 	th.set_color(&"font_color", &"ProgressBar", ToonLib.TEXT)
@@ -362,11 +374,11 @@ func _gen_theme() -> void:
 	th.set_constant(&"outline_size", &"ProgressBar", 5)
 	th.set_font_size(&"font_size", &"ProgressBar", 16)
 	th.set_type_variation(&"QuotaBar", &"ProgressBar")
-	var q_bg := _panel(Color(ToonLib.INK, 0.6), 18, Vector4(0, 0, 0, 0), 4, Color.WHITE, 8, 4, 0.3)
+	var q_bg := _panel(Color(ToonLib.INK, 0.65), 18, Vector4(0, 0, 0, 0), 4, Color("c9c8cf"), 8, 4, 0.35)
 	var q_fill := _flat(ToonLib.SUNSHINE, 14, Vector4(0, 0, 0, 0))
 	q_fill.set_expand_margin_all(-4)
 	q_fill.border_width_bottom = 5
-	q_fill.border_color = Color("e0a100")
+	q_fill.border_color = _g("e0a100")
 	th.set_stylebox(&"background", &"QuotaBar", q_bg)
 	th.set_stylebox(&"fill", &"QuotaBar", q_fill)
 	th.set_font_size(&"font_size", &"QuotaBar", 22)
@@ -380,7 +392,7 @@ func _gen_theme() -> void:
 	tab_sel.border_width_top = 4
 	tab_sel.border_width_left = 4
 	tab_sel.border_width_right = 4
-	tab_sel.border_color = Color("8a7cf0")
+	tab_sel.border_color = _g("8a7cf0")
 	var tab_un := _flat(ToonLib.UI_PANEL_DARK, 14, Vector4(18, 8, 18, 8))
 	tab_un.corner_radius_bottom_left = 0
 	tab_un.corner_radius_bottom_right = 0
@@ -414,7 +426,7 @@ func _gen_theme() -> void:
 	th.set_constant(&"side_margin", &"TabContainer", 0)
 
 	# --- Popups / menus ---------------------------------------------------------------------------
-	th.set_stylebox(&"panel", &"PopupMenu", _panel(ToonLib.UI_PANEL_DARK, 14, Vector4(8, 8, 8, 8), 3, Color("8a7cf0"), 8, 4, 0.35))
+	th.set_stylebox(&"panel", &"PopupMenu", _panel(ToonLib.UI_PANEL_DARK, 14, Vector4(8, 8, 8, 8), 3, _g("8a7cf0"), 8, 4, 0.35))
 	th.set_stylebox(&"hover", &"PopupMenu", _flat(ToonLib.SKY, 10, Vector4(8, 4, 8, 4)))
 	th.set_color(&"font_color", &"PopupMenu", ToonLib.TEXT)
 	th.set_color(&"font_hover_color", &"PopupMenu", Color.WHITE)
@@ -422,14 +434,14 @@ func _gen_theme() -> void:
 	th.set_color(&"font_outline_color", &"PopupMenu", ToonLib.INK)
 	th.set_constant(&"outline_size", &"PopupMenu", 4)
 	th.set_constant(&"v_separation", &"PopupMenu", 8)
-	th.set_stylebox(&"panel", &"PopupPanel", _panel(ToonLib.UI_PANEL_DARK, 14, Vector4(8, 8, 8, 8), 3, Color("8a7cf0"), 0, 0, 0.0))
+	th.set_stylebox(&"panel", &"PopupPanel", _panel(ToonLib.UI_PANEL_DARK, 14, Vector4(8, 8, 8, 8), 3, _g("8a7cf0"), 0, 0, 0.0))
 
 	# --- Scrollbars / slider ----------------------------------------------------------------------
 	for t: StringName in [&"VScrollBar", &"HScrollBar"]:
 		th.set_stylebox(&"scroll", t, _flat(Color(ToonLib.INK, 0.3), 8, Vector4(3, 3, 3, 3)))
 		th.set_stylebox(&"scroll_focus", t, _flat(Color(ToonLib.INK, 0.3), 8, Vector4(3, 3, 3, 3)))
-		th.set_stylebox(&"grabber", t, _flat(Color(1, 1, 1, 0.65), 8, Vector4(6, 6, 6, 6)))
-		th.set_stylebox(&"grabber_highlight", t, _flat(Color(1, 1, 1, 0.9), 8, Vector4(6, 6, 6, 6)))
+		th.set_stylebox(&"grabber", t, _flat(Color(0.85, 0.85, 0.88, 0.55), 8, Vector4(6, 6, 6, 6)))
+		th.set_stylebox(&"grabber_highlight", t, _flat(Color(0.85, 0.85, 0.88, 0.8), 8, Vector4(6, 6, 6, 6)))
 		th.set_stylebox(&"grabber_pressed", t, _flat(ToonLib.SUNSHINE, 8, Vector4(6, 6, 6, 6)))
 	for t: StringName in [&"HSlider", &"VSlider"]:
 		th.set_stylebox(&"slider", t, _flat(Color(ToonLib.INK, 0.45), 6, Vector4(4, 4, 4, 4)))
@@ -505,23 +517,23 @@ func _slider_grabber(color: Color, alpha: float) -> DPITexture:
 # -------------------------------------------------------------------------------------- environment
 func _gen_environment() -> void:
 	var env := Environment.new()
-	env.resource_name = "toon_environment"
+	env.resource_name = "toon_environment"   # mood pass: colder, dimmer, slightly desaturated
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("8fd3ff")
+	env.background_color = Color("56606e")       # overcast slate, not a sunny sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("d6cfff")   # lavender fill: shadow sides go cool, not grey
-	# Light budget (see STYLE.md): sun 0.5 + ambient 0.65 -> lit side ~1.1x albedo, shaded side ~0.6x.
-	env.ambient_light_energy = 0.65
+	env.ambient_light_color = Color("a3adbf")    # cold bluish-gray fill: shade goes cool and a bit grim
+	# Light budget (see STYLE.md): cold sun 0.6 at a low angle + ambient 0.45 -> lit ~0.9x albedo, shade ~0.35x.
+	env.ambient_light_energy = 0.45
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.tonemap_exposure = 1.0
 	# Glow stays OFF: under the Compatibility renderer every glow blend mode washed the whole frame out in
-	# testing. Emission alone already makes buds/water pop. (Forward+ only: glow_intensity 0.3,
-	# glow_hdr_threshold 1.0 is a safe starting point if someone wants to try it.)
+	# testing, and nothing in this world should glow cheerfully anyway.
 	env.glow_enabled = false
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.08
-	env.adjustment_contrast = 1.02
+	env.adjustment_brightness = 0.97
+	env.adjustment_saturation = 0.9
+	env.adjustment_contrast = 1.05
 	_save(env, "res://art/env/toon_environment.tres")
 
 	var root := Node3D.new()
@@ -533,13 +545,13 @@ func _gen_environment() -> void:
 	we.owner = root
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
-	sun.light_color = Color("fff1d6")
-	sun.light_energy = 0.5
+	sun.light_color = Color("d4deeb")   # cold, tired daylight through dirty windows
+	sun.light_energy = 0.6
 	sun.shadow_enabled = true
-	sun.shadow_opacity = 0.55
+	sun.shadow_opacity = 0.65
 	sun.shadow_blur = 1.5
 	sun.directional_shadow_max_distance = 40.0
-	sun.rotation_degrees = Vector3(-55, 35, 0)
+	sun.rotation_degrees = Vector3(-32, 40, 0)   # low sun: long, dreary shadows
 	root.add_child(sun)
 	sun.owner = root
 	var ps := PackedScene.new()
@@ -561,7 +573,7 @@ func _gen_shader_example() -> void:
 	sm.shader = sh
 	# Set every uniform explicitly: headless has no shader compiler, so unset ones would serialise as null.
 	var params := {
-		&"albedo": ToonLib.GRAPE, &"band_softness": 0.06, &"band_offset": -0.1, &"rim_color": Color("f3e8ff"),
+		&"albedo": ToonLib.GRAPE, &"band_softness": 0.06, &"band_offset": -0.1, &"rim_color": Color("c9c3d6"),
 		&"rim_width": 0.28, &"rim_strength": 0.45, &"specular_size": 0.06, &"specular_strength": 0.4,
 		&"emission_color": Color(0, 0, 0, 1),
 	}
@@ -570,7 +582,7 @@ func _gen_shader_example() -> void:
 	_save(sm, "res://art/shaders/toon_example.tres")
 
 # ----------------------------------------------------------------------------------------------- face
-func _mesh_node(parent: Node3D, owner_node: Node, name: String, mesh: Mesh, mat_name: String, pos: Vector3, scl: Vector3) -> MeshInstance3D:
+func _mesh_node(parent: Node3D, owner_node: Node, name: String, mesh: Mesh, mat_name: String, pos: Vector3, scl: Vector3, rot_deg: Vector3 = Vector3.ZERO) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.name = name
 	mi.mesh = mesh
@@ -578,6 +590,7 @@ func _mesh_node(parent: Node3D, owner_node: Node, name: String, mesh: Mesh, mat_
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.position = pos
 	mi.scale = scl
+	mi.rotation_degrees = rot_deg
 	parent.add_child(mi)
 	mi.owner = owner_node
 	return mi
@@ -590,16 +603,29 @@ func _sphere_mesh(r: float, segs: int = 16) -> SphereMesh:
 	m.rings = segs / 2
 	return m
 
-## Face for a head of radius ~0.4 looking along -Z. Eyes are Node3D pivots (blink = scale.y), each with a
-## flattened white, a flattened ink pupil in front and a tiny glint.
+## Face for a head of radius ~0.4 looking along -Z. MOOD: sad by default. Each eye is a Node3D pivot
+## (blink = scale.y) holding a flattened white, an ink pupil (+ tiny glint) and a heavy dark EYELID: a
+## hemisphere whose cut edge sits across the eye (ToonFace moves/tilts it per mood). Eye bags under the
+## eyes, a two-segment mouth (frown / flat line). No blush.
 func _gen_face() -> void:
 	var face := Node3D.new()
 	face.name = "Face"
 	face.set_script(load("res://scripts/art/toon_face.gd"))
 	var white := _sphere_mesh(0.085)
 	var pupil := _sphere_mesh(0.047)
-	var glint := _sphere_mesh(0.014, 8)
-	var blush := _sphere_mesh(0.05, 12)
+	var glint := _sphere_mesh(0.011, 8)
+	var lid := SphereMesh.new()
+	lid.radius = 0.085
+	lid.height = 0.085
+	lid.is_hemisphere = true
+	lid.radial_segments = 16
+	lid.rings = 6
+	var bag := _sphere_mesh(0.05, 12)
+	var mouth_seg := CapsuleMesh.new()
+	mouth_seg.radius = 0.011
+	mouth_seg.height = 0.07
+	mouth_seg.radial_segments = 8
+	mouth_seg.rings = 2
 	for side in [-1.0, 1.0]:
 		var eye := Node3D.new()
 		eye.name = "EyeL" if side < 0.0 else "EyeR"
@@ -608,9 +634,18 @@ func _gen_face() -> void:
 		face.add_child(eye)
 		eye.owner = face
 		_mesh_node(eye, face, "White", white, "eye_white", Vector3.ZERO, Vector3(1.0, 1.22, 0.55))
-		var p := _mesh_node(eye, face, "Pupil", pupil, "eye_black", Vector3(0.008 * side, -0.012, -0.03), Vector3(1.0, 1.12, 0.5))
-		_mesh_node(p, face, "Glint", glint, "eye_white", Vector3(0.016, 0.022, -0.02), Vector3(1.0, 1.0, 0.6))
-		_mesh_node(face, face, "BlushL" if side < 0.0 else "BlushR", blush, "blush", Vector3(0.215 * side, -0.075, 0.03), Vector3(1.45, 0.7, 0.35))
+		var p := _mesh_node(eye, face, "Pupil", pupil, "eye_black", Vector3(0.006 * side, -0.02, -0.03), Vector3(1.0, 1.12, 0.5))
+		_mesh_node(p, face, "Glint", glint, "eye_white", Vector3(0.014, 0.02, -0.02), Vector3(1.0, 1.0, 0.6))
+		# Lid: sad default (cut edge ~at the eye centre, outer corner drooping). ToonFace re-poses it.
+		_mesh_node(eye, face, "Lid", lid, "eyelid", Vector3(0, 0.01, 0), Vector3(1.14, 1.6, 0.7), Vector3(0, 0, -16.0 * side))
+		_mesh_node(face, face, "EyeBagL" if side < 0.0 else "EyeBagR", bag, "eyebag", Vector3(0.12 * side, -0.075, 0.006), Vector3(1.25, 0.42, 0.3))
+	var mouth := Node3D.new()
+	mouth.name = "Mouth"
+	mouth.position = Vector3(0, -0.14, -0.004)
+	face.add_child(mouth)
+	mouth.owner = face
+	for side in [-1.0, 1.0]:
+		_mesh_node(mouth, face, "MouthL" if side < 0.0 else "MouthR", mouth_seg, "eye_black", Vector3(0.03 * side, -0.012, 0), Vector3.ONE, Vector3(0, 0, 90.0 - 22.0 * side))
 	var ps := PackedScene.new()
 	var err := ps.pack(face)
 	if err != OK:
@@ -619,6 +654,41 @@ func _gen_face() -> void:
 	else:
 		_save(ps, "res://art/props/face.tscn")
 	face.free()
+
+# --------------------------------------------------------------------------------------------- vignette
+## Optional full-screen vignette (dark, slightly cold edges). CanvasLayer -1: above the 3D view, below any
+## HUD/menu on layer >= 0. Ignores the mouse. The HUD may instance it; it has no gameplay.
+func _gen_vignette() -> void:
+	var layer := CanvasLayer.new()
+	layer.name = "Vignette"
+	layer.layer = -1
+	var rect := TextureRect.new()
+	rect.name = "Shade"
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.5, 0.78, 1.0])
+	g.colors = PackedColorArray([Color(0.1, 0.1, 0.15, 0.0), Color(0.1, 0.1, 0.15, 0.0), Color(0.1, 0.1, 0.15, 0.28), Color(0.07, 0.07, 0.11, 0.62)])
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.width = 256
+	gt.height = 256
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.0, 1.0)
+	rect.texture = gt
+	layer.add_child(rect)
+	rect.owner = layer
+	var ps := PackedScene.new()
+	var err := ps.pack(layer)
+	if err != OK:
+		_fail += 1
+		push_error("pack vignette failed: %s" % error_string(err))
+	else:
+		_save(ps, "res://art/props/vignette.tscn")
+	layer.free()
 
 # ------------------------------------------------------------------------------------------ style kit
 ## Packs the reference diorama from tools/tests/art_kit.gd (built from the files generated above).

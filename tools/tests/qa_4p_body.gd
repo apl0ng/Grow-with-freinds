@@ -1,4 +1,4 @@
-extends "res://tools/tests/qa_base.gd"
+extends "res://tools/tests/qa_net_base.gd"
 ## 4-player stress / desync test (QA, milestone 7). One HOST + three CLIENTS as separate headless processes on
 ## the real game stack (Game.start_host / Game.start_join, World, spawners, stations, items, GameState), plus a
 ## 5th "overflow" process that must be refused. Driven by tools/tests/qa_4p.sh; every process runs THIS script
@@ -26,8 +26,6 @@ extends "res://tools/tests/qa_base.gd"
 ##   (g)   quota met by a real client sale -> ROUND_SUCCESS -> next round: round 2 + new quota everywhere
 
 const NAMES := {"host": "Hosty", "a": "Alpha", "b": "Bravo", "c": "Charlie", "x": "Xtra"}
-const CHECK_TIMEOUT := 4.0
-const ACK_TIMEOUT := 12.0
 ## Late joiner must converge within this many ms after its Player spawned (task requirement: 2 s).
 const LATE_JOIN_LIMIT_MS := 2000
 
@@ -36,18 +34,13 @@ var who: String = ""
 var port: int = 7950
 
 # --- host ---
-var _seq: int = 0
-var _acks: Dictionary = {}          # seq -> Dictionary
 var _ids: Dictionary = {}           # "a"/"b"/"c" -> peer id
 var _connects: Array[int] = []      # every peer_connected seen by the host
 var _disconnects: Array[int] = []
 
 # --- client ---
-var _queue: Array = []              # [seq, action, args]
-var _stop: bool = false
 var _spawn_msec: int = -1
 var _timeline: Array = []           # [msec since spawn, canonical]
-var _left_on_purpose: bool = false
 
 
 func _run() -> void:
@@ -309,51 +302,20 @@ func _peer_named(key: String) -> int:
 			return int(id)
 	return 0
 
-func cmd(peer: int, action: String, args: Dictionary = {}) -> int:
-	_seq += 1
-	_rpc_cmd.rpc_id(peer, _seq, action, args)
-	return _seq
-
-func await_ack(seq: int, timeout: float = ACK_TIMEOUT) -> Dictionary:
-	var t0 := Time.get_ticks_msec()
-	while not _acks.has(seq) and Time.get_ticks_msec() - t0 < timeout * 1000.0:
-		await get_tree().process_frame
-	if not _acks.has(seq):
-		check(false, "no answer to command #%d within %.0f s" % [seq, timeout])
-		return {}
-	return _acks[seq]
-
-func run_cmd(peer: int, action: String, args: Dictionary = {}, timeout: float = ACK_TIMEOUT) -> Dictionary:
-	return await await_ack(cmd(peer, action, args), timeout)
-
 ## Sends two commands in the same frame and waits for both.
 func run_both(k1: String, a1: String, args1: Dictionary, k2: String, a2: String, args2: Dictionary) -> Array:
 	var s1 := cmd(_ids[k1], a1, args1)
 	var s2 := cmd(_ids[k2], a2, args2)
 	return [await await_ack(s1), await await_ack(s2)]
 
-## Every listed client must converge to the host's canonical state (and, with ui=true, show consistent UI).
+## Every listed client (by key) must converge to the host's canonical state.
 func checkpoint(tag: String, keys: Array, ui: bool = false) -> void:
-	var expect := canonical_state()
-	var seqs := {}
+	var peers := []
+	var names := {}
 	for k in keys:
-		seqs[k] = cmd(_ids[k], "state", {"expect": expect, "timeout": CHECK_TIMEOUT, "ui": ui})
-	for k in keys:
-		var r := await await_ack(seqs[k], CHECK_TIMEOUT + 4.0)
-		var ok := bool(r.get("ok", false))
-		check(ok, "[%s] %s sees the host state (%d ms)%s" % [tag, NAMES[k], int(r.get("ms", -1)),
-				"" if not ui else ", UI ok" if bool(r.get("ui_ok", true)) else ", UI MISMATCH: " + str(r.get("ui", ""))])
-		if ui and ok:
-			check(bool(r.get("ui_ok", true)), "[%s] %s UI consistent with GameState %s" % [tag, NAMES[k], r.get("ui", "")])
-		if not ok:
-			print("      host : " + expect)
-			print("      %-5s: %s" % [k, str(r.get("state", "<no answer>"))])
-
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_ack(seq: int, info: Dictionary) -> void:
-	if not multiplayer.is_server():
-		return
-	_acks[seq] = info
+		peers.append(_ids[k])
+		names[_ids[k]] = NAMES[k]
+	await checkpoint_peers(tag, peers, names, ui)
 
 
 # =================================================================================================== CLIENT
@@ -367,16 +329,7 @@ func _client_main() -> void:
 	if not await wait_until(func(): return Game.local_player != null, 30.0, "%s joined (local Player spawned)" % my_name):
 		finish(); return
 	check(Net.get_player_name(multiplayer.get_unique_id()) == my_name, "registered as %s" % my_name)
-	# Command loop until "finish" (or the host goes away).
-	while not _stop:
-		if _queue.is_empty():
-			if Game.world == null and not _left_on_purpose:
-				check(false, "lost the session unexpectedly")
-				break
-			await get_tree().process_frame
-			continue
-		var c: Array = _queue.pop_front()
-		await _execute(int(c[0]), String(c[1]), c[2])
+	await client_loop()
 	finish()
 
 func _on_local_spawned(_p: Player) -> void:
@@ -397,119 +350,53 @@ func _sample_timeline() -> void:
 	if _timeline.is_empty() or _timeline.back()[1] != s:
 		_timeline.append([now, s])
 
-@rpc("authority", "call_remote", "reliable")
-func _rpc_cmd(seq: int, action: String, args: Dictionary) -> void:
-	# Race actions run right here, inside the network poll that delivered them, so both clients' requests
-	# leave in the same frame as the host's command.
+## Race actions run inside the network poll that delivered them, so both clients' requests leave in the same
+## frame as the host's command.
+func _immediate(seq: int, action: String, args: Dictionary) -> bool:
 	if action == "grab_now":
-		var it := _item(String(args.get("item", "")))
+		var it := item_named(String(args.get("item", "")))
 		var t := toasts.size()
 		if it != null:
 			it.interact(Game.local_player)
 		_queue.append([seq, "grab_wait", {"item": String(args.get("item", "")), "t": t}])
-		return
+		return true
 	if action == "interact_now":
 		var st: Interactable = station(String(args.get("station", "")))
 		var t2 := toasts.size()
 		if st != null:
 			st.interact(Game.local_player)
 		_queue.append([seq, "settle", {"t": t2}])
-		return
-	_queue.append([seq, action, args])
-
-func _ack(seq: int, info: Dictionary) -> void:
-	if Net.is_online():
-		_rpc_ack.rpc_id(1, seq, info)
+		return true
+	return false
 
 func _execute(seq: int, action: String, args: Dictionary) -> void:
-	var me: Player = Game.local_player
 	var t := toasts.size()
 	match action:
-		"state":
-			var expect := String(args.get("expect", ""))
-			var t0 := Time.get_ticks_msec()
-			var ok := await _wait_state(expect, float(args.get("timeout", CHECK_TIMEOUT)))
-			var info := {"ok": ok, "state": canonical_state(), "ms": Time.get_ticks_msec() - t0}
-			if bool(args.get("ui", false)):
-				var ui := _ui_report()
-				info["ui_ok"] = ui == ""
-				info["ui"] = ui
-			if not ok:
-				check(false, "state mismatch with the host")
-			_ack(seq, info)
-		"goto_item":
-			var it := _item(String(args.get("item", "")))
-			if it != null:
-				stand_near(it, 0.7)
-			await wait_sec(0.45)
-			_ack(seq, {"ok": it != null})
-		"goto_station":
-			stand_near(station(String(args.get("station", ""))), 1.2)
-			await wait_sec(0.45)
-			_ack(seq, {"ok": true})
 		"grab_wait":
-			var it := _item(String(args.get("item", "")))
+			var it := item_named(String(args.get("item", "")))
 			# Wait until the holder is known here and any denial had time to arrive.
 			await wait_until_quiet(func(): return it != null and it.holder_id != 0, 3.0)
 			await wait_sec(0.3)
 			var mine := it != null and it.holder_id == multiplayer.get_unique_id()
-			_ack(seq, {"mine": mine, "holder": it.holder_id if it != null else -1, "toasts": _toasts_since(int(args.get("t", 0)))})
+			ack(seq, {"mine": mine, "holder": it.holder_id if it != null else -1, "toasts": toasts_since(int(args.get("t", 0)))})
 		"raw_pickup_request":
 			# Bypass the local can_interact() prediction: the server must refuse (hands full).
-			var it := _item(String(args.get("item", "")))
+			var it := item_named(String(args.get("item", "")))
 			if it != null:
 				stand_near(it, 0.7)
 				await wait_sec(0.45)
 				it._rpc_request_interact.rpc_id(1)
 			await wait_sec(0.5)
-			_ack(seq, {"toasts": _toasts_since(t)})
+			ack(seq, {"toasts": toasts_since(t)})
 		"settle":
 			await wait_sec(0.5)
-			_ack(seq, {"toasts": _toasts_since(int(args.get("t", 0)))})
-		"interact":
-			var st: Interactable = station(String(args.get("station", "")))
-			if st != null:
-				st.interact(me)
-			await wait_sec(0.5)
-			_ack(seq, {"toasts": _toasts_since(t)})
-		"buy":
-			var shop: ShopCounter = station("ShopCounter")
-			stand_near(shop, 1.3)
-			await wait_sec(0.45)
-			shop.request_buy_seed(StringName(String(args.get("seed", ""))))
-			var got := await wait_until_quiet(func():
-				var h := me.get_held_item()
-				return h is SeedPacket and String(h.strain_id) == String(args.get("seed", "")), 3.0)
-			_ack(seq, {"ok": got, "toasts": _toasts_since(t)})
+			ack(seq, {"toasts": toasts_since(int(args.get("t", 0)))})
 		"late_check":
 			await _late_check(seq, String(args.get("expect", "")))
 		"leave_rejoin":
 			await _leave_and_rejoin(float(args.get("delay", 4.0)))
-		"finish":
-			_left_on_purpose = true
-			Game.return_to_menu()
-			await wait_frames(3)
-			_check_menu_clean("after finish")
-			_stop = true
 		_:
-			_ack(seq, {"ok": false, "error": "unknown action " + action})
-
-func _wait_state(expect: String, timeout: float) -> bool:
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < timeout * 1000.0:
-		if canonical_state() == expect:
-			return true
-		await get_tree().process_frame
-	return canonical_state() == expect
-
-## Like wait_until() but records no check.
-func wait_until_quiet(pred: Callable, timeout_sec: float) -> bool:
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < timeout_sec * 1000.0:
-		if bool(pred.call()):
-			return true
-		await get_tree().process_frame
-	return bool(pred.call())
+			await super(seq, action, args)
 
 func _late_check(seq: int, expect: String) -> void:
 	# The command can arrive in the very frame our Player spawned, before Game's deferred local_player_spawned.
@@ -532,7 +419,7 @@ func _late_check(seq: int, expect: String) -> void:
 			print("        %5d ms %s" % [int(e[0]), e[1]])
 	var visual := _visual_report()
 	check(visual == "", "late join: visuals consistent %s" % visual)
-	_ack(seq, {"ok": ok, "ms": first_ok, "state": canonical_state(), "visual_ok": visual == "", "visual": visual})
+	ack(seq, {"ok": ok, "ms": first_ok, "state": canonical_state(), "visual_ok": visual == "", "visual": visual})
 
 ## "" when every held item is visible at its holder's socket and every plot shows its synced stage.
 func _visual_report() -> String:
@@ -555,37 +442,15 @@ func _visual_report() -> String:
 			bad.append("plot %d visual stage %d != %d" % [i, int(pv.get(&"_stage")), p.stage])
 	return "" if bad.is_empty() else "; ".join(bad)
 
-## "" when the HUD / overlays agree with GameState on this peer.
-func _ui_report() -> String:
-	var bad: PackedStringArray = []
-	var hud: HUD = Game.world.get_node_or_null("HUD") as HUD
-	if hud == null:
-		return "no HUD"
-	if hud.money_label.text != HUD.format_money(GameState.money):
-		bad.append("money label '%s'" % hud.money_label.text)
-	if hud.round_label.text != "ROUND %d" % GameState.round_number:
-		bad.append("round label '%s'" % hud.round_label.text)
-	var want_quota := "SOLD %s / %s" % [HUD.format_money(GameState.round_sales), HUD.format_money(GameState.quota)]
-	if hud.quota_label.text != want_quota:
-		bad.append("quota label '%s' != '%s'" % [hud.quota_label.text, want_quota])
-	var over := GameState.is_round_over()
-	if hud.round_end.visible != over:
-		bad.append("round-end overlay visible=%s in %s" % [hud.round_end.visible, GameState.get_phase_name()])
-	if Game.is_ui_locked_by(&"round_end") != over:
-		bad.append("round_end ui lock=%s" % Game.is_ui_locked_by(&"round_end"))
-	if over and hud.round_end.primary_button.visible:
-		bad.append("client sees the host-only button")
-	return "; ".join(bad)
-
 func _leave_and_rejoin(delay: float) -> void:
 	var my_name: String = NAMES.get(who, "Client")
 	var old_id := multiplayer.get_unique_id()
-	_left_on_purpose = true
+	left_on_purpose = true
 	Game.return_to_menu()
 	await wait_frames(3)
-	_check_menu_clean("after leaving")
+	check_menu_clean("after leaving")
 	await wait_sec(delay)
-	_left_on_purpose = false
+	left_on_purpose = false
 	_spawn_msec = -1
 	var err := Game.start_join("127.0.0.1", port, my_name)
 	check(err == OK, "re-join started")
@@ -593,25 +458,6 @@ func _leave_and_rejoin(delay: float) -> void:
 		check(multiplayer.get_unique_id() != old_id, "new peer id %d" % multiplayer.get_unique_id())
 		await wait_until(func(): return Net.players.size() == 4, 5.0, "re-joined registry has 4 players")
 		check(Net.get_player_name(multiplayer.get_unique_id()) == my_name, "kept my name '%s'" % my_name)
-
-func _check_menu_clean(tag: String) -> void:
-	check(Game.world == null and Game.local_player == null, "%s: world freed" % tag)
-	check(GameState.phase == GameState.Phase.MENU and GameState.money == 0, "%s: GameState back to MENU" % tag)
-	check(Net.players.is_empty() and not Net.is_online(), "%s: offline, registry empty" % tag)
-	check(not Game.is_ui_locked(), "%s: no UI lock left" % tag)
-	check(Input.mouse_mode == Input.MOUSE_MODE_VISIBLE, "%s: mouse visible" % tag)
-	check(get_tree().get_first_node_in_group(Game.MENU_GROUP) != null, "%s: main menu shown" % tag)
-
-func _item(item_name: String) -> Item:
-	if Game.world == null or item_name == "":
-		return null
-	return Game.world.items.get_node_or_null(NodePath(item_name)) as Item
-
-func _toasts_since(t: int) -> Array:
-	var out := []
-	for i in range(t, toasts.size()):
-		out.append(String(toasts[i][0]))
-	return out
 
 
 # =================================================================================================== 5TH PLAYER

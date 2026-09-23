@@ -11,23 +11,36 @@ extends "res://tools/tests/smoke_base.gd"
 ##   godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/<body>.gd [...]
 
 class ErrorCounter extends Logger:
-	## Unexpected errors: "code | rationale | file:line".
+	## Unexpected errors: "code | rationale | file:line function" (+ " [script]" when GDScript frames were on the stack).
 	var errors: PackedStringArray = []
-	## Substrings of errors that are expected (consumed when matched).
+	## Substrings of errors that MUST happen (consumed when matched).
 	var expected: PackedStringArray = []
 	var expected_seen: int = 0
+	## Optional allowances: [substring, remaining count, engine_only]. engine_only = no GDScript frame on the stack.
+	var allowed: Array = []
+	var allowed_seen: int = 0
 	var _mutex := Mutex.new()
 
 	func _log_error(function: String, file: String, line: int, code: String, rationale: String,
-			_editor_notify: bool, error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+			_editor_notify: bool, error_type: int, script_backtraces: Array[ScriptBacktrace]) -> void:
 		if error_type == Logger.ERROR_TYPE_WARNING:
 			return
-		var text := "%s | %s | %s:%d %s" % [code, rationale, file, line, function]
+		var from_script := false
+		for bt in script_backtraces:
+			if bt != null and not bt.is_empty():
+				from_script = true
+		var text := "%s | %s | %s:%d %s%s" % [code, rationale, file, line, function, " [script]" if from_script else ""]
 		_mutex.lock()
 		for i in expected.size():
 			if text.contains(expected[i]):
 				expected.remove_at(i)
 				expected_seen += 1
+				_mutex.unlock()
+				return
+		for a in allowed:
+			if int(a[1]) > 0 and text.contains(String(a[0])) and not (bool(a[2]) and from_script):
+				a[1] = int(a[1]) - 1
+				allowed_seen += 1
 				_mutex.unlock()
 				return
 		errors.append(text)
@@ -64,6 +77,20 @@ func expect_error(substring: String) -> void:
 	errors.expected.append(substring)
 	errors._mutex.unlock()
 
+## Tolerate up to `max_count` errors containing `substring` from now on (they may or may not happen).
+## engine_only: only errors raised with no GDScript frame on the stack (i.e. not caused by game code) match.
+func allow_error(substring: String, max_count: int, engine_only: bool = false) -> void:
+	print("  (up to %d error(s) tolerated next: %s%s)" % [max_count, substring, ", engine-only" if engine_only else ""])
+	errors._mutex.lock()
+	errors.allowed.append([substring, max_count, engine_only])
+	errors._mutex.unlock()
+
+## Stops tolerating errors announced with allow_error().
+func clear_allowed_errors() -> void:
+	errors._mutex.lock()
+	errors.allowed.clear()
+	errors._mutex.unlock()
+
 ## True once every announced error was seen.
 func expected_errors_seen() -> bool:
 	return errors.expected.is_empty()
@@ -84,7 +111,7 @@ func _finish_with(code: int) -> void:
 		if not errors.expected.is_empty():
 			check(false, "announced errors that never happened: %s" % ", ".join(errors.expected))
 		if errors.errors.is_empty():
-			check(true, "no unexpected engine/script errors (%d expected ones seen)" % errors.expected_seen)
+			check(true, "no unexpected engine/script errors (%d expected, %d tolerated seen)" % [errors.expected_seen, errors.allowed_seen])
 		else:
 			check(false, "%d unexpected engine/script error(s) logged" % errors.errors.size())
 			for e in errors.errors:
