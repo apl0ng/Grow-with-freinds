@@ -13,6 +13,8 @@ extends Node
 ##      layers of EVERY GeometryInstance3D checked (outline hulls, labels), frame order (a camera change at process
 ##      priority 0 reaches both the item (10) and the view-model camera in the same frame), enable/disable, despawn
 ##      while held, viewport settings following the main viewport, return_to_menu leaving nothing behind.
+##      Also (review 9.1 finding): NaN / inf in a remote player's synced pose is ignored, and items released / dropped
+##      while the holder's position is not finite land on a finite spot.
 ##   4. Network: a real client process joins; the host puts a can in the client's hands; the client draws it in ITS
 ##      view model while the host draws it at the client's %BodyHandSocket on world layers; the drop restores the
 ##      client's layers; the client returns to the menu and has no view-model nodes left.
@@ -400,6 +402,7 @@ func _test_hosted_game() -> void:
 	check(_sub_viewports().size() == 1, "still exactly one SubViewport with a remote player present")
 	if p2 == null:
 		return
+	await _test_non_finite(p2, world.items)
 	# Holding toggles for all three item types (the player at rest first: physics moving it between the item's follow
 	# and a check would read as an offset).
 	check(await wait_until(func() -> bool: return p.is_on_floor() and p.velocity.length() < 0.001, 5.0),
@@ -506,6 +509,57 @@ func _test_hosted_game() -> void:
 			"no dangling node_added connection")
 	var nodes_now := _scene_node_count()
 	check(nodes_now == nodes_baseline, "scene node count back to the menu baseline (%d vs %d)" % [nodes_now, nodes_baseline])
+
+## Review 9.1 finding: a client can send NaN / inf in its synced pose. Remote peers must keep the last valid pose, and
+## an item released while its holder's transform is broken must still land on a finite spot.
+func _test_non_finite(p2: Player, mgr: ItemManager) -> void:
+	check(await wait_until(func() -> bool: return p2.global_position.distance_to(p2.net_position) < 0.001, 5.0),
+			"remote player settled at its synced position")
+	var good := p2.global_position
+	var good_yaw := p2.rotation.y
+	p2.net_position = Vector3(NAN, 0.0, 0.0) # what the MultiplayerSynchronizer does with a hostile packet
+	p2.net_yaw = INF
+	p2.net_pitch = NAN
+	await frames(5)
+	check(p2.net_position.is_finite() and is_finite(p2.net_yaw) and is_finite(p2.net_pitch),
+			"NaN / inf synced pose values are ignored (net_* keep the last valid values)")
+	check(p2.global_position.is_finite() and is_finite(p2.rotation.y) and is_finite(p2.head.rotation.x)
+			and p2.global_position.distance_to(good) < 0.001 and is_equal_approx(p2.rotation.y, good_yaw),
+			"the remote player's visible pose stays finite, at the last valid pose")
+	p2.net_pitch = 50.0
+	check(absf(p2.net_pitch) <= Player.MAX_PITCH + 0.0001, "an out-of-range synced pitch is clamped (%.3f)" % p2.net_pitch)
+	p2.net_pitch = 0.0
+	var target := good + Vector3(0.6, 0.0, 0.0)
+	p2.net_position = target
+	check(await wait_until(func() -> bool: return p2.global_position.distance_to(target) < 0.01, 5.0),
+			"a valid pose afterwards is followed again")
+	# A broken pose that reached the node anyway snaps back to the synced pose instead of lerping NaN forever (one
+	# smoothing step called synchronously, so the NaN never reaches the physics server).
+	p2.position = Vector3(NAN, NAN, NAN)
+	p2.head.rotation.x = NAN
+	p2._smooth_remote(1.0 / 60.0)
+	check(p2.position.is_finite() and p2.position.distance_to(target) < 0.001 and is_finite(p2.head.rotation.x),
+			"a non-finite visible pose snaps back to the synced pose")
+	# Release / drop with a non-finite holder position: the item lands on a finite spot.
+	var can := mgr.server_spawn_item(Const.ITEM_WATERING_CAN, {}, target + Vector3(0.0, 0.0, 0.8)) as WateringCan
+	check(can != null and mgr.server_give_item(can, 2), "remote player 2 holds a can")
+	await frames(2)
+	var saved := p2.position
+	p2.position = Vector3(NAN, NAN, NAN) # the holder's transform is broken while the server releases the can
+	mgr.server_release_holder(2)
+	p2.position = saved
+	check(can.holder_id == 0 and can.rest_position.is_finite() and can.position.is_finite() and can.rest_rotation.is_finite(),
+			"release while the holder's position is NaN: the can lands on a finite spot (%s)" % can.rest_position)
+	check(absf(can.rest_position.y) < 0.3, "... on the floor (y %.2f)" % can.rest_position.y)
+	mgr.server_give_item(can, 2)
+	mgr.server_drop_item(can, Vector3(NAN, 0.0, INF))
+	check(can.holder_id == 0 and can.rest_position.is_finite() and can.rest_position.distance_to(p2.global_position) < 1.5,
+			"server_drop_item with a NaN position falls back to the holder's feet (%s)" % can.rest_position)
+	await frames(3)
+	check(can.global_position.is_finite() and can.rest_position.is_finite(), "still finite a few frames later")
+	mgr.server_despawn_item(can)
+	p2.net_position = good
+	await wait_until(func() -> bool: return p2.global_position.distance_to(good) < 0.01, 5.0)
 
 ## Floor -> local hand (view model) -> floor -> remote hand (world) -> floor, checking every GeometryInstance3D.
 func _toggle_item(item: Item, p: Player, p2: Player, mgr: ItemManager, sv: SubViewport, screen: TextureRect) -> void:

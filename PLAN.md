@@ -93,7 +93,7 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | 9.3 | Adversarial code review + fixes: UI/HUD/overlays/Story | R3 | done (6 focus/layout bugs fixed; START SHIFT is now an Enter hint since the mouse is captured while waiting) |
 | 9.4 | Architecture models (Blender): cinder-block wall panels, floor slabs, ceiling beams/panels, hole rim | A2 | done |
 | 9.5 | Farming polish: graded tag color, drop BudTop workaround, wilt crossfade, ready-plant hitbox verified | D2 | done |
-| 9.6 | First-person view-model layer for held items (no wall clipping) | V | in progress |
+| 9.6 | First-person view-model layer for held items (no wall clipping) + NaN-pose hardening | V | done |
 | 9.7 | README refresh, CLAUDE.md for future sessions | lead | done |
 | 8.7 | **Plant deep-dive (user request, back of queue):** take extra time on the plant model across seedling, vegetative, flowering ("fruitation") and ready stages; reference real cannabis morphology (cotyledons + first serrated leaflets, fan leaves with 5–7 serrated fingers on nodes, apical dominance, pistils/bud sites forming, dense colas with sugar leaves when ready, drooping when dry) but keep the output chunky/cartoon like the rest of the game | plant modeler | done |
 
@@ -163,6 +163,16 @@ plots with 4 visible stages that pop in and pulse when ready, water gauge + DRY 
 well refills cans (2 spawn at start), harvest into hands, selling adds to quota with float text / burst / sound,
 team favors (Cheap Fertilizer, Dented Cans, Better Cut). Test: `farm_test` (99), `farm_net_test`, `farm_world_test`,
 `econ_test` (116), `econ_mp_test`, and `tools/smoke.sh solo` (51 checks through the real RPC path).
+
+### M9 Review wave, architecture models, polish (done)
+Works: three adversarial reviews fixed 10 demonstrated bugs with regression suites (favor double-buy race across
+workers/slow links; host freeze from a 300k-char name; invisible-character names; NaN-distance interaction bypass;
+pause/round-end focus trap; Space/Enter pressing overlay buttons at shift end; client keyboard path; Escape cancels
+connecting; worker list under the banner; oversized shift banner) plus spare ENet slots for half-finished handshakes
+and NaN-pose hardening. Walls, floor, ceiling, beams and the hole rim are now Blender models (segment_run MultiMesh
+runs, seams proven by models_arch_test). Farming: graded strain colour everywhere, no dummy nodes, 0.4 s wilt
+crossfade, ready hitbox raycast-verified. First-person view-model layer: held items never clip walls (verified in GL
+and Forward+ via software Vulkan). Test: `tools/test_all.sh` (35 suites).
 
 ### M8 Factory retheme, dark undertone, Blender models (done)
 Works: 20×15×6 m factory room (cinder-block walls, concrete floor, pendant lamps on chains, flickering fluoros,

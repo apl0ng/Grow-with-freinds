@@ -122,6 +122,18 @@ Additions: `spawn_index`, `place_at(xf)`, `server_teleport(pos)` (the ONLY way t
 plain position writes on the server are overwritten by the owner's sync), `respawn()`, `apply_look_input()`,
 `get_look_direction()`. Sync: owner writes `net_position/net_yaw/net_pitch` each physics tick, `$Sync` sends them
 unreliably ~30 Hz (always, so late joiners get them); remote peers smooth toward them (snap if > 3 m or on first packet).
+**First-person view model:** render layer 10 (`Player.VIEW_MODEL_LAYER`, named "viewmodel" in project.godot) is
+excluded from %Camera's cull mask. The local player builds, at runtime, a CanvasLayer(-1) → transparent SubViewport
+(same World3D) → Camera (layer 10 only, copies %Camera each frame after the item snaps to its socket) → full-screen
+TextureRect. While the local player holds an item, `Item` moves its visual nodes to layer 10 (`is_in_view_model()`,
+`refresh_view_model()`, original layers kept in `META_WORLD_LAYERS`) and restores them on drop/hand-off/despawn. The
+pass renders only while an item is held. Lights get the layer bit added by the local player. Player API:
+`view_model_enabled`, `uses_view_model()`, `is_view_model_active()`, `get_view_model_viewport()/camera()`,
+`add/remove_view_model_user()`, `sync_view_model()`, `refresh_view_model_environment()`. Limitation: the held item
+receives no world shadows (camera-layer approach).
+**NaN rule:** synced `net_position/net_yaw/net_pitch` that are not finite are ignored (last valid pose kept, pitch
+clamped ±89°); ItemManager never feeds non-finite positions into drops/releases (falls back below the holder, else the
+first spawn point); the Interactable distance check is written `not (d <= max)` so NaN cannot pass.
 **Everything under a Player (Interactor included) has that peer's authority**: `@rpc("authority")` there can only be
 called by the owner; server→owner calls need `any_peer` + a sender check.
 
