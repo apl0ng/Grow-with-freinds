@@ -71,9 +71,16 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | A.2 | Sfx autoload (procedural placeholder sounds) + Juice autoload (pop/bounce/burst/float text) | A | done |
 | 7.1 | Lead smoke tests (solo + host/client loop) | lead | done |
 | 7.2 | Unified runner, 4-player stress test, robustness sweep, bug fixes | H | in progress |
-| 7.3 | Room lighting cool-down per art measurements | C | in progress |
+| 7.3 | Room lighting cool-down per art measurements | C | done |
+| 8.1 | Factory retheme: room, props, Boss NPC, station visuals, factory palette | C | in progress |
+| 8.2 | Narrative/text pass: HUD, menu, shop UI, overlays, NPC barks, debt board wiring (+ test updates) | lead/writer | todo (after QA) |
 
 ## Decisions
+- **Theme (user direction, after M6): the starting room is a LOW-BUDGET FACTORY.** The crew is here against their
+  will, working off a debt to a shady "Boss" (the shopkeeper). Rendering stays chunky/cartoon (STYLE.md), but the
+  setting, palette and all copy (HUD, menu, shop, overlays, NPC barks) shift to grim-but-charming sweatshop tone:
+  rounds are "shifts", the quota is the "payment due", the shop is the Boss's supply window, the turn-in is a
+  deposit chute. Retheme runs as: (1) visual pass on room/props/NPC/station visuals, (2) narrative/text pass after QA.
 - **Quota = sales this round**, not wallet balance. Spending on seeds never lowers quota progress. Wallet carries over.
 - **Round ends immediately when the quota is met** (`end_round_on_quota_met = true`, tweakable). Missing it at 0:00 = game over (host can Retry → full reset).
 - **Plants persist across rounds**; growth and water drain only tick while a round is PLAYING (no free growth on the end screen).
