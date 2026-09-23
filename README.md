@@ -9,7 +9,10 @@ Godot 4.7.2 · GDScript · ENet high-level multiplayer (host/join by IP, server-
 in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately dark undertone (nobody is happy).
 
 ## Run
-- Open the folder in Godot 4.7.x and press Play. Host to play solo; friends join with your IP.
+- Windows: double-click `launch.cmd` (or `.\launch.ps1` in PowerShell). It finds Godot 4.7.2 or offers to download
+  it into `tools\godot\`. Options: `-Host`, `-Join <ip>`, `-Name <name>`, `-Port`, `-Fast`, `-Players 2..4`
+  (several local windows for testing), `-Editor`, `-Fullscreen`.
+- Any OS: open the folder in Godot 4.7.x and press Play. Host to play solo; friends join with your IP.
 - Two local instances: `godot --path . -- --host --name=Alice` and `godot --path . -- --join=127.0.0.1 --name=Bob`.
 - `--fast` makes growth 20× faster and shifts 60 s; `--growth-mult=N`, `--round-sec=N` for finer control.
 - Controls: WASD move · Shift sprint · Space jump · Ctrl/C crouch · mouse look · E / LMB interact · Q / G drop ·

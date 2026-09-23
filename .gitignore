@@ -10,3 +10,6 @@ Thumbs.db
 # Python bytecode (Blender scripts)
 __pycache__/
 *.pyc
+
+# Godot binary downloaded by launch.ps1
+tools/godot/
