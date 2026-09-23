@@ -17,9 +17,9 @@ extends Node3D
 ## it). Leaves are library greens (never tinted); the wilted models use toon_leaf_dry.
 ##
 ## Wilting is one blend value, 0 = healthy .. 1 = wilted, driven by a single Tween (_wilt_tween, WILT_TIME,
-## cubic ease-out: quick in, slow settle). Everything wilt-related is a pure function of it (_apply_wilt): the
-## incoming model swells up out of the outgoing one early, the outgoing one holds, then sinks and narrows into
-## it, and Tilt leans by DROOP_ROTATION * blend. The healthy parts show while blend < 1 and the wilted model
+## quad ease-out: quick in, slow settle). Everything wilt-related is a pure function of it (_apply_wilt): the
+## incoming model pops up out of the stem base early, the outgoing one holds, then shrinks down into the base
+## (under the incoming stem and lower leaves), and Tilt leans by DROOP_ROTATION * blend. The healthy parts show while blend < 1 and the wilted model
 ## while blend > 0, so at rest exactly one of them is visible. Repeating set_dry() is a no-op, the opposite
 ## call mid-blend reverses from the current value (no jump), and animate = false (late-join sync, first
 ## frames) or no plant on screen snaps. Nothing here touches collision: the plot owns its PlantShape.
@@ -38,10 +38,10 @@ const DROOP_ROTATION := Vector3(0.14, 0.0, -0.09)
 const BUD_OUTLINE := 0.024
 ## Seconds of a full healthy <-> wilted crossfade (a reversal mid-blend takes its share of it).
 const WILT_TIME := 0.4
-## Scale (about the soil point) of the healthy model when fully wilted, and of the wilted model when fully
-## watered: small enough to sit inside the other model, so hiding it at the end of the blend does not pop.
-const HEALTHY_HIDDEN_SCALE := Vector3(0.6, 0.35, 0.6)
-const WILTED_HIDDEN_SCALE := Vector3(0.65, 0.45, 0.65)
+## Scale (about the soil point) a model is shrunk to when blended out (and grows from when blended in): a
+## small clump at the stem base that the other model covers, so hiding it at the end of the blend never pops.
+## (Both models are low and wide, the wilted one flops sideways: a partial scale left leaves on the soil.)
+const HIDDEN_SCALE := Vector3(0.1, 0.06, 0.1)
 const DRY_INDICATOR_GAP := 0.22
 const DRY_BOB_HEIGHT := 0.06
 const DRY_BOB_TIME := 0.55
@@ -232,7 +232,7 @@ func _apply_wilt_target(animate: bool) -> void:
 		return
 	_wilt_tween = create_tween()
 	_wilt_tween.tween_method(_set_wilt, _wilt, target, WILT_TIME * clampf(span, 0.35, 1.0)) \
-			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_wilt_tween.tween_callback(_on_wilt_tween_done)
 
 func _set_wilt(value: float) -> void:
@@ -260,10 +260,10 @@ func _kill_wilt_tween() -> void:
 ## a stage change mid-blend (or while dry) already shows the new stage in the same state.
 func _apply_wilt() -> void:
 	var w := clampf(_wilt, 0.0, 1.0)
-	# Whichever way it runs, the outgoing model holds its size, then sinks in late, and the incoming one swells
-	# up early: the healthy one follows w^2, the wilted one (1 - w)^2.
-	var healthy_k := Vector3.ONE.lerp(HEALTHY_HIDDEN_SCALE, w * w)
-	var wilted_k := Vector3.ONE.lerp(WILTED_HIDDEN_SCALE, (1.0 - w) * (1.0 - w))
+	# Whichever way it runs, the outgoing model holds its size, then shrinks away late, and the incoming one
+	# swells up early: the healthy one follows w^2, the wilted one (1 - w)^2.
+	var healthy_k := Vector3.ONE.lerp(HIDDEN_SCALE, w * w)
+	var wilted_k := Vector3.ONE.lerp(HIDDEN_SCALE, (1.0 - w) * (1.0 - w))
 	for part in _wilt_parts:
 		var n: Node3D = part[0]
 		var rest: Transform3D = part[1]

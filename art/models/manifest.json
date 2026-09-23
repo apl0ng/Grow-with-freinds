@@ -783,6 +783,138 @@
   ],
   "tris": 2536
  },
+ "wall_panel": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_olive",
+   "block_light",
+   "olive_dark",
+   "toon_concrete",
+   "block_dark",
+   "toon_concrete_dark",
+   "toon_void",
+   "toon_rust",
+   "stain",
+   "toon_dark",
+   "grime",
+   "toon_metal_dark"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/wall_panel.py",
+  "size": [
+   5.0,
+   5.995,
+   0.182
+  ],
+  "tris": 3550
+ },
+ "wall_panel_b": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_olive",
+   "block_light",
+   "olive_dark",
+   "toon_concrete",
+   "block_dark",
+   "toon_concrete_dark",
+   "toon_void",
+   "toon_rust",
+   "stain",
+   "toon_dark",
+   "grime",
+   "toon_metal_dark"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/wall_panel.py",
+  "size": [
+   5.0,
+   5.995,
+   0.374
+  ],
+  "tris": 3250
+ },
+ "wall_panel_door": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_olive",
+   "block_light",
+   "toon_concrete_dark",
+   "toon_void",
+   "olive_dark",
+   "toon_concrete",
+   "block_dark",
+   "toon_dark",
+   "toon_caution",
+   "stain",
+   "toon_rust",
+   "grime",
+   "toon_metal_dark"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/wall_panel.py",
+  "size": [
+   5.0,
+   5.995,
+   0.36
+  ],
+  "tris": 2008
+ },
+ "wall_panel_door_b": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_olive",
+   "block_light",
+   "olive_dark",
+   "toon_concrete",
+   "block_dark",
+   "toon_concrete_dark",
+   "toon_void",
+   "toon_dark",
+   "toon_caution",
+   "stain",
+   "toon_rust",
+   "grime",
+   "toon_metal_dark"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/wall_panel.py",
+  "size": [
+   5.0,
+   5.995,
+   0.36
+  ],
+  "tris": 2370
+ },
+ "wall_panel_window": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_olive",
+   "block_light",
+   "olive_dark",
+   "toon_concrete",
+   "toon_concrete_dark",
+   "toon_void",
+   "block_dark",
+   "stain",
+   "toon_rust",
+   "toon_dark",
+   "grime",
+   "toon_metal_dark"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/wall_panel.py",
+  "size": [
+   5.0,
+   5.995,
+   0.36
+  ],
+  "tris": 2784
+ },
  "water_tank": {
   "front": "+z",
   "kind": "station",

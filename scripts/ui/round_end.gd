@@ -73,6 +73,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	for action: StringName in NAV_ACTIONS:
 		if InputMap.has_action(action) and event.is_action_pressed(action):
+			_cancel_focus()
 			(primary_button if primary_button.visible else menu_button).grab_focus()
 			vp.set_input_as_handled()
 			return
@@ -116,11 +117,15 @@ func arm_focus() -> void:
 	_focus_tween.tween_callback(focus_default)
 
 
-## Host: focuses the primary button now, unless the overlay is hidden or the pause menu sits on top of it.
+## Host: focuses the primary button now, unless the overlay is hidden, the pause menu sits on top of it, or one of
+## its buttons already has the focus (the player navigated there).
 func focus_default() -> void:
 	if not visible or not is_inside_tree() or not primary_button.visible:
 		return
 	if Game.is_ui_locked_by(PauseMenu.LOCK_SOURCE):
+		return
+	var owner := get_viewport().gui_get_focus_owner()
+	if owner != null and is_ancestor_of(owner):
 		return
 	primary_button.grab_focus()
 

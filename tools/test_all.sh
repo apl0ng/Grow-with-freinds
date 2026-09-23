@@ -30,7 +30,7 @@ mkdir -p "$LOGDIR"
 
 ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test models_char_test models_plant_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
-  review_play_mp qa_mouse_x11)
+  review_play_mp review_ui qa_mouse_x11)
 
 ONLY=""
 case "${1:-}" in
@@ -48,7 +48,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 50 71 72 73 80; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 50 71 72 73 80 91 92; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -209,6 +209,9 @@ rm -rf "$LOGDIR/qamp"; mkdir -p "$LOGDIR/qamp"
 run_suite qa_mp_robust    240 "$LOGDIR/qamp/*.log" env QAMP_PORT=$((BASE + 80)) QAMP_LOGS="$LOGDIR/qamp" tools/tests/qa_mp_robust.sh
 # Review 9.2: favor purchases racing (two workers / slow link); host + self-spawned client, random port.
 run_suite review_play_mp  150 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_play_mp_body.gd --timeout=120
+# Review 9.3: HUD / overlays (keyboard focus vs pause + round end, Escape cancels connecting, WORKERS width);
+# solo host on +91, a join attempt to the closed +92.
+run_suite review_ui       150 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_ui_body.gd --port=$((BASE + 91)) --timeout=120
 
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \

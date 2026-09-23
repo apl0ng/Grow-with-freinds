@@ -216,11 +216,13 @@ func get_held_item() -> Item:
 func get_interactor() -> Interactor:
 	return get_node_or_null("%Interactor") as Interactor
 
-## True if items held by this player should draw in the first-person view model (local player, view model built
-## and enabled, player in the tree). Items poll this every frame while held (Item._update_view_model).
+## True if items held by this player should draw in the first-person view model: local player, view model built
+## and enabled, player in the tree, and %Camera is the camera its viewport renders (while another camera is current,
+## e.g. an overview camera, held items draw in the world like everything else). Items poll this every frame while
+## held (Item._update_view_model).
 func uses_view_model() -> bool:
 	return view_model_enabled and _view_model != null and not _view_model_closing and is_inside_tree() \
-			and not is_queued_for_deletion()
+			and not is_queued_for_deletion() and camera.is_current()
 
 ## The view-model SubViewport (ViewModel/Viewport), or null (remote players have none).
 func get_view_model_viewport() -> SubViewport:

@@ -26,6 +26,13 @@ const FLOAT_RISE_PX: float = 40.0
 const FLOAT_WIDTH: float = 160.0
 const FLOAT_SEC: float = 1.1
 const CROSSHAIR_RADIUS: float = 3.5
+## Widest the WORKERS panel may get. It hangs right-anchored under the wallet, beside the centred WAITING banner
+## (x 292..988 at the 1280 px minimum logical width): long names are trimmed with "…" (the tags stay whole) instead
+## of sliding under the banner's START SHIFT button and the payment panel.
+const PLAYERS_MAX_WIDTH: float = 268.0
+## Font size of the player-list names and of their smaller "(host, you)" tag.
+const PLAYER_NAME_FONT_SIZE: int = 20
+const PLAYER_TAG_FONT_SIZE: int = 16
 
 ## Copy (kept here so tests and other UI can reuse the exact strings).
 const TEXT_SHIFT := "SHIFT %d"
@@ -105,6 +112,7 @@ func _ready() -> void:
 	Net.players_changed.connect(refresh_players)
 	start_button.pressed.connect(_on_start_pressed)
 	crosshair.draw.connect(_on_crosshair_draw)
+	pause_menu.closed.connect(_on_pause_closed)
 
 	_ui_locked = Game.is_ui_locked()
 	_stats_ready = GameState.phase != GameState.Phase.MENU
@@ -215,19 +223,17 @@ func refresh_players() -> void:
 		dot.border_color = _theme_color(&"font_outline_color", &"Label", Color.BLACK)
 		swatch.add_theme_stylebox_override(&"panel", dot)
 		row.add_child(swatch)
-		var name_label := Label.new()
-		name_label.theme_type_variation = &"HudLabel"
-		name_label.add_theme_font_size_override(&"font_size", 20)
-		name_label.add_theme_color_override(&"font_color", color)
+		var name_label := _player_label(Net.get_player_name(peer_id), color, PLAYER_NAME_FONT_SIZE)
+		row.add_child(name_label)
 		var tags: PackedStringArray = []
 		if peer_id == Const.SERVER_PEER_ID:
 			tags.append(TEXT_HOST_TAG)
 		if peer_id == local_id:
 			tags.append(TEXT_YOU_TAG)
-		var shown_name := Net.get_player_name(peer_id)
-		name_label.text = shown_name if tags.is_empty() else "%s (%s)" % [shown_name, ", ".join(tags)]
-		row.add_child(name_label)
+		if not tags.is_empty():
+			row.add_child(_player_label("(%s)" % ", ".join(tags), color, PLAYER_TAG_FONT_SIZE))
 		player_list.add_child(row)
+		_fit_player_name(row, name_label)
 
 
 ## "$1,234" (negative: "-$50").
@@ -366,6 +372,12 @@ func _on_prompt_changed(text: String, enabled: bool) -> void:
 func _on_start_pressed() -> void:
 	Sfx.play(&"ui_click")
 	GameState.request_start_round()
+
+
+## The pause menu closed: if the round-end overlay is up underneath, it gets the keyboard back (armed, not at once).
+func _on_pause_closed() -> void:
+	if round_end.is_open():
+		round_end.arm_focus()
 
 
 func _on_crosshair_draw() -> void:
@@ -571,6 +583,33 @@ func _spawn_money_float(text: String, color: Color, gain: bool) -> void:
 	tween.tween_property(label, "position:y", end_y, FLOAT_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.tween_property(label, "modulate:a", 0.0, FLOAT_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.chain().tween_callback(label.queue_free)
+
+
+func _player_label(text: String, color: Color, font_size: int) -> Label:
+	var label := Label.new()
+	label.theme_type_variation = &"HudLabel"
+	label.add_theme_font_size_override(&"font_size", font_size)
+	label.add_theme_color_override(&"font_color", color)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.text = text
+	return label
+
+
+## Trims a long name with "…" so the row (and the WORKERS panel) stays within PLAYERS_MAX_WIDTH. Needs the theme,
+## so only once the row is in the tree (an off-tree HUD is about to be freed anyway).
+func _fit_player_name(row: HBoxContainer, name_label: Label) -> void:
+	if not name_label.is_inside_tree():
+		return
+	var panel_style := players_panel.get_theme_stylebox(&"panel")
+	var used := panel_style.get_minimum_size().x if panel_style != null else 0.0
+	var separation := float(row.get_theme_constant(&"separation"))
+	for child: Node in row.get_children():
+		if child != name_label:
+			used += (child as Control).get_combined_minimum_size().x + separation
+	var room := floorf(PLAYERS_MAX_WIDTH - used)
+	if name_label.get_minimum_size().x > room:
+		name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		name_label.custom_minimum_size.x = maxf(room, 0.0)
 
 
 ## Color of `item` in theme type `type` (e.g. a variation), or `fallback` if the theme lacks it.
