@@ -228,7 +228,15 @@ synced: `stage: Stage`, `strain_id`, `water: float 0..1`, `stage_progress: float
 Interactions: seed packet + empty plot → plant · watering can (charges>0) + plant → water · READY + empty hands → harvest
 (spawns product in hands: `{"strain_id", "amount": seed.yield_amount}`). Growth ticks on the server only while
 `GameState.is_playing()` and `water >= dry_threshold`.
-**Well** (`well.gd`): refills a held watering can to `get_capacity()`; spawns `starting_watering_cans` at `$CanSpots/*`.
+GrowPlot additions: `tick(delta)`, `server_plant(strain_id) -> bool`, `server_water(charges_worth := 1.0) -> bool`,
+`server_harvest(player) -> bool`, `server_reset()`, `is_growing()`, `needs_water()`, `get_growth_fraction()`,
+`get_status_text()`, `get_stage_duration()`, `get_seed()`, `get_strain_name()`; static helpers `is_server_peer(node)`,
+`item_is(item, type)`, `get_can_charges/get_can_capacity/get_packet_strain/get_held_item_of`. Sync: `Sync` node,
+`replication_interval 0.1`; stage/strain ON_CHANGE (reliable), water/progress ALWAYS (unreliable). Plots clear on
+`GameState.game_reset`. `PlantVisual` (scenes/stations/plant_visual.tscn) renders the 4 stages + dry state.
+**Well** (`well.gd`): refills a held watering can to `get_capacity()`; spawns `starting_watering_cans` at `$CanSpots/*`
+on `Game.world_ready` (host only, once); on `game_reset` re-homes/refills every can two frames later. API:
+`server_fill_can`, `server_spawn_starting_cans`, `server_reset_cans`, `get_can_spots`, `get_can_spot_position`.
 **ShopCounter** (`shop_counter.gd`, owner: economy agent): overrides `interact()` WITHOUT calling super (opening a menu
 is purely local); `open_shop_for(player)`, `get_shop_ui()`, `UI_LOCK_SOURCE = &"shop"`. Buy requests:
 `request_buy_seed(id)` / `request_buy_upgrade(id)` (client) → `_rpc_request_buy_*` → server `server_buy_seed(peer, id)` /
