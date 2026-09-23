@@ -1,5 +1,6 @@
 extends "res://tools/tests/qa_base.gd"
-## Review 9.1 REPRO (not part of tools/test_all.sh: it documents an UNFIXED issue and fails while it reproduces).
+## Review 9.1 regression test (registered in tools/test_all.sh as review_core_slots). Originally a repro of an
+## unfixed issue; Net.host() now opens max_players + 3 ENet slots so half-open handshakes cannot lock players out.
 ##   godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/review_core_slots_repro.gd --port=7977
 ##
 ## Net.host() creates the ENet server with max_players (= 4) client slots: max_players - 1 players + ONE spare

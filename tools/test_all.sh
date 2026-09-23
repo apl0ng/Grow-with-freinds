@@ -9,7 +9,7 @@
 # Order: tools/check.sh -> single-process suites -> multi-process suites -> tools/smoke.sh -> QA suites.
 # Ports: multi-process suites get unique UDP ports from QA_BASE_PORT (default 7900): econ_mp +11, net_test
 #   +21..+32, qa_robust +71, qa_solo +72, qa_mouse_x11 +73, qa_4p +50, qa_mp_robust +80, review_core +74,
-#   review_core_mp +95/+96. A base whose ports are already bound
+#   review_core_mp review_core_slots +95/+96. A base whose ports are already bound
 #   (e.g. by a leftover process) is skipped in steps of 100. smoke.sh keeps its fixed 7801/7802; the
 #   self-spawning suites (items_net/items_e2e/farm_net/farm_world/flow_mp/econ_test) pick random ports.
 # Leftovers: every suite runs in its own session (setsid) under `timeout`; afterwards any process still in that
@@ -221,6 +221,7 @@ run_suite review_ui       150 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_ui_
 run_suite review_core     240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_core_body.gd --port=$((BASE + 74)) --timeout=200
 rm -rf "$LOGDIR/rcmp"; mkdir -p "$LOGDIR/rcmp"
 run_suite review_core_mp  240 "$LOGDIR/rcmp/*.log" env RCMP_PORT=$((BASE + 95)) RCMP_LOGS="$LOGDIR/rcmp" tools/tests/review_core_mp.sh
+run_suite review_core_slots 240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_core_slots_repro.gd --port=$((BASE + 97))
 
 # Review 9.6: first-person view-model layer (the held item never clips): render layers of every item mesh (local hand
 # -> view-model layer only, floor / remote hand -> world layers), SubViewport only for the local player, frame order,

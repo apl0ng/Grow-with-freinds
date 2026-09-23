@@ -67,8 +67,8 @@ func host(port: int = Config.balance.default_port) -> Error:
 	var peer := ENetMultiplayerPeer.new()
 	# Spare ENet slots beyond (max_players - 1) clients: one so an extra joiner can be told "Server is full", plus
 	# two more because a client that cancels or crashes mid-handshake holds its slot for 5-30 s (the engine
-	# never reports those), which would otherwise lock out a legitimate player;
-	# instead of timing out silently; the gameplay cap is enforced in _rpc_register.
+	# never reports those), which would otherwise lock out a legitimate player. The gameplay cap is enforced
+	# in _rpc_register.
 	var err := peer.create_server(port, maxi(1, Config.balance.max_players + 3))
 	if err != OK:
 		_log("could not host on port %d: %s" % [port, error_string(err)])
