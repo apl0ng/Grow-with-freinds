@@ -1,8 +1,9 @@
 """boss: the shady Boss behind the supply cage (kind "character": front -> Godot -Z). Rigged: instanced AS
 `Visual` in scenes/world/shopkeeper_npc.tscn, so every path shopkeeper_npc.gd animates stays valid.
 
-~1.2 x 1.92 x 1.1 m (W x H x D, Godot), floor mount, origin at the feet. Heavy-set in a cheap brown suit that
-can't close over the belly (the stained shirt bursts out), a loosened maroon tie hanging crooked, a thick
+1.24 x 2.04 x 1.32 m (W x H x D, Godot, arms reaching forward), floor mount, origin at the feet, ~8k tris.
+Heavy-set in a cheap brown suit that can't close over the gut (the shirt bursts out between the lapels), a
+loosened maroon tie hanging crooked, a thick
 tarnished gold chain, a dented charcoal fedora knocked crooked, low gold-rimmed shades with heavy-lidded,
 scowling eyes glaring over them, bushy angry brows, a boozer's nose, stubble, a permanent frown with a cigar
 clamped in the corner. Both hands rest on the counter: the right drums its fat fingers, the left lies palm up
@@ -20,10 +21,12 @@ Rig (Godot names; pivot = node origin; the script sets absolute rotations on the
                               ArmRight/Hand / Fingers / Finger1..4 *  knuckle pivots, tap on x (rest 0)
                         / HeadPivot *                             head (origin at the neck; yaw/pitch, rest 0)
                             / EyeLeft, EyeRight / Pupil           eye whites + pupils
-                                              / LidLeft, LidRight *  heavy lids, REST (-12, 0, -+15) deg (a
+                                              / LidLeft, LidRight *  heavy lids, REST (-4, 0, -+17) deg (a
                                                                   scowl; the script records it and blinks to x -88)
                             / Sunglasses, Hat, Cigar              static extras
-Everything is authored in Godot coordinates (x = the Boss's right, y up, -z = his front) through g() / place().
+Everything is authored in Godot coordinates (x = the Boss's right, y up, -z = his front) through g() / place();
+node rotations are only non-identity where the script records a rest pose (arms, hands, lids). The head subtree
+is scaled 1.12 around the neck at the end (baked, no node scale) so the face reads through the cage bars.
 """
 import bpy
 import bmesh
@@ -32,10 +35,6 @@ from gwf import *
 # Godot <-> Blender for kind="character": Blender (x, y, z) -> Godot (-x, z, y) (the export's 180 degree turn
 # + glTF's y-up), and back: it is its own inverse.
 M4 = Matrix(((-1, 0, 0, 0), (0, 0, 1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))
-V = 28   # radial segments for the big round parts
-
-# Factory palette (STYLE.md section 12): not Toon constants.
-METAL_DARK = "#4e585e"
 
 
 def g(x, y, z):
@@ -526,7 +525,6 @@ def finger(name, mats, length=0.105, r=0.027, curl=-22.0, ring=None):
     """A fat finger from its knuckle (origin) along -Z, bent down by `curl` degrees."""
     f = capsule(r, length + r, verts=8, rings=4, mat=mats["skin"], name=name, anchor="base")
     along(f, (0.0, math.sin(math.radians(curl)), -math.cos(math.radians(curl))))
-    f.location = g(0, 0, 0.0) + g(0.0, 0.0, 0.0)
     parts = [f]
     if ring is not None:
         d = Vector((0.0, math.sin(math.radians(curl)), -math.cos(math.radians(curl))))

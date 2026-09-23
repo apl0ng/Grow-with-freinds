@@ -11,7 +11,8 @@ extends SceneTree
 ## studio: players_front (4 colours), players_side, player_face, player_back, boss_front, boss_34, boss_side,
 ##         boss_face, boss_cheer, boss_wave, lineup (players + Boss + oil drum at true scale)
 ## world:  world_counter (players queue at the Boss's cage, player eye height), world_players (3 players facing
-##         you, the Boss behind), world_boss (+ _cheer, _wave: at the counter), world_wide
+##         you, the Boss behind), world_boss (+ _cheer, _wave: at the counter), world_holding (real items in
+##         remote players' hands), world_wide
 ## Autoloads are reached through the root (this script compiles before they are registered).
 
 const PLAYER := "res://scenes/player/player.tscn"
@@ -226,7 +227,22 @@ func _world() -> void:
 		keeper.call("wave")
 		await create_timer(0.55).timeout
 		await _shot("world_boss_wave")
-	# 4. Wide view from the well side.
+	# 4. Carrying real items (ItemManager): the right glove comes up to the can / packet / product.
+	var items: Node = world.get("items")
+	if items != null:
+		var kinds := [[&"watering_can", {"charges": 3}], [&"seed_packet", {"strain_id": &"purple"}],
+				[&"product", {"strain_id": &"golden", "amount": 2}]]
+		for i in others.size():
+			items.call("server_spawn_item", kinds[i][0], kinds[i][1], Vector3.ZERO, int(str(others[i].name)))
+	for i in others.size():
+		_place(others[i], [Vector3(-1.1, 0, 0.2), Vector3(0.1, 0, 0.0), Vector3(1.3, 0, 0.25)][i],
+				[PI - 0.5, PI - 0.1, PI + 0.4][i])
+	local.global_position = Vector3(0.1, 0, 2.6)
+	local.rotation.y = 0.0
+	(local.get_node("Head") as Node3D).rotation.x = -0.18
+	await _settle(60)
+	await _shot("world_holding")
+	# 5. Wide view from the well side.
 	var wide := Camera3D.new()
 	world.add_child(wide)
 	wide.fov = 60.0

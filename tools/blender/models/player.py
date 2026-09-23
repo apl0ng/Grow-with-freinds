@@ -1,12 +1,15 @@
 """player: the body OTHER players see, a slumped, tired worker bean (kind "character": front -> Godot -Z).
 
 scenes/player/player.tscn instances this model as `Visual/Model` (the local player hides it, like every mesh
-under Visual). ~0.93 x 1.78 x 0.76 m (W x H x D, Godot), floor mount, origin between the boots.
-Design: a 0.78 m wide bean on stubby legs and chunky work boots, hunched forward (head pushed 10 cm forward
-and down), tiny arms hanging in scuffed leather work gloves, a grimy olive canvas bib apron (stains, a sagging
-pocket with a wrench, cross-back straps, waist tie), a dented grubby hard hat with a crooked peak, a scuffed
-caution sticker and a wilted sprout (the farm's mark) flopping out of a crack. No face in the mesh: the scene keeps the art agent's ToonFace (art/props/face.tscn, sad mood:
-heavy lids, eye bags, frown) on the head front, so blinks / moods / look() keep working.
+under Visual). 0.93 x 1.87 x 0.92 m (W x H x D, Godot; the hard hat tops out at ~1.79, the sprout at 1.87), floor
+mount, origin between the boots, ~6.3k tris.
+Design: a 0.79 m wide pear-shaped bean on stubby legs and chunky work boots, hunched (the spine bends 21 deg
+forward towards the top: rounded back, head tipped forward and down), tiny arms hanging in scuffed leather work
+gloves, a grimy olive canvas bib apron (stains, a sagging pocket with a wrench, cross-back straps, waist tie),
+a dented grubby hard hat a size too small with a crooked peak, a scuffed caution sticker and a wilted sprout
+(the farm's mark) flopping out of a crack. No face in the mesh: the scene keeps the art agent's ToonFace
+(art/props/face.tscn, sad mood: heavy lids, eye bags, frown) on the head front, so blinks / moods / look() /
+surprise() keep working and art retunes reach the players too.
 
 Nodes (Godot):  <Model, Toonify> / Body       bean + apron + legs + boots + hard hat (one mesh)
                                  / ArmL, ArmR  arm + glove, origin at the shoulder, rest rotation 0 (free to swing)
@@ -22,7 +25,6 @@ from gwf import *
 
 # Factory palette (STYLE.md section 12; not Toon constants, so pal() can't read them).
 OLIVE = "#7c8665"
-BROWN = pal("COCOA")
 
 R_BELLY = 0.395     # widest body radius (belly, z = Z_BELLY): a pear, heavy at the bottom
 Z_BOTTOM = 0.25     # bean bottom (sits on the stubby legs)
@@ -313,7 +315,7 @@ def hard_hat(shell_mat, sticker, ink):
     st.rotation_euler = (math.radians(-22), 0, sa)
     apply_transform(st)
     # A wilted sprout (the farm's mark) poking out of a crack in the dome, flopped over to one side.
-    base = Vector((0.085, 0.07, dome_r(0.2) * 0 + 0.262))
+    base = Vector((0.085, 0.07, 0.262))
     stem = pipe([base + Vector((0, 0, -0.03)), base + Vector((0.006, 0.0, 0.07)), base + Vector((0.04, -0.01, 0.125)),
                  base + Vector((0.1, -0.02, 0.125))], 0.017, verts=6, bend=0.03, mat="leaf", name="stem")
     tip = base + Vector((0.1, -0.02, 0.125))
