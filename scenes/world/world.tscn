@@ -23,3 +23,8 @@ script = ExtResource("3_items")
 spawn_path = NodePath("../Items")
 
 [node name="HUD" parent="." instance=ExtResource("4_hud")]
+
+[node name="OverviewCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.819152, 0.573576, 0, -0.573576, 0.819152, 0, 7.5, 10)
+current = true
+fov = 65.0

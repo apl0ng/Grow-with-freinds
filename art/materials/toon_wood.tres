@@ -1,9 +1,11 @@
 [gd_resource type="StandardMaterial3D" format=3]
 
 [resource]
+resource_name = "toon_wood"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.7882353, 0.54509807, 0.2901961, 1)
+albedo_color = Color(0.84705883, 0.5882353, 0.30980393, 1)
+metallic_specular = 0.35
+roughness = 0.4
 rim_enabled = true
-rim = 0.6
-rim_tint = 0.3
+rim = 0.3

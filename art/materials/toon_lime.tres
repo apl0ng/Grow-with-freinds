@@ -1,9 +1,11 @@
 [gd_resource type="StandardMaterial3D" format=3]
 
 [resource]
+resource_name = "toon_lime"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.6627451, 0.8901961, 0.29411766, 1)
+albedo_color = Color(0.65882355, 0.8784314, 0.2901961, 1)
+metallic_specular = 0.35
+roughness = 0.4
 rim_enabled = true
-rim = 0.6
-rim_tint = 0.3
+rim = 0.3

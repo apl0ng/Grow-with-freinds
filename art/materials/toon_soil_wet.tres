@@ -1,9 +1,12 @@
 [gd_resource type="StandardMaterial3D" format=3]
 
 [resource]
+resource_name = "toon_soil_wet"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.30588236, 0.18431373, 0.101960786, 1)
+albedo_color = Color(0.2901961, 0.17254902, 0.09803922, 1)
+metallic_specular = 0.1
+roughness = 0.8
 rim_enabled = true
-rim = 0.6
-rim_tint = 0.3
+rim = 0.12
+rim_tint = 0.7

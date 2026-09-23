@@ -1,0 +1,12 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "toon_stone"
+diffuse_mode = 3
+specular_mode = 1
+albedo_color = Color(0.6039216, 0.6509804, 0.70980394, 1)
+metallic_specular = 0.1
+roughness = 0.8
+rim_enabled = true
+rim = 0.12
+rim_tint = 0.7

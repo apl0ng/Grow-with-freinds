@@ -1,0 +1,13 @@
+[gd_resource type="Environment" format=3]
+
+[resource]
+resource_name = "toon_environment"
+background_mode = 1
+background_color = Color(0.56078434, 0.827451, 1, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.8392157, 0.8117647, 1, 1)
+ambient_light_energy = 0.65
+reflected_light_source = 1
+adjustment_enabled = true
+adjustment_contrast = 1.02
+adjustment_saturation = 1.08

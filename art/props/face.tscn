@@ -1,0 +1,87 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/art/toon_face.gd" id="1_3rksp"]
+[ext_resource type="Material" path="res://art/materials/toon_eye_white.tres" id="2_4dym8"]
+[ext_resource type="Material" path="res://art/materials/toon_eye_black.tres" id="3_3jix6"]
+[ext_resource type="Material" path="res://art/materials/toon_blush.tres" id="4_if74c"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_e4mhl"]
+radius = 0.085
+height = 0.17
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_tverg"]
+radius = 0.047
+height = 0.094
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_puote"]
+radius = 0.014
+height = 0.028
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="SphereMesh_7qvmy"]
+radius = 0.05
+height = 0.1
+radial_segments = 12
+rings = 6
+
+[node name="Face" type="Node3D" unique_id=1417840243]
+script = ExtResource("1_3rksp")
+
+[node name="EyeL" type="Node3D" parent="." unique_id=1400724847]
+transform = Transform3D(0.9848077, 0, 0.17364818, 0, 1, 0, -0.17364818, 0, 0.9848077, -0.12, 0.03, 0)
+
+[node name="White" type="MeshInstance3D" parent="EyeL" unique_id=1880095607]
+transform = Transform3D(1, 0, 0, 0, 1.22, 0, 0, 0, 0.55, 0, 0, 0)
+material_override = ExtResource("2_4dym8")
+cast_shadow = 0
+mesh = SubResource("SphereMesh_e4mhl")
+
+[node name="Pupil" type="MeshInstance3D" parent="EyeL" unique_id=851867389]
+transform = Transform3D(1, 0, 0, 0, 1.12, 0, 0, 0, 0.5, -0.008, -0.012, -0.03)
+material_override = ExtResource("3_3jix6")
+cast_shadow = 0
+mesh = SubResource("SphereMesh_tverg")
+
+[node name="Glint" type="MeshInstance3D" parent="EyeL/Pupil" unique_id=282220638]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.6, 0.016, 0.022, -0.02)
+material_override = ExtResource("2_4dym8")
+cast_shadow = 0
+mesh = SubResource("SphereMesh_puote")
+
+[node name="BlushL" type="MeshInstance3D" parent="." unique_id=1235360615]
+transform = Transform3D(1.45, 0, 0, 0, 0.7, 0, 0, 0, 0.35, -0.215, -0.075, 0.03)
+material_override = ExtResource("4_if74c")
+cast_shadow = 0
+mesh = SubResource("SphereMesh_7qvmy")
+
+[node name="EyeR" type="Node3D" parent="." unique_id=632881003]
+transform = Transform3D(0.9848077, 0, -0.17364818, 0, 1, 0, 0.17364818, 0, 0.9848077, 0.12, 0.03, 0)
+
+[node name="White" type="MeshInstance3D" parent="EyeR" unique_id=1889876745]
+transform = Transform3D(1, 0, 0, 0, 1.22, 0, 0, 0, 0.55, 0, 0, 0)
+material_override = ExtResource("2_4dym8")
+cast_shadow = 0
+mesh = SubResource("SphereMesh_e4mhl")
+
+[node name="Pupil" type="MeshInstance3D" parent="EyeR" unique_id=739670741]
+transform = Transform3D(1, 0, 0, 0, 1.12, 0, 0, 0, 0.5, 0.008, -0.012, -0.03)
+material_override = ExtResource("3_3jix6")
+cast_shadow = 0
+mesh = SubResource("SphereMesh_tverg")
+
+[node name="Glint" type="MeshInstance3D" parent="EyeR/Pupil" unique_id=474053463]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.6, 0.016, 0.022, -0.02)
+material_override = ExtResource("2_4dym8")
+cast_shadow = 0
+mesh = SubResource("SphereMesh_puote")
+
+[node name="BlushR" type="MeshInstance3D" parent="." unique_id=1636784516]
+transform = Transform3D(1.45, 0, 0, 0, 0.7, 0, 0, 0, 0.35, 0.215, -0.075, 0.03)
+material_override = ExtResource("4_if74c")
+cast_shadow = 0
+mesh = SubResource("SphereMesh_7qvmy")

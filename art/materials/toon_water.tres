@@ -1,9 +1,15 @@
 [gd_resource type="StandardMaterial3D" format=3]
 
 [resource]
+resource_name = "toon_water"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.30980393, 0.7647059, 0.96862745, 1)
+albedo_color = Color(0.27058825, 0.76862746, 1, 1)
+metallic_specular = 0.8
+roughness = 0.18
+emission_enabled = true
+emission = Color(0.27058825, 0.76862746, 1, 1)
+emission_energy_multiplier = 0.25
 rim_enabled = true
-rim = 0.6
+rim = 0.35
 rim_tint = 0.3

@@ -1,9 +1,12 @@
 [gd_resource type="StandardMaterial3D" format=3]
 
 [resource]
+resource_name = "toon_floor"
 diffuse_mode = 3
 specular_mode = 1
-albedo_color = Color(0.9137255, 0.84705883, 0.6509804, 1)
+albedo_color = Color(0.9411765, 0.8666667, 0.6901961, 1)
+metallic_specular = 0.1
+roughness = 0.8
 rim_enabled = true
-rim = 0.6
-rim_tint = 0.3
+rim = 0.12
+rim_tint = 0.7

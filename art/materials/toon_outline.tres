@@ -1,0 +1,9 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "toon_outline"
+cull_mode = 1
+shading_mode = 0
+albedo_color = Color(0.18039216, 0.16470589, 0.23921569, 1)
+grow = true
+grow_amount = 0.025

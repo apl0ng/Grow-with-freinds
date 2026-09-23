@@ -1,0 +1,9 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "toon_blob_shadow"
+render_priority = -1
+transparency = 1
+cull_mode = 2
+shading_mode = 0
+albedo_color = Color(0.18039216, 0.16470589, 0.23921569, 0.28)

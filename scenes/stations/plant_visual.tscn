@@ -1,0 +1,438 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/stations/plant_visual.gd" id="1_script"]
+[ext_resource type="Material" path="res://art/materials/toon_green.tres" id="2_green"]
+[ext_resource type="Material" path="res://art/materials/toon_leaf.tres" id="3_leaf"]
+[ext_resource type="Material" path="res://art/materials/toon_lime.tres" id="4_lime"]
+[ext_resource type="Material" path="res://art/materials/toon_bud.tres" id="5_bud"]
+[ext_resource type="Material" path="res://art/materials/toon_water.tres" id="6_water"]
+[ext_resource type="Material" path="res://art/materials/toon_white.tres" id="7_white"]
+[ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="8_outline"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_stem"]
+material = ExtResource("2_green")
+top_radius = 0.36
+bottom_radius = 0.5
+height = 1.0
+radial_segments = 10
+rings = 1
+
+[sub_resource type="SphereMesh" id="SphereMesh_drop"]
+material = ExtResource("6_water")
+radius = 0.08
+height = 0.16
+radial_segments = 16
+rings = 8
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_drop_tip"]
+material = ExtResource("6_water")
+top_radius = 0.0
+bottom_radius = 0.072
+height = 0.12
+radial_segments = 16
+rings = 1
+cap_top = false
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf_1"]
+material = ExtResource("3_leaf")
+radius = 0.05
+height = 0.04
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_lime_1"]
+material = ExtResource("4_lime")
+radius = 0.05
+height = 0.11
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf_2"]
+material = ExtResource("3_leaf")
+radius = 0.085
+height = 0.068
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_lime_2"]
+material = ExtResource("4_lime")
+radius = 0.07
+height = 0.16
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf_3"]
+material = ExtResource("3_leaf")
+radius = 0.21
+height = 0.34
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf_4"]
+material = ExtResource("3_leaf")
+radius = 0.15
+height = 0.26
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf_5"]
+material = ExtResource("3_leaf")
+radius = 0.12
+height = 0.24
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf_6"]
+material = ExtResource("3_leaf")
+radius = 0.09
+height = 0.072
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_bud_1"]
+material = ExtResource("5_bud")
+radius = 0.07
+height = 0.17
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_bud_2"]
+material = ExtResource("5_bud")
+radius = 0.06
+height = 0.12
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_bud_3"]
+material = ExtResource("5_bud")
+radius = 0.055
+height = 0.11
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf_7"]
+material = ExtResource("3_leaf")
+radius = 0.29
+height = 0.42
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf_8"]
+material = ExtResource("3_leaf")
+radius = 0.18
+height = 0.32
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf_9"]
+material = ExtResource("3_leaf")
+radius = 0.15
+height = 0.28
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf_10"]
+material = ExtResource("3_leaf")
+radius = 0.1
+height = 0.08
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_bud_4"]
+material = ExtResource("5_bud")
+radius = 0.13
+height = 0.3
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_bud_5"]
+material = ExtResource("5_bud")
+radius = 0.105
+height = 0.21
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_bud_6"]
+material = ExtResource("5_bud")
+radius = 0.085
+height = 0.17
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_glint_1"]
+material = ExtResource("7_white")
+radius = 0.025
+height = 0.05
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="SphereMesh_glint_2"]
+material = ExtResource("7_white")
+radius = 0.0225
+height = 0.045
+radial_segments = 8
+rings = 4
+
+[node name="PlantVisual" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Tilt" type="Node3D" parent="."]
+unique_name_in_owner = true
+
+[node name="Bouncer" type="Node3D" parent="Tilt"]
+unique_name_in_owner = true
+
+[node name="Grow" type="Node3D" parent="Tilt/Bouncer"]
+unique_name_in_owner = true
+
+[node name="Seedling" type="Node3D" parent="Tilt/Bouncer/Grow"]
+unique_name_in_owner = true
+visible = false
+
+[node name="Stem" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Seedling"]
+transform = Transform3D(0.05, 0, 0, 0, 0.17, 0, 0, 0, 0.05, 0, 0.085, 0)
+mesh = SubResource("CylinderMesh_stem")
+
+[node name="LeafL" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Seedling"]
+transform = Transform3D(0, 0.5, -1.385641, 0, 0.866025, 0.8, 1, 0, 0, -0.07, 0.15, 0)
+mesh = SubResource("SphereMesh_leaf_1")
+material_overlay = ExtResource("8_outline")
+
+[node name="LeafR" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Seedling"]
+transform = Transform3D(0, -0.5, 1.385641, 0, 0.866025, 0.8, -1, 0, 0, 0.07, 0.15, 0)
+mesh = SubResource("SphereMesh_leaf_1")
+material_overlay = ExtResource("8_outline")
+
+[node name="Sprout" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Seedling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, 0)
+mesh = SubResource("SphereMesh_lime_1")
+material_overlay = ExtResource("8_outline")
+
+[node name="Vegetative" type="Node3D" parent="Tilt/Bouncer/Grow"]
+unique_name_in_owner = true
+visible = false
+
+[node name="Stem" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Vegetative"]
+transform = Transform3D(0.07, 0, 0, 0, 0.48, 0, 0, 0, 0.07, 0, 0.24, 0)
+mesh = SubResource("CylinderMesh_stem")
+
+[node name="Leaf1" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Vegetative"]
+transform = Transform3D(1, 0, 0, 0, 0.927184, 0.749213, 0, -0.374607, 1.854368, 0, 0.14, 0.153)
+mesh = SubResource("SphereMesh_leaf_2")
+material_overlay = ExtResource("8_outline")
+
+[node name="Leaf2" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Vegetative"]
+transform = Transform3D(-0.809017, -0.220188, 1.025854, 0, 0.927184, 0.705142, -0.587785, 0.303063, -1.411967, 0.084641, 0.22, -0.116498)
+mesh = SubResource("SphereMesh_leaf_2")
+material_overlay = ExtResource("8_outline")
+
+[node name="Leaf3" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Vegetative"]
+transform = Transform3D(0.309017, 0.356272, -1.504254, 0, 0.927184, 0.639035, 0.951057, -0.11576, 0.488762, -0.124113, 0.3, 0.040327)
+mesh = SubResource("SphereMesh_leaf_2")
+material_overlay = ExtResource("8_outline")
+
+[node name="Leaf4" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Vegetative"]
+transform = Transform3D(0.309017, -0.356272, 1.348642, 0, 0.927184, 0.572928, -0.951057, -0.11576, 0.4382, 0.111274, 0.38, 0.036155)
+mesh = SubResource("SphereMesh_leaf_2")
+material_overlay = ExtResource("8_outline")
+
+[node name="Leaf5" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Vegetative"]
+transform = Transform3D(-0.809017, 0.220188, -0.705275, 0, 0.927184, 0.484785, 0.587785, 0.303063, -0.970727, -0.058191, 0.45, -0.080093)
+mesh = SubResource("SphereMesh_leaf_2")
+material_overlay = ExtResource("8_outline")
+
+[node name="Top" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Vegetative"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("SphereMesh_lime_2")
+material_overlay = ExtResource("8_outline")
+
+[node name="Flowering" type="Node3D" parent="Tilt/Bouncer/Grow"]
+unique_name_in_owner = true
+visible = false
+
+[node name="Stem" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering"]
+transform = Transform3D(0.08, 0, 0, 0, 0.62, 0, 0, 0, 0.08, 0, 0.31, 0)
+mesh = SubResource("CylinderMesh_stem")
+
+[node name="Bush1" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+mesh = SubResource("SphereMesh_leaf_3")
+material_overlay = ExtResource("8_outline")
+
+[node name="Bush2" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.13, 0.45, 0.05)
+mesh = SubResource("SphereMesh_leaf_4")
+material_overlay = ExtResource("8_outline")
+
+[node name="Bush3" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, 0.47, -0.06)
+mesh = SubResource("SphereMesh_leaf_4")
+material_overlay = ExtResource("8_outline")
+
+[node name="Bush4" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, 0.02)
+mesh = SubResource("SphereMesh_leaf_5")
+material_overlay = ExtResource("8_outline")
+
+[node name="Leaf1" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering"]
+transform = Transform3D(0.866025, -0.12941, 0.965926, 0, 0.965926, 0.517638, -0.5, -0.224144, 1.673033, 0.13, 0.2, 0.225167)
+mesh = SubResource("SphereMesh_leaf_6")
+material_overlay = ExtResource("8_outline")
+
+[node name="Leaf2" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering"]
+transform = Transform3D(-0.866025, -0.12941, 0.965926, 0, 0.965926, 0.517638, -0.5, 0.224144, -1.673033, 0.13, 0.2, -0.225167)
+mesh = SubResource("SphereMesh_leaf_6")
+material_overlay = ExtResource("8_outline")
+
+[node name="Leaf3" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering"]
+transform = Transform3D(0, 0.258819, -1.931852, 0, 0.965926, 0.517638, 1, 0, 0, -0.26, 0.2, 0)
+mesh = SubResource("SphereMesh_leaf_6")
+material_overlay = ExtResource("8_outline")
+
+[node name="Buds" type="Node3D" parent="Tilt/Bouncer/Grow/Flowering"]
+
+[node name="Bud1" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.72, 0)
+mesh = SubResource("SphereMesh_bud_1")
+material_overlay = ExtResource("8_outline")
+
+[node name="Bud2" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.16, 0.56, 0.1)
+mesh = SubResource("SphereMesh_bud_2")
+material_overlay = ExtResource("8_outline")
+
+[node name="Bud3" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.59, -0.09)
+mesh = SubResource("SphereMesh_bud_2")
+material_overlay = ExtResource("8_outline")
+
+[node name="Bud4" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Flowering/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.03, 0.52, -0.18)
+mesh = SubResource("SphereMesh_bud_3")
+material_overlay = ExtResource("8_outline")
+
+[node name="Ready" type="Node3D" parent="Tilt/Bouncer/Grow"]
+unique_name_in_owner = true
+visible = false
+
+[node name="Stem" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready"]
+transform = Transform3D(0.09, 0, 0, 0, 0.72, 0, 0, 0, 0.09, 0, 0.36, 0)
+mesh = SubResource("CylinderMesh_stem")
+
+[node name="Bush1" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0)
+mesh = SubResource("SphereMesh_leaf_7")
+material_overlay = ExtResource("8_outline")
+
+[node name="Bush2" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.17, 0.5, 0.07)
+mesh = SubResource("SphereMesh_leaf_8")
+material_overlay = ExtResource("8_outline")
+
+[node name="Bush3" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.16, 0.52, -0.08)
+mesh = SubResource("SphereMesh_leaf_8")
+material_overlay = ExtResource("8_outline")
+
+[node name="Bush4" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.03, 0.56, -0.17)
+mesh = SubResource("SphereMesh_leaf_9")
+material_overlay = ExtResource("8_outline")
+
+[node name="Leaf1" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready"]
+transform = Transform3D(0.707107, -0.147016, 1.452475, 0, 0.978148, 0.436615, -0.707107, -0.147016, 1.452475, 0.226274, 0.22, 0.226274)
+mesh = SubResource("SphereMesh_leaf_10")
+material_overlay = ExtResource("8_outline")
+
+[node name="Leaf2" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready"]
+transform = Transform3D(-0.707107, -0.147016, 1.452475, 0, 0.978148, 0.436615, -0.707107, 0.147016, -1.452475, 0.226274, 0.22, -0.226274)
+mesh = SubResource("SphereMesh_leaf_10")
+material_overlay = ExtResource("8_outline")
+
+[node name="Leaf3" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready"]
+transform = Transform3D(-0.707107, 0.147016, -1.452475, 0, 0.978148, 0.436615, 0.707107, 0.147016, -1.452475, -0.226274, 0.22, -0.226274)
+mesh = SubResource("SphereMesh_leaf_10")
+material_overlay = ExtResource("8_outline")
+
+[node name="Leaf4" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready"]
+transform = Transform3D(0.707107, 0.147016, -1.452475, 0, 0.978148, 0.436615, 0.707107, -0.147016, 1.452475, -0.226274, 0.22, 0.226274)
+mesh = SubResource("SphereMesh_leaf_10")
+material_overlay = ExtResource("8_outline")
+
+[node name="Buds" type="Node3D" parent="Tilt/Bouncer/Grow/Ready"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.74, 0)
+unique_name_in_owner = true
+
+[node name="BudTop" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
+mesh = SubResource("SphereMesh_bud_4")
+material_overlay = ExtResource("8_outline")
+
+[node name="BudRing1" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0, 0.02)
+mesh = SubResource("SphereMesh_bud_5")
+material_overlay = ExtResource("8_outline")
+
+[node name="BudRing2" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.02, 0.03)
+mesh = SubResource("SphereMesh_bud_5")
+material_overlay = ExtResource("8_outline")
+
+[node name="BudRing3" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, 0.01, 0.2)
+mesh = SubResource("SphereMesh_bud_5")
+material_overlay = ExtResource("8_outline")
+
+[node name="BudRing4" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.03, 0.03, -0.2)
+mesh = SubResource("SphereMesh_bud_5")
+material_overlay = ExtResource("8_outline")
+
+[node name="BudLow1" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.17, -0.15, 0.16)
+mesh = SubResource("SphereMesh_bud_6")
+material_overlay = ExtResource("8_outline")
+
+[node name="BudLow2" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.17, -0.13, -0.15)
+mesh = SubResource("SphereMesh_bud_6")
+material_overlay = ExtResource("8_outline")
+
+[node name="Glint1" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.05, 0.28, 0.08)
+mesh = SubResource("SphereMesh_glint_1")
+
+[node name="Glint2" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.26, 0.06, 0.06)
+mesh = SubResource("SphereMesh_glint_2")
+
+[node name="Glint3" type="MeshInstance3D" parent="Tilt/Bouncer/Grow/Ready/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.06, 0.27)
+mesh = SubResource("SphereMesh_glint_2")
+
+[node name="DryIndicator" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+unique_name_in_owner = true
+visible = false
+
+[node name="Bob" type="Node3D" parent="DryIndicator"]
+unique_name_in_owner = true
+
+[node name="Drop" type="MeshInstance3D" parent="DryIndicator/Bob"]
+mesh = SubResource("SphereMesh_drop")
+material_overlay = ExtResource("8_outline")
+
+[node name="DropTip" type="MeshInstance3D" parent="DryIndicator/Bob"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.074, 0)
+mesh = SubResource("CylinderMesh_drop_tip")
+material_overlay = ExtResource("8_outline")
+
+[node name="Label" type="Label3D" parent="DryIndicator/Bob"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.26, 0)
+pixel_size = 0.004
+billboard = 1
+modulate = Color(1, 1, 1, 1)
+outline_modulate = Color(0.07, 0.33, 0.75, 1)
+text = "DRY!"
+font_size = 56
+outline_size = 16

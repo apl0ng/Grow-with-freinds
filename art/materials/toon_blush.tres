@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "toon_blush"
+transparency = 1
+shading_mode = 0
+albedo_color = Color(1, 0.49411765, 0.7137255, 0.55)

@@ -1,24 +1,375 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/stations/well.gd" id="1_script"]
+[ext_resource type="Material" path="res://art/materials/toon_gray.tres" id="2_gray"]
+[ext_resource type="Material" path="res://art/materials/toon_white.tres" id="3_white"]
+[ext_resource type="Material" path="res://art/materials/toon_water.tres" id="4_water"]
+[ext_resource type="Material" path="res://art/materials/toon_wood.tres" id="5_wood"]
+[ext_resource type="Material" path="res://art/materials/toon_red.tres" id="6_red"]
+[ext_resource type="Material" path="res://art/materials/toon_dark.tres" id="7_dark"]
+[ext_resource type="Material" path="res://art/materials/toon_metal.tres" id="8_metal"]
+[ext_resource type="Material" path="res://art/materials/toon_stone.tres" id="9_stone"]
+[ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="10_outline"]
 
-[sub_resource type="BoxMesh" id="BoxMesh_1"]
-size = Vector3(1.6, 1.0, 1.6)
+[sub_resource type="CylinderMesh" id="CylinderMesh_base"]
+material = ExtResource("9_stone")
+top_radius = 0.92
+bottom_radius = 0.98
+height = 0.52
+radial_segments = 28
+rings = 1
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_1"]
-size = Vector3(1.6, 1.0, 1.6)
+[sub_resource type="TorusMesh" id="TorusMesh_lip"]
+material = ExtResource("9_stone")
+inner_radius = 0.62
+outer_radius = 1.0
+rings = 28
+ring_segments = 12
+
+[sub_resource type="SphereMesh" id="SphereMesh_stone"]
+material = ExtResource("9_stone")
+radial_segments = 12
+rings = 6
+
+[sub_resource type="SphereMesh" id="SphereMesh_stone_alt"]
+material = ExtResource("2_gray")
+radial_segments = 12
+rings = 6
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_water"]
+material = ExtResource("4_water")
+top_radius = 0.64
+bottom_radius = 0.64
+height = 0.04
+radial_segments = 28
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_post"]
+material = ExtResource("5_wood")
+top_radius = 0.075
+bottom_radius = 0.085
+height = 2.05
+radial_segments = 10
+rings = 1
+
+[sub_resource type="SphereMesh" id="SphereMesh_post_foot"]
+material = ExtResource("5_wood")
+radius = 0.12
+height = 0.14
+radial_segments = 12
+rings = 6
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_beam"]
+material = ExtResource("5_wood")
+top_radius = 0.055
+bottom_radius = 0.055
+height = 2.2
+radial_segments = 10
+rings = 1
+
+[sub_resource type="PrismMesh" id="PrismMesh_roof"]
+material = ExtResource("6_red")
+size = Vector3(1.7, 0.62, 2.6)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_ridge"]
+material = ExtResource("5_wood")
+radius = 0.07
+height = 2.8
+radial_segments = 10
+rings = 4
+
+[sub_resource type="BoxMesh" id="BoxMesh_crank_arm"]
+material = ExtResource("5_wood")
+size = Vector3(0.05, 0.3, 0.06)
+
+[sub_resource type="SphereMesh" id="SphereMesh_crank_knob"]
+material = ExtResource("6_red")
+radius = 0.055
+height = 0.11
+radial_segments = 10
+rings = 5
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_rope"]
+material = ExtResource("3_white")
+top_radius = 0.014
+bottom_radius = 0.014
+height = 0.36
+radial_segments = 6
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_bucket"]
+material = ExtResource("5_wood")
+top_radius = 0.17
+bottom_radius = 0.13
+height = 0.24
+radial_segments = 16
+rings = 1
+
+[sub_resource type="TorusMesh" id="TorusMesh_bucket_band"]
+material = ExtResource("8_metal")
+inner_radius = 0.15
+outer_radius = 0.19
+rings = 16
+ring_segments = 6
+
+[sub_resource type="TorusMesh" id="TorusMesh_bucket_handle"]
+material = ExtResource("7_dark")
+inner_radius = 0.15
+outer_radius = 0.17
+rings = 16
+ring_segments = 6
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_bucket_water"]
+material = ExtResource("4_water")
+top_radius = 0.155
+bottom_radius = 0.155
+height = 0.01
+radial_segments = 16
+rings = 1
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_ring"]
+height = 0.76
+radius = 1.0
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_post"]
+height = 2.05
+radius = 0.09
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_roof"]
+size = Vector3(2.6, 0.5, 1.6)
 
 [node name="Well" type="Node3D"]
 script = ExtResource("1_script")
 
-[node name="Mesh" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
-mesh = SubResource("BoxMesh_1")
+[node name="Visual" type="Node3D" parent="."]
+unique_name_in_owner = true
+
+[node name="Base" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.26, 0)
+mesh = SubResource("CylinderMesh_base")
+
+[node name="Lip" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+mesh = SubResource("TorusMesh_lip")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stones" type="Node3D" parent="Visual"]
+
+[node name="Stone1_1" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(0.5, 0, 0, 0, 0.24, 0, 0, 0, 0.24, 0, 0.14, 0.95)
+mesh = SubResource("SphereMesh_stone")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone1_2" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(0.420627, 0, 0.129754, 0, 0.24, 0, -0.27032, 0, 0.201901, 0.513609, 0.14, 0.799191)
+mesh = SubResource("SphereMesh_stone_alt")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone1_3" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(0.207708, 0, 0.218312, 0, 0.24, 0, -0.454816, 0, 0.0997, 0.86415, 0.14, 0.394644)
+mesh = SubResource("SphereMesh_stone")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone1_4" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(-0.071157, 0, 0.237557, 0, 0.24, 0, -0.494911, 0, -0.034156, 0.94033, 0.14, -0.135199)
+mesh = SubResource("SphereMesh_stone_alt")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone1_5" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(-0.32743, 0, 0.18138, 0, 0.24, 0, -0.377875, 0, -0.157167, 0.717962, 0.14, -0.622118)
+mesh = SubResource("SphereMesh_stone")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone1_6" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(-0.479746, 0, 0.067616, 0, 0.24, 0, -0.140866, 0, -0.230278, 0.267646, 0.14, -0.911518)
+mesh = SubResource("SphereMesh_stone_alt")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone1_7" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(-0.479746, 0, -0.067616, 0, 0.24, 0, 0.140866, 0, -0.230278, -0.267646, 0.14, -0.911518)
+mesh = SubResource("SphereMesh_stone")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone1_8" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(-0.32743, 0, -0.18138, 0, 0.24, 0, 0.377875, 0, -0.157167, -0.717962, 0.14, -0.622118)
+mesh = SubResource("SphereMesh_stone_alt")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone1_9" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(-0.071157, 0, -0.237557, 0, 0.24, 0, 0.494911, 0, -0.034156, -0.94033, 0.14, -0.135199)
+mesh = SubResource("SphereMesh_stone")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone1_10" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(0.207708, 0, -0.218312, 0, 0.24, 0, 0.454816, 0, 0.0997, -0.86415, 0.14, 0.394644)
+mesh = SubResource("SphereMesh_stone_alt")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone1_11" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(0.420627, 0, -0.129754, 0, 0.24, 0, 0.27032, 0, 0.201901, -0.513609, 0.14, 0.799191)
+mesh = SubResource("SphereMesh_stone")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone2_1" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(0.479746, 0, 0.067616, 0, 0.22, 0, -0.140866, 0, 0.230278, 0.267646, 0.38, 0.911518)
+mesh = SubResource("SphereMesh_stone_alt")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone2_2" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(0.32743, 0, 0.18138, 0, 0.22, 0, -0.377875, 0, 0.157167, 0.717962, 0.38, 0.622118)
+mesh = SubResource("SphereMesh_stone")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone2_3" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(0.071157, 0, 0.237557, 0, 0.22, 0, -0.494911, 0, 0.034156, 0.94033, 0.38, 0.135199)
+mesh = SubResource("SphereMesh_stone_alt")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone2_4" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(-0.207708, 0, 0.218312, 0, 0.22, 0, -0.454816, 0, -0.0997, 0.86415, 0.38, -0.394644)
+mesh = SubResource("SphereMesh_stone")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone2_5" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(-0.420627, 0, 0.129754, 0, 0.22, 0, -0.27032, 0, -0.201901, 0.513609, 0.38, -0.799191)
+mesh = SubResource("SphereMesh_stone_alt")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone2_6" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(-0.5, 0, 0, 0, 0.22, 0, 0, 0, -0.24, 0, 0.38, -0.95)
+mesh = SubResource("SphereMesh_stone")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone2_7" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(-0.420627, 0, -0.129754, 0, 0.22, 0, 0.27032, 0, -0.201901, -0.513609, 0.38, -0.799191)
+mesh = SubResource("SphereMesh_stone_alt")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone2_8" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(-0.207708, 0, -0.218312, 0, 0.22, 0, 0.454816, 0, -0.0997, -0.86415, 0.38, -0.394644)
+mesh = SubResource("SphereMesh_stone")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone2_9" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(0.071157, 0, -0.237557, 0, 0.22, 0, 0.494911, 0, 0.034156, -0.94033, 0.38, 0.135199)
+mesh = SubResource("SphereMesh_stone_alt")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone2_10" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(0.32743, 0, -0.18138, 0, 0.22, 0, 0.377875, 0, 0.157167, -0.717962, 0.38, 0.622118)
+mesh = SubResource("SphereMesh_stone")
+material_overlay = ExtResource("10_outline")
+
+[node name="Stone2_11" type="MeshInstance3D" parent="Visual/Stones"]
+transform = Transform3D(0.479746, 0, -0.067616, 0, 0.22, 0, 0.140866, 0, 0.230278, -0.267646, 0.38, 0.911518)
+mesh = SubResource("SphereMesh_stone_alt")
+material_overlay = ExtResource("10_outline")
+
+[node name="Water" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+unique_name_in_owner = true
+mesh = SubResource("CylinderMesh_water")
+
+[node name="PostL" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.98, 1.025, 0)
+mesh = SubResource("CylinderMesh_post")
+material_overlay = ExtResource("10_outline")
+
+[node name="PostFootL" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.98, 0.78, 0)
+mesh = SubResource("SphereMesh_post_foot")
+material_overlay = ExtResource("10_outline")
+
+[node name="PostR" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.98, 1.025, 0)
+mesh = SubResource("CylinderMesh_post")
+material_overlay = ExtResource("10_outline")
+
+[node name="PostFootR" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.98, 0.78, 0)
+mesh = SubResource("SphereMesh_post_foot")
+material_overlay = ExtResource("10_outline")
+
+[node name="Beam" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 1.72, 0)
+mesh = SubResource("CylinderMesh_beam")
+material_overlay = ExtResource("10_outline")
+
+[node name="CrankArm" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.13, 1.6, 0)
+mesh = SubResource("BoxMesh_crank_arm")
+
+[node name="CrankKnob" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.19, 1.47, 0)
+mesh = SubResource("SphereMesh_crank_knob")
+material_overlay = ExtResource("10_outline")
+
+[node name="Roof" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0, 2.3, 0)
+mesh = SubResource("PrismMesh_roof")
+
+[node name="Ridge" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 2.62, 0)
+mesh = SubResource("CapsuleMesh_ridge")
+material_overlay = ExtResource("10_outline")
+
+[node name="Rope" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.53, 0)
+mesh = SubResource("CylinderMesh_rope")
+
+[node name="Bucket" type="Node3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.23, 0)
+unique_name_in_owner = true
+
+[node name="Pail" type="MeshInstance3D" parent="Visual/Bucket"]
+mesh = SubResource("CylinderMesh_bucket")
+material_overlay = ExtResource("10_outline")
+
+[node name="Band" type="MeshInstance3D" parent="Visual/Bucket"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
+mesh = SubResource("TorusMesh_bucket_band")
+material_overlay = ExtResource("10_outline")
+
+[node name="Handle" type="MeshInstance3D" parent="Visual/Bucket"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.12, 0)
+mesh = SubResource("TorusMesh_bucket_handle")
+material_overlay = ExtResource("10_outline")
+
+[node name="BucketWater" type="MeshInstance3D" parent="Visual/Bucket"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.11, 0)
+mesh = SubResource("CylinderMesh_bucket_water")
+
+[node name="CanSpots" type="Node3D" parent="."]
+unique_name_in_owner = true
+
+[node name="CanSpot1" type="Marker3D" parent="CanSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0, 1.4)
+
+[node name="CanSpot2" type="Marker3D" parent="CanSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0, 1.4)
+
+[node name="CanSpot3" type="Marker3D" parent="CanSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 0, 0.8)
+
+[node name="CanSpot4" type="Marker3D" parent="CanSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.3, 0, 0.8)
 
 [node name="Body" type="StaticBody3D" parent="."]
 collision_layer = 5
 collision_mask = 0
 
-[node name="Shape" type="CollisionShape3D" parent="Body"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
-shape = SubResource("BoxShape3D_1")
+[node name="RingShape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.38, 0)
+shape = SubResource("CylinderShape3D_ring")
+
+[node name="PostLShape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.98, 1.025, 0)
+shape = SubResource("CylinderShape3D_post")
+
+[node name="PostRShape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.98, 1.025, 0)
+shape = SubResource("CylinderShape3D_post")
+
+[node name="RoofShape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.25, 0)
+shape = SubResource("BoxShape3D_roof")
