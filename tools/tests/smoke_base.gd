@@ -1,14 +1,14 @@
-extends SceneTree
-## Base for lead-owned headless smoke tests. Subclasses implement `_run()` as a coroutine.
-##   godot --headless --path . -s res://tools/tests/smoke_solo.gd -- --port=7801
-## Autoloads are only available from _initialize() onward (never in _init).
+extends Node
+## Base for lead-owned headless smoke tests (test "bodies"). Subclasses implement `_run()` as a coroutine.
+## Launch through the generic launcher (autoloads are not resolvable from a -s SceneTree script):
+##   godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/smoke_solo.gd --port=7801
 
 var _fails: int = 0
 var _passes: int = 0
 var _label: String = "smoke"
 var _finished: bool = false
 
-func _initialize() -> void:
+func _ready() -> void:
 	_run()
 
 func _run() -> void:
@@ -35,15 +35,15 @@ func wait_until(pred: Callable, timeout_sec: float, msg: String) -> bool:
 		ok = bool(v)
 		if ok:
 			return check(true, msg)
-		await process_frame
+		await get_tree().process_frame
 	return check(false, msg + " (timeout %.1fs)" % timeout_sec)
 
 func wait_frames(n: int) -> void:
 	for i in n:
-		await process_frame
+		await get_tree().process_frame
 
 func wait_sec(sec: float) -> void:
-	await create_timer(sec).timeout
+	await get_tree().create_timer(sec).timeout
 
 ## Put a player in front of a station (stations face local +Z) or on top of an item.
 func teleport(player: Node3D, target: Node3D, distance: float = 1.2) -> void:
@@ -78,4 +78,4 @@ func finish() -> void:
 		return
 	_finished = true
 	print("[%s] %d passed, %d failed -> %s" % [_label, _passes, _fails, "PASS" if _fails == 0 else "FAIL"])
-	quit(0 if _fails == 0 else 1)
+	get_tree().quit(0 if _fails == 0 else 1)

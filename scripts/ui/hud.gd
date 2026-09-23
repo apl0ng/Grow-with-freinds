@@ -1,7 +1,579 @@
 class_name HUD
 extends CanvasLayer
-## In-game HUD: quota, money, timer, interaction prompt, toasts, round-end overlay hooks.
-## (STUB - owned by the game-flow/UI agent.)
+## In-game HUD (scenes/ui/hud.tscn, instanced as World/HUD). Owned by the game-flow/UI agent.
+##
+##   top-left      ROUND n + big mm:ss timer (red + tick each second under TIMER_WARN_SEC)
+##   top-centre    team quota: "SOLD $x / $y" + progress bar (punches on every sale)
+##   top-right     team wallet (punch on change, +$/-$ floats on sales/purchases) + player list
+##   bottom-left   held item ("Holding: Watering Can (3/4)"), polled every HELD_POLL_SEC
+##   bottom-centre interaction prompt, fed by Game.local_player.get_interactor().prompt_changed
+##   centre        phase banner (WAITING: host START ROUND / clients waiting), "ROUND n — GO!"
+##   bottom-right  toast stack (Game.toast_requested / show_toast), max MAX_TOASTS visible
+##   overlays      %RoundEnd (round_end.tscn) and %PauseMenu (pause_menu.tscn)
+## Null-safe before the local player spawns and when Net is offline (solo tests).
 
+const TOAST_SCENE: PackedScene = preload("res://scenes/ui/toast.tscn")
+const MAX_TOASTS: int = 4
+const HELD_POLL_SEC: float = 0.1
+const TIMER_WARN_SEC: float = 30.0
+## Last seconds that use the "countdown" blip instead of "tick" (when Sfx has it).
+const COUNTDOWN_SEC: int = 5
+const GO_BANNER_SEC: float = 2.0
+const GO_FADE_SEC: float = 0.4
+const BAR_TWEEN_SEC: float = 0.35
+const FLOAT_RISE_PX: float = 40.0
+const FLOAT_WIDTH: float = 160.0
+const FLOAT_SEC: float = 1.1
+const CROSSHAIR_RADIUS: float = 3.5
+
+@onready var root_control: Control = %Root
+@onready var stats: Control = %Stats
+@onready var round_label: Label = %RoundLabel
+@onready var timer_label: Label = %TimerLabel
+@onready var quota_panel: Control = %QuotaPanel
+@onready var quota_label: Label = %QuotaLabel
+@onready var quota_bar: ProgressBar = %QuotaBar
+@onready var wallet_panel: Control = %WalletPanel
+@onready var money_label: Label = %MoneyLabel
+@onready var players_panel: Control = %PlayersPanel
+@onready var player_list: VBoxContainer = %PlayerList
+@onready var held_panel: Control = %HeldPanel
+@onready var held_label: Label = %HeldLabel
+@onready var prompt_panel: Control = %PromptPanel
+@onready var prompt_label: Label = %PromptLabel
+@onready var crosshair: Control = %Crosshair
+@onready var banner: Control = %Banner
+@onready var banner_title: Label = %BannerTitle
+@onready var banner_text: Label = %BannerText
+@onready var start_button: Button = %StartButton
+@onready var banner_tip: Label = %BannerTip
+@onready var go_banner: Label = %GoBanner
+@onready var float_layer: Control = %FloatLayer
+@onready var round_end: RoundEndOverlay = %RoundEnd
+@onready var pause_menu: PauseMenu = %PauseMenu
+@onready var toasts: VBoxContainer = %Toasts
+
+var _local_player: Node = null
+var _has_local_player: bool = false
+var _prompt_source: Object = null
+var _has_prompt_source: bool = false
+var _prompt_text: String = ""
+var _prompt_enabled: bool = false
+var _held_text: String = ""
+var _held_poll_accum: float = 0.0
+var _ui_locked: bool = false
+## False until a real session state arrived: no juice for the initial sync / resets to MENU.
+var _stats_ready: bool = false
+var _last_money: int = 0
+var _last_sales: int = 0
+var _last_tick_second: int = -1
+var _timer_danger: bool = false
+var _go_tween: Tween
+var _bar_tween: Tween
+var _bar_done_style: StyleBox
+
+
+func _ready() -> void:
+	GameState.money_changed.connect(_on_money_changed)
+	GameState.sales_changed.connect(_on_sales_changed)
+	GameState.time_changed.connect(_on_time_changed)
+	GameState.phase_changed.connect(_on_phase_changed)
+	GameState.round_started.connect(_on_round_started)
+	GameState.sale_made.connect(_on_sale_made)
+	GameState.purchase_made.connect(_on_purchase_made)
+	GameState.game_reset.connect(_on_game_reset)
+	Game.toast_requested.connect(show_toast)
+	Game.local_player_spawned.connect(_on_local_player_spawned)
+	Game.ui_lock_changed.connect(_on_ui_lock_changed)
+	Net.players_changed.connect(refresh_players)
+	start_button.pressed.connect(_on_start_pressed)
+	crosshair.draw.connect(_on_crosshair_draw)
+
+	_ui_locked = Game.is_ui_locked()
+	_stats_ready = GameState.phase != GameState.Phase.MENU
+	_last_money = GameState.money
+	_last_sales = GameState.round_sales
+	refresh_all()
+	var existing: Node = Game.local_player
+	if is_instance_valid(existing):
+		_set_local_player(existing)
+
+
+func _process(delta: float) -> void:
+	_held_poll_accum += delta
+	if _held_poll_accum >= HELD_POLL_SEC:
+		_held_poll_accum = 0.0
+		_poll_local_player()
+		_update_held_item()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed(&"start_round") or event.is_echo():
+		return
+	if GameState.phase == GameState.Phase.WAITING and GameState.is_local_host() and not Game.is_ui_locked():
+		get_viewport().set_input_as_handled()
+		_on_start_pressed()
+
+
+# ---------------------------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------------------------
+
+## Shows a toast pill. kind: &"info" | &"error" | &"success". Same text twice in a row bumps it.
 func show_toast(text: String, kind: StringName = &"info") -> void:
-	pass
+	if text.strip_edges() == "":
+		return
+	var live := _live_toasts()
+	if not live.is_empty():
+		var newest: HudToast = live.back()
+		if newest.text == text and newest.kind == kind:
+			newest.bump()
+			return
+	while live.size() >= MAX_TOASTS:
+		var oldest: HudToast = live.pop_front()
+		toasts.remove_child(oldest)
+		oldest.queue_free()
+	var toast := TOAST_SCENE.instantiate() as HudToast
+	toast.setup(text, kind)
+	toasts.add_child(toast)
+
+
+## Number of toasts currently in the stack (tests).
+func get_toast_count() -> int:
+	return _live_toasts().size()
+
+
+## Listen to `prompt_changed(text, enabled)` on this object (normally the local player's
+## Interactor; tests pass a fake). null clears the prompt.
+func set_prompt_source(source: Object) -> void:
+	if is_instance_valid(_prompt_source) and _prompt_source.is_connected(&"prompt_changed", _on_prompt_changed):
+		_prompt_source.disconnect(&"prompt_changed", _on_prompt_changed)
+	_prompt_source = source
+	_has_prompt_source = is_instance_valid(source) and source.has_signal(&"prompt_changed")
+	if _has_prompt_source:
+		source.connect(&"prompt_changed", _on_prompt_changed)
+		# The Interactor keeps its last prompt for listeners that connect late.
+		if &"prompt_text" in source and &"prompt_enabled" in source:
+			_on_prompt_changed(str(source.get(&"prompt_text")), bool(source.get(&"prompt_enabled")))
+			return
+	_on_prompt_changed("", false)
+
+
+## Re-reads everything from GameState / Net (no juice).
+func refresh_all() -> void:
+	_update_round_label()
+	_apply_time(GameState.time_left, false)
+	_apply_sales(GameState.round_sales, GameState.quota, false)
+	money_label.text = format_money(GameState.money)
+	_update_phase_ui()
+	refresh_players()
+	_update_held_item()
+	_refresh_prompt()
+	crosshair.visible = not _ui_locked
+
+
+## Rebuilds the player list from Net.players (names in their colors).
+func refresh_players() -> void:
+	for child: Node in player_list.get_children():
+		player_list.remove_child(child)
+		child.queue_free()
+	var ids: Array = Net.players.keys()
+	ids.sort()
+	players_panel.visible = not ids.is_empty()
+	var local_id := _local_peer_id()
+	for id: Variant in ids:
+		var peer_id := int(id)
+		var color: Color = Net.get_player_color(peer_id)
+		var row := HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_theme_constant_override(&"separation", 8)
+		var swatch := Panel.new()
+		swatch.custom_minimum_size = Vector2(16, 16)
+		swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var dot := StyleBoxFlat.new()
+		dot.bg_color = color
+		dot.set_corner_radius_all(8)
+		dot.set_border_width_all(2)
+		dot.border_color = _theme_color(&"font_outline_color", &"Label", Color.BLACK)
+		swatch.add_theme_stylebox_override(&"panel", dot)
+		row.add_child(swatch)
+		var name_label := Label.new()
+		name_label.theme_type_variation = &"HudLabel"
+		name_label.add_theme_font_size_override(&"font_size", 20)
+		name_label.add_theme_color_override(&"font_color", color)
+		var tags: PackedStringArray = []
+		if peer_id == Const.SERVER_PEER_ID:
+			tags.append("host")
+		if peer_id == local_id:
+			tags.append("you")
+		var shown_name := Net.get_player_name(peer_id)
+		name_label.text = shown_name if tags.is_empty() else "%s (%s)" % [shown_name, ", ".join(tags)]
+		row.add_child(name_label)
+		player_list.add_child(row)
+
+
+## "$1,234" (negative: "-$50").
+static func format_money(amount: int) -> String:
+	var digits := str(absi(amount))
+	var grouped := ""
+	var count := 0
+	for i in range(digits.length() - 1, -1, -1):
+		grouped = digits[i] + grouped
+		count += 1
+		if count % 3 == 0 and i > 0:
+			grouped = "," + grouped
+	return ("-$" if amount < 0 else "$") + grouped
+
+
+## Sfx.play(preferred) if the Sfx autoload knows that sound, else Sfx.play(fallback).
+## (Extra sounds beyond the CONTRACTS.md set are optional; this never warns.)
+static func play_sfx(preferred: StringName, fallback: StringName) -> void:
+	var sfx: Node = Sfx
+	if sfx.has_method(&"has_sound") and not bool(sfx.call(&"has_sound", preferred)):
+		Sfx.play(fallback)
+	elif sfx.has_method(&"has_sound") or preferred == fallback:
+		Sfx.play(preferred)
+	else:
+		Sfx.play(fallback)
+
+
+## Display text of the first keyboard key bound to an input action ("E", "ENTER"), or fallback.
+static func action_key_text(action: StringName, fallback: String) -> String:
+	if not InputMap.has_action(action):
+		return fallback
+	for ev: InputEvent in InputMap.action_get_events(action):
+		var key := ev as InputEventKey
+		if key == null:
+			continue
+		var code: Key = key.keycode
+		if key.physical_keycode != KEY_NONE:
+			code = key.physical_keycode
+			if DisplayServer.get_name() != "headless":
+				code = DisplayServer.keyboard_get_keycode_from_physical(key.physical_keycode)
+		if code == KEY_NONE:
+			continue
+		var text := OS.get_keycode_string(code)
+		if text != "":
+			return text.to_upper()
+	return fallback
+
+
+# ---------------------------------------------------------------------------------------------
+# GameState listeners
+# ---------------------------------------------------------------------------------------------
+
+func _on_phase_changed(new_phase: int) -> void:
+	_stats_ready = new_phase != GameState.Phase.MENU
+	if new_phase != GameState.Phase.PLAYING:
+		_hide_go_banner()
+		_last_tick_second = -1
+	_update_round_label()
+	_apply_time(GameState.time_left, false)
+	_update_phase_ui()
+
+
+func _on_round_started(round_number: int) -> void:
+	_last_tick_second = -1
+	_update_round_label()
+	go_banner.text = "ROUND %d — GO!" % round_number
+	go_banner.modulate.a = 1.0
+	go_banner.visible = true
+	play_sfx(&"round_start", &"ui_open")
+	if not is_inside_tree():
+		return
+	Juice.pop_in(go_banner)
+	if _go_tween != null:
+		_go_tween.kill()
+	_go_tween = create_tween()
+	_go_tween.tween_interval(GO_BANNER_SEC)
+	_go_tween.tween_property(go_banner, "modulate:a", 0.0, GO_FADE_SEC)
+	_go_tween.tween_callback(go_banner.hide)
+
+
+func _on_money_changed(money: int) -> void:
+	money_label.text = format_money(money)
+	if _stats_ready and money != _last_money and is_inside_tree():
+		Juice.punch_ui(money_label)
+	_last_money = money
+
+
+func _on_sales_changed(round_sales: int, quota: int) -> void:
+	var changed := round_sales != _last_sales
+	_apply_sales(round_sales, quota, _stats_ready and changed)
+	if _stats_ready and changed and not Config.balance.end_round_on_quota_met \
+			and GameState.phase == GameState.Phase.PLAYING and _last_sales < quota and round_sales >= quota:
+		show_toast("Quota met! Keep selling for extra cash.", &"success")
+	_last_sales = round_sales
+
+
+func _on_time_changed(time_left: float) -> void:
+	_apply_time(time_left, true)
+
+
+func _on_sale_made(amount: int, _seller_peer: int) -> void:
+	if amount > 0:
+		_spawn_money_float("+" + format_money(amount), _theme_color(&"font_color", &"SuccessLabel", Color.PALE_GREEN), true)
+
+
+func _on_purchase_made(cost: int, _buyer_peer: int, _what: String) -> void:
+	if cost > 0:
+		_spawn_money_float("-" + format_money(cost), _theme_color(&"font_color", &"ErrorLabel", Color.SALMON), false)
+
+
+func _on_game_reset() -> void:
+	show_toast("Fresh start! Back to round 1.", &"info")
+
+
+# ---------------------------------------------------------------------------------------------
+# Game / player listeners
+# ---------------------------------------------------------------------------------------------
+
+func _on_local_player_spawned(player: Node) -> void:
+	_set_local_player(player)
+
+
+func _on_ui_lock_changed(locked: bool) -> void:
+	_ui_locked = locked
+	crosshair.visible = not locked
+	_refresh_prompt()
+	_update_phase_ui()
+
+
+func _on_prompt_changed(text: String, enabled: bool) -> void:
+	_prompt_text = text
+	_prompt_enabled = enabled
+	_refresh_prompt()
+
+
+func _on_start_pressed() -> void:
+	Sfx.play(&"ui_click")
+	GameState.request_start_round()
+
+
+func _on_crosshair_draw() -> void:
+	var center := crosshair.size * 0.5
+	crosshair.draw_circle(center, CROSSHAIR_RADIUS + 1.5, _theme_color(&"font_outline_color", &"Label", Color.BLACK))
+	crosshair.draw_circle(center, CROSSHAIR_RADIUS, _theme_color(&"font_color", &"Label", Color.WHITE))
+
+
+# ---------------------------------------------------------------------------------------------
+# Internals
+# ---------------------------------------------------------------------------------------------
+
+func _set_local_player(player: Node) -> void:
+	if player == _local_player and is_instance_valid(player):
+		return
+	if is_instance_valid(_local_player) and _local_player.tree_exiting.is_connected(_on_local_player_exiting):
+		_local_player.tree_exiting.disconnect(_on_local_player_exiting)
+	_local_player = player if is_instance_valid(player) else null
+	_has_local_player = _local_player != null
+	var interactor: Object = null
+	if _local_player != null:
+		_local_player.tree_exiting.connect(_on_local_player_exiting)
+		if _local_player.has_method(&"get_interactor"):
+			interactor = _local_player.call(&"get_interactor")
+	set_prompt_source(interactor)
+	_update_held_item()
+	if is_inside_tree(): # at shutdown the HUD may leave the tree before the player does
+		refresh_players()
+
+
+## The local player node is leaving (despawn / back to menu): drop prompt + held item right away.
+func _on_local_player_exiting() -> void:
+	_set_local_player(null)
+
+
+## Picks up Game.local_player if it appeared without the signal (or was replaced / freed), and
+## notices a freed interactor. (A freed Object compares equal to null, hence the _has_* flags.)
+func _poll_local_player() -> void:
+	var current: Node = Game.local_player
+	if not is_instance_valid(current) or current.is_queued_for_deletion():
+		current = null
+	var mine: Node = _local_player if is_instance_valid(_local_player) else null
+	if current != mine or (mine == null and _has_local_player):
+		_set_local_player(current)
+		return
+	if _has_prompt_source and not is_instance_valid(_prompt_source):
+		set_prompt_source(null)
+	if mine != null and not _has_prompt_source and mine.has_method(&"get_interactor"):
+		# The interactor may appear after the player node: retry until it exists.
+		var interactor: Object = mine.call(&"get_interactor")
+		if is_instance_valid(interactor):
+			set_prompt_source(interactor)
+
+
+func _update_held_item() -> void:
+	var text := ""
+	var player: Node = _local_player if is_instance_valid(_local_player) else null
+	if player != null and player.is_inside_tree() and player.has_method(&"get_held_item"):
+		var item: Object = player.call(&"get_held_item")
+		if is_instance_valid(item):
+			var item_name := str(item)
+			if item.has_method(&"get_label_text"): # "Watering Can (3/4)"
+				item_name = str(item.call(&"get_label_text"))
+			elif item.has_method(&"get_display_name"):
+				item_name = str(item.call(&"get_display_name"))
+			text = "Holding: %s" % item_name
+	if text == _held_text:
+		return
+	_held_text = text
+	held_label.text = text
+	held_panel.visible = text != ""
+	if text != "" and is_inside_tree():
+		Juice.bounce(held_panel)
+
+
+func _refresh_prompt() -> void:
+	var show_it := _prompt_text != "" and not _ui_locked
+	prompt_panel.visible = show_it
+	if not show_it:
+		return
+	if _prompt_enabled:
+		var text := _prompt_text
+		if not text.begins_with("["):
+			text = "[%s] %s" % [action_key_text(&"interact", "E"), text]
+		prompt_label.text = text
+		prompt_label.theme_type_variation = &"HudLabel"
+		prompt_panel.modulate = Color.WHITE
+	else:
+		prompt_label.text = _prompt_text
+		prompt_label.theme_type_variation = &"SubtleLabel"
+		prompt_panel.modulate = Color(1.0, 1.0, 1.0, 0.8)
+
+
+func _update_round_label() -> void:
+	round_label.text = "ROUND %d" % GameState.round_number
+
+
+func _apply_time(time_left: float, allow_tick: bool) -> void:
+	timer_label.text = GameState.get_time_string()
+	var danger := GameState.phase == GameState.Phase.PLAYING and time_left < TIMER_WARN_SEC
+	if danger != _timer_danger:
+		_timer_danger = danger
+		if danger:
+			timer_label.add_theme_color_override(&"font_color", _theme_color(&"font_color", &"ErrorLabel", Color.TOMATO))
+		else:
+			timer_label.remove_theme_color_override(&"font_color")
+	if not danger:
+		return
+	var second := ceili(time_left)
+	if second <= 0:
+		return
+	if _last_tick_second < 0 or second < _last_tick_second:
+		_last_tick_second = second
+		if allow_tick:
+			play_sfx(&"countdown" if second <= COUNTDOWN_SEC else &"tick", &"tick")
+			if is_inside_tree():
+				Juice.punch_ui(timer_label)
+
+
+func _apply_sales(round_sales: int, quota: int, juicy: bool) -> void:
+	quota_label.text = "SOLD %s / %s" % [format_money(round_sales), format_money(quota)]
+	quota_bar.max_value = float(maxi(quota, 1))
+	var target := float(clampi(round_sales, 0, maxi(quota, 1)))
+	if _bar_tween != null:
+		_bar_tween.kill()
+		_bar_tween = null
+	if juicy and is_inside_tree():
+		_bar_tween = create_tween()
+		_bar_tween.tween_property(quota_bar, "value", target, BAR_TWEEN_SEC).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		Juice.punch_ui(quota_label)
+	else:
+		quota_bar.value = target
+	var done := quota > 0 and round_sales >= quota
+	if done:
+		if _bar_done_style == null:
+			var base := quota_bar.get_theme_stylebox(&"fill")
+			if base is StyleBoxFlat:
+				var style := (base as StyleBoxFlat).duplicate() as StyleBoxFlat
+				style.bg_color = _theme_color(&"font_color", &"SuccessLabel", Color.LIME_GREEN)
+				style.border_color = style.bg_color.darkened(0.3)
+				_bar_done_style = style
+		if _bar_done_style != null:
+			quota_bar.add_theme_stylebox_override(&"fill", _bar_done_style)
+	else:
+		quota_bar.remove_theme_stylebox_override(&"fill")
+
+
+func _update_phase_ui() -> void:
+	var phase := GameState.phase
+	stats.visible = phase != GameState.Phase.MENU
+	var host := GameState.is_local_host()
+	match phase:
+		GameState.Phase.MENU:
+			banner_title.text = "JOINING THE FARM…"
+			banner_text.text = "Hang on a second."
+			start_button.visible = false
+			banner_tip.visible = false
+		GameState.Phase.WAITING:
+			banner_tip.visible = true
+			if host:
+				banner_title.text = "EVERYONE IN?"
+				banner_text.text = "Press %s or click START ROUND" % action_key_text(&"start_round", "ENTER")
+				start_button.visible = true
+			else:
+				banner_title.text = "HANG TIGHT!"
+				banner_text.text = "Waiting for the host to start…"
+				start_button.visible = false
+	var want_banner := (phase == GameState.Phase.MENU or phase == GameState.Phase.WAITING) and not _ui_locked
+	if want_banner and not banner.visible and is_inside_tree():
+		banner.visible = true
+		Juice.pop_in(banner)
+	banner.visible = want_banner
+
+
+func _hide_go_banner() -> void:
+	if _go_tween != null:
+		_go_tween.kill()
+		_go_tween = null
+	go_banner.visible = false
+
+
+func _spawn_money_float(text: String, color: Color, gain: bool) -> void:
+	if not is_inside_tree() or not wallet_panel.is_visible_in_tree():
+		return
+	var rect := wallet_panel.get_global_rect()
+	var label := Label.new()
+	label.theme_type_variation = &"MoneyLabel"
+	label.add_theme_font_size_override(&"font_size", 28)
+	label.add_theme_color_override(&"font_color", color)
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.size = Vector2(FLOAT_WIDTH, 40.0)
+	# Just left of the wallet: gains rise into it, costs drop out of it.
+	var drift := FLOAT_RISE_PX * 0.5
+	var start_y := rect.get_center().y - label.size.y * 0.5 + (drift if gain else -drift)
+	label.position = Vector2(rect.position.x - FLOAT_WIDTH - 8.0, start_y)
+	float_layer.add_child(label)
+	Juice.punch_ui(label)
+	var end_y := start_y - FLOAT_RISE_PX if gain else start_y + FLOAT_RISE_PX
+	var tween := label.create_tween().set_parallel(true)
+	tween.tween_property(label, "position:y", end_y, FLOAT_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, "modulate:a", 0.0, FLOAT_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.chain().tween_callback(label.queue_free)
+
+
+## Color of `item` in theme type `type` (e.g. a variation), or `fallback` if the theme lacks it.
+func _theme_color(item: StringName, type: StringName, fallback: Color) -> Color:
+	if root_control.has_theme_color(item, type):
+		return root_control.get_theme_color(item, type)
+	return fallback
+
+
+func _live_toasts() -> Array[HudToast]:
+	var out: Array[HudToast] = []
+	for child: Node in toasts.get_children():
+		var toast := child as HudToast
+		if toast != null and not toast.is_queued_for_deletion() and not toast.is_dismissing():
+			out.append(toast)
+	return out
+
+
+func _local_peer_id() -> int:
+	var mp: MultiplayerAPI = multiplayer if is_inside_tree() else null
+	if mp == null or not mp.has_multiplayer_peer():
+		return 0
+	return mp.get_unique_id()

@@ -1,0 +1,168 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/round_end.gd" id="1_roundend"]
+
+[node name="RoundEnd" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_roundend")
+
+[node name="Dim" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"OverlayPanel"
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Card" type="PanelContainer" parent="Center"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(600, 0)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Center/Card"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Center/Card/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BannerLabel"
+theme_override_font_sizes/font_size = 64
+text = "QUOTA MET!"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Center/Card/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudLabel"
+text = "Round 1 complete"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Stats" type="PanelContainer" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Grid" type="GridContainer" parent="Center/Card/VBox/Stats"]
+layout_mode = 2
+theme_override_constants/h_separation = 32
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="RoundKey" type="Label" parent="Center/Card/VBox/Stats/Grid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"HudLabel"
+text = "Round"
+
+[node name="RoundValue" type="Label" parent="Center/Card/VBox/Stats/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"HudLabel"
+text = "1"
+horizontal_alignment = 2
+
+[node name="SoldKey" type="Label" parent="Center/Card/VBox/Stats/Grid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"HudLabel"
+text = "Sold"
+
+[node name="SoldValue" type="Label" parent="Center/Card/VBox/Stats/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"HudLabel"
+text = "$0 / $0"
+horizontal_alignment = 2
+
+[node name="TimeKey" type="Label" parent="Center/Card/VBox/Stats/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"HudLabel"
+text = "Time to spare"
+
+[node name="TimeValue" type="Label" parent="Center/Card/VBox/Stats/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"HudLabel"
+text = "00:00"
+horizontal_alignment = 2
+
+[node name="WalletKey" type="Label" parent="Center/Card/VBox/Stats/Grid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"HudLabel"
+text = "Team wallet"
+
+[node name="WalletValue" type="Label" parent="Center/Card/VBox/Stats/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"MoneyLabel"
+theme_override_font_sizes/font_size = 24
+text = "$0"
+horizontal_alignment = 2
+
+[node name="NextKey" type="Label" parent="Center/Card/VBox/Stats/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"HudLabel"
+text = "Next quota"
+
+[node name="NextValue" type="Label" parent="Center/Card/VBox/Stats/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"HudLabel"
+text = "$0"
+horizontal_alignment = 2
+
+[node name="WaitingLabel" type="Label" parent="Center/Card/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+theme_override_font_sizes/font_size = 20
+text = "Waiting for the host…"
+horizontal_alignment = 1
+
+[node name="Buttons" type="HBoxContainer" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="PrimaryButton" type="Button" parent="Center/Card/VBox/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+theme_type_variation = &"BigButton"
+theme_override_font_sizes/font_size = 30
+text = "NEXT ROUND"
+
+[node name="MenuButton" type="Button" parent="Center/Card/VBox/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"DangerButton"
+text = "MAIN MENU"

@@ -8,15 +8,15 @@ status=0
 
 run_solo() {
   echo "=== SOLO smoke"
-  timeout 240 "$GODOT" --headless --path . -s res://tools/tests/smoke_solo.gd -- --port=7801 2>&1 | tee /tmp/smoke_solo.log | grep -E "^\[|ok   -|FAIL|SCRIPT ERROR|ERROR:" 
+  timeout 240 "$GODOT" --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/smoke_solo.gd --port=7801 2>&1 | tee /tmp/smoke_solo.log | grep -E "^\[|ok   -|FAIL|SCRIPT ERROR|ERROR:" 
   if ! grep -q "> PASS" /tmp/smoke_solo.log; then echo "SOLO FAILED"; status=1; else echo "SOLO PASS"; fi
 }
 run_mp() {
   echo "=== HOST+CLIENT smoke"
-  timeout 300 "$GODOT" --headless --path . -s res://tools/tests/smoke_host.gd -- --port=7802 >/tmp/smoke_host.log 2>&1 &
+  timeout 300 "$GODOT" --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/smoke_host.gd --port=7802 >/tmp/smoke_host.log 2>&1 &
   hpid=$!
   sleep 3
-  timeout 300 "$GODOT" --headless --path . -s res://tools/tests/smoke_client.gd -- --port=7802 >/tmp/smoke_client.log 2>&1
+  timeout 300 "$GODOT" --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/smoke_client.gd --port=7802 >/tmp/smoke_client.log 2>&1
   crc=$?
   wait $hpid; hrc=$?
   echo "--- host log"; grep -E "^\[|ok   -|FAIL|SCRIPT ERROR|ERROR:" /tmp/smoke_host.log

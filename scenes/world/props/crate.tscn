@@ -1,0 +1,30 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://art/materials/toon_brown.tres" id="1_brown"]
+[ext_resource type="Material" path="res://art/materials/toon_wood.tres" id="2_wood"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+size = Vector3(0.9, 0.9, 0.9)
+
+[sub_resource type="BoxMesh" id="BoxMesh_2"]
+size = Vector3(0.94, 0.16, 0.94)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1"]
+size = Vector3(0.9, 0.9, 0.9)
+
+[node name="Crate" type="StaticBody3D"]
+collision_mask = 0
+
+[node name="Box" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+mesh = SubResource("BoxMesh_1")
+material_override = ExtResource("1_brown")
+
+[node name="Band" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+mesh = SubResource("BoxMesh_2")
+material_override = ExtResource("2_wood")
+
+[node name="Shape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+shape = SubResource("BoxShape3D_1")

@@ -1,0 +1,46 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://art/materials/toon_dark.tres" id="1_dark"]
+[ext_resource type="Material" path="res://art/materials/toon_pink.tres" id="2_pink"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_1"]
+radius = 0.13
+height = 6.8
+radial_segments = 16
+rings = 4
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+size = Vector3(0.2, 0.04, 6.3)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_1"]
+top_radius = 0.02
+bottom_radius = 0.02
+height = 0.9
+radial_segments = 8
+rings = 1
+
+[node name="GrowLight" type="Node3D"]
+
+[node name="Housing" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.4, 0, 0, 0, 0, -0.8, 0, 1, 0, 0, 0, 0)
+cast_shadow = 0
+mesh = SubResource("CapsuleMesh_1")
+material_override = ExtResource("1_dark")
+
+[node name="Strip" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_1")
+material_override = ExtResource("2_pink")
+
+[node name="CableA" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, -2.6)
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_1")
+material_override = ExtResource("1_dark")
+
+[node name="CableB" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 2.6)
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_1")
+material_override = ExtResource("1_dark")

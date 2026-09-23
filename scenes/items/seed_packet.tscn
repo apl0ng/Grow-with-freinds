@@ -1,0 +1,133 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/items/seed_packet.gd" id="1_script"]
+[ext_resource type="Material" path="res://art/materials/toon_white.tres" id="2_white"]
+[ext_resource type="Material" path="res://art/materials/toon_bud.tres" id="3_bud"]
+[ext_resource type="Material" path="res://art/materials/toon_leaf.tres" id="4_leaf"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(0.2, 0.3, 0.05)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_edge"]
+top_radius = 0.025
+bottom_radius = 0.025
+height = 0.3
+radial_segments = 12
+rings = 1
+
+[sub_resource type="BoxMesh" id="BoxMesh_crimp"]
+size = Vector3(0.254, 0.04, 0.058)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_plate"]
+top_radius = 0.064
+bottom_radius = 0.064
+height = 0.008
+radial_segments = 24
+rings = 1
+
+[sub_resource type="SphereMesh" id="SphereMesh_bud"]
+radius = 0.033
+height = 0.066
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf"]
+radius = 0.03
+height = 0.06
+radial_segments = 12
+rings = 6
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_collider"]
+size = Vector3(0.3, 0.36, 0.12)
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_packet"]
+properties/0/path = NodePath(".:rest_position")
+properties/0/spawn = true
+properties/0/replication_mode = 2
+properties/1/path = NodePath(".:rest_rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 2
+properties/2/path = NodePath(".:holder_id")
+properties/2/spawn = true
+properties/2/replication_mode = 2
+properties/3/path = NodePath(".:strain_id")
+properties/3/spawn = true
+properties/3/replication_mode = 2
+
+[node name="SeedPacket" type="Node3D"]
+script = ExtResource("1_script")
+item_type = &"seed_packet"
+hold_offset = Vector3(0, -0.1, 0)
+hold_rotation_degrees = Vector3(-15, -10, 0)
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Packet" type="Node3D" parent="Visual"]
+
+[node name="Body" type="MeshInstance3D" parent="Visual/Packet"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+mesh = SubResource("BoxMesh_body")
+material_override = ExtResource("2_white")
+
+[node name="EdgeLeft" type="MeshInstance3D" parent="Visual/Packet"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1, 0.15, 0)
+mesh = SubResource("CylinderMesh_edge")
+material_override = ExtResource("2_white")
+
+[node name="EdgeRight" type="MeshInstance3D" parent="Visual/Packet"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, 0.15, 0)
+mesh = SubResource("CylinderMesh_edge")
+material_override = ExtResource("2_white")
+
+[node name="Crimp" type="MeshInstance3D" parent="Visual/Packet"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.29, 0)
+mesh = SubResource("BoxMesh_crimp")
+material_override = ExtResource("2_white")
+
+[node name="Icon" type="Node3D" parent="Visual/Packet"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.195, 0.026)
+
+[node name="Plate" type="MeshInstance3D" parent="Visual/Packet/Icon"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+mesh = SubResource("CylinderMesh_plate")
+material_override = ExtResource("2_white")
+
+[node name="LeafLeft" type="MeshInstance3D" parent="Visual/Packet/Icon"]
+transform = Transform3D(1.126, 0.275, 0, -0.65, 0.476, 0, 0, 0, 0.35, -0.03, -0.018, 0.006)
+mesh = SubResource("SphereMesh_leaf")
+material_override = ExtResource("4_leaf")
+
+[node name="LeafRight" type="MeshInstance3D" parent="Visual/Packet/Icon"]
+transform = Transform3D(1.126, -0.275, 0, 0.65, 0.476, 0, 0, 0, 0.35, 0.03, -0.018, 0.006)
+mesh = SubResource("SphereMesh_leaf")
+material_override = ExtResource("4_leaf")
+
+[node name="Bud" type="MeshInstance3D" parent="Visual/Packet/Icon"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.5, 0, 0.008, 0.01)
+mesh = SubResource("SphereMesh_bud")
+material_override = ExtResource("3_bud")
+
+[node name="NameLabel" type="Label3D" parent="Visual/Packet"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.078, 0.0275)
+cast_shadow = 0
+pixel_size = 0.001
+double_sided = false
+modulate = Color(0.18, 0.16, 0.24, 1)
+text = "Seeds"
+font_size = 40
+outline_size = 12
+outline_modulate = Color(1, 1, 1, 1)
+autowrap_mode = 3
+width = 200.0
+
+[node name="Collider" type="StaticBody3D" parent="."]
+collision_layer = 8
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Collider"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, 0)
+shape = SubResource("BoxShape3D_collider")
+
+[node name="Sync" type="MultiplayerSynchronizer" parent="."]
+root_path = NodePath("..")
+replication_config = SubResource("SceneReplicationConfig_packet")

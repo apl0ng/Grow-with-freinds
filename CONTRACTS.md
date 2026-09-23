@@ -88,7 +88,10 @@ Spawned nodes (players, items) are **never reparented** (the spawner would despa
 ## Room (scenes/world/room.tscn, owner: world/level agent)
 Must keep: `$Spawns/Spawn1..4` (Marker3D), `$Stations/ShopCounter`, `$Stations/Well`, `$Stations/TurnInStation`,
 `$Stations/GrowPlot1..6` (instances of the station scenes — only their transforms are set here).
-`func get_spawn_points() -> Array[Marker3D]`, `func get_spawn_transform(index: int) -> Transform3D`.
+`func get_spawn_points() -> Array[Marker3D]`, `func get_spawn_transform(index: int) -> Transform3D`,
+`get_station(name)`, `get_stations()`, `get_bounds() -> AABB`, `get_station_access_point(name)`.
+Layout: interior x -8..8, z -6..6, ceiling 4 m. Shop (0,-3.7) faces +Z; Well (-5.6,0) faces +X; TurnIn (0,4.5) faces -Z;
+plots at x 3.5/6.0, z -2.5/0/2.5 facing -X; spawns near the centre facing the shop.
 
 ## Player (scenes/player/player.tscn + scripts/player/player.gd, class Player, owner: net/player agent)
 Node name == peer id. `_enter_tree` sets multiplayer authority to peer id (recursive). Movement is
@@ -133,8 +136,13 @@ func get_display_name() -> String; func is_held() -> bool; func get_holder() -> 
 # SeedPacket:  var strain_id: StringName (synced); func get_seed() -> SeedDef
 # Product:     var strain_id: StringName, var amount: int (synced); func get_seed() -> SeedDef
 ```
-Held items follow `holder.get_item_socket()` every frame (copy global transform), collision disabled.
-Interacting with a floor item = pick up (only with empty hands). Drop key drops at the player's feet.
+Held items follow `holder.get_item_socket()` every frame (copy global transform × per-item hold pose), collision disabled.
+Interacting with a floor item = pick up (only with empty hands). Drop key drops ~0.8 m in front of the player on the floor.
+**Sync detail:** items sync `rest_position` / `rest_rotation` (not `position`), so a held item that follows a hand does not
+stream deltas. Server code may still just write `item.global_position` on a floor item; ItemManager copies it into the rest
+values next frame. Extra Item API: signals `holder_changed`, `props_changed`; `get_status_text()`, `get_label_text()`
+(HUD uses it: "Watering Can (3/4)"), `get_visual()`, `get_collider()`, `apply_props()/get_props()`, `server_set_rest()`;
+WateringCan `is_empty()/is_full()`; SeedPacket/Product `get_strain_name()`.
 ```gdscript
 # ItemManager (World/Items)
 func server_spawn_item(item_type: StringName, props := {}, position := Vector3.ZERO, holder_id := 0) -> Item
@@ -145,7 +153,11 @@ func server_drop_item(item: Item, position: Vector3) -> void
 func server_release_holder(peer_id: int) -> void      # called by Net on disconnect
 func get_held_by(peer_id: int) -> Item
 func get_items() -> Array[Item]
+func request_drop() -> void                            # any peer (local): drop what I hold (RPC to server)
+func server_despawn_all() -> void; func get_items_of_type(type) -> Array[Item]
+signal item_added(item); signal item_removed(item); signal holder_changed(item, old_holder, new_holder)
 ```
+On `GameState.game_reset` the host despawns all seed packets and products (cans are re-homed by the Well).
 Initial world spawns (e.g. the well's starting cans) must wait for `Game.world_ready` and check `Net.is_host`
 (ItemManager._ready runs after Room._ready, so do not spawn from a station's `_ready`).
 
@@ -181,7 +193,15 @@ func get_can_capacity() -> int                # Config.balance.can_capacity + ca
 func get_sale_multiplier() -> float           # 1 + sale_bonus effect
 func get_water_drain_multiplier() -> float    # 1 / (1 + water_retention effect)
 func get_upgrade_level(upgrade_id: StringName) -> int
+# additions:
+signal game_reset                                  # every peer, after a RETRY reset is applied (not on the first reset)
+func reset_local() -> void                         # any peer: back to MENU defaults (Game calls it on return_to_menu)
+func get_time_string() -> String                   # "mm:ss"
+func get_phase_name() -> String; func is_local_host() -> bool; func is_round_over() -> bool
+func get_quota_progress() -> float; func get_upgrade_next_cost(upgrade_id) -> int
 ```
+Sync: every server_* mutation broadcasts the full (tiny) state dict with a reliable call_local RPC; the timer is sent
+every 0.5 s unreliable_ordered with a round serial; clients tick locally and never end rounds themselves.
 Quota rule: `round_sales` (money earned from sales this round) must reach `quota` before `time_left` hits 0.
 Spending does not reduce quota progress. Money carries over between rounds. Plants persist between rounds.
 Round ends immediately on quota met if `Config.balance.end_round_on_quota_met`.
@@ -193,20 +213,27 @@ Interactions: seed packet + empty plot → plant · watering can (charges>0) + p
 (spawns product in hands: `{"strain_id", "amount": seed.yield_amount}`). Growth ticks on the server only while
 `GameState.is_playing()` and `water >= dry_threshold`.
 **Well** (`well.gd`): refills a held watering can to `get_capacity()`; spawns `starting_watering_cans` at `$CanSpots/*`.
-**ShopCounter** (`shop_counter.gd`, owner: economy agent): opens `scenes/ui/shop_ui.tscn` locally; buy requests
-are RPCs validated on the server (money, empty hands); seed packet spawns in the buyer's hands.
+**ShopCounter** (`shop_counter.gd`, owner: economy agent): overrides `interact()` WITHOUT calling super (opening a menu
+is purely local); `open_shop_for(player)`, `get_shop_ui()`, `UI_LOCK_SOURCE = &"shop"`. Buy requests:
+`request_buy_seed(id)` / `request_buy_upgrade(id)` (client) → `_rpc_request_buy_*` → server `server_buy_seed(peer, id)` /
+`server_buy_upgrade(peer, id)` returning `{"ok", "reason", "message"}`; validation order: player exists, range, def exists,
+hands empty, `GameState.server_try_spend`, spawn packet in the buyer's hands (refund if the spawn fails).
 **TurnInStation** (`turn_in_station.gd`, owner: economy agent): sells a held Product:
-`value = amount * seed.sale_value_per_unit * GameState.get_sale_multiplier()` → `GameState.server_add_sale`.
+`value = int(round(amount * seed.sale_value_per_unit * GameState.get_sale_multiplier()))` → `GameState.server_add_sale`.
+Selling only works while PLAYING (`sell_only_while_playing` export) so between-round sales are not lost.
+**ShopkeeperNPC** (`scenes/world/shopkeeper_npc.tscn`, world agent): visual only; `wave()`, `cheer()`; looks at the nearest player.
 
 ## HUD (scenes/ui/hud.tscn, owner: game-flow/UI agent)
 Shows quota progress (round_sales / quota), wallet, timer, round number, phase banner, held item, prompt, toasts,
 player list. Round-end overlay (success/fail; host: Next round / Retry / Menu, clients: waiting / Leave).
 Pause menu on `pause` action (Resume / Leave to menu). All overlays use `Game.set_ui_lock`.
+Classes: `HUD` (`show_toast`, `set_prompt_source`, `refresh_all`, static `format_money`, `action_key_text`),
+`RoundEndOverlay`, `PauseMenu`, `HudToast`. The ShopUI lives on CanvasLayer 5 (above the HUD on layer 1).
 
 ## Sfx / Juice (autoloads, owner: art agent)
 ```gdscript
 Sfx.play(name: StringName, position: Vector3 = Vector3.INF)   # 2D when no position
-# names: &"buy" &"plant" &"water" &"harvest" &"sell" &"pickup" &"drop" &"error" &"grow" &"round_win" &"round_lose" &"tick" &"ui_click" &"ui_open" &"ui_close"
+# names: &"buy" &"plant" &"water" &"harvest" &"sell" &"pickup" &"drop" &"error" &"grow" &"round_win" &"round_lose" &"tick" &"ui_click" &"ui_open" &"ui_close" &"round_start" &"countdown"
 Juice.pop_in(node: Node, duration := 0.35)           # scale 0 -> 1 with overshoot (Node3D or Control)
 Juice.bounce(node: Node, strength := 0.2)            # quick squash & stretch
 Juice.pulse(node: Node)                              # subtle attention pulse (loops until Juice.stop(node))

@@ -1,0 +1,85 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="1_pause"]
+
+[node name="PauseMenu" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_pause")
+
+[node name="Dim" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"OverlayPanel"
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Card" type="PanelContainer" parent="Center"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(480, 0)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Center/Card"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "PAUSED"
+horizontal_alignment = 1
+
+[node name="Note" type="Label" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "The game keeps running while you're here!"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ResumeButton" type="Button" parent="Center/Card/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BigButton"
+text = "RESUME"
+
+[node name="LeaveButton" type="Button" parent="Center/Card/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"DangerButton"
+text = "LEAVE TO MAIN MENU"
+
+[node name="HostNote" type="Label" parent="Center/Card/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "You're the host: leaving ends the game for everyone."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Controls" type="PanelContainer" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="ControlsLabel" type="Label" parent="Center/Card/VBox/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "Controls"
+horizontal_alignment = 1
+autowrap_mode = 3

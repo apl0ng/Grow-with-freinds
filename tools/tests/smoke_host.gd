@@ -1,10 +1,10 @@
 extends "res://tools/tests/smoke_base.gd"
 ## Host side of the two-process smoke test (see tools/smoke.sh). Pairs with smoke_client.gd.
-##   godot --headless --path . -s res://tools/tests/smoke_host.gd -- --port=7802
+##   godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/smoke_host.gd --port=7802
 
 func _run() -> void:
 	_label = "host"
-	await process_frame
+	await get_tree().process_frame
 	Config.growth_speed_override = 40.0
 	var b: BalanceConfig = Config.balance
 	var port := port_arg(7802)

@@ -1,11 +1,11 @@
 extends "res://tools/tests/smoke_base.gd"
 ## Solo end-to-end loop on a single headless host: host -> start round -> buy -> plant -> can -> water ->
 ## refill -> grow -> drop -> harvest -> sell -> upgrade -> quota met -> next round -> fail -> retry -> menu.
-##   godot --headless --path . -s res://tools/tests/smoke_solo.gd -- --port=7801
+##   godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/smoke_solo.gd --port=7801
 
 func _run() -> void:
 	_label = "solo"
-	await process_frame
+	await get_tree().process_frame
 	Config.growth_speed_override = 40.0
 	var b: BalanceConfig = Config.balance
 
@@ -94,7 +94,10 @@ func _run() -> void:
 	step("grow (override x%.0f)" % Config.growth_speed_override)
 	var t0 := Time.get_ticks_msec()
 	await wait_until(func(): return plot.stage >= GrowPlot.Stage.VEGETATIVE, 30.0, "reached VEGETATIVE")
-	await wait_until(func(): return plot.stage == GrowPlot.Stage.READY, 60.0, "reached READY (%.1fs)" % ((Time.get_ticks_msec() - t0) / 1000.0))
+	await wait_until(func(): return plot.stage == GrowPlot.Stage.READY, 60.0, "reached READY")
+	var grow_sec := (Time.get_ticks_msec() - t0) / 1000.0
+	var expected_sec := Config.balance.total_grow_time(seed) / GameState.get_growth_speed_multiplier()
+	check(abs(grow_sec - expected_sec) < max(1.0, expected_sec * 0.5), "grow time %.2fs ~ expected %.2fs" % [grow_sec, expected_sec])
 
 	step("drop can + harvest")
 	teleport(player, plot)
@@ -124,9 +127,15 @@ func _run() -> void:
 	check(find_item(Const.ITEM_PRODUCT) == null, "product despawned")
 
 	step("upgrade")
+	teleport(player, shop)
+	await wait_frames(2)
 	GameState.server_add_money(10000)
 	var cap_before: int = GameState.get_can_capacity()
-	var up: Dictionary = shop.server_buy_upgrade(1, &"big_can")
+	var far: Dictionary = shop.server_buy_upgrade(1, &"big_can")
+	check(bool(far.get("ok", false)), "upgrade purchase in range ok")
+	if not bool(far.get("ok", false)):
+		print("    -> ", far)
+	var up: Dictionary = {"ok": bool(far.get("ok", false))}
 	check(bool(up.get("ok", false)), "bought big_can (%s)" % str(up))
 	check(GameState.get_upgrade_level(&"big_can") == 1, "big_can level 1")
 	check(GameState.get_can_capacity() == cap_before + 2, "can capacity +2")

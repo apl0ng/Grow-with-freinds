@@ -1,0 +1,159 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/items/watering_can.gd" id="1_script"]
+[ext_resource type="Material" path="res://art/materials/toon_blue.tres" id="2_blue"]
+[ext_resource type="Material" path="res://art/materials/toon_metal.tres" id="3_metal"]
+[ext_resource type="Material" path="res://art/materials/toon_water.tres" id="4_water"]
+[ext_resource type="Material" path="res://art/materials/toon_dark.tres" id="5_dark"]
+[ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="6_outline"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_body"]
+top_radius = 0.13
+bottom_radius = 0.15
+height = 0.26
+radial_segments = 24
+rings = 1
+
+[sub_resource type="TorusMesh" id="TorusMesh_base"]
+inner_radius = 0.135
+outer_radius = 0.165
+rings = 32
+ring_segments = 8
+
+[sub_resource type="TorusMesh" id="TorusMesh_rim"]
+inner_radius = 0.112
+outer_radius = 0.148
+rings = 32
+ring_segments = 8
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_water"]
+top_radius = 0.114
+bottom_radius = 0.114
+height = 0.01
+radial_segments = 24
+rings = 1
+
+[sub_resource type="TorusMesh" id="TorusMesh_handle"]
+inner_radius = 0.085
+outer_radius = 0.117
+rings = 24
+ring_segments = 8
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_spout"]
+top_radius = 0.022
+bottom_radius = 0.036
+height = 0.3
+radial_segments = 12
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_rose"]
+top_radius = 0.048
+bottom_radius = 0.026
+height = 0.045
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxMesh" id="BoxMesh_gauge_back"]
+size = Vector3(0.064, 0.19, 0.02)
+
+[sub_resource type="BoxMesh" id="BoxMesh_gauge_fill"]
+size = Vector3(0.04, 0.16, 0.012)
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_collider"]
+height = 0.42
+radius = 0.19
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_can"]
+properties/0/path = NodePath(".:rest_position")
+properties/0/spawn = true
+properties/0/replication_mode = 2
+properties/1/path = NodePath(".:rest_rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 2
+properties/2/path = NodePath(".:holder_id")
+properties/2/spawn = true
+properties/2/replication_mode = 2
+properties/3/path = NodePath(".:charges")
+properties/3/spawn = true
+properties/3/replication_mode = 2
+
+[node name="WateringCan" type="Node3D"]
+script = ExtResource("1_script")
+item_type = &"watering_can"
+hold_offset = Vector3(0, -0.06, -0.04)
+hold_rotation_degrees = Vector3(0, 20, 0)
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.13, 0)
+mesh = SubResource("CylinderMesh_body")
+material_override = ExtResource("2_blue")
+material_overlay = ExtResource("6_outline")
+
+[node name="BaseRing" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.016, 0)
+mesh = SubResource("TorusMesh_base")
+material_override = ExtResource("3_metal")
+
+[node name="TopRim" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.26, 0)
+mesh = SubResource("TorusMesh_rim")
+material_override = ExtResource("3_metal")
+
+[node name="WaterTop" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.263, 0)
+mesh = SubResource("CylinderMesh_water")
+material_override = ExtResource("4_water")
+
+[node name="Handle" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0.25, 0.01)
+mesh = SubResource("TorusMesh_handle")
+material_override = ExtResource("3_metal")
+
+[node name="Spout" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 0.176, -0.206)
+mesh = SubResource("CylinderMesh_spout")
+material_override = ExtResource("2_blue")
+material_overlay = ExtResource("6_outline")
+
+[node name="Rose" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 0.296, -0.326)
+mesh = SubResource("CylinderMesh_rose")
+material_override = ExtResource("3_metal")
+
+[node name="Gauge" type="Node3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0.148)
+
+[node name="Back" type="MeshInstance3D" parent="Visual/Gauge"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, -0.003)
+mesh = SubResource("BoxMesh_gauge_back")
+material_override = ExtResource("5_dark")
+
+[node name="Fill" type="MeshInstance3D" parent="Visual/Gauge"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0.009)
+mesh = SubResource("BoxMesh_gauge_fill")
+material_override = ExtResource("4_water")
+
+[node name="ChargeLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.52, 0)
+cast_shadow = 0
+visibility_range_end = 12.0
+pixel_size = 0.003
+billboard = 1
+text = "4/4"
+font_size = 48
+outline_size = 14
+outline_modulate = Color(0.18, 0.16, 0.24, 1)
+
+[node name="Collider" type="StaticBody3D" parent="."]
+collision_layer = 8
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Collider"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21, -0.03)
+shape = SubResource("CylinderShape3D_collider")
+
+[node name="Sync" type="MultiplayerSynchronizer" parent="."]
+root_path = NodePath("..")
+replication_config = SubResource("SceneReplicationConfig_can")

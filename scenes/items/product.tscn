@@ -1,0 +1,165 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/items/product.gd" id="1_script"]
+[ext_resource type="Material" path="res://art/materials/toon_bud.tres" id="2_bud"]
+[ext_resource type="Material" path="res://art/materials/toon_leaf.tres" id="3_leaf"]
+[ext_resource type="Material" path="res://art/materials/toon_orange.tres" id="4_orange"]
+[ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="5_outline"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_big"]
+radius = 0.085
+height = 0.17
+radial_segments = 20
+rings = 10
+
+[sub_resource type="SphereMesh" id="SphereMesh_mid"]
+radius = 0.067
+height = 0.134
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_small"]
+radius = 0.057
+height = 0.114
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_leaf"]
+radius = 0.05
+height = 0.1
+radial_segments = 12
+rings = 6
+
+[sub_resource type="SphereMesh" id="SphereMesh_pistil"]
+radius = 0.013
+height = 0.026
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_collider"]
+radius = 0.2
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_product"]
+properties/0/path = NodePath(".:rest_position")
+properties/0/spawn = true
+properties/0/replication_mode = 2
+properties/1/path = NodePath(".:rest_rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 2
+properties/2/path = NodePath(".:holder_id")
+properties/2/spawn = true
+properties/2/replication_mode = 2
+properties/3/path = NodePath(".:strain_id")
+properties/3/spawn = true
+properties/3/replication_mode = 2
+properties/4/path = NodePath(".:amount")
+properties/4/spawn = true
+properties/4/replication_mode = 2
+
+[node name="Product" type="Node3D"]
+script = ExtResource("1_script")
+item_type = &"product"
+hold_offset = Vector3(0, -0.07, 0)
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Cluster" type="Node3D" parent="Visual"]
+
+[node name="Buds" type="Node3D" parent="Visual/Cluster"]
+
+[node name="Bud0" type="MeshInstance3D" parent="Visual/Cluster/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
+mesh = SubResource("SphereMesh_big")
+material_override = ExtResource("2_bud")
+material_overlay = ExtResource("5_outline")
+
+[node name="Bud1" type="MeshInstance3D" parent="Visual/Cluster/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.075, 0.075, 0.03)
+mesh = SubResource("SphereMesh_mid")
+material_override = ExtResource("2_bud")
+material_overlay = ExtResource("5_outline")
+
+[node name="Bud2" type="MeshInstance3D" parent="Visual/Cluster/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.078, -0.035)
+mesh = SubResource("SphereMesh_mid")
+material_override = ExtResource("2_bud")
+material_overlay = ExtResource("5_outline")
+
+[node name="Bud3" type="MeshInstance3D" parent="Visual/Cluster/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.01, 0.19, -0.015)
+mesh = SubResource("SphereMesh_small")
+material_override = ExtResource("2_bud")
+material_overlay = ExtResource("5_outline")
+
+[node name="Bud4" type="MeshInstance3D" parent="Visual/Cluster/Buds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.035, 0.065, 0.07)
+mesh = SubResource("SphereMesh_small")
+material_override = ExtResource("2_bud")
+material_overlay = ExtResource("5_outline")
+
+[node name="Leaves" type="Node3D" parent="Visual/Cluster"]
+
+[node name="Leaf0" type="MeshInstance3D" parent="Visual/Cluster/Leaves"]
+transform = Transform3D(1.8, 0, 0, 0, 0.25, 0, 0, 0, 0.8, 0.12, 0.03, -0.05)
+mesh = SubResource("SphereMesh_leaf")
+material_override = ExtResource("3_leaf")
+
+[node name="Leaf1" type="MeshInstance3D" parent="Visual/Cluster/Leaves"]
+transform = Transform3D(1.8, 0, 0, 0, 0.25, 0, 0, 0, 0.8, -0.12, 0.035, 0.04)
+mesh = SubResource("SphereMesh_leaf")
+material_override = ExtResource("3_leaf")
+
+[node name="Leaf2" type="MeshInstance3D" parent="Visual/Cluster/Leaves"]
+transform = Transform3D(0.9, 0, 0.693, 0, 0.25, 0, -1.559, 0, 0.4, 0.01, 0.03, 0.11)
+mesh = SubResource("SphereMesh_leaf")
+material_override = ExtResource("3_leaf")
+
+[node name="Pistils" type="Node3D" parent="Visual/Cluster"]
+
+[node name="P0" type="MeshInstance3D" parent="Visual/Cluster/Pistils"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.026, 0.161, 0.053)
+mesh = SubResource("SphereMesh_pistil")
+material_override = ExtResource("4_orange")
+
+[node name="P1" type="MeshInstance3D" parent="Visual/Cluster/Pistils"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.13, 0.096, 0.064)
+mesh = SubResource("SphereMesh_pistil")
+material_override = ExtResource("4_orange")
+
+[node name="P2" type="MeshInstance3D" parent="Visual/Cluster/Pistils"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.11, 0.112, -0.075)
+mesh = SubResource("SphereMesh_pistil")
+material_override = ExtResource("4_orange")
+
+[node name="P3" type="MeshInstance3D" parent="Visual/Cluster/Pistils"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.01, 0.248, -0.015)
+mesh = SubResource("SphereMesh_pistil")
+material_override = ExtResource("4_orange")
+
+[node name="P4" type="MeshInstance3D" parent="Visual/Cluster/Pistils"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.052, 0.082, 0.12)
+mesh = SubResource("SphereMesh_pistil")
+material_override = ExtResource("4_orange")
+
+[node name="AmountLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+cast_shadow = 0
+visibility_range_end = 12.0
+pixel_size = 0.003
+billboard = 1
+text = "x1"
+font_size = 48
+outline_size = 14
+outline_modulate = Color(0.18, 0.16, 0.24, 1)
+
+[node name="Collider" type="StaticBody3D" parent="."]
+collision_layer = 8
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Collider"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("SphereShape3D_collider")
+
+[node name="Sync" type="MultiplayerSynchronizer" parent="."]
+root_path = NodePath("..")
+replication_config = SubResource("SceneReplicationConfig_product")

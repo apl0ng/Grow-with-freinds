@@ -1,0 +1,66 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://art/materials/toon_orange.tres" id="1_orange"]
+[ext_resource type="Material" path="res://art/materials/toon_outline.tres" id="2_outline"]
+[ext_resource type="Material" path="res://art/materials/toon_leaf.tres" id="3_leaf"]
+[ext_resource type="Material" path="res://art/materials/toon_green.tres" id="4_green"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_1"]
+top_radius = 0.42
+bottom_radius = 0.32
+height = 0.62
+radial_segments = 32
+rings = 1
+
+[sub_resource type="TorusMesh" id="TorusMesh_1"]
+inner_radius = 0.36
+outer_radius = 0.5
+rings = 32
+ring_segments = 12
+
+[sub_resource type="SphereMesh" id="SphereMesh_1"]
+radius = 0.52
+height = 1.04
+radial_segments = 32
+rings = 16
+
+[sub_resource type="SphereMesh" id="SphereMesh_2"]
+radius = 0.36
+height = 0.72
+radial_segments = 24
+rings = 12
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
+height = 1.2
+radius = 0.46
+
+[node name="PottedPlant" type="StaticBody3D"]
+collision_mask = 0
+
+[node name="Pot" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.31, 0)
+mesh = SubResource("CylinderMesh_1")
+material_override = ExtResource("1_orange")
+material_overlay = ExtResource("2_outline")
+
+[node name="Rim" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
+mesh = SubResource("TorusMesh_1")
+material_override = ExtResource("1_orange")
+material_overlay = ExtResource("2_outline")
+
+[node name="Bush" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.08, 0)
+mesh = SubResource("SphereMesh_1")
+material_override = ExtResource("3_leaf")
+material_overlay = ExtResource("2_outline")
+
+[node name="BushTop" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 1.5, 0.08)
+mesh = SubResource("SphereMesh_2")
+material_override = ExtResource("4_green")
+material_overlay = ExtResource("2_outline")
+
+[node name="Shape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+shape = SubResource("CylinderShape3D_1")

@@ -1,0 +1,78 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://art/materials/toon_white.tres" id="1_white"]
+[ext_resource type="Material" path="res://art/materials/toon_water.tres" id="2_water"]
+[ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="3_outline_thin"]
+[ext_resource type="Material" path="res://art/materials/toon_wood.tres" id="4_wood"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+size = Vector3(2.2, 1.9, 0.12)
+
+[sub_resource type="BoxMesh" id="BoxMesh_2"]
+size = Vector3(1.8, 1.5, 0.02)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_1"]
+radius = 0.17
+height = 0.8
+radial_segments = 24
+rings = 4
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_2"]
+radius = 0.12
+height = 0.52
+radial_segments = 24
+rings = 4
+
+[sub_resource type="BoxMesh" id="BoxMesh_3"]
+size = Vector3(0.12, 1.5, 0.08)
+
+[sub_resource type="BoxMesh" id="BoxMesh_4"]
+size = Vector3(1.8, 0.12, 0.08)
+
+[sub_resource type="BoxMesh" id="BoxMesh_5"]
+size = Vector3(2.5, 0.12, 0.32)
+
+[node name="Window" type="Node3D"]
+
+[node name="Frame" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.06)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_1")
+material_override = ExtResource("1_white")
+
+[node name="Sky" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.125)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_2")
+material_override = ExtResource("2_water")
+
+[node name="Cloud" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 0.3, -0.42, 0.34, 0.14)
+cast_shadow = 0
+mesh = SubResource("CapsuleMesh_1")
+material_override = ExtResource("1_white")
+material_overlay = ExtResource("3_outline_thin")
+
+[node name="CloudSmall" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 0.3, 0.46, -0.3, 0.14)
+cast_shadow = 0
+mesh = SubResource("CapsuleMesh_2")
+material_override = ExtResource("1_white")
+material_overlay = ExtResource("3_outline_thin")
+
+[node name="BarV" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.16)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_3")
+material_override = ExtResource("1_white")
+
+[node name="BarH" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.16)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_4")
+material_override = ExtResource("1_white")
+
+[node name="Sill" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0.16)
+mesh = SubResource("BoxMesh_5")
+material_override = ExtResource("4_wood")
