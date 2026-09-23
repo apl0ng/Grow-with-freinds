@@ -426,8 +426,8 @@ func _process(delta: float) -> void:
 		_apply_crouch_visuals()
 	if not is_local():
 		_animate_body(delta)
-	elif _view_model != null:
-		_refresh_view_model_active()
+	elif _view_model != null and (_view_model_active or not _view_model_users.is_empty()):
+		_refresh_view_model_active() # prunes users freed without telling us; off when %Camera is not current
 		if _view_model_active:
 			_match_view_model_viewport()
 			sync_view_model()

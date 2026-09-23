@@ -105,4 +105,4 @@ def build():
                 mat="dark", name="cable_stub")
     tape = cyl(0.015, 0.05, verts=8, pos=(1.31, 0.06, -H - 0.39), bevel=0.003, mat="caution", name="cable_tape")
     parts += [tie, stub, tape]
-    export(join(parts, "Beam"), "ceiling_beam", kind="part", mount="ceiling", budget=2000)
+    export(join(parts, "Beam"), "ceiling_beam", kind="part", mount="ceiling", budget=1500)

@@ -28,6 +28,10 @@ var _passes := 0
 var _fails := 0
 
 func _ready() -> void:
+	# Never hang (software Vulkan is slow; a script error inside the coroutine would otherwise leave it running).
+	get_tree().create_timer(900.0).timeout.connect(func() -> void:
+		print("FAIL: review_viewmodel_preview timed out")
+		get_tree().quit(2))
 	_run()
 
 func check(cond: bool, what: String) -> bool:
@@ -201,10 +205,28 @@ func _before_after(p: Player, can: Item, tag: String, max_before: float) -> void
 			"%s: the frame equals the view model composited over the world (mean error %.4f)" % [tag, a["mean_err"]])
 	check(_aligned(p, can, mask), "%s: the composite lines up with where %%Camera projects the can" % tag)
 	if int(b["shown"]) > 1000:
-		# Lights are shared: where the world pass still shows the can, it looks like the view-model can.
-		print("   %s: view-model can minus world-pass can, mean luminance %+.4f" % [tag, b["shown_lum"]])
-		check(b["shown_err"] < 0.04, "%s: the can looks the same in the world pass and the view model (mean colour difference %.4f over %d px)"
-				% [tag, b["shown_err"], b["shown"]])
+		# Lights are shared, so where the world pass still shows the can it looks like the view-model can, except for
+		# WORLD shadows: the view model cannot receive them (shadow casters are culled by the view-model camera's
+		# mask too). Report that difference, then check exact parity with shadow casting switched off.
+		print("   %s: world pass vs view model where both show the can: mean colour difference %.4f, view model %+.4f luminance (no world shadows on the view model)"
+				% [tag, b["shown_err"], b["shown_lum"]])
+		var shadowed: Array[Light3D] = []
+		for node in get_tree().root.find_children("*", "Light3D", true, false):
+			var light := node as Light3D
+			if light.shadow_enabled:
+				shadowed.append(light)
+				light.shadow_enabled = false
+		p.view_model_enabled = false
+		await frames(3)
+		var before2 := await _capture()
+		p.view_model_enabled = true
+		await frames(3)
+		await _capture()
+		var parity := _parity(before2, _mask(p), b["shown_px"])
+		for l in shadowed:
+			l.shadow_enabled = true
+		check(parity < 0.01, "%s: shadows off, the world-pass can and the view-model can match (mean colour difference %.4f over %d px)"
+				% [tag, parity, (b["shown_px"] as PackedVector2Array).size()])
 	_side_by_side([before, after], [Color(0.9, 0.2, 0.2), Color(0.2, 0.8, 0.3)], "%s_before_after.png" % tag)
 
 func _capture() -> Image:
@@ -228,7 +250,8 @@ static func _dist(a: Color, b: Color) -> float:
 ## `img` is closer to expected than to empty (shown_err: their mean |img - expected|); mean_err / bad:
 ## |img - expected| over the whole mask (mean, count > 0.1).
 func _stats(img: Image, empty: Image, mask: Image) -> Dictionary:
-	var out := {"area": 0, "distinct": 0, "shown": 0, "mean_err": 1.0, "bad": 0, "shown_err": 1.0, "shown_lum": 0.0}
+	var out := {"area": 0, "distinct": 0, "shown": 0, "mean_err": 1.0, "bad": 0, "shown_err": 1.0, "shown_lum": 0.0,
+			"shown_px": PackedVector2Array()}
 	if img.get_size() != mask.get_size() or empty.get_size() != mask.get_size():
 		print("   size mismatch: capture %s, empty %s, mask %s" % [img.get_size(), empty.get_size(), mask.get_size()])
 		return out
@@ -239,6 +262,7 @@ func _stats(img: Image, empty: Image, mask: Image) -> Dictionary:
 	var err_sum := 0.0
 	var shown_err_sum := 0.0
 	var shown_lum_sum := 0.0
+	var shown_px := PackedVector2Array()
 	for y in mask.get_height():
 		for x in mask.get_width():
 			var m := mask.get_pixel(x, y)
@@ -259,6 +283,8 @@ func _stats(img: Image, empty: Image, mask: Image) -> Dictionary:
 					shown += 1
 					shown_err_sum += err
 					shown_lum_sum += expected.get_luminance() - c.get_luminance()
+					if m.a > 0.99:
+						shown_px.append(Vector2(x, y))
 	out["area"] = area
 	out["distinct"] = distinct
 	out["shown"] = shown
@@ -266,7 +292,18 @@ func _stats(img: Image, empty: Image, mask: Image) -> Dictionary:
 	out["mean_err"] = err_sum / maxf(float(area), 1.0)
 	out["shown_err"] = shown_err_sum / maxf(float(shown), 1.0)
 	out["shown_lum"] = shown_lum_sum / maxf(float(shown), 1.0)
+	out["shown_px"] = shown_px
 	return out
+
+## Mean |img - view model| over opaque can pixels `px` (where the world pass showed the can).
+func _parity(img: Image, mask: Image, px: PackedVector2Array) -> float:
+	if px.is_empty() or img.get_size() != mask.get_size():
+		return 1.0
+	var sum := 0.0
+	for v in px:
+		var m := mask.get_pixelv(Vector2i(v))
+		sum += _dist(img.get_pixelv(Vector2i(v)), Color(m.r, m.g, m.b))
+	return sum / float(px.size())
 
 ## The can's body centre projected by %Camera (canvas units -> pixels) falls inside the mask's bounding box.
 func _aligned(p: Player, can: Item, mask: Image) -> bool:

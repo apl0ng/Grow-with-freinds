@@ -130,7 +130,7 @@ def floor_a():
     s.crack(zigzag(0.9, T0, 1.55, 1.7, 5, 0.05, 3.1))
     s.spall(T0 - 0.02, -1.95, 0.14, 0.07, 1.0)
     s.spall(-0.6, -T0 + 0.02, 0.1, 0.05, 2.0)
-    export(s.obj("Slab"), "floor_slab", kind="part", mount="free", budget=2500)
+    export(s.obj("Slab"), "floor_slab", kind="part", mount="free", budget=1000)
 
 
 def floor_b():
@@ -146,7 +146,7 @@ def floor_b():
     s.crack(zigzag(T0, -0.95, 1.7, -1.3, 4, 0.04, 2.6), 0.014)
     s.spall(-T0 + 0.02, 0.3, 0.12, 0.06, 3.0)
     s.spall(1.1, T0 - 0.02, 0.16, 0.06, 4.0)
-    export(s.obj("Slab"), "floor_slab_b", kind="part", mount="free", budget=2500)
+    export(s.obj("Slab"), "floor_slab_b", kind="part", mount="free", budget=1000)
 
 
 def floor_drain():
@@ -156,8 +156,8 @@ def floor_drain():
     s.top()
     s.saw_cuts()
     # the floor is wet round the drain: a damp patch running towards it, darker right at the grate
-    s.decal(blob(0.15, -0.05, 1.25, 1.0, 0.9, n=20, wob=0.14), "stain", L0)
-    s.decal(blob(0.05, 0.0, 0.7, 0.62, 2.2, n=18, wob=0.12), "stain_deep", L1)
+    s.decal(blob(0.12, -0.05, 0.95, 0.78, 0.9, n=20, wob=0.14), "stain", L0)
+    s.decal(blob(0.04, 0.0, 0.58, 0.52, 2.2, n=18, wob=0.12), "stain_deep", L1)
     s.oil(-1.7, 1.6, 0.22, 1.9)
     s.crack(zigzag(G + 0.02, -0.15, 1.35, -0.75, 5, 0.04, 0.6))
     s.crack(zigzag(-G - 0.02, 0.2, -1.2, 1.1, 6, 0.05, 2.4), 0.014)
@@ -179,7 +179,8 @@ def floor_drain():
     # grate: a steel frame sunk 1 cm, bars across (one bent down), rust bleeding round it
     parts = [slab]
     fw = 0.05
-    for (sx, sy, cx, cy) in ((2 * G, fw, 0, -G + fw / 2), (2 * G, fw, 0, G - fw / 2), (fw, 2 * G - 2 * fw, -G + fw / 2, 0),
+    for (sx, sy, cx, cy) in ((2 * G, fw, 0, -G + fw / 2), (2 * G, fw, 0, G - fw / 2),
+                             (fw, 2 * G - 2 * fw, -G + fw / 2, 0),
                              (fw, 2 * G - 2 * fw, G - fw / 2, 0)):
         parts.append(box((sx, sy, 0.03), pos=(cx, cy, -0.04), bevel=0.004, mat="metal_dark", name="grate_frame"))
     n = 7
@@ -201,7 +202,7 @@ def floor_drain():
             ring.face([(u, v, 0.006) for u, v in c], M["rust"], UP)
     parts.append(ring.obj("rust_ring"))
     drain = join(parts, "Slab")
-    export(drain, "floor_slab_drain", kind="part", mount="free", budget=2500)
+    export(drain, "floor_slab_drain", kind="part", mount="free", budget=1000)
 
 
 def build():

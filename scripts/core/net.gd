@@ -29,6 +29,9 @@ const PALETTE: Array[Color] = [
 	Color(1.0, 0.603922, 0.235294),       # tangerine       #FF9A3C
 ]
 const MAX_NAME_LENGTH: int = 16
+## sanitize_name() looks at most at this many input characters: the host runs it on the name every connecting
+## peer sends, so its cost must not depend on the (attacker-controlled) input size.
+const MAX_NAME_SCAN: int = 256
 ## Seconds a connected peer has to register (send its name) before the server drops it.
 const REGISTER_TIMEOUT_SEC: float = 10.0
 ## Seconds between telling a peer it was rejected and forcibly disconnecting it (lets the reason RPC arrive).
@@ -62,9 +65,11 @@ func _ready() -> void:
 func host(port: int = Config.balance.default_port) -> Error:
 	leave()
 	var peer := ENetMultiplayerPeer.new()
-	# One spare ENet slot beyond (max_players - 1) clients so an extra joiner can be told "Server is full"
+	# Spare ENet slots beyond (max_players - 1) clients: one so an extra joiner can be told "Server is full", plus
+	# two more because a client that cancels or crashes mid-handshake holds its slot for 5-30 s (the engine
+	# never reports those), which would otherwise lock out a legitimate player;
 	# instead of timing out silently; the gameplay cap is enforced in _rpc_register.
-	var err := peer.create_server(port, maxi(1, Config.balance.max_players))
+	var err := peer.create_server(port, maxi(1, Config.balance.max_players + 3))
 	if err != OK:
 		_log("could not host on port %d: %s" % [port, error_string(err)])
 		return err
@@ -152,14 +157,34 @@ func get_peer_ids() -> Array[int]:
 	out.sort()
 	return out
 
-## Trims, strips control characters and clamps a display name. Never returns "".
+## Trims, strips control characters and invisible formatting characters (zero-width, BiDi overrides / isolates,
+## BOM, soft hyphen, line / paragraph separators, tag characters, Hangul fillers), turns Unicode spaces into plain
+## spaces and clamps a display name. Never returns "" nor a name that renders as nothing ("Worker" instead), and
+## names that only differ by invisible characters come out equal (so _unique_name() still sees "Bob" twice).
+## Only the first MAX_NAME_SCAN characters are looked at (constant cost for any input size).
 static func sanitize_name(raw: String) -> String:
 	var clean := ""
-	for ch in raw.strip_edges():
-		if ch.unicode_at(0) >= 32 and ch.unicode_at(0) != 127:
-			clean += ch
+	for i in mini(raw.length(), MAX_NAME_SCAN):
+		var code := raw.unicode_at(i)
+		if _is_name_space(code):
+			clean += " "
+		elif not _is_hidden_char(code):
+			clean += String.chr(code)
 	clean = clean.strip_edges().left(MAX_NAME_LENGTH).strip_edges()
 	return clean if clean != "" else "Worker"
+
+## Unicode space separators (Zs), shown as a plain space in names.
+static func _is_name_space(c: int) -> bool:
+	return c == 0x20 or c == 0xA0 or c == 0x1680 or (c >= 0x2000 and c <= 0x200A) or c == 0x202F \
+		or c == 0x205F or c == 0x3000
+
+## Characters dropped from names: C0/C1 controls and DEL, and format / separator / filler characters that render
+## as nothing (or break the line / flip the text direction of everything drawn after them).
+static func _is_hidden_char(c: int) -> bool:
+	return c < 0x20 or (c >= 0x7F and c <= 0x9F) or c == 0xAD or c == 0x034F or c == 0x061C \
+		or c == 0x115F or c == 0x1160 or c == 0x180E or (c >= 0x200B and c <= 0x200F) \
+		or (c >= 0x2028 and c <= 0x202E) or (c >= 0x2060 and c <= 0x206F) or c == 0x3164 or c == 0xFEFF \
+		or c == 0xFFA0 or (c >= 0xFFF9 and c <= 0xFFFB) or (c >= 0xE0000 and c <= 0xE007F)
 
 # --- Server side -------------------------------------------------------------------------------------------
 

@@ -8,9 +8,11 @@ Ceiling/*, runs via scenes/world/props/segment_run.gd, every other panel turned 
 
   Deck        16 trapezoidal ribs running along X (they span from beam to beam; the beams run along Godot Z at
               x = -5, 0, 5 and hide the panel seams there). Panel edges along X sit on a crest's middle, so
-              the seams at z = +-2.5 are invisible and the wall tops (5.995) tuck under the crests; closure
-              plates fill the rib ends at the X edges (they seal the deck against the east / west walls).
-  Fixings     a fastener under every crest along both X edges (over the beams' top flanges): a few missing.
+              the seams at z = +-2.5 are invisible and the wall panels' top lip (6.0) meets the crests;
+              closure plates fill the rib ends at the X edges (they seal the deck against the east / west walls).
+              Built as a plane sweep across the profile (Deck.sheet), so a hole can be cut out exactly.
+  Fixings     a hex fastener under every other crest along both X edges (over the beams' top flanges); a few
+              are missing (a rusty hole instead).
   Wear        ceiling_panel: a sagging, dented patch and rust weeping along the ribs;
               ceiling_panel_b: a side-lap seam come loose (one sheet dropped a few cm, dark gap), a damp stain;
               ceiling_panel_hole: the torn hole over Decor/HoleDust (outline shared with hole_rim via _arch.py).
@@ -29,10 +31,6 @@ P = RIB_PITCH
 DOWN = (0, 0, -1)
 BREAKS = DECK_BREAKS
 z_at = deck_z
-
-
-def crest_centres():
-    return [-S + k * P for k in range(N_RIBS + 1)]
 
 
 class Deck:
@@ -162,7 +160,7 @@ def ceiling_a():
     deck.decal_on_ribs(blob(-1.6, 1.4, 0.5, 0.35, 4.0, n=14, wob=0.25), "rust_dim")
     deck.decal_on_ribs(blob(1.5, 1.2, 0.35, 0.9, 2.2, n=14, wob=0.2), "grime")
     parts = [deck.obj("Deck")] + fasteners(sag_a, missing={(1, 3), (1, 5), (-1, 11)})
-    export(join(parts, "Deck"), "ceiling_panel", kind="part", mount="ceiling", budget=3500)
+    export(join(parts, "Deck"), "ceiling_panel", kind="part", mount="ceiling", budget=2600)
 
 
 LAP_Y = -S + 9 * P + CREST_HALF + RIB_SLOPE + RIB_VALLEY / 2     # a valley line: the loose side lap
@@ -190,12 +188,13 @@ def ceiling_b():
         if g0 > -0.002 and g1 > -0.002:
             continue
         mb.face([(x0, LAP_Y, 0.0), (x1, LAP_Y, 0.0), (x1, LAP_Y, g1), (x0, LAP_Y, g0)], deck.M["void"], (0, 1, 0))
-        mb.face([(x0, LAP_Y, 0.0), (x1, LAP_Y, 0.0), (x1, LAP_Y, g1), (x0, LAP_Y, g0)], deck.M["concrete_dark"], (0, -1, 0))
+        mb.face([(x0, LAP_Y, 0.0), (x1, LAP_Y, 0.0), (x1, LAP_Y, g1), (x0, LAP_Y, g0)], deck.M["concrete_dark"],
+                (0, -1, 0))
     deck.decal_on_ribs(blob(-1.2, -1.3, 1.1, 0.8, 2.7, n=18, wob=0.22), "grime")
     deck.decal_on_ribs(blob(-1.1, -1.25, 0.6, 0.45, 5.5, n=16, wob=0.25), "rust_dim", off=0.005)
     deck.decal_on_ribs(blob(1.7, 0.4, 0.4, 0.3, 1.1, n=14, wob=0.25), "rust_dim")
     parts = [deck.obj("Deck")] + fasteners(sag_b, missing={(-1, 5), (-1, 7), (1, 9)})
-    export(join(parts, "Deck"), "ceiling_panel_b", kind="part", mount="ceiling", budget=3500)
+    export(join(parts, "Deck"), "ceiling_panel_b", kind="part", mount="ceiling", budget=2600)
 
 
 def ceiling_hole():
@@ -211,7 +210,7 @@ def ceiling_hole():
     deck.decal_on_ribs(blob(-0.95, 1.55, 1.8, 1.25, 0.6, n=20, wob=0.12), "grime")
     deck.decal_on_ribs(blob(-0.95, 1.55, 1.45, 0.98, 2.2, n=20, wob=0.14), "rust_dim", off=0.005)
     parts = [deck.obj("Deck")] + fasteners(warp, missing={(-1, 13), (1, 1), (1, 3)})
-    export(join(parts, "Deck"), "ceiling_panel_hole", kind="part", mount="ceiling", budget=3500)
+    export(join(parts, "Deck"), "ceiling_panel_hole", kind="part", mount="ceiling", budget=2600)
 
 
 def build():

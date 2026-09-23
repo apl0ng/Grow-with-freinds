@@ -1,7 +1,9 @@
 extends SceneTree
 ## Headless test for the first-person view-model layer (task 9.6): Player view model (SubViewport + camera +
 ## composite) and Item render-layer switching, single process + a real host/client pair over ENet.
-##   godot --headless --path . -s res://tools/tests/review_viewmodel_test.gd          (host; launches the client)
+##   godot --headless --path . -s res://tools/tests/review_viewmodel_test.gd [-- --port=N]   (host; launches the client)
+## Ports: N, N+1, N+2 (random when --port is missing), each probed first; a busy one is skipped.
+## Render check (xvfb, before/after screenshots): review_viewmodel_preview.gd.
 ## Launcher only: the checks live in review_viewmodel_body.gd (a Node script compiled after the autoloads exist).
 ## Exit code: 0 all passed, 1 failures, 2 timeout.
 

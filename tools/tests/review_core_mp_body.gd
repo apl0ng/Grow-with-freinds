@@ -1,7 +1,11 @@
 extends "res://tools/tests/qa_base.gd"
 ## Review 9.1 (core/net/flow) multi-process regression suite, driven by tools/tests/review_core_mp.sh.
-## Three processes run this body: --role=h (first host), --role=a (client, then re-hosts), --role=b (late joiner).
-## Steps are handshaked through marker files in --sync-dir (no fixed sleeps between processes):
+## Four processes run this body: --role=h (first host), --role=a (client, then re-hosts), --role=b (late joiner),
+## --role=r (rogue client). Steps are handshaked through marker files in --sync-dir (no fixed sleeps between processes):
+##   M0  a rogue (modified) client registers with a 300 000-character name: the host's main thread must not stall
+##       (Net.sanitize_name used to be quadratic: seconds of frozen game for everyone) and the name is clamped;
+##       then it syncs a NaN position and asks to pick up a watering can across the room: the server-side range
+##       check must refuse it (a NaN distance used to pass `distance > max`)
 ##   M1  B joins LATE while H's shift has already failed: B's round-end overlay and its UI lock are up, the
 ##       connecting lock is gone, B is not the host; H's RETRY clears the overlay / lock on A and B and prices the
 ##       new shift for three workers on every peer
@@ -28,6 +32,7 @@ func _run() -> void:
 		"h": await _host_h()
 		"a": await _client_a()
 		"b": await _client_b()
+		"r": await _rogue_r()
 	finish()
 
 # --- marker files ------------------------------------------------------------------------------------------------
@@ -87,6 +92,36 @@ func _host_h() -> void:
 	check(Game.start_host("Hosty", port) == OK, "H hosts on %d" % port)
 	await wait_until(func(): return Game.local_player != null, 10.0, "H world ready")
 	mark("h_ready")
+	# M0: the rogue registers with a huge name; measure the host's longest frame meanwhile.
+	var worst_ms := 0.0
+	var last := Time.get_ticks_usec()
+	var t_rogue := Time.get_ticks_msec()
+	while Net.players.size() < 2 and Time.get_ticks_msec() - t_rogue < STEP_TIMEOUT * 1000.0:
+		await get_tree().process_frame
+		var now := Time.get_ticks_usec()
+		worst_ms = maxf(worst_ms, (now - last) / 1000.0)
+		last = now
+	if not check(Net.players.size() == 2, "rogue registered"):
+		return
+	var rogue_id: int = Net.get_peer_ids()[1]
+	check(worst_ms < 1000.0, "H: no main-thread stall while a peer registered with a 300k-character name (worst frame %.0f ms)" % worst_ms)
+	check(Net.get_player_name(rogue_id).length() <= Net.MAX_NAME_LENGTH, "H: the rogue's name is clamped (%d chars)" % Net.get_player_name(rogue_id).length())
+	# M0b: the rogue's synced position becomes NaN (the engine complains about the non-finite transform of our
+	# copy of its Player every frame until it leaves: player.gd does not validate synced values).
+	allow_error("!v.is_finite()", 1000000)
+	mark("h_nan_ready")
+	if await wait_mark("r_nan_done"):
+		var rogue_player := Game.world.get_player(rogue_id)
+		# Informational (player.gd accepts non-finite synced values today; if it ever rejects them the range check
+		# below still has to hold, just for a finite far position).
+		print("  (note: host copy of the rogue at %s)" % (rogue_player.global_position if rogue_player != null else "<gone>"))
+		check(Game.world.items.get_held_by(rogue_id) == null and items_of(Const.ITEM_WATERING_CAN).all(func(it: Item) -> bool: return it.holder_id == 0),
+			"H: a peer at a NaN position cannot pick up a can from across the room")
+	mark("h_saw_rogue")
+	await wait_until(func(): return Net.players.size() == 1 and Game.world.get_players().size() == 1, STEP_TIMEOUT, "rogue left")
+	await wait_frames(2)
+	clear_allowed_errors()
+	mark("rogue_gone")
 	if not await wait_until(func(): return Net.players.size() == 2, STEP_TIMEOUT, "A registered"):
 		return
 	GameState.request_start_round()
@@ -121,7 +156,7 @@ func _host_h() -> void:
 # ============================================================================================================ A
 
 func _client_a() -> void:
-	if not await wait_mark("h_ready"):
+	if not await wait_mark("rogue_gone"):
 		return
 	if not check(await _join(port, "Alpha"), "A joined H"):
 		return
@@ -181,3 +216,32 @@ func _client_b() -> void:
 	await wait_until(func(): return Game.world == null, STEP_TIMEOUT, "B returned to the menu when A left")
 	await wait_frames(2)
 	_check_menu_clean("B after A left", "Host disconnected")
+
+
+# ============================================================================================================ R
+
+func _rogue_r() -> void:
+	if not await wait_mark("h_ready"):
+		return
+	if not check(Game.start_join("127.0.0.1", port, "Rogue") == OK, "rogue started joining"):
+		return
+	# A modified client: the name sent on connect is not the sanitized one (Net.join already ran its own copy).
+	Net.local_name = "R".repeat(300000)
+	await wait_until(func(): return Game.local_player != null, STEP_TIMEOUT, "rogue registered and spawned")
+	check(Net.local_name.length() <= Net.MAX_NAME_LENGTH, "rogue: the host assigned a clamped name (%d chars)" % Net.local_name.length())
+	if await wait_mark("h_nan_ready"):
+		var me: Player = Game.local_player
+		me.set_physics_process(false) # stop writing the real position; $Sync keeps sending net_position
+		me.net_position = Vector3(NAN, NAN, NAN)
+		await wait_sec(0.4)
+		var can: Item = items_of(Const.ITEM_WATERING_CAN)[0]
+		var t := toasts.size()
+		can.interact(me)
+		await wait_until_quiet(func(): return can.holder_id != 0 or toasts.size() > t, 5.0)
+		check(can.holder_id == 0, "rogue: the pickup from across the room was refused")
+		check(toast_seen("Too far."), "rogue: told 'Too far.'")
+		mark("r_nan_done")
+	await wait_mark("h_saw_rogue")
+	Game.return_to_menu("rogue done")
+	await wait_frames(3)
+	_check_menu_clean("rogue after leaving", "rogue done")

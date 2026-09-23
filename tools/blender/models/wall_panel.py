@@ -1,10 +1,10 @@
 """wall_panel family: the room's cinder-block walls as 5 m x 6 m panels (architecture, environment modeler).
 
-Kind "prop", floor mount: the origin is on the floor ON THE WALL LINE (the interior face of the Walls collider),
-block faces on Blender y = 0 (the wall line), mortar grooves 3 cm behind it, the front (-Y = Godot +Z) facing
-into the room. 5.0 m wide (x -2.5..2.5) x 5.995 m tall (tucked under the ceiling deck at 6.0), so panels tile
-the 20 x 15 m room exactly: 4 + 3 + 4 + 3 of them (scenes/world/room.tscn, Walls/*, one MultiMesh run per
-variant and wall via scenes/world/props/segment_run.gd).
+Kind "prop", floor mount: the origin is on the floor ON THE WALL LINE (the inner face of the Walls collider),
+block faces on Blender y = 0, mortar 3 cm behind, the front (-Y = Godot +Z) facing into the room. A 5.0 m module
+(x -2.5..2.5; the mortar backing tucks 3.8 cm further behind each neighbour, see Wall.mortar) x 6.0 m (the top
+lip meets the ceiling deck's crests), so the panels tile the 20 x 15 m room exactly, 4 + 3 + 4 + 3 of them
+(scenes/world/room.tscn Walls/*: one scenes/world/props/segment_run.gd MultiMesh per variant and wall).
 
   Blocks      chunky 0.5 x 0.25 m cinder blocks in running bond, 2.4 cm chamfers down to 1.8 cm mortar joints
               (Kenney "brick": every edge catches a highlight). Odd courses start with a half block cut flat at
@@ -13,11 +13,11 @@ variant and wall via scenes/world/props/segment_run.gd).
   Skirting    a 0.26 m dark concrete kick, 5 cm proud, chamfered, chipped and scuffed.
   Paint       olive dado (courses 1-3) under a darker olive band at 1.0-1.25 m that drips down the dado and
               slops up onto the next course; paint peeled off in patches (bare block shows through).
-  Wear        chipped corners (light broken facets), a block with its face knocked in (hollow cores show),
-              cracks, a damp streak from the ceiling, rust streaks under an old pipe stub / pipe bracket.
+  Wear        chipped corners (pale broken facets), a jagged hole knocked into one block, cracks, a damp streak
+              from the ceiling, rust streaks under an old pipe stub / what is left of a pipe bracket.
 
-Variants (same construction; see VARIANTS / build()):
-  wall_panel         pipe stub + rust streak, damp streak, cracks, broken block
+Variants (one function each below):
+  wall_panel         pipe stub + rust streak, damp streak, cracks, knocked-in block
   wall_panel_b       old pipe bracket + streaks, a patch of replaced blocks, a stair-step crack
   wall_panel_window  opening + precast lintel for props/barred_window.tscn (window centre 0.8 m to the viewer's
                      left of the panel centre, 4.1 m up: the west wall slot at z -5, window at z -4.2)
@@ -39,7 +39,8 @@ BW, CH_H = 0.5, 0.25                  # block width, course height
 GAP = 0.018                           # mortar joint (at the mortar plane)
 CH = 0.024                            # chamfer inset on the face
 D = 0.03                              # mortar plane depth behind the block faces
-TOP = 5.995                           # top of the wall (the ceiling deck's crests are at 6.0)
+TOP = 5.995                           # top of the blocks / mortar (the ceiling deck's crests are at 6.0)
+CEIL = 6.0                            # the top edge's lip meets the deck at exactly the ceiling height
 N_COURSES = 24
 SK_H = CH_H + GAP / 2                 # skirting top (course 0 hides behind it)
 SK_D = 0.05                           # skirting sticks out 5 cm
@@ -62,7 +63,6 @@ class Wall:
         self.mb = MB()
         self.M = arch_mats()
         self.seed = seed
-        self.rng = random.Random(seed)
         self.openings = list(openings)       # (x0, x1, z0, z1), z on course boundaries
         self.lintels = list(lintels)         # (x0, x1, course, material key)
         self.skirt_gaps = list(skirt_gaps)   # (x0, x1) with no skirting
@@ -70,7 +70,6 @@ class Wall:
         self.broken = set()                  # (course, x)
         self.forced = {}                     # (course, x) -> material key (replaced blocks)
         self.faces = []                      # decal targets: (x0, x1, z0, z1)
-        self.mats_used = set()
 
     # ---------------------------------------------------------------------------------------- courses
     def pieces(self, k):
@@ -129,7 +128,7 @@ class Wall:
         return "block_dark" if h < 0.11 else "block_light" if h > 0.95 else "concrete"
 
     # ------------------------------------------------------------------------------------------ block
-    def block(self, bx0, bx1, bz0, bz1, lj, rj, mat, chip=None, cores=False, bottom_mat=None):
+    def block(self, bx0, bx1, bz0, bz1, lj, rj, mat, chip=None, cores=False, bottom_mat=None, top_mat=None):
         """One block shell: front face + 4 chamfers (or flat ends) down to the mortar plane. 10 tris."""
         M, mb = self.M, self.mb
         fx0, fx1 = bx0 + (CH if lj else 0.0), bx1 - (CH if rj else 0.0)
@@ -139,7 +138,7 @@ class Wall:
         # bottom, right, top, left. A flat (cut) end faces INTO the panel: at a room corner it closes the end of
         # the horizontal grooves against the other wall; at a seam it is sandwiched inside the whole block.
         side_hint = [(0, -1, -1), (1, -1, 0) if rj else (-1, 0, 0), (0, -1, 1), (-1, -1, 0) if lj else (1, 0, 0)]
-        side_mat = [bottom_mat or mat, mat, mat, mat]
+        side_mat = [bottom_mat or mat, mat, top_mat or mat, mat]
         front = list(F)
         sides = [[F[i], F[(i + 1) % 4], B[(i + 1) % 4], B[i]] for i in range(4)]
         if chip is not None:
@@ -175,7 +174,7 @@ class Wall:
         for i in range(n):
             a = 2 * math.pi * i / n
             r = 1.0 + (0.22 if i % 2 else -0.12) + 0.08 * math.sin(3 * a + 1.3)
-            hx, hz = 0.165 * r * math.cos(a), 0.07 * r * math.sin(a)
+            hx, hz = 0.12 * r * math.cos(a), 0.055 * r * math.sin(a)
             hole.append(Vector((cx + hx, 0.0, cz + hz)))
             rim.append(Vector((cx + hx * 1.28, 0.0, cz + hz * 1.3)))
         rim = [Vector((min(max(p.x, fx0 + 0.004), fx1 - 0.004), 0.0, min(max(p.z, fz0 + 0.004), fz1 - 0.004)))
@@ -185,7 +184,9 @@ class Wall:
         for i in range(n):
             a = 2 * math.pi * i / n
             ca, sa = math.cos(a), math.sin(a)
-            t = min(abs((fx1 - fx0) / 2 / ca) if abs(ca) > 1e-6 else 1e9, abs((fz1 - fz0) / 2 / sa) if abs(sa) > 1e-6 else 1e9)
+            tx = abs((fx1 - fx0) / 2 / ca) if abs(ca) > 1e-6 else 1e9
+            tz = abs((fz1 - fz0) / 2 / sa) if abs(sa) > 1e-6 else 1e9
+            t = min(tx, tz)
             border.append(Vector(((fx0 + fx1) / 2 + ca * t, 0.0, (fz0 + fz1) / 2 + sa * t)))
         corners = [Vector((fx1, 0, fz1)), Vector((fx0, 0, fz1)), Vector((fx0, 0, fz0)), Vector((fx1, 0, fz0))]
         for i in range(n):
@@ -201,11 +202,12 @@ class Wall:
             mb.face([rim[i], rim[j], hole[j], hole[i]], M["block_light"], (0, -1, 0))
             inner = [Vector((p.x, dd, p.z)) for p in (hole[i], hole[j])]
             mb.face([hole[i], hole[j], inner[1], inner[0]], M["concrete_dark"], Vector((cx, 0, cz)) - hole[i])
-        mb.face([Vector((p.x, dd, p.z)) for p in hole], M["void"], (0, -1, 0))
+        mb.face([Vector((p.x, dd, p.z)) for p in hole], M["dark"], (0, -1, 0))
         # rubble chips knocked loose onto the joint below
         for dx in (-0.09, 0.1):
             x0 = cx + dx
-            mb.face([(x0 - 0.028, -0.001, fz0 - 0.004), (x0 + 0.026, -0.001, fz0 - 0.004), (x0 + 0.01, -0.001, fz0 + 0.026)],
+            mb.face([(x0 - 0.028, -0.001, fz0 - 0.004), (x0 + 0.026, -0.001, fz0 - 0.004),
+                     (x0 + 0.01, -0.001, fz0 + 0.026)],
                     M["block_light"], (0, -1, 0))
 
     def course_blocks(self, k):
@@ -220,8 +222,10 @@ class Wall:
             mat = self.block_mat(k, x0, x1, kind)
             chip = next((v for (kk, x), v in self.chips.items() if kk == k and x0 <= x < x1), None)
             cores = any(kk == k and x0 <= x < x1 for kk, x in self.broken)
-            bottom = "olive_dark" if k == BAND + 1 else None
-            self.block(bx0, bx1, bz0, bz1, lj, rj, mat, chip, cores, bottom)
+            # the band's paint runs into the joints above and below it (the drips start right at its edge)
+            bottom = "olive_dark" if k == BAND + 1 and kind == "block" else None
+            top = "olive_dark" if k == BAND - 1 and kind == "block" else None
+            self.block(bx0, bx1, bz0, bz1, lj, rj, mat, chip, cores, bottom, top)
 
     # ------------------------------------------------------------------------------------------ mortar
     def mortar(self):
@@ -272,7 +276,7 @@ class Wall:
             mb.face([(a, 0, oz1), (b, 0, oz1), (b, REVEAL, oz1), (a, REVEAL, oz1)], M["concrete_dark"], (0, 0, -1))
             if oz0 > 0:
                 mb.face([(a, 0, oz0), (b, 0, oz0), (b, REVEAL, oz0), (a, REVEAL, oz0)], M["concrete"], (0, 0, 1))
-            mb.face([(a, REVEAL, oz0), (b, REVEAL, oz0), (b, REVEAL, oz1), (a, REVEAL, oz1)], M["void"], (0, -1, 0))
+            mb.face([(a, REVEAL, oz0), (b, REVEAL, oz0), (b, REVEAL, oz1), (a, REVEAL, oz1)], M["dark"], (0, -1, 0))
 
     # ---------------------------------------------------------------------------------------- skirting
     def skirting(self, notches=(), scuffs=()):
@@ -344,17 +348,20 @@ class Wall:
         n = 100
         for i in range(n + 1):
             x = X0 + (X1 - X0) * i / n
-            h = 0.004 + 0.034 * max(0.0, math.sin(6.1 * x + seed)) ** 2 + 0.02 * max(0.0, math.sin(15.7 * x + 2 * seed)) ** 3
+            h = (0.004 + 0.034 * max(0.0, math.sin(6.1 * x + seed)) ** 2
+                 + 0.02 * max(0.0, math.sin(15.7 * x + 2 * seed)) ** 3)
             pts.append((x, z + h))
         pts.append((X1, z))
         self.decal(pts, "olive_dark", 0)
 
     def drips(self, xs, seed):
+        """Runs of the band's paint down the dado: short ones stop on the course below the band, long ones
+        carry on over the next joint and end well inside the course under it (never right at a joint)."""
         z = BAND * CH_H
         r = random.Random(seed)
-        for x in xs:
-            self.decal(drip(x, z + 0.01, r.uniform(0.12, 0.46), r.uniform(0.03, 0.05), r.uniform(0, 6)),
-                       "olive_dark", 1)
+        for i, x in enumerate(xs):
+            ln = r.uniform(0.08, 0.15) if i % 3 != 1 else r.uniform(0.33, 0.43)
+            self.decal(drip(x, z + 0.01, ln, r.uniform(0.05, 0.068), r.uniform(0, 6), bulb=1.6), "olive_dark", 1)
 
     def peel(self, cx, cz, rx, rz, seed):
         """A patch where the paint has flaked off: dark rim, bare block inside."""
@@ -373,7 +380,7 @@ class Wall:
                 name="stub_flange", anchor="base"),
             cyl(0.085, 0.16, verts=16, pos=(x, 0.01, z), rot=(90, 0, 0), bevel=0.01, mat="metal_dark",
                 name="stub", anchor="base"),
-            cyl(0.062, 0.0105, verts=16, pos=(x, -0.141, z), rot=(90, 0, 0), bevel=0, mat="void", name="bore",
+            cyl(0.062, 0.0105, verts=16, pos=(x, -0.141, z), rot=(90, 0, 0), bevel=0, mat="dark", name="bore",
                 anchor="base"),
             arc_panel(0.086, 0.09, angle=150, thickness=0.004, pos=(0, 0, 0), segments=8, mat="rust",
                       name="stub_rust"),
@@ -421,14 +428,23 @@ class Wall:
             self.course_blocks(k)
         self.mortar()
         self.reveals()
+        # the top edge leans out from the mortar to the wall line at exactly 6.0 m, where the ceiling deck's
+        # crests end: no slit between the wall top and the ceiling
+        self.mb.face([(X0, D, TOP), (X1, D, TOP), (X1, -0.001, CEIL), (X0, -0.001, CEIL)], self.M["concrete_dark"],
+                     (0, -1, -1))
 
 
 # ---------------------------------------------------------------------------------------------- variants
-def plain_wear(w, seed, drips_x, peels, band_seed):
+def paint_wear(w, seed, drips_x, peels, band_seed):
+    """The dado's sloppy band edge, drips at drips_x, peeled patches [(x, z, rx, rz, seed)]."""
     w.band_edge(band_seed)
     w.drips(drips_x, seed)
     for p in peels:
         w.peel(*p)
+
+
+def scuff(x, z, length, height, mat="dark"):
+    return (x, z, length, height, mat)
 
 
 def wall_a():
@@ -437,22 +453,21 @@ def wall_a():
     w.chips = {(7, 0.62): ("tr", 0.07), (12, -0.32): ("bl", 0.06), (2, 1.85): ("tl", 0.08),
                (17, -2.0): ("br", 0.06), (21, 1.6): ("tl", 0.07)}
     w.broken = {(9, -1.55)}
-    # blocks first (decals need the faces), then everything that sits on them
-    parts_extra = w.pipe_stub(1.35, 4.65)
-    w.structure()
-    plain_wear(w, 11, (-2.05, -1.2, -0.62, 0.35, 1.02, 1.95), [(-0.9, 0.62, 0.2, 0.13, 1.3), (1.55, 1.05, 0.14, 0.1, 2.2)],
-               0.7)
+    stub = w.pipe_stub(1.35, 4.65)
+    w.structure()                             # blocks first: the decals need their faces
+    paint_wear(w, 11, (-2.05, -1.2, -0.62, 0.35, 1.02, 1.95),
+               [(-0.9, 0.62, 0.2, 0.13, 1.3), (1.55, 1.05, 0.14, 0.1, 2.2)], 0.7)
     w.decal(streak(1.35, 4.52, 1.55, 0.13, 0.035, seed=1.0), "rust", 1)
     w.decal(streak(1.28, 4.5, 0.95, 0.05, 0.02, seed=2.2, wander=0.02), "rust", 2)
-    w.decal(streak(-0.35, TOP, 1.9, 0.62, 0.22, seed=3.1, wander=0.08), "stain", 0)
+    w.decal(streak(-0.35, TOP, 1.9, 0.62, 0.22, seed=3.1, wander=0.08), "block_dark", 0)
     w.crack(zigzag(-2.1, 2.05, -1.25, 3.2, 7, 0.05, 1.0))
     w.crack(zigzag(-1.55, 2.62, -1.95, 2.95, 3, 0.03, 2.0), 0.013)
     w.crack(zigzag(0.3, 5.45, 0.95, 5.95, 5, 0.04, 4.0))
     w.skirting(notches=[(-1.3, 0.22), (2.05, 0.14)],
-               scuffs=[(-2.0, 0.12, 0.3, 0.04, "grime"), (-0.4, 0.09, 0.45, 0.05, "grime"), (0.9, 0.16, 0.25, 0.03, "concrete"),
-                       (1.6, 0.07, 0.35, 0.04, "grime")])
+               scuffs=[scuff(-2.0, 0.12, 0.3, 0.03), scuff(-0.4, 0.09, 0.45, 0.035),
+                       scuff(0.9, 0.16, 0.25, 0.03, "concrete"), scuff(1.6, 0.07, 0.35, 0.03)])
     wall = w.mb.obj("wall_blocks", smooth=30.0)
-    export(join([wall] + parts_extra, "Wall"), "wall_panel", kind="prop", mount="floor", budget=6500)
+    export(join([wall] + stub, "Wall"), "wall_panel", kind="prop", mount="floor", budget=4500)
 
 
 def wall_b():
@@ -463,43 +478,41 @@ def wall_b():
     w.broken = {(16, 1.85)}
     for k, x in ((13, 0.6), (13, 1.1), (14, 0.35), (14, 0.85), (15, 0.6), (15, 1.1)):
         w.forced[(k, x)] = "block_light"          # a patch of replaced blocks (a hole someone filled in)
-    parts_extra = w.bracket(-1.35, 4.1)
+    bracket = w.bracket(-1.35, 4.1)
     w.structure()
-    plain_wear(w, 23, (-1.7, -0.95, -0.1, 0.72, 1.45, 2.2), [(0.4, 0.45, 0.24, 0.12, 0.4), (-1.9, 0.85, 0.12, 0.14, 3.3),
-                                                          (1.8, 0.4, 0.1, 0.08, 5.0)], 2.9)
+    paint_wear(w, 23, (-1.7, -0.95, -0.1, 0.72, 1.45, 2.2),
+               [(0.4, 0.45, 0.24, 0.12, 0.4), (-1.9, 0.85, 0.12, 0.14, 3.3), (1.8, 0.4, 0.1, 0.08, 5.0)], 2.9)
     w.decal(streak(-1.35, 3.95, 1.25, 0.1, 0.03, seed=0.4), "rust", 1)
     w.decal(streak(-1.2, 3.9, 0.7, 0.05, 0.02, seed=1.9, wander=0.02), "rust", 2)
-    w.decal(streak(1.9, TOP, 1.4, 0.4, 0.15, seed=5.2, wander=0.06), "stain", 0)
-    # stair-step crack along the joints' edges from a corner of the filled-in patch
-    w.crack(zigzag(1.45, 3.95, 2.3, 5.1, 8, 0.06, 3.0))
+    w.decal(streak(1.9, TOP, 1.4, 0.4, 0.15, seed=5.2, wander=0.06), "block_dark", 0)
+    w.crack(zigzag(1.45, 3.95, 2.3, 5.1, 8, 0.06, 3.0))          # running up from the filled-in patch
     w.crack(zigzag(-0.6, 1.6, 0.25, 2.3, 5, 0.04, 6.0), 0.014)
     w.skirting(notches=[(0.55, 0.3)],
-               scuffs=[(-1.5, 0.1, 0.5, 0.05, "grime"), (0.0, 0.15, 0.2, 0.03, "concrete"), (1.4, 0.1, 0.4, 0.05, "grime"),
-                       (2.2, 0.17, 0.2, 0.03, "concrete")])
+               scuffs=[scuff(-1.5, 0.1, 0.5, 0.035), scuff(0.0, 0.15, 0.2, 0.03, "concrete"),
+                       scuff(1.4, 0.1, 0.4, 0.03),
+                       scuff(2.2, 0.17, 0.2, 0.03, "concrete")])
     wall = w.mb.obj("wall_blocks", smooth=30.0)
-    export(join([wall] + parts_extra, "Wall"), "wall_panel_b", kind="prop", mount="floor", budget=6500)
+    export(join([wall] + bracket, "Wall"), "wall_panel_b", kind="prop", mount="floor", budget=4500)
 
 
 def wall_window():
     reset()
-    lintel = (WIN_X - 1.2, WIN_X + 1.2, 19, "block_light")
+    lintel = (WIN_X - 1.2, WIN_X + 1.2, 19, "block_light")        # precast, over the frame (top at 4.75)
     w = Wall(seed=37, openings=[WIN_HOLE], lintels=[lintel])
     w.chips = {(8, 1.3): ("br", 0.07), (13, -1.9): ("tr", 0.06), (2, 0.9): ("bl", 0.08), (20, 1.9): ("tl", 0.06)}
     w.broken = {(5, 2.1)}
     w.structure()
-    plain_wear(w, 37, (-2.2, -1.35, -0.55, 0.5, 1.4), [(1.0, 0.75, 0.22, 0.12, 0.9), (-1.6, 1.08, 0.13, 0.1, 4.1)], 1.6)
-    # the window leaks: a damp streak from the sill down to the band, rust from the lintel bearing
-    w.decal(streak(WIN_X + 0.35, 3.3, 1.9, 0.5, 0.18, seed=0.8, wander=0.05), "stain", 0)
+    paint_wear(w, 37, (-2.2, -1.35, -0.55, 0.5, 1.4), [(1.0, 0.75, 0.22, 0.12, 0.9), (-1.6, 1.08, 0.13, 0.1, 4.1)], 1.6)
+    # the window leaks: a damp streak from under the sill down to the band, rust from the lintel's bearing
+    w.decal(streak(WIN_X + 0.35, 3.3, 1.9, 0.5, 0.18, seed=0.8, wander=0.05), "block_dark", 0)
     w.decal(streak(WIN_X + 1.02, 4.72, 0.7, 0.06, 0.02, seed=2.5), "rust", 1)
     w.crack(zigzag(WIN_X + 1.2, 5.02, WIN_X + 1.9, 5.8, 6, 0.05, 1.7))     # from the lintel's end
     w.crack(zigzag(WIN_X - 1.2, 3.45, WIN_X - 1.7, 2.7, 5, 0.04, 0.3), 0.014)
     w.skirting(notches=[(1.7, 0.2)],
-               scuffs=[(-1.0, 0.12, 0.4, 0.05, "grime"), (0.6, 0.08, 0.3, 0.04, "grime"), (2.1, 0.16, 0.2, 0.03, "concrete")])
-    wall = w.mb.obj("wall_blocks", smooth=30.0)
-    # the lintel's bearing: a steel angle under it on both sides of the opening
-    extra = [box((2.4, 0.06, 0.012), pos=(WIN_X, -0.03, 19 * CH_H - 0.006), bevel=0.003, mat="metal_dark",
-                 name="lintel_angle")]
-    export(join([wall] + extra, "Wall"), "wall_panel_window", kind="prop", mount="floor", budget=6500)
+               scuffs=[scuff(-1.0, 0.12, 0.4, 0.035), scuff(0.6, 0.08, 0.3, 0.03),
+                       scuff(2.1, 0.16, 0.2, 0.03, "concrete")])
+    export(join([w.mb.obj("wall_blocks", smooth=30.0)], "Wall"), "wall_panel_window", kind="prop", mount="floor",
+           budget=4500)
 
 
 def wall_door(name, door_x, seed):
@@ -508,42 +521,38 @@ def wall_door(name, door_x, seed):
     lintel = (door_x - 2.5, door_x + 2.5, 15, "block_light")
     opening = (door_x - DOOR_HALF, door_x + DOOR_HALF, 0.0, DOOR_TOP)
     w = Wall(seed=seed, openings=[opening], lintels=[lintel], skirt_gaps=[(door_x - DOOR_PLATE, door_x + DOOR_PLATE)])
-    # wear where forklifts and trolleys hit the jambs, cracks running up from the lintel ends
-    side = 1 if door_x < 0 else -1                    # which side of the door is inside this panel
-    jamb = door_x + side * DOOR_PLATE                   # the visible jamb edge (outside the rail plate)
+    side = 1 if door_x < 0 else -1                    # the side of the door that is inside this panel
+    jamb = door_x + side * DOOR_PLATE                   # the visible jamb edge (just outside the rail plate)
+    # wear where forklifts and trolleys hit the jambs, cracks running up from the lintel's ends
     if name == "wall_panel_door":
-        w.chips = {(2, jamb + side * 0.3): ("bl" if side > 0 else "br", 0.09), (5, jamb + side * 0.15): ("tl" if side > 0 else "tr", 0.07),
+        w.chips = {(2, jamb + side * 0.3): ("bl" if side > 0 else "br", 0.09),
+                   (5, jamb + side * 0.15): ("tl" if side > 0 else "tr", 0.07),
                    (11, 1.4): ("tr", 0.06), (18, -1.6): ("bl", 0.07), (22, 1.0): ("br", 0.06)}
         w.broken = {(3, jamb + side * 0.7)}
     else:
-        w.chips = {(1, jamb + side * 0.2): ("tr" if side < 0 else "tl", 0.08), (9, -0.6): ("bl", 0.07), (20, -1.9): ("tr", 0.06),
-                   (13, 1.0): ("tl", 0.06)}
+        w.chips = {(1, jamb + side * 0.2): ("tr" if side < 0 else "tl", 0.08), (9, -0.6): ("bl", 0.07),
+                   (20, -1.9): ("tr", 0.06), (13, 1.0): ("tl", 0.06)}
         w.broken = {(12, -1.2)}
     w.structure()
     lo, hi = sorted((jamb, jamb + side * 0.26))
     w.hazard(lo, hi, SK_H + 0.02, 1.55)
     w.band_edge(seed * 0.37)
-    free = [x for x in (-2.2, -1.5, -0.8, -0.1, 0.6, 1.3, 2.0) if (x - jamb) * side > 0.45]
-    w.drips(free, seed)
+    w.drips([x for x in (-2.2, -1.5, -0.8, -0.1, 0.6, 1.3, 2.0) if (x - jamb) * side > 0.45], seed)
     if name == "wall_panel_door":
         w.peel(jamb + side * 1.3, 0.75, 0.24, 0.14, 1.1)
         w.crack(zigzag(door_x + 2.5, 4.02, door_x + 3.1, 4.9, 6, 0.05, 0.9))
-        w.decal(streak(jamb + side * 0.85, TOP, 1.6, 0.45, 0.18, seed=2.0, wander=0.06), "stain", 0)
+        w.decal(streak(jamb + side * 0.85, TOP, 1.6, 0.45, 0.18, seed=2.0, wander=0.06), "block_dark", 0)
     else:
         w.peel(jamb + side * 1.1, 0.5, 0.2, 0.12, 2.7)
         w.crack(zigzag(door_x - 2.5, 4.02, door_x - 3.05, 4.85, 6, 0.05, 2.2))
-        w.decal(streak(-1.6, TOP, 1.3, 0.35, 0.12, seed=4.4, wander=0.05), "stain", 0)
-    # rust bleeding out from under the lintel over the opening's edge
-    w.decal(streak(door_x + side * 1.95, 3.98 + 0.2, 0.2, 0.08, 0.04, seed=seed), "rust", 1)
+        w.decal(streak(-1.6, TOP, 1.3, 0.35, 0.12, seed=4.4, wander=0.05), "block_dark", 0)
+    # rust bleeding down the wall from the lintel's bearing, beside the rail plate
+    w.decal(streak(door_x + side * 2.42, DOOR_TOP - 0.01, 0.85, 0.07, 0.02, seed=seed), "rust", 1)
     w.skirting(notches=[(jamb + side * 0.25, 0.16)],
-               scuffs=[(jamb + side * 0.6, 0.12, 0.4, 0.05, "grime"), (jamb + side * 1.4, 0.09, 0.3, 0.04, "concrete"),
-                       (jamb + side * 2.0, 0.14, 0.35, 0.05, "grime")])
-    wall = w.mb.obj("wall_blocks", smooth=30.0)
-    # a steel bearing angle under the lintel, over the opening
-    a, b = max(door_x - 2.3, X0), min(door_x + 2.3, X1)
-    extra = [box((b - a, 0.06, 0.012), pos=((a + b) / 2, -0.03, DOOR_TOP - 0.006), bevel=0.0, mat="metal_dark",
-                 name="lintel_angle")]
-    export(join([wall] + extra, "Wall"), name, kind="prop", mount="floor", budget=6500)
+               scuffs=[scuff(jamb + side * 0.6, 0.12, 0.4, 0.035),
+                       scuff(jamb + side * 1.4, 0.09, 0.3, 0.03, "concrete"),
+                       scuff(jamb + side * 2.0, 0.14, 0.35, 0.035)])
+    export(join([w.mb.obj("wall_blocks", smooth=30.0)], "Wall"), name, kind="prop", mount="floor", budget=4500)
 
 
 def build():

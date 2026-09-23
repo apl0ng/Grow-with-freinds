@@ -15,7 +15,7 @@ floor top y = 0, ceiling y = 6. Everything tiles on a 5 m grid: 4 + 3 + 4 + 3 wa
 Geometry here is built face by face (MB below) with UNSHARED vertices, so every face is flat-shaded: big
 architecture must never get pillowy vertex normals across a 5 m panel. Decals (paint drips, rust streaks,
 stains, cracks) are flat single faces a few mm in front of the surface they sit on, clipped to that surface
-(clip_rect) so nothing ever bridges a groove.
+(clip_rect / clip_convex) so nothing ever bridges a groove or floats over a hole.
 """
 import bmesh
 import bpy

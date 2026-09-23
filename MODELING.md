@@ -330,3 +330,10 @@ All paths are relative to `scenes/`. ✅ = shipped (in `art/models/manifest.json
 - The editor shows models with default shading; the toon look is runtime-only (section 1). The shots and
   the game are the truth.
 - `find_children("*", "MeshInstance3D")` also finds Toonify's `ToonOutline` hulls (meta `toonify_outline`).
+
+### Architecture (shipped)
+`wall_panel`, `wall_panel_b`, `wall_panel_window`, `wall_panel_door`, `wall_panel_door_b` (5.08 × 6 m cinder-block
+sections, half-block seams), `floor_slab`, `floor_slab_b`, `floor_slab_drain` (5 × 5 m), `ceiling_panel`,
+`ceiling_panel_b`, `ceiling_panel_hole` (corrugated deck), `ceiling_beam` (5 m I-beam), `hole_rim`. Built by
+`tools/blender/models/{wall_panel,floor_slab,ceiling_panel,ceiling_beam,hole_rim}.py` (shared helper `_arch.py`),
+placed in room.tscn as `segment_run.gd` MultiMesh runs; `tools/tests/models_arch_test.gd` proves the tiling.

@@ -413,7 +413,6 @@
    "toon_concrete_dark",
    "toon_rust",
    "toon_olive",
-   "toon_cream",
    "toon_metal_dark",
    "toon_dark",
    "toon_caution",
@@ -426,7 +425,7 @@
    1.906,
    1.62
   ],
-  "tris": 2598
+  "tris": 2254
  },
  "leaky_pipe": {
   "front": "+z",
@@ -955,47 +954,41 @@
    "toon_concrete",
    "block_dark",
    "toon_concrete_dark",
-   "toon_void",
-   "toon_rust",
-   "stain",
    "toon_dark",
-   "grime",
+   "toon_rust",
    "toon_metal_dark"
   ],
   "mount": "floor",
   "script": "tools/blender/models/wall_panel.py",
   "size": [
    5.076,
-   5.995,
+   6.0,
    0.186
   ],
-  "tris": 3612
+  "tris": 3613
  },
  "wall_panel_b": {
   "front": "+z",
   "kind": "prop",
   "materials": [
    "toon_olive",
-   "block_light",
    "olive_dark",
+   "block_light",
    "toon_concrete",
    "block_dark",
    "toon_concrete_dark",
-   "toon_void",
-   "toon_rust",
-   "stain",
    "toon_dark",
-   "grime",
+   "toon_rust",
    "toon_metal_dark"
   ],
   "mount": "floor",
   "script": "tools/blender/models/wall_panel.py",
   "size": [
    5.076,
-   5.995,
+   6.0,
    0.378
   ],
-  "tris": 3312
+  "tris": 3318
  },
  "wall_panel_door": {
   "front": "+z",
@@ -1003,24 +996,20 @@
   "materials": [
    "toon_olive",
    "block_light",
-   "toon_concrete_dark",
-   "toon_void",
    "olive_dark",
+   "toon_concrete_dark",
+   "toon_dark",
    "toon_concrete",
    "block_dark",
-   "toon_dark",
    "toon_caution",
-   "stain",
-   "toon_rust",
-   "grime",
-   "toon_metal_dark"
+   "toon_rust"
   ],
   "mount": "floor",
   "script": "tools/blender/models/wall_panel.py",
   "size": [
    5.076,
-   5.995,
-   0.36
+   6.0,
+   0.353
   ],
   "tris": 2070
  },
@@ -1034,22 +1023,18 @@
    "toon_concrete",
    "block_dark",
    "toon_concrete_dark",
-   "toon_void",
    "toon_dark",
    "toon_caution",
-   "stain",
-   "toon_rust",
-   "grime",
-   "toon_metal_dark"
+   "toon_rust"
   ],
   "mount": "floor",
   "script": "tools/blender/models/wall_panel.py",
   "size": [
    5.076,
-   5.995,
-   0.36
+   6.0,
+   0.353
   ],
-  "tris": 2432
+  "tris": 2422
  },
  "wall_panel_window": {
   "front": "+z",
@@ -1060,22 +1045,18 @@
    "olive_dark",
    "toon_concrete",
    "toon_concrete_dark",
-   "toon_void",
-   "block_dark",
-   "stain",
-   "toon_rust",
    "toon_dark",
-   "grime",
-   "toon_metal_dark"
+   "block_dark",
+   "toon_rust"
   ],
   "mount": "floor",
   "script": "tools/blender/models/wall_panel.py",
   "size": [
    5.076,
-   5.995,
-   0.36
+   6.0,
+   0.353
   ],
-  "tris": 2854
+  "tris": 2807
  },
  "water_tank": {
   "front": "+z",

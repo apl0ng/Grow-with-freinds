@@ -8,7 +8,8 @@
 #
 # Order: tools/check.sh -> single-process suites -> multi-process suites -> tools/smoke.sh -> QA suites.
 # Ports: multi-process suites get unique UDP ports from QA_BASE_PORT (default 7900): econ_mp +11, net_test
-#   +21..+32, qa_robust +71, qa_solo +72, qa_mouse_x11 +73, qa_4p +50, qa_mp_robust +80. A base whose ports are already bound
+#   +21..+32, qa_robust +71, qa_solo +72, qa_mouse_x11 +73, qa_4p +50, qa_mp_robust +80, review_core +74,
+#   review_core_mp +95/+96. A base whose ports are already bound
 #   (e.g. by a leftover process) is skipped in steps of 100. smoke.sh keeps its fixed 7801/7802; the
 #   self-spawning suites (items_net/items_e2e/farm_net/farm_world/flow_mp/econ_test) pick random ports.
 # Leftovers: every suite runs in its own session (setsid) under `timeout`; afterwards any process still in that
@@ -28,9 +29,9 @@ export GODOT="${GODOT:-godot}"
 LOGDIR="${TEST_ALL_LOGS:-$(mktemp -d -t test_all.XXXXXX)}"
 mkdir -p "$LOGDIR"
 
-ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test models_char_test models_plant_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
+ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test models_arch_test models_char_test models_plant_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
-  review_play_mp review_ui qa_mouse_x11)
+  review_play_mp review_ui review_core review_core_mp review_viewmodel qa_mouse_x11)
 
 ONLY=""
 case "${1:-}" in
@@ -48,7 +49,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 50 71 72 73 80 91 92; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 50 71 72 73 74 80 91 92 95 96; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -184,6 +185,7 @@ run_suite models_station_test 120 "" "${G[@]}" -s $TESTS/models_station_test.gd
 run_suite models_item_test 120 "" "${G[@]}" -s $TESTS/models_item_test.gd
 run_suite models_props_test 120 "" "${G[@]}" -s $TESTS/models_props_test.gd
 run_suite models_env_test 120 "" "${G[@]}" -s $TESTS/models_env_test.gd
+run_suite models_arch_test 120 "" "${G[@]}" -s $TESTS/models_arch_test.gd
 run_suite models_char_test 120 "" "${G[@]}" -s $TESTS/models_char_test.gd
 run_suite models_plant_test 120 "" "${G[@]}" -s $TESTS/models_plant_test.gd
 run_suite world_test      120 "" "${G[@]}" -s $TESTS/world_test.gd
@@ -212,7 +214,19 @@ run_suite review_play_mp  150 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_pla
 # Review 9.3: HUD / overlays (keyboard focus vs pause + round end, Escape cancels connecting, WORKERS width);
 # solo host on +91, a join attempt to the closed +92.
 run_suite review_ui       150 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_ui_body.gd --port=$((BASE + 91)) --timeout=120
+# Review 9.1: core/net/flow. Single process on +74 (MENU inertness, return_to_menu message precedence, leak-free
+# session cycles, name sanitizing: invisible characters + bounded cost); four processes on +95/+96 (rogue huge-name
+# registration without a host stall, rogue at a NaN position refused by the range check, late join into a failed
+# shift + RETRY, host leaving, re-host after a client session with authority moving to the new host).
+run_suite review_core     240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_core_body.gd --port=$((BASE + 74)) --timeout=200
+rm -rf "$LOGDIR/rcmp"; mkdir -p "$LOGDIR/rcmp"
+run_suite review_core_mp  240 "$LOGDIR/rcmp/*.log" env RCMP_PORT=$((BASE + 95)) RCMP_LOGS="$LOGDIR/rcmp" tools/tests/review_core_mp.sh
 
+# Review 9.6: first-person view-model layer (the held item never clips): render layers of every item mesh (local hand
+# -> view-model layer only, floor / remote hand -> world layers), SubViewport only for the local player, frame order,
+# lights, return_to_menu leaves nothing; plus a real client process. Ports +97..+99 (probed; busy ones skipped).
+# Screenshots: tools/tests/review_viewmodel_preview.gd under xvfb (see its header).
+run_suite review_viewmodel 150 "" "${G[@]}" -s $TESTS/review_viewmodel_test.gd -- --port=$((BASE + 97))
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120

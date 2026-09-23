@@ -44,7 +44,8 @@ func get_player_color(peer_id: int) -> Color
 signal peer_joined(peer_id); signal peer_rejected(reason)     # additions
 const PALETTE; func get_peer_ids() -> Array[int]; func sanitize_name(n) -> String
 ```
-Server slots = max_players + 1 so a 5th joiner gets "Server is full" instead of a timeout. Unregistered peers are dropped
+Server slots = max_players + 3: one so a 5th joiner gets "Server is full" instead of a timeout, two more because
+half-finished connections (cancelled/crashed mid-handshake) hold a slot for 5–30 s without the engine reporting them. Unregistered peers are dropped
 after 10 s; join attempts time out after 12 s. Names are made unique ("Bob 2"). Colors by join order:
 bubblegum #FF7EB6, sky #4DA8F7, sunshine #FFD23F, mint #33D1B0.
 Use `Net.is_host` for "am I the authority" in `_ready`-time code (before a client is connected,

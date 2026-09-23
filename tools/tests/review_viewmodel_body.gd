@@ -23,6 +23,7 @@ const AREA := Vector3(0.0, 0.0, 1.5) # free floor near the room centre (spawns f
 const WAIT_SEC := 15.0
 
 var _role := "host"
+var _next_port := 0 # next port to try hosting on (--port=N from tools/test_all.sh, else random); probed before use
 var _passes := 0
 var _fails := 0
 # network section (host side)
@@ -119,6 +120,9 @@ func _run() -> void:
 	if _role == "client":
 		await _run_client(int(args.get("port", 0)))
 		return
+	_next_port = int(args.get("port", 0))
+	if _next_port <= 0:
+		_next_port = 29000 + randi() % 900
 	var orphans_at_start := Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)
 	_test_scene_contract()
 	await _test_manual_world()
@@ -192,6 +196,18 @@ func _scene_node_count() -> int:
 			continue
 		count += 1 + c.find_children("*", "", true, false).size()
 	return count
+
+## A UDP port nobody is bound to (probing prints nothing; a busy port would make ENet print an ERROR line).
+func _take_port() -> int:
+	for i in 50:
+		var port := _next_port
+		_next_port += 1
+		var probe := PacketPeerUDP.new()
+		var err := probe.bind(port)
+		probe.close()
+		if err == OK:
+			return port
+	return _next_port
 
 func _sub_viewports() -> Array[Node]:
 	return get_tree().root.find_children("*", "SubViewport", true, false)
@@ -294,13 +310,13 @@ func _free_world(world: World) -> void:
 
 func _test_hosted_game() -> void:
 	# Warm-up cycle: host + return to menu, to take the node-count baseline with the menu in place.
-	var port := 29000 + randi() % 800
+	var port := _take_port()
 	check(Game.start_host("VM", port) == OK, "warm-up host on port %d" % port)
 	await frames(3)
 	Game.return_to_menu("")
 	await frames(3)
 	var nodes_baseline := _scene_node_count()
-	port += 1
+	port = _take_port()
 	if not check(Game.start_host("VM", port) == OK, "host on port %d" % port):
 		return
 	await wait_until(func() -> bool: return Game.local_player != null, 5.0)
@@ -384,7 +400,10 @@ func _test_hosted_game() -> void:
 	check(_sub_viewports().size() == 1, "still exactly one SubViewport with a remote player present")
 	if p2 == null:
 		return
-	# Holding toggles for all three item types.
+	# Holding toggles for all three item types (the player at rest first: physics moving it between the item's follow
+	# and a check would read as an offset).
+	check(await wait_until(func() -> bool: return p.is_on_floor() and p.velocity.length() < 0.001, 5.0),
+			"local player standing still on the floor")
 	var mgr := world.items
 	var feet := p.global_position
 	var items: Array[Item] = [
@@ -530,7 +549,7 @@ func _toggle_item(item: Item, p: Player, p2: Player, mgr: ItemManager, sv: SubVi
 # ================================================================================================ 4. network
 
 func _test_network() -> void:
-	var port := 29850 + randi() % 140
+	var port := _take_port()
 	if not check(Game.start_host("Host", port) == OK, "network: hosting on port %d" % port):
 		return
 	await wait_until(func() -> bool: return Game.local_player != null, 5.0)
@@ -574,6 +593,9 @@ func _run_client(port: int) -> void:
 		return
 	var me := Game.local_player
 	await frames(3)
+	# At rest first: the camera moving in physics between the view-model sync (process) and a check reads as drift.
+	check(await wait_until(func() -> bool: return me.is_on_floor() and me.velocity.length() < 0.001, 10.0),
+			"client player standing still on the floor")
 	check(me.uses_view_model() and me.get_view_model_viewport() != null, "joined: the client's own player has a view model")
 	var host_player := Game.get_player(Const.SERVER_PEER_ID)
 	check(host_player != null and not host_player.uses_view_model() and host_player.get_view_model_viewport() == null

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Review 9.1 multi-process regression suite: first host H, client A (re-hosts later), late joiner B.
+# Review 9.1 multi-process regression suite: first host H, client A (re-hosts later), late joiner B, rogue client R.
 # Scenario and assertions: tools/tests/review_core_mp_body.gd (steps handshaked through marker files).
 #   tools/tests/review_core_mp.sh                  # ports 7990 and 7991
 #   RCMP_PORT=8200 tools/tests/review_core_mp.sh
@@ -28,6 +28,7 @@ echo "== review_core_mp (ports $PORT/$((PORT + 1)), logs $LOGS)"
 launch h --role=h
 launch a --role=a
 launch b --role=b
+launch r --role=r --timeout=60
 
 overall=0
 for entry in "${PIDS[@]}"; do

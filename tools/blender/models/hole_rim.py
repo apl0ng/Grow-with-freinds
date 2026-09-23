@@ -139,20 +139,19 @@ def build():
     rim = mb.obj("Rim", smooth=30.0)
     parts = [rim]
 
-    # olive insulation board hanging off the west edge by one corner (the old FlapC)
-    board = box((0.62, 0.42, 0.05), pos=(0, 0, 0), bevel=0.012, mat="olive", name="insulation")
+    # a slab of olive insulation board hanging off the west edge by one corner (the old FlapC): its top corner
+    # is still caught on the torn lip, the rest swings down into the room
+    board = box((0.5, 0.36, 0.06), pos=(0, 0, -0.03), bevel=0.014, mat="olive", name="insulation", anchor="base")
     subdivide(board, 3)
-    jitter(board, 0.01, seed=4)
-    board.location = (0, 0, 0)
+    jitter(board, 0.008, seed=4)
+    dent(board, (0.1, 0.05, 0.03), radius=0.2, depth=0.02, direction=(0, 0, -1))
+    board.location = (0.25, 0.18, 0.0)                 # pivot on its corner
     apply_transform(board)
-    board.rotation_euler = (math.radians(58), math.radians(-18), math.radians(12))
-    board.location = (-0.98, 0.05, sheet_z(-1.15, 0.05) - 0.3)
+    hang = Vector((-1.1, 0.12, sheet_z(-1.1, 0.12) - 0.02))
+    board.matrix_world = (Matrix.Translation(hang) @ Matrix.Rotation(math.radians(-8), 4, 'Z')
+                          @ Matrix.Rotation(math.radians(64), 4, 'Y') @ Matrix.Rotation(math.radians(-18), 4, 'X'))
+    apply_transform(board)
     parts.append(board)
-    # frayed foam edge of the board: a few cream tufts
-    for i, (dx, dy) in enumerate(((-0.25, 0.1), (0.05, 0.14), (0.22, 0.06))):
-        tuft = sphere(0.045, pos=(0, 0, 0), scale=(1.3, 1.0, 0.7), segments=8, rings=4, mat="cream", name="tuft")
-        tuft.location = (-0.98 + dx * 0.9, 0.05 + dy * 0.5, sheet_z(-1.15, 0.05) - 0.05 - 0.1 * i)
-        parts.append(tuft)
 
     # snapped steel angle (a purlin) sticking out of the west edge, bent down
     ang = []
@@ -185,4 +184,4 @@ def build():
     for i, (dx, dz) in enumerate(((0.03, -0.06), (-0.025, -0.05), (0.0, -0.08))):
         parts.append(pipe([(0.7, 0.05, -0.94), (0.7 + dx, 0.05 + dx * 0.5, -0.94 + dz)], 0.004, verts=4,
                           mat="gold", name="strand"))
-    export(join(parts, "Rim"), "hole_rim", kind="part", mount="ceiling", budget=3000)
+    export(join(parts, "Rim"), "hole_rim", kind="part", mount="ceiling", budget=2600)
