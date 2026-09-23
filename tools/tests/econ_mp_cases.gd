@@ -114,10 +114,10 @@ func _run_client(port: int) -> void:
 
 	await _move(me, counter.to_global(Vector3(0.0, 0.0, 1.9)))
 	counter.request_buy_seed(&"no_such_seed")
-	_expect_toast(await _next_toast(), false, "Unknown seed", "client: unknown seed")
+	_expect_toast(await _next_toast(), false, "Unknown seed.", "client: unknown seed")
 
 	counter.request_buy_seed(budget.id)
-	_expect_toast(await _next_toast(), true, "Bought %s seeds!" % budget.display_name, "client: buy Budget Bud")
+	_expect_toast(await _next_toast(), true, "Seeds. Don't waste them.", "client: buy Budget Bud")
 	var holding := await _until(func() -> bool:
 		var it := me.get_held_item()
 		return it != null and it.item_type == Const.ITEM_SEED_PACKET and it.get(&"strain_id") == budget.id, 5.0)
@@ -126,7 +126,7 @@ func _run_client(port: int) -> void:
 	_check(paid, "client: replicated wallet dropped by $%d" % budget.cost, "money %d" % GameState.money)
 
 	counter.request_buy_seed(budget.id)
-	_expect_toast(await _next_toast(), false, "Hands full — drop your item first", "client: hands full")
+	_expect_toast(await _next_toast(), false, "Hands full.", "client: hands full")
 
 	# Through the UI on the client
 	counter.interact(me)
@@ -135,8 +135,8 @@ func _run_client(port: int) -> void:
 	var card := ui.get_card(ShopCounter.KIND_SEED, &"purple") if ui != null else null
 	if card != null:
 		card.buy_pressed.emit(card)   # BUY while holding: the server must refuse
-		_expect_toast(await _next_toast(), false, "Hands full — drop your item first", "client: UI BUY while holding")
-		_check(ui.get_feedback_text() == "Hands full — drop your item first", "client: refusal shown in the shop footer")
+		_expect_toast(await _next_toast(), false, "Hands full.", "client: UI BUY while holding")
+		_check(ui.get_feedback_text() == "Hands full.", "client: refusal shown in the shop footer")
 	if ui != null:
 		ui.close()
 
@@ -145,7 +145,7 @@ func _run_client(port: int) -> void:
 	var dropped := await _until(func() -> bool: return me.get_held_item() == null, 5.0)
 	_check(dropped, "client: drop request emptied my hands")
 	counter.request_buy_upgrade(&"big_can")
-	_expect_toast(await _next_toast(), true, "Bigger Cans upgraded to level 1!", "client: buy Bigger Cans")
+	_expect_toast(await _next_toast(), true, "Bigger Cans, level 1. Noted.", "client: buy Bigger Cans")
 	var leveled := await _until(func() -> bool: return GameState.get_upgrade_level(&"big_can") == 1, 5.0)
 	_check(leveled, "client: replicated upgrade level 1")
 

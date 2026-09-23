@@ -6,6 +6,25 @@ class FakeInteractor extends Node:
 	signal prompt_changed(text: String, enabled: bool)
 
 
+## Stands in for the ShopkeeperNPC: records every bark(text).
+class FakeBoss extends Node:
+	var said: PackedStringArray = []
+
+	func bark(text: String, _duration: float = -1.0) -> void:
+		said.append(text)
+
+	func last() -> String:
+		return said[said.size() - 1] if not said.is_empty() else ""
+
+
+## Stands in for the Room's DEBT BOARD.
+class FakeBoard extends RefCounted:
+	var text: String = ""
+
+	func set_debt_board_text(value: String) -> void:
+		text = value
+
+
 var passed: int = 0
 var failed: int = 0
 var _events: Array = []
@@ -15,8 +34,11 @@ var _balance: BalanceConfig
 ## Runs every case (coroutine). Results in `passed` / `failed`.
 func run() -> void:
 	_balance = Config.balance
+	_test_balance_numbers()
 	await _test_game_state()
 	await _test_ui()
+	_test_team_payment()
+	await _test_story()
 
 
 # ---------------------------------------------------------------------------------------------
@@ -239,26 +261,28 @@ func _test_ui() -> void:
 	add_child(hud)
 	await _frames_wait(2)
 	_check(Game.local_player == null, "no local player yet (HUD must cope)")
-	_check(hud.banner.visible and hud.banner_title.text.begins_with("JOINING"), "MENU: joining banner")
+	_check(hud.banner.visible and hud.banner_title.text.begins_with("CLOCKING IN"), "MENU: clocking-in banner")
 	_check(not hud.stats.visible, "MENU: stats hidden")
 
 	# WAITING as host
 	GameState.server_reset_game()
 	await _frames_wait(2)
 	_check(hud.stats.visible, "WAITING: stats visible")
-	_check(hud.banner.visible and hud.banner_title.text == "EVERYONE IN?", "WAITING host: 'EVERYONE IN?' banner")
-	_check(hud.start_button.visible, "WAITING host: START ROUND button")
-	_check(hud.banner_text.text.contains("ENTER"), "WAITING host: mentions ENTER (%s)" % hud.banner_text.text)
+	_check(hud.banner.visible and hud.banner_title.text == "CLOCK IN", "WAITING host: 'CLOCK IN' banner")
+	_check(hud.start_button.visible and hud.start_button.text == "START SHIFT", "WAITING host: START SHIFT button")
+	_check(hud.banner_text.text == "Shift starts when you press ENTER.\nNobody leaves until it's paid.",
+		"WAITING host: ENTER + nobody leaves (%s)" % hud.banner_text.text.c_escape())
 	_check(hud.money_label.text == HUD.format_money(_balance.starting_money), "wallet shows %s" % hud.money_label.text)
-	_check(hud.quota_label.text == "SOLD $0 / %s" % HUD.format_money(GameState.quota), "quota label: %s" % hud.quota_label.text)
-	_check(hud.round_label.text == "ROUND 1", "round label: ROUND 1")
+	_check(hud.quota_label.text == "PAYMENT DUE $0 / %s" % HUD.format_money(GameState.quota), "quota label: %s" % hud.quota_label.text)
+	_check(hud.round_label.text == "SHIFT 1", "round label: SHIFT 1")
 	_check(hud.timer_label.text == GameState.get_time_string(), "timer label: %s" % hud.timer_label.text)
 	_check(not hud.round_end.visible and not hud.pause_menu.visible, "no overlays in WAITING")
 
 	# WAITING as a client
 	_set_host(false)
 	hud.refresh_all()
-	_check(hud.banner_title.text == "HANG TIGHT!" and not hud.start_button.visible, "WAITING client: waiting text, no button")
+	_check(hud.banner_title.text == "STAND BY" and hud.banner_text.text == "Waiting for the shift to start." \
+		and not hud.start_button.visible, "WAITING client: 'Waiting for the shift to start.', no button")
 	_set_host(true)
 	hud.refresh_all()
 
@@ -267,20 +291,20 @@ func _test_ui() -> void:
 	await _frames_wait(2)
 	_check(GameState.phase == GameState.Phase.PLAYING, "start_round action (ENTER) starts the round")
 	_check(not hud.banner.visible, "PLAYING: banner hidden")
-	_check(hud.go_banner.visible and hud.go_banner.text == "ROUND 1 — GO!", "GO banner: %s" % hud.go_banner.text)
+	_check(hud.go_banner.visible and hud.go_banner.text == "SHIFT 1 — GET TO WORK", "GO banner: %s" % hud.go_banner.text)
 
 	# toasts: max 4, repeats bump
 	for i in 6:
 		Game.toast_requested.emit("Toast number %d" % i, &"info")
 	await _frames_wait(1)
 	_check(hud.get_toast_count() == 4, "toast stack capped at 4 (got %d)" % hud.get_toast_count())
-	hud.show_toast("Hands full", &"error")
-	hud.show_toast("Hands full", &"error")
+	hud.show_toast("Hands full.", &"error")
+	hud.show_toast("Hands full.", &"error")
 	await _frames_wait(1)
 	var newest := hud.toasts.get_child(hud.toasts.get_child_count() - 1) as HudToast
 	_check(newest != null and newest.repeat_count == 2 and newest.theme_type_variation == &"ToastError", "repeat toast bumps (x2) with ToastError style")
 	_check(hud.get_toast_count() == 4, "still 4 toasts after repeats")
-	Game.toast("Nice!", &"success")
+	Game.toast("Seeds. Don't waste them.", &"success")
 	await _frames_wait(1)
 	var success_toast := hud.toasts.get_child(hud.toasts.get_child_count() - 1) as HudToast
 	_check(success_toast != null and success_toast.theme_type_variation == &"ToastSuccess", "success toast uses ToastSuccess")
@@ -291,8 +315,8 @@ func _test_ui() -> void:
 	hud.set_prompt_source(fake)
 	fake.prompt_changed.emit("Plant Budget Bud", true)
 	_check(hud.prompt_panel.visible and hud.prompt_label.text == "[E] Plant Budget Bud", "prompt enabled: %s" % hud.prompt_label.text)
-	fake.prompt_changed.emit("Hands full", false)
-	_check(hud.prompt_panel.visible and hud.prompt_label.text == "Hands full" and hud.prompt_label.theme_type_variation == &"SubtleLabel", "prompt disabled: greyed reason")
+	fake.prompt_changed.emit("Hands full.", false)
+	_check(hud.prompt_panel.visible and hud.prompt_label.text == "Hands full." and hud.prompt_label.theme_type_variation == &"SubtleLabel", "prompt disabled: greyed reason")
 	fake.prompt_changed.emit("", false)
 	_check(not hud.prompt_panel.visible, "empty prompt hides the panel")
 	hud.set_prompt_source(null)
@@ -305,7 +329,7 @@ func _test_ui() -> void:
 	var floats_before := hud.float_layer.get_child_count()
 	GameState.server_add_sale(10, 1)
 	await _frames_wait(1)
-	_check(hud.quota_label.text == "SOLD $10 / %s" % HUD.format_money(GameState.quota), "quota label after sale: %s" % hud.quota_label.text)
+	_check(hud.quota_label.text == "PAYMENT DUE $10 / %s" % HUD.format_money(GameState.quota), "quota label after sale: %s" % hud.quota_label.text)
 	_check(hud.money_label.text == HUD.format_money(GameState.money), "wallet after sale: %s" % hud.money_label.text)
 	_check(hud.float_layer.get_child_count() > floats_before, "sale spawns a +$ float")
 	GameState.server_try_spend(5, 1, "seeds")
@@ -326,28 +350,33 @@ func _test_ui() -> void:
 	await _frames_wait(2)
 	var re := hud.round_end
 	_check(GameState.phase == GameState.Phase.ROUND_SUCCESS and re.visible, "ROUND_SUCCESS shows the round-end overlay")
-	_check(re.title_label.text == "QUOTA MET!", "success title: %s" % re.title_label.text)
-	_check(re.primary_button.visible and re.primary_button.text == "NEXT ROUND", "host: NEXT ROUND button")
+	_check(re.title_label.text == "PAYMENT ACCEPTED…\nfor now" and re.title_label.theme_type_variation == &"TitleLabel",
+		"success title: %s (no gold banner)" % re.title_label.text.c_escape())
+	_check(re.subtitle_label.text == "Shift 1 paid. The Boss raises the number.", "success subline: %s" % re.subtitle_label.text)
+	_check(re.primary_button.visible and re.primary_button.text == "NEXT SHIFT", "host: NEXT SHIFT button")
 	_check(re.menu_button.text == "MAIN MENU" and not re.waiting_label.visible, "host: MAIN MENU, no waiting text")
-	_check(re.next_value.text == HUD.format_money(_balance.quota_for_round(2)), "next quota preview %s" % re.next_value.text)
+	_check(re.next_value.text == HUD.format_money(_balance.quota_for_round(2)), "next payment preview %s" % re.next_value.text)
 	_check(not hud.timer_label.has_theme_color_override(&"font_color"), "timer back to normal colour after the round")
 	_set_host(false)
 	re.refresh()
 	_check(not re.primary_button.visible and re.waiting_label.visible and re.menu_button.text == "LEAVE", "client: waiting + LEAVE")
+	_check(re.waiting_label.text == "Waiting for the Boss's decision…", "client: %s" % re.waiting_label.text)
 	_set_host(true)
 	re.refresh()
 	re.primary_button.pressed.emit()
 	await _frames_wait(2)
 	_check(GameState.phase == GameState.Phase.PLAYING and GameState.round_number == 2, "NEXT ROUND button -> round 2 PLAYING")
 	_check(not re.visible, "overlay hidden while PLAYING")
-	_check(hud.round_label.text == "ROUND 2", "round label: ROUND 2")
+	_check(hud.round_label.text == "SHIFT 2", "round label: SHIFT 2")
 
 	# failure overlay + retry
 	GameState.time_left = 0.01
 	await _wait_until(func() -> bool: return GameState.phase != GameState.Phase.PLAYING, 120)
 	await _frames_wait(1)
 	_check(GameState.phase == GameState.Phase.ROUND_FAILED and re.visible, "ROUND_FAILED shows the overlay")
-	_check(re.title_label.text == "GAME OVER" and re.primary_button.text == "RETRY", "failure: GAME OVER + RETRY")
+	_check(re.title_label.text == "YOU MISSED THE PAYMENT" and re.primary_button.text == "START OVER",
+		"failure: YOU MISSED THE PAYMENT + START OVER")
+	_check(re.subtitle_label.text == "Nobody leaves. Start over.", "failure subline: %s" % re.subtitle_label.text)
 	re.primary_button.pressed.emit()
 	await _frames_wait(2)
 	_check(GameState.phase == GameState.Phase.WAITING and GameState.round_number == 1, "RETRY -> WAITING round 1")
@@ -385,6 +414,176 @@ func _test_ui() -> void:
 	hud.queue_free()
 	await _frames_wait(3)
 	_check(true, "HUD freed cleanly")
+
+
+# ---------------------------------------------------------------------------------------------
+# Balance numbers the copy / tests assume, team payment scaling
+# ---------------------------------------------------------------------------------------------
+
+func _test_balance_numbers() -> void:
+	print("== Balance (payment numbers)")
+	_check(_balance.starting_money == 150, "starting cash $150 (%d)" % _balance.starting_money)
+	_check(_balance.quota_for_round(1) == 350, "shift 1 payment $350 solo (%d)" % _balance.quota_for_round(1))
+	_check(_balance.quota_for_round(2) == 675, "shift 2 payment $675 solo = 350*1.5+150 (%d)" % _balance.quota_for_round(2))
+	_check(is_equal_approx(_balance.quota_per_extra_player, 0.2), "+20%% per extra worker (%.2f)" % _balance.quota_per_extra_player)
+	_check(_balance.quota_for_round(1, 4) == roundi(_balance.quota_for_round(1) * 1.6),
+		"4 workers pay 1.6x the solo number (%d)" % _balance.quota_for_round(1, 4))
+	_check(_balance.quota_for_round(1, 1) == _balance.quota_for_round(1) and _balance.quota_for_round(1, 0) == _balance.quota_for_round(1),
+		"1 (or 0) workers = the solo number")
+
+
+func _test_team_payment() -> void:
+	print("== GameState team payment")
+	var saved_players: Dictionary = Net.players.duplicate(true)
+	var team := {}
+	for id in [1, 2, 3, 4]:
+		team[id] = {"name": "Worker %d" % id, "color": Color.WHITE}
+	Net.players = team
+	_check(GameState.get_team_size() == 4, "get_team_size() = 4")
+	GameState.reset_local()
+	GameState.server_reset_game()
+	var solo := _balance.quota_for_round(1)
+	_check(GameState.quota == _balance.quota_for_round(1, 4) and GameState.quota == roundi(solo * 1.6),
+		"WAITING with 4 workers: payment %d = 1.6 x %d" % [GameState.quota, solo])
+	Net.players.erase(4)
+	Net.players_changed.emit()
+	_check(GameState.quota == _balance.quota_for_round(1, 3), "WAITING: a worker leaves -> payment re-priced (%d)" % GameState.quota)
+	GameState.request_start_round()
+	_check(GameState.is_playing() and GameState.quota == _balance.quota_for_round(1, 3), "shift starts with the 3-worker payment (%d)" % GameState.quota)
+	Net.players.erase(3)
+	Net.players_changed.emit()
+	_check(GameState.quota == _balance.quota_for_round(1, 3), "PLAYING: the running shift keeps its number")
+	GameState.server_add_sale(GameState.quota, 1)
+	_check(GameState.get_quota_for(2) == _balance.quota_for_round(2, 2), "next payment preview uses the current team (%d)" % GameState.get_quota_for(2))
+	GameState.request_next_round()
+	_check(GameState.round_number == 2 and GameState.quota == _balance.quota_for_round(2, 2), "shift 2 priced for 2 workers (%d)" % GameState.quota)
+	Net.players = {}
+	_check(GameState.get_team_size() == 1, "empty registry counts as 1 worker")
+	GameState.reset_local()
+	GameState.server_reset_game()
+	_check(GameState.quota == solo, "solo payment unchanged ($%d)" % GameState.quota)
+	Net.players = saved_players
+	GameState.reset_local()
+
+
+# ---------------------------------------------------------------------------------------------
+# Story: debt board + Boss barks
+# ---------------------------------------------------------------------------------------------
+
+func _test_story() -> void:
+	print("== Story")
+	var lines: Dictionary = Story.lines
+	for key in ["shift_start", "first_sale", "halfway", "paid", "missed", "purchase", "joined", "left", "last_call"]:
+		var text := String(lines.get(key, ""))
+		_check(text != "" and not text.contains("!"), "line '%s' exists, no '!' (%s)" % [key, text])
+	_check(lines["shift_start"] == "Shift's on. Don't waste my time." and lines["last_call"] == "Tick tock.",
+		"Boss lines match the script")
+	var gap := Story.MIN_BARK_GAP_SEC
+	var ttl := Story.PENDING_TTL_SEC
+	var boss := FakeBoss.new()
+	add_child(boss)
+	var board := FakeBoard.new()
+	Story.boss_override = boss
+	Story.board_override = board
+	Story.reset_state()
+	_check(Story.get_board_text() == "PAY UP", "MENU: board shows the room default 'PAY UP'")
+
+	# WAITING -> the payment on the board
+	GameState.server_reset_game()
+	_check(board.text == "OWED $350 / SHIFT 1", "WAITING board: %s" % board.text)
+	_check(boss.said.is_empty(), "nothing barked before the shift")
+
+	# shift start: MAJOR, immediate
+	GameState.request_start_round()
+	_check(boss.last() == lines["shift_start"], "shift start bark: %s" % boss.last())
+	_check(board.text == "OWED $350 / SHIFT 1", "PLAYING board: %s" % board.text)
+
+	# first deposit: queued behind the shift line (min gap), then shown
+	GameState.server_add_sale(1, 1)
+	_check(board.text == "OWED $349 / SHIFT 1", "board counts down on a deposit: %s" % board.text)
+	_check(boss.last() == lines["shift_start"] and Story.get_pending_text() == lines["first_sale"],
+		"first deposit within %.0f s of the last line waits in the queue" % gap)
+	Story.tick(gap + 0.1)
+	_check(boss.last() == lines["first_sale"] and Story.get_pending_text() == "", "after the gap: '%s'" % boss.last())
+
+	# purchase right after: rate-limited
+	GameState.server_try_spend(5, 1, "seeds")
+	_check(boss.last() == lines["first_sale"] and Story.get_pending_text() == lines["purchase"], "purchase within the gap is queued")
+	# halfway: a heavier line cuts through the gap and replaces the queued chatter
+	GameState.server_add_sale(ceili(GameState.quota * 0.5), 1)
+	_check(boss.last() == lines["halfway"], "passing 50%% barks at once: %s" % boss.last())
+	_check(Story.get_pending_text() == "", "the queued purchase line was dropped")
+	# stale queue entries expire
+	GameState.server_try_spend(5, 1, "seeds")
+	_check(Story.get_pending_text() == lines["purchase"], "chatter after a heavier line waits")
+	Story.tick(ttl + 0.5)
+	_check(Story.get_pending_text() == "" and boss.last() == lines["halfway"], "a line older than %.0f s is dropped" % ttl)
+	GameState.server_try_spend(5, 1, "seeds")
+	_check(boss.last() == lines["purchase"], "after the gap a purchase barks at once: %s" % boss.last())
+
+	# last 30 s: MAJOR, once per shift
+	GameState.time_left = Story.LAST_CALL_SEC - 0.5
+	await _frames_wait(3)
+	_check(boss.last() == lines["last_call"], "last 30 s: %s" % boss.last())
+	await _frames_wait(3)
+	_check(boss.said.count(lines["last_call"]) == 1, "'Tick tock.' only once per shift")
+
+	# payment met: the final deposit says nothing itself, the verdict does
+	var before := boss.said.size()
+	GameState.server_add_sale(GameState.quota - GameState.round_sales, 1)
+	_check(GameState.phase == GameState.Phase.ROUND_SUCCESS, "payment met -> ROUND_SUCCESS")
+	_check(boss.said.size() == before + 1 and boss.last() == lines["paid"], "one bark on payment met: %s" % boss.last())
+	_check(board.text == "PAID… FOR NOW", "success board: %s" % board.text)
+
+	# next shift: MAJOR cuts through the gap
+	GameState.request_next_round()
+	_check(boss.last() == lines["shift_start"], "shift 2 start bark right after the verdict")
+	_check(board.text == "OWED $675 / SHIFT 2", "shift 2 board: %s" % board.text)
+
+	# workers come and go (Net signals, every peer)
+	Net.peer_joined.emit(4242)
+	_check(Story.get_pending_text() == lines["joined"], "join within the gap is queued")
+	Story.tick(gap + 0.1)
+	_check(boss.last() == lines["joined"], "join bark: %s" % boss.last())
+	Net.peer_left.emit(multiplayer.get_unique_id())
+	_check(Story.get_pending_text() == "", "my own leave is not barked")
+	Net.peer_left.emit(4242)
+	Story.tick(gap + 0.1)
+	_check(boss.last() == lines["left"], "leave bark: %s" % boss.last())
+
+	# missed payment
+	GameState.time_left = 0.01
+	await _wait_until(func() -> bool: return GameState.phase != GameState.Phase.PLAYING, 120)
+	_check(GameState.phase == GameState.Phase.ROUND_FAILED and boss.last() == lines["missed"], "missed payment bark: %s" % boss.last())
+	_check(board.text == "YOU'RE DONE", "failure board: %s" % board.text)
+	GameState.request_retry()
+	_check(board.text == "OWED $350 / SHIFT 1", "START OVER: board back to %s" % board.text)
+
+	# bark_now + fallbacks
+	Story.bark_now("Back to work.")
+	_check(boss.last() == "Back to work." and Story.last_bark == "Back to work.", "bark_now() skips the queue")
+	var toasts: Array = []
+	var on_toast := func(text: String, _kind: StringName) -> void: toasts.append(text)
+	Game.toast_requested.connect(on_toast)
+	var old_npc := Node.new()
+	add_child(old_npc)
+	Story.boss_override = old_npc
+	Story.bark_now("No breaks.")
+	_check(toasts.has("Boss: No breaks."), "NPC without bark(): the line becomes a toast %s" % [toasts])
+	Story.boss_override = null
+	Story.board_override = null
+	toasts.clear()
+	Story.bark_now("Nobody hears this.")
+	Story.refresh_board()
+	_check(toasts.is_empty() and Story.last_bark == "Nobody hears this." and Story.bark_log.has("Nobody hears this."),
+		"no world: nothing shown, the line is still logged")
+	_check(Story.board_text == "OWED $350 / SHIFT 1", "no world: board text still tracked, no crash")
+	Game.toast_requested.disconnect(on_toast)
+	GameState.reset_local()
+	_check(Story.last_bark == "" and Story.get_pending_text() == "", "MENU clears Story's state")
+	old_npc.queue_free()
+	boss.queue_free()
+	await _frames_wait(1)
 
 
 func _test_local_player_path(hud: HUD) -> void:

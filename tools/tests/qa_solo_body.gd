@@ -74,7 +74,24 @@ func _check_fresh_session(tag: String) -> void:
 		empty = empty and plot(i).is_empty()
 	check(empty, "%s: every plot empty" % tag)
 	check(not Game.is_ui_locked(), "%s: no UI lock" % tag)
-	check(hud.money_label.text == HUD.format_money(b.starting_money) and hud.round_label.text == "ROUND 1", "%s: HUD shows $%d / ROUND 1" % [tag, b.starting_money])
+	check(hud.money_label.text == HUD.format_money(b.starting_money) and hud.round_label.text == "SHIFT 1", "%s: HUD shows $%d / SHIFT 1" % [tag, b.starting_money])
+	_check_story(tag, "OWED %s / SHIFT 1" % HUD.format_money(b.quota_for_round(1)), "")
+
+## The real room's DEBT BOARD (and, when `bark` is given, the real Boss's current line) follow the Story autoload.
+func _check_story(tag: String, board: String, bark: String) -> void:
+	var room: Node = Game.world.get(&"room") as Node
+	var shown := String(room.call(&"get_debt_board_text")) if room != null and room.has_method(&"get_debt_board_text") else ""
+	if shown == "":
+		print("SKIP: %s: no DEBT BOARD in the room right now" % tag)
+	else:
+		check(shown == board, "%s: debt board '%s'" % [tag, shown])
+	if bark == "":
+		return
+	var boss: Object = Story.find_boss()
+	if boss == null or not boss.has_method(&"get_current_bark"):
+		print("SKIP: %s: no Boss with get_current_bark() in the room right now" % tag)
+		return
+	check(String(boss.call(&"get_current_bark")) == bark, "%s: the Boss says '%s'" % [tag, boss.call(&"get_current_bark")])
 
 func _check_menu(tag: String) -> void:
 	check(Game.world == null and GameState.phase == GameState.Phase.MENU and GameState.money == 0, "%s: menu, GameState reset" % tag)
@@ -209,10 +226,11 @@ func _play_full_round() -> void:
 			if GameState.phase != GameState.Phase.PLAYING:
 				break
 	check(GameState.phase == GameState.Phase.ROUND_SUCCESS, "quota $%d met solo by real sales ($%d from %d harvests, %.0f s left)" % [quota, GameState.round_sales, sold_units, GameState.time_left])
-	check(hud.round_end.is_open() and hud.round_end.primary_button.visible and hud.round_end.primary_button.text == "NEXT ROUND", "round-end overlay offers NEXT ROUND to the solo host")
+	check(hud.round_end.is_open() and hud.round_end.primary_button.visible and hud.round_end.primary_button.text == "NEXT SHIFT", "round-end overlay offers NEXT SHIFT to the solo host")
 	hud.round_end.primary_button.pressed.emit()
 	await wait_frames(2)
 	check(GameState.is_playing() and GameState.round_number == 2 and GameState.quota == Config.balance.quota_for_round(2), "round 2 PLAYING, quota %d" % Config.balance.quota_for_round(2))
+	_check_story("shift 2", "OWED %s / SHIFT 2" % HUD.format_money(GameState.quota - GameState.round_sales), Story.line("shift_start"))
 	check(not hud.round_end.is_open() and not Game.is_ui_locked(), "overlay closed, input unlocked")
 	step("cycle 1: pause menu -> Leave")
 	_key(KEY_ESCAPE)
@@ -236,7 +254,7 @@ func _fail_and_retry() -> void:
 	check(me.get_held_item() == can, "holding a can when time runs out")
 	GameState.time_left = 0.05
 	await wait_until(func(): return GameState.phase == GameState.Phase.ROUND_FAILED, 3.0, "ROUND_FAILED at 0:00")
-	check(hud.round_end.is_open() and hud.round_end.primary_button.text == "RETRY", "overlay offers RETRY")
+	check(hud.round_end.is_open() and hud.round_end.primary_button.text == "START OVER", "overlay offers START OVER")
 	hud.round_end.primary_button.pressed.emit()
 	await wait_frames(6)
 	_check_fresh_session("after RETRY")

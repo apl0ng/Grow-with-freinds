@@ -155,7 +155,7 @@ func get_growth_fraction() -> float:
 			done += d * stage_progress
 	return done / total if total > 0.0 else 0.0
 
-## Short human status, e.g. "Seedling 12%", "Flowering 80%, dry!", "Ready".
+## Short human status, e.g. "Seedling 12%", "Flowering 80%, dry", "Ready".
 func get_status_text() -> String:
 	match stage:
 		Stage.EMPTY:
@@ -164,7 +164,7 @@ func get_status_text() -> String:
 			return "Ready"
 	var text := "%s %d%%" % [get_stage_name(), int(get_growth_fraction() * 100.0)]
 	if is_dry():
-		text += ", dry!"
+		text += ", dry"
 	return text
 
 # --------------------------------------------------------------------------------------------------
@@ -177,7 +177,7 @@ func get_prompt(player: Player) -> String:
 			if item_is(held, Const.ITEM_SEED_PACKET):
 				var s := Config.balance.get_seed(get_packet_strain(held))
 				return "Plant %s" % (s.display_name if s != null else "seed")
-			return "Empty plot"
+			return "Empty tray"
 		Stage.READY:
 			var s := get_seed()
 			return "Harvest %s x%d" % [get_strain_name(), s.yield_amount if s != null else 1]
@@ -203,20 +203,20 @@ func get_denied_reason(player: Player) -> String:
 	match stage:
 		Stage.EMPTY:
 			if item_is(held, Const.ITEM_SEED_PACKET):
-				return "" if Config.balance.get_seed(get_packet_strain(held)) != null else "Unknown seed"
-			return "Needs a seed"
+				return "" if Config.balance.get_seed(get_packet_strain(held)) != null else "Unknown seed."
+			return "Needs seeds."
 		Stage.READY:
-			return "Hands full" if held != null else ""
+			return "Hands full." if held != null else ""
 	if item_is(held, Const.ITEM_WATERING_CAN):
 		if get_can_charges(held) <= 0:
-			return "Watering can is empty"
+			return "Can's empty."
 		if water >= WATER_FULL:
-			return "Already watered"
+			return "Already watered."
 		return ""
 	if item_is(held, Const.ITEM_SEED_PACKET):
-		return "Already planted"
+		return "Already planted."
 	# The Interactor shows this (greyed) instead of the prompt, so it carries the growth status too.
-	return "Needs water!" if is_dry() else "Still growing… %d%%" % int(get_growth_fraction() * 100.0)
+	return "Dry. Needs water." if is_dry() else "Not ready. %d%%" % int(get_growth_fraction() * 100.0)
 
 ## SERVER ONLY (called by Interactable after distance + can_interact validation).
 func _server_interact(player: Player) -> void:
@@ -372,7 +372,7 @@ func _on_stage_changed(old: Stage) -> void:
 			var top := _plant.get_top_global_position()
 			Juice.burst(top, _tint_color(), 18)
 			juice_fx(&"sparkle", top, SPARKLE_COLOR, 12)
-			Juice.float_text(top + Vector3.UP * 0.25, "Ready!", SPARKLE_COLOR)
+			Juice.float_text(top + Vector3.UP * 0.25, "Ready", SPARKLE_COLOR)
 		else:
 			Juice.burst(_plant.get_top_global_position(), LEAF_BURST_COLOR, 8)
 	elif harvested:
@@ -446,7 +446,7 @@ func _tint_color() -> Color:
 
 func _water_status() -> String:
 	if is_dry():
-		return "dry!"
+		return "dry"
 	if water >= WATER_FULL:
 		return "full"
 	return "water %d%%" % int(water * 100.0)

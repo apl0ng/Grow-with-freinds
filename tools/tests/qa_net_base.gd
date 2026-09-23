@@ -239,9 +239,9 @@ func ui_report() -> String:
 		return "no HUD"
 	if hud.money_label.text != HUD.format_money(GameState.money):
 		bad.append("money label '%s'" % hud.money_label.text)
-	if hud.round_label.text != "ROUND %d" % GameState.round_number:
+	if hud.round_label.text != "SHIFT %d" % GameState.round_number:
 		bad.append("round label '%s'" % hud.round_label.text)
-	var want_quota := "SOLD %s / %s" % [HUD.format_money(GameState.round_sales), HUD.format_money(GameState.quota)]
+	var want_quota := "PAYMENT DUE %s / %s" % [HUD.format_money(GameState.round_sales), HUD.format_money(GameState.quota)]
 	if hud.quota_label.text != want_quota:
 		bad.append("quota label '%s' != '%s'" % [hud.quota_label.text, want_quota])
 	var over := GameState.is_round_over()
@@ -251,6 +251,11 @@ func ui_report() -> String:
 		bad.append("round_end ui lock=%s" % Game.is_ui_locked_by(&"round_end"))
 	if over and hud.round_end.primary_button.visible != GameState.is_local_host():
 		bad.append("host-only button visible=%s" % hud.round_end.primary_button.visible)
+	# The DEBT BOARD is written locally by Story on every peer from the synced state (skipped if the room has none).
+	var room: Node = Game.world.get(&"room") as Node
+	var board := String(room.call(&"get_debt_board_text")) if room != null and room.has_method(&"get_debt_board_text") else ""
+	if board != "" and board != Story.get_board_text():
+		bad.append("debt board '%s' != '%s'" % [board, Story.get_board_text()])
 	return "; ".join(bad)
 
 ## Menu state after leaving a session. (Headless cannot observe the real mouse mode; Game's rule is: captured

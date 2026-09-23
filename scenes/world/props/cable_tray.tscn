@@ -1,0 +1,13 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/world/props/segment_run.gd" id="1_run"]
+[ext_resource type="PackedScene" path="res://art/models/cable_tray_2m.glb" id="2_model"]
+
+[node name="CableTray" type="MultiMeshInstance3D"]
+cast_shadow = 0
+script = ExtResource("1_run")
+model = ExtResource("2_model")
+count = 1
+step = 2.0
+flip_alternate = true
+tint = Color(0.486275, 0.52549, 0.396078, 1)

@@ -222,20 +222,24 @@ func _test_scenes_and_sync_configs() -> void:
 	check(name_label.text == "Purple Haze", "packet label shows the strain name")
 	var body := packet.get_node("Visual/Packet/Body") as MeshInstance3D
 	var tint := body.material_override as StandardMaterial3D
-	check(tint != null and tint.albedo_color.is_equal_approx(packet.get_seed().color), "packet tinted with the seed color")
+	# Strain colours are mood-graded (STYLE.md): the model's paper takes Toon.grade(seed.color).
+	check(tint != null and tint.albedo_color.is_equal_approx(Toon.grade(packet.get_seed().color)),
+			"packet tinted with the graded seed color")
 	var shared := load("res://art/materials/toon_white.tres") as StandardMaterial3D
 	check(tint != shared and not shared.albedo_color.is_equal_approx(packet.get_seed().color),
 			"packet tint is a per-instance duplicate (library material untouched)")
 	packet.strain_id = &"budget"
-	check(tint.albedo_color.is_equal_approx(Config.balance.get_seed(&"budget").color) and name_label.text == "Budget Bud",
+	check(tint != null and tint.albedo_color.is_equal_approx(Toon.grade(Config.balance.get_seed(&"budget").color))
+			and name_label.text == "Budget Bud",
 			"packet re-tints when strain_id changes")
 	packet.strain_id = &"purple"
 	var amount_label := product.get_node("AmountLabel") as Label3D
 	var cluster := product.get_node("Visual/Cluster") as Node3D
 	check(amount_label.text == "x2" and cluster.scale.x > 1.0, "product label x2 and bigger cluster")
-	var bud := product.get_node("Visual/Cluster/Buds/Bud0") as MeshInstance3D
-	check((bud.material_override as StandardMaterial3D).albedo_color.is_equal_approx(product.get_seed().color),
-			"product buds tinted with the seed color")
+	var bud := product.get_node_or_null("Visual/Cluster/Buds/Bud0") as MeshInstance3D
+	var bud_tint := bud.material_override as StandardMaterial3D if bud != null else null
+	check(bud_tint != null and bud_tint.albedo_color.is_equal_approx(Toon.grade(product.get_seed().color)),
+			"product buds tinted with the graded seed color")
 	await frames(1)
 
 func _test_give_drop_release() -> void:
@@ -257,11 +261,11 @@ func _test_give_drop_release() -> void:
 	check(can.visible, "held item visible (holder found)")
 	check(not mgr.server_give_item(packet, 1), "giving a second item to a full-handed player fails")
 	check(not packet.is_held() and mgr.get_held_by(1) == can, "second item stays on the floor")
-	check(not packet.can_interact(player) and packet.get_denied_reason(player) == "Hands full", "denied reason 'Hands full'")
+	check(not packet.can_interact(player) and packet.get_denied_reason(player) == "Hands full.", "denied reason 'Hands full.'")
 	check(not mgr.server_give_item(can, 2), "cannot give an item someone else holds")
 	var other := Player.new() # bare Player of another peer (only peer_id is read)
 	other.peer_id = 2
-	check(can.get_denied_reason(other) == "Someone is holding this" and not can.can_interact(other), "held item not interactable for others")
+	check(can.get_denied_reason(other) == "Someone's carrying that." and not can.can_interact(other), "held item not interactable for others")
 	other.free()
 	check(can.can_interact(player) and can.get_denied_reason(player) == "", "holder's repeated pickup request is a silent no-op (double press)")
 	check(mgr.server_give_item(can, 1), "giving the same item to its holder is a no-op success")
@@ -360,14 +364,14 @@ func _test_interactor() -> void:
 	# Hands full -> denied reason, greyed.
 	check(mgr.server_give_item(can, 1), "hold the can")
 	await frames(2)
-	check(interactor.prompt_text == "Hands full" and not interactor.prompt_enabled, "hands full -> ('Hands full', false)")
+	check(interactor.prompt_text == "Hands full." and not interactor.prompt_enabled, "hands full -> ('Hands full.', false)")
 	# UI lock hides the prompt.
 	Game.set_ui_lock(&"items_test", true)
 	await frames(2)
 	check(interactor.prompt_text == "" and not interactor.prompt_enabled and prompts[-1] == ["", false], "UI lock -> ('', false)")
 	Game.set_ui_lock(&"items_test", false)
 	await frames(2)
-	check(interactor.prompt_text == "Hands full", "prompt comes back after unlock")
+	check(interactor.prompt_text == "Hands full.", "prompt comes back after unlock")
 	# try_drop -> request_drop RPC.
 	interactor.try_drop()
 	check(can.holder_id == 0, "try_drop() drops the held can")

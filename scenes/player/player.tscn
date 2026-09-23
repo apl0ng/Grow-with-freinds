@@ -47,10 +47,10 @@ shape = SubResource("CapsuleShape3D_body")
 outline_width = 0.025
 
 [node name="Face" type="Node3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.26, -0.029)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.292, -0.05)
 
 [node name="ToonFace" parent="Visual/Face" instance=ExtResource("4_face")]
-transform = Transform3D(1, 0, 0, 0, 0.9914449, 0.1305262, 0, -0.1305262, 0.9914449, 0, 0, -0.312)
+transform = Transform3D(1, 0, 0, 0, 0.98902, 0.14781, 0, -0.14781, 0.98902, 0, -0.052, -0.308)
 
 [node name="BlobShadow" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.006, 0)

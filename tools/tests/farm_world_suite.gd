@@ -61,22 +61,22 @@ func run() -> void:
 	# --- water with a real WateringCan
 	items.server_give_item(can, player.peer_id)
 	await _frames(2)
-	_check(plot.get_prompt(player) == "Water plant (dry!)", "holding a can at a dry plant: 'Water plant (dry!)'", plot.get_prompt(player))
+	_check(plot.get_prompt(player) == "Water plant (dry)", "holding a can at a dry plant: 'Water plant (dry)'", plot.get_prompt(player))
 	plot.interact(player)
 	await _frames(3)
 	_check(is_equal_approx(plot.water, minf(1.0, Config.balance.water_per_charge)) and int(can.get(&"charges")) == cap - 1,
 		"interact() waters the plant and spends one charge", "water %.3f charges %d" % [plot.water, int(can.get(&"charges"))])
 	plot.interact(player)   # already full -> denied locally, nothing changes
 	await _frames(3)
-	_check(int(can.get(&"charges")) == cap - 1 and plot.get_denied_reason(player) == "Already watered", "watering a full plot is denied")
+	_check(int(can.get(&"charges")) == cap - 1 and plot.get_denied_reason(player) == "Already watered.", "watering a full plot is denied")
 
 	# --- refill at the well
 	_stand_at(player, well)
-	_check(well.get_prompt(player) == "Fill watering can (%d/%d)" % [cap - 1, cap] and well.can_interact(player),
+	_check(well.get_prompt(player) == "Fill can (%d/%d)" % [cap - 1, cap] and well.can_interact(player),
 		"well prompt with a part-empty can", well.get_prompt(player))
 	well.interact(player)
 	await _frames(3)
-	_check(int(can.get(&"charges")) == cap and well.get_denied_reason(player) == "Can is already full", "interact() at the well refills the can")
+	_check(int(can.get(&"charges")) == cap and well.get_denied_reason(player) == "Can's full.", "interact() at the well refills the can")
 
 	# --- grow during a round
 	GameState.server_start_round()
@@ -92,7 +92,7 @@ func run() -> void:
 
 	# --- harvest
 	_stand_at(player, plot)
-	_check(not plot.can_interact(player) and plot.get_denied_reason(player) == "Hands full", "harvest denied while holding the can")
+	_check(not plot.can_interact(player) and plot.get_denied_reason(player) == "Hands full.", "harvest denied while holding the can")
 	items.server_drop_item(can, player.global_position + Vector3(0.0, 0.0, 0.8))
 	await _frames(2)
 	_check(plot.get_prompt(player) == "Harvest Budget Bud x1", "empty hands at READY: 'Harvest Budget Bud x1'", plot.get_prompt(player))

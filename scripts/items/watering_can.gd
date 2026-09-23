@@ -4,7 +4,8 @@ extends Item
 ## Visuals: water gauge on the back (faces the player when held), water surface on top while not empty,
 ## floating "3/4" label while lying on the floor.
 
-## Height of the gauge fill mesh at 100% (matches the Fill BoxMesh size.y in watering_can.tscn).
+## Height of the gauge fill mesh at 100%: the model's Visual/Gauge/Fill (art/models/watering_can.glb, GAUGE_H in
+## tools/blender/models/watering_can.py) is this tall at scale 1, centred on its node.
 const GAUGE_HEIGHT: float = 0.16
 ## Label tint when the can is empty (palette "tomato", see scripts/art/toon.gd).
 const EMPTY_COLOR := Color("ff5a5f")

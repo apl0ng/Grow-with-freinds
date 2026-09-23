@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## Full-screen "Connecting..." overlay shown by Game while a client connects (freed when the local player
-## spawns or when returning to the menu). Cancel returns to the menu.
+## spawns or when returning to the menu). Cancel returns to the menu. Hint copy: "Waiting at the gate…".
 
 @onready var text_label: Label = %Text
 @onready var dots_label: Label = %Dots

@@ -24,7 +24,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.12, 0.06, 0.22, 0.5)
+color = Color(0.05, 0.06, 0.07, 0.55)
 
 [node name="Panel" type="PanelContainer" parent="Root"]
 unique_name_in_owner = true
@@ -54,12 +54,13 @@ theme_override_constants/separation = 0
 [node name="Title" type="Label" parent="Root/Panel/VBox/Header/TitleBox"]
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
-text = "SEED SHOP"
+text = "SUPPLY WINDOW"
 
 [node name="Subtitle" type="Label" parent="Root/Panel/VBox/Header/TitleBox"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
-text = "Seeds land in your hands. Upgrades help the whole team."
+text = "Everything goes on your tab."
 
 [node name="Wallet" type="VBoxContainer" parent="Root/Panel/VBox/Header"]
 layout_mode = 2
@@ -70,7 +71,7 @@ theme_override_constants/separation = -2
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
 theme_override_font_sizes/font_size = 14
-text = "TEAM WALLET"
+text = "CASH ON HAND"
 horizontal_alignment = 2
 
 [node name="MoneyLabel" type="Label" parent="Root/Panel/VBox/Header/Wallet"]
@@ -113,7 +114,7 @@ theme_type_variation = &"BigButton"
 theme_override_font_sizes/font_size = 24
 toggle_mode = true
 button_group = SubResource("ButtonGroup_tabs")
-text = "UPGRADES"
+text = "FAVORS"
 
 [node name="TabHint" type="Label" parent="Root/Panel/VBox/Tabs"]
 layout_mode = 2

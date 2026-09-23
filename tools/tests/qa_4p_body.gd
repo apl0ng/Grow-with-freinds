@@ -12,7 +12,7 @@ extends "res://tools/tests/qa_net_base.gd"
 ## Scenario (host side, every step asserted with PASS/FAIL lines; clients assert their own view too):
 ##   join  -> checkpoint (every peer's canonical_state() must equal the host's)
 ##   (a)   Alpha and Bravo grab the SAME watering can in the same host frame: exactly one holds it, the
-##         other is told "Someone is holding this", no duplicate items; a server-side "Hands full" denial
+##         other is told "Someone's carrying that.", no duplicate items; a server-side "Hands full." denial
 ##   (b)   the loser buys a seed, then plants plot 1 while the winner waters plot 1 (same frame);
 ##         growth to READY; Charlie (a third player) harvests and sells
 ##   (c)   checkpoints after every step
@@ -97,7 +97,7 @@ func _host_main() -> void:
 	var buyers := int(Game.world.items.get_held_by(_ids["a"]) != null) + int(Game.world.items.get_held_by(_ids["b"]) != null)
 	check(buyers == 1, "exactly one of them holds it")
 	var buy_toasts: Array = (buy_a.get("toasts", []) as Array) + (buy_b.get("toasts", []) as Array)
-	check(buy_toasts.has(ShopCounter.REASON_NO_MONEY), "the other was told 'Not enough money' %s" % [buy_toasts])
+	check(buy_toasts.has(ShopCounter.REASON_NO_MONEY), "the other was told 'Not enough cash.' %s" % [buy_toasts])
 	await checkpoint("after the money race", ["a", "b"])
 	for it in items_of(Const.ITEM_SEED_PACKET):
 		Game.world.items.server_despawn_item(it)
@@ -123,7 +123,7 @@ func _host_main() -> void:
 	var l := "b" if w == "a" else "a"                # loser
 	var loser_ack := ack_b if l == "b" else ack_a
 	var loser_toasts: Array = loser_ack.get("toasts", [])
-	check(loser_toasts.has("Someone is holding this") or loser_toasts.has("Hands full"),
+	check(loser_toasts.has("Someone's carrying that.") or loser_toasts.has("Hands full."),
 			"loser (%s) was told why: %s" % [NAMES[l], loser_toasts])
 	check(Game.world.items.get_held_by(_ids[l]) == null, "loser holds nothing on the host")
 	check(items_of(Const.ITEM_WATERING_CAN).size() == 2 and Game.world.items.get_items().size() == 2, "still exactly 2 items (no duplicates)")
@@ -132,7 +132,7 @@ func _host_main() -> void:
 	step("(a2) server-side denial: winner asks for the second can with full hands (prediction bypassed)")
 	r = await run_cmd(_ids[w], "raw_pickup_request", {"item": String(can_b.name)})
 	check(can_b.holder_id == 0, "second can stays on the floor")
-	check((r.get("toasts", []) as Array).has("Hands full"), "winner got 'Hands full' from the server: %s" % [r.get("toasts", [])])
+	check((r.get("toasts", []) as Array).has("Hands full."), "winner got 'Hands full.' from the server: %s" % [r.get("toasts", [])])
 
 	# ---------------------------------------------------------------- (b) plant + water same frame
 	step("(b) %s buys a seed, then plants plot 1 while %s waters it in the same frame" % [NAMES[l], NAMES[w]])
@@ -150,7 +150,7 @@ func _host_main() -> void:
 	check(items_of(Const.ITEM_SEED_PACKET).is_empty(), "the packet was consumed exactly once")
 	if p1.water < 0.99:
 		# The water request reached the server before the plant request: it must have been refused cleanly.
-		check((ack_water.get("toasts", []) as Array).has("Needs a seed"), "water-before-plant refused with 'Needs a seed' %s" % [ack_water.get("toasts", [])])
+		check((ack_water.get("toasts", []) as Array).has("Needs seeds."), "water-before-plant refused with 'Needs seeds.' %s" % [ack_water.get("toasts", [])])
 		check(int(can_a.get(&"charges")) == charges_before, "no charge spent by the refused watering")
 		r = await run_cmd(_ids[w], "interact", {"station": "GrowPlot1"})
 	else:
@@ -321,8 +321,9 @@ func _host_main() -> void:
 	check(sell_toasts.has(TurnInStation.REASON_NOT_PLAYING), "the late seller was told selling reopens next round %s" % [sell_toasts])
 	await checkpoint("round success", ["a", "b", "c"], true)
 	GameState.request_next_round()
-	check(GameState.round_number == 2 and GameState.is_playing() and GameState.quota == Config.balance.quota_for_round(2),
-			"host: round 2 PLAYING, quota %d" % Config.balance.quota_for_round(2))
+	check(GameState.round_number == 2 and GameState.is_playing() and GameState.quota == Config.balance.quota_for_round(2, Net.players.size()),
+			"host: round 2 PLAYING, payment %d for %d workers" % [Config.balance.quota_for_round(2, Net.players.size()), Net.players.size()])
+	check(Net.players.size() < 2 or GameState.quota > Config.balance.quota_for_round(2), "host: a team pays more than a solo worker")
 	await checkpoint("round 2", ["a", "b", "c"], true)
 	if leftover.size() == 1:
 		var keeper := "a" if leftover[0].holder_id == _ids["a"] else "c"

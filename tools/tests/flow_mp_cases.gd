@@ -166,7 +166,7 @@ func _client_step(n: int, host: Dictionary) -> void:
 			_check(is_equal_approx(GameState.time_left, _balance.round_length_sec), "timer at round length")
 			_check(not GameState.is_local_host() and not bool(GameState.get(&"_authoritative")), "client is not the authority")
 			_check(_has_event(["phase", P.WAITING]), "phase_changed(WAITING) emitted on the client")
-			_check(_hud.banner.visible and _hud.banner_title.text == "HANG TIGHT!" and not _hud.start_button.visible, "client HUD: waiting banner, no START button")
+			_check(_hud.banner.visible and _hud.banner_title.text == "STAND BY" and not _hud.start_button.visible, "client HUD: waiting banner, no START button")
 			_check(_hud.money_label.text == HUD.format_money(GameState.money), "client HUD wallet %s" % _hud.money_label.text)
 		2:
 			_check(GameState.phase == P.PLAYING and GameState.is_playing(), "round started on the client")
@@ -181,7 +181,7 @@ func _client_step(n: int, host: Dictionary) -> void:
 			_check(GameState.round_sales == 5 and GameState.money == int(host["money"]), "sale: sales + money in sync")
 			_check(_has_event(["sale", 5, multiplayer.get_unique_id()]), "sale_made(5, me) on the client")
 			_check(_has_event(["sales", 5, GameState.quota]), "sales_changed on the client")
-			_check(_hud.quota_label.text == "SOLD $5 / %s" % HUD.format_money(GameState.quota), "client HUD quota: %s" % _hud.quota_label.text)
+			_check(_hud.quota_label.text == "PAYMENT DUE $5 / %s" % HUD.format_money(GameState.quota), "client HUD quota: %s" % _hud.quota_label.text)
 		5:
 			var diff := absf(GameState.time_left - float(host["time"]))
 			_check(diff < TIME_TOLERANCE_SEC, "timer in sync: client %.2f vs host %.2f" % [GameState.time_left, float(host["time"])])
@@ -192,14 +192,14 @@ func _client_step(n: int, host: Dictionary) -> void:
 			_check(_has_event(["round_ended", true, 1]), "round_ended(true, 1) on the client")
 			_check(_event_index(["sale"]) >= 0 and _event_index(["sale"]) < _event_index(["round_ended"]), "sale_made before round_ended")
 			var re := _hud.round_end
-			_check(re.visible and re.title_label.text == "QUOTA MET!", "client overlay: QUOTA MET!")
+			_check(re.visible and re.title_label.text.begins_with("PAYMENT ACCEPTED"), "client overlay: PAYMENT ACCEPTED… for now")
 			_check(not re.primary_button.visible and re.waiting_label.visible and re.menu_button.text == "LEAVE", "client overlay: waiting + LEAVE")
 		7:
 			_check(GameState.phase == P.PLAYING and GameState.round_number == 2, "next round: round 2 PLAYING")
 			_check(GameState.quota == _balance.quota_for_round(2) and GameState.round_sales == 0, "round 2 quota %d, sales 0" % GameState.quota)
 			_check(GameState.money == int(host["money"]), "money carried over (%d)" % GameState.money)
 			_check(int(GameState.get(&"_serial")) == int(host["serial"]), "round serial in sync after next round")
-			_check(not _hud.round_end.visible and _hud.round_label.text == "ROUND 2", "client HUD: overlay gone, ROUND 2")
+			_check(not _hud.round_end.visible and _hud.round_label.text == "SHIFT 2", "client HUD: overlay gone, SHIFT 2")
 		8:
 			_check(GameState.get_upgrade_level(&"fertilizer") == int(host["fert"]), "upgrade level in sync (%d)" % GameState.get_upgrade_level(&"fertilizer"))
 			_check(is_equal_approx(GameState.get_growth_speed_multiplier(), float(host["growth"])), "growth multiplier in sync")
@@ -211,7 +211,8 @@ func _client_step(n: int, host: Dictionary) -> void:
 			_check(_has_event(["round_ended", false, 2]), "round_ended(false, 2) on the client")
 			_check(GameState.time_left == 0.0, "client time_left is 0")
 			var re := _hud.round_end
-			_check(re.visible and re.title_label.text == "GAME OVER" and re.waiting_label.visible, "client overlay: GAME OVER + waiting")
+			_check(re.visible and re.title_label.text == "YOU MISSED THE PAYMENT" and re.waiting_label.visible
+				and re.waiting_label.text == "Waiting for the Boss's decision…", "client overlay: YOU MISSED THE PAYMENT + waiting for the Boss")
 		10:
 			_check(GameState.phase == P.WAITING and GameState.round_number == 1, "retry: WAITING round 1")
 			_check(GameState.money == _balance.starting_money and GameState.upgrades.is_empty(), "retry: starting money, upgrades cleared")

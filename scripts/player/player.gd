@@ -33,7 +33,10 @@ const REMOTE_SMOOTHING: float = 16.0
 const SNAP_DISTANCE: float = 3.0
 ## How much of the head pitch the cartoon face follows on remote players.
 const FACE_PITCH_FACTOR: float = 0.35
-
+## Remote players' tiny arms (model nodes Visual/Model/ArmL|ArmR, pivot at the shoulder): the right glove comes
+## up to the item held at %BodyHandSocket, and both swing a little while walking.
+const HOLD_ARM_ROTATION := Vector3(0.86, 0.11, 0.0)
+const ARM_SWING: float = 0.3
 
 var peer_id: int = 1
 var display_name: String = "Player"
@@ -60,6 +63,8 @@ var crouching: bool = false:
 # with the look pitch and carries the ToonFace prop (Visual/Face/ToonFace, art/props/face.tscn, sad mood).
 @onready var face: Node3D = $Visual/Face
 @onready var body_model: Toonify = get_node_or_null(^"Visual/Model") as Toonify
+@onready var arm_l: Node3D = get_node_or_null(^"Visual/Model/ArmL") as Node3D
+@onready var arm_r: Node3D = get_node_or_null(^"Visual/Model/ArmR") as Node3D
 @onready var name_label: Label3D = %NameLabel
 @onready var hand_socket: Node3D = %HandSocket
 @onready var body_hand_socket: Node3D = %BodyHandSocket
@@ -75,6 +80,9 @@ var _crouch_blend: float = 0.0
 var _walk_phase: float = 0.0
 var _visual_speed: float = 0.0
 var _last_visual_pos: Vector3 = Vector3.ZERO
+var _hold_blend: float = 0.0
+var _holding: bool = false
+var _hold_check_left: float = 0.0
 
 func _enter_tree() -> void:
 	var id := str(name).to_int()
@@ -315,6 +323,20 @@ func _animate_body(delta: float) -> void:
 	var amount := clampf(_visual_speed / Config.balance.walk_speed, 0.0, 1.0)
 	visual.position.y = absf(sin(_walk_phase)) * 0.08 * amount
 	visual.rotation.z = sin(_walk_phase) * 0.06 * amount
+	_animate_arms(delta, amount)
+
+func _animate_arms(delta: float, walk: float) -> void:
+	if arm_l == null or arm_r == null:
+		return
+	_hold_check_left -= delta
+	if _hold_check_left <= 0.0:
+		_hold_check_left = 0.15
+		_holding = get_held_item() != null
+	_hold_blend = move_toward(_hold_blend, 1.0 if _holding else 0.0, delta * 5.0)
+	var hold := _hold_blend * _hold_blend * (3.0 - 2.0 * _hold_blend)
+	var swing := sin(_walk_phase) * ARM_SWING * walk
+	arm_l.rotation = Vector3(swing, 0.0, 0.0)
+	arm_r.rotation = Vector3(-swing, 0.0, 0.0).lerp(HOLD_ARM_ROTATION, hold)
 
 func _set_crouching(value: bool) -> void:
 	if crouching == value:

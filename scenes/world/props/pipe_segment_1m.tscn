@@ -1,0 +1,13 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/world/props/segment_run.gd" id="1_run"]
+[ext_resource type="PackedScene" path="res://art/models/pipe_straight_1m.glb" id="2_model"]
+
+[node name="PipeSegment" type="MultiMeshInstance3D"]
+cast_shadow = 0
+script = ExtResource("1_run")
+model = ExtResource("2_model")
+count = 1
+step = 1.0
+flip_alternate = false
+tint = Color(0.435294, 0.466667, 0.529412, 1)

@@ -5,7 +5,7 @@
 
 [sub_resource type="Gradient" id="Gradient_bg"]
 offsets = PackedFloat32Array(0, 0.6, 1)
-colors = PackedColorArray(0.46, 0.76, 0.98, 1, 0.72, 0.9, 0.98, 1, 0.78, 0.94, 0.66, 1)
+colors = PackedColorArray(0.07, 0.08, 0.1, 1, 0.16, 0.175, 0.2, 1, 0.3, 0.3, 0.28, 1)
 
 [sub_resource type="GradientTexture2D" id="GradientTexture2D_bg"]
 gradient = SubResource("Gradient_bg")
@@ -14,7 +14,7 @@ height = 128
 fill_to = Vector2(0, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hill"]
-bg_color = Color(0.49, 0.82, 0.42, 1)
+bg_color = Color(0.3, 0.3, 0.29, 1)
 corner_radius_top_left = 900
 corner_radius_top_right = 900
 corner_detail = 16
@@ -50,7 +50,7 @@ mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_hill")
 
 [node name="HillFront" type="Panel" parent="."]
-modulate = Color(0.85, 1, 0.8, 1)
+modulate = Color(0.72, 0.74, 0.74, 1)
 layout_mode = 1
 anchors_preset = -1
 anchor_left = 0.45
@@ -61,6 +61,7 @@ mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_hill")
 
 [node name="Bubbles" type="Control" parent="."]
+modulate = Color(0.55, 0.6, 0.58, 0.45)
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -91,8 +92,9 @@ horizontal_alignment = 1
 
 [node name="Tagline" type="Label" parent="Center/Column"]
 layout_mode = 2
-theme_type_variation = &"SubtleLabel"
-text = "Plant it. Water it. Sell it. Hit the quota - together!"
+theme_type_variation = &"HudLabel"
+theme_override_font_sizes/font_size = 22
+text = "You owe him. Work it off."
 horizontal_alignment = 1
 
 [node name="Card" type="PanelContainer" parent="Center/Column"]
@@ -117,7 +119,7 @@ text = "Your name"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "Sprout"
+placeholder_text = "Dale"
 max_length = 16
 select_all_on_focus = true
 
@@ -160,14 +162,14 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"BigButton"
-text = "Host game"
+text = "Open the floor"
 
 [node name="JoinButton" type="Button" parent="Center/Column/Card/Form/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"BigButton"
-text = "Join game"
+text = "Report for shift"
 
 [node name="StatusLabel" type="Label" parent="Center/Column/Card/Form"]
 unique_name_in_owner = true
@@ -187,8 +189,8 @@ theme_type_variation = &"Card"
 custom_minimum_size = Vector2(540, 0)
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
-text = "How to play: buy seeds at the shop, plant them in a grow plot, water them from the well, harvest when ripe and sell at the turn-in bin. Reach the team's sales quota before the timer runs out!
-WASD move - Shift sprint - Space jump - Ctrl/C crouch - E/LMB use - Q/G drop - Esc pause - Enter start round (host)"
+text = "Buy seeds at the supply window. Plant them in the trays, water them from the tank, harvest, and deposit the product down the chute. Cover the payment before the shift ends. The number only goes up.
+WASD move - Shift sprint - Space jump - Ctrl/C crouch - E/LMB use - Q/G drop - Esc break - Enter start shift (host)"
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -197,4 +199,4 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
 theme_type_variation = &"SmallButton"
-text = "Quit"
+text = "Walk out (you can't)"

@@ -58,7 +58,7 @@ horizontal_alignment = 1
 [node name="Hint" type="Label" parent="Root/Center/Card/Box"]
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
-text = "Waiting for the host to let you in"
+text = "Waiting at the gate. Someone has to let you in."
 horizontal_alignment = 1
 
 [node name="CancelButton" type="Button" parent="Root/Center/Card/Box"]

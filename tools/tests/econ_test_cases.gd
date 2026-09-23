@@ -90,8 +90,8 @@ func _check_structure(counter: ShopCounter, turn_in: TurnInStation) -> void:
 		_check(tag != null and tag.text == "$%d" % seeds[i].cost, "jar %d price tag $%d" % [i + 1, seeds[i].cost],
 				tag.text if tag != null else "missing")
 	# Interaction contract
-	_check(counter.can_interact(null) and counter.get_prompt(null) == "Browse seeds & upgrades",
-			"counter prompt 'Browse seeds & upgrades', always interactable")
+	_check(counter.can_interact(null) and counter.get_prompt(null) == "Buy supplies",
+			"counter prompt 'Buy supplies', always interactable")
 
 
 func _check_sell_formula() -> void:
@@ -116,12 +116,12 @@ func _check_sell_formula() -> void:
 
 
 func _check_turn_in_standalone(turn_in: TurnInStation) -> void:
-	_check(not turn_in.can_interact(null) and turn_in.get_denied_reason(null) == "Nothing to sell",
-			"turn-in with empty hands: 'Nothing to sell'")
-	_check(turn_in.get_prompt(null) == "Sell product", "turn-in generic prompt")
-	_check(TurnInStation.get_sold_text(120, 400) == "Sold: $120 / $400", "sold label text")
-	_check(TurnInStation.get_sold_text(0, 0) == "Sold: $0", "sold label text without quota")
-	_check(TurnInStation.get_sold_text(450, 400).contains("QUOTA MET"), "sold label shows QUOTA MET")
+	_check(not turn_in.can_interact(null) and turn_in.get_denied_reason(null) == "Nothing to deposit.",
+			"turn-in with empty hands: 'Nothing to deposit.'")
+	_check(turn_in.get_prompt(null) == "Deposit product", "turn-in generic prompt")
+	_check(TurnInStation.get_sold_text(120, 400) == "DEPOSITED $120 / $400", "deposit label text")
+	_check(TurnInStation.get_sold_text(0, 0) == "DEPOSITED $0", "deposit label text without a payment")
+	_check(TurnInStation.get_sold_text(450, 400) == "DEPOSITED $450 / $400\nPAID… FOR NOW", "deposit label shows PAID… FOR NOW")
 	var label := turn_in.get_node_or_null(^"SoldLabel") as Label3D
 	_check(label != null and label.text == TurnInStation.get_sold_text(GameState.round_sales, GameState.quota),
 			"floating sold label initialised from GameState")
@@ -168,8 +168,10 @@ func _check_shop_ui(counter: ShopCounter) -> void:
 		var grow := roundi(Config.balance.total_grow_time(seed_def) / GameState.get_growth_speed_multiplier())
 		var sells := int(round(seed_def.yield_amount * seed_def.sale_value_per_unit * GameState.get_sale_multiplier()))
 		var stats := card.get_stats_text()
-		_check(stats.contains("~%d s" % grow) and stats.contains("Sells for $%d" % sells),
-				"seed card %s: grows in ~%d s, sells for $%d" % [seed_def.id, grow, sells], stats)
+		_check(stats.contains("Grows in ~%d s" % grow) and stats.contains("Deposits for $%d" % sells)
+				and stats.contains("Margin %s$%d" % ["+" if sells >= seed_def.cost else "-", absi(sells - seed_def.cost)]),
+				"seed card %s: grows in ~%d s, deposits for $%d, margin" % [seed_def.id, grow, sells], stats)
+		_check(not stats.contains("!"), "seed card %s copy has no '!'" % seed_def.id, stats)
 		_check(card.is_buy_enabled() == (GameState.money >= seed_def.cost),
 				"seed card %s BUY enabled only when affordable" % seed_def.id)
 	for up_def: UpgradeDef in Config.balance.upgrades:
@@ -180,9 +182,17 @@ func _check_shop_ui(counter: ShopCounter) -> void:
 				"upgrade card %s shows next cost $%d" % [up_def.id, cost])
 
 	# Tab switching (Tab key)
+	var title := ui.find_child("Title", true, false) as Label
+	var subtitle := ui.find_child("Subtitle", true, false) as Label
+	_check(title != null and title.text == "SUPPLY WINDOW", "window title 'SUPPLY WINDOW'")
 	_check(ui.get_current_tab() == ShopUI.TAB_SEEDS, "shop opens on the SEEDS tab")
+	_check(subtitle != null and subtitle.text == "Everything goes on your tab.", "seeds subline: 'Everything goes on your tab.'")
 	_push_key(KEY_TAB)
-	_check(ui.get_current_tab() == ShopUI.TAB_UPGRADES and ui.is_open(), "Tab switches to UPGRADES")
+	_check(ui.get_current_tab() == ShopUI.TAB_UPGRADES and ui.is_open(), "Tab switches to UPGRADES (FAVORS)")
+	_check(subtitle != null and subtitle.text == "Favors. The Boss adds them to your tab.", "favors subline")
+	for up_card: ShopCard in ui.get_cards(ShopCounter.KIND_UPGRADE):
+		var tag := up_card.find_child("TagLabel", true, false) as Label
+		_check(tag != null and tag.text.begins_with("FAVOR"), "upgrade card %s is a FAVOR" % up_card.item_id, tag.text if tag else "")
 	_push_key(KEY_TAB)
 	_check(ui.get_current_tab() == ShopUI.TAB_SEEDS, "Tab switches back to SEEDS")
 
@@ -292,7 +302,7 @@ func _part2_purchases(player: Player, counter: ShopCounter, items: ItemManager) 
 		_skip("purchase checks", "balance.tres has no golden/budget seed")
 		return
 
-	_expect(counter.server_buy_seed(1, &"no_such_seed"), false, "Unknown seed", "unknown seed is rejected")
+	_expect(counter.server_buy_seed(1, &"no_such_seed"), false, "Unknown seed.", "unknown seed is rejected")
 
 	_place_at(player, counter.to_global(Vector3(0.0, 0.0, 30.0)))
 	_expect(counter.server_buy_seed(1, &"budget"), false, "Too far away", "buying from far away is rejected")
@@ -301,25 +311,26 @@ func _part2_purchases(player: Player, counter: ShopCounter, items: ItemManager) 
 	var money := GameState.money
 	var result := counter.server_buy_seed(1, golden.id)
 	_expect(result, true, "", "buy Golden Kush with $%d" % money)
+	_check(String(result.get("message", "")) == "Seeds. Don't waste them.", "seed purchase message is flat", str(result))
 	_check(GameState.money == money - golden.cost, "seed cost $%d was spent" % golden.cost, "money %d" % GameState.money)
 	var held := player.get_held_item()
 	_check(held != null and held.item_type == Const.ITEM_SEED_PACKET and held.get(&"strain_id") == golden.id,
 			"seed packet spawned in the buyer's hands", str(held))
 
 	money = GameState.money
-	_expect(counter.server_buy_seed(1, budget.id), false, "Hands full — drop your item first", "hands full is rejected")
+	_expect(counter.server_buy_seed(1, budget.id), false, "Hands full.", "hands full is rejected")
 	_check(GameState.money == money, "rejected purchase costs nothing")
 
 	_clear_hands(player, items)
 	if GameState.money < golden.cost:
-		_expect(counter.server_buy_seed(1, golden.id), false, "Not enough money", "not enough money is rejected")
-		_check(GameState.money == money, "money unchanged after 'Not enough money'")
+		_expect(counter.server_buy_seed(1, golden.id), false, "Not enough cash.", "not enough cash is rejected")
+		_check(GameState.money == money, "money unchanged after 'Not enough cash.'")
 	else:
 		_skip("not enough money", "wallet $%d still covers $%d" % [GameState.money, golden.cost])
 
 	# Upgrades
 	GameState.server_add_money(1000)
-	_expect(counter.server_buy_upgrade(1, &"no_such_upgrade"), false, "Unknown upgrade", "unknown upgrade is rejected")
+	_expect(counter.server_buy_upgrade(1, &"no_such_upgrade"), false, "Unknown favor.", "unknown upgrade is rejected")
 	var cans := Config.balance.get_upgrade(&"big_can")
 	if cans == null:
 		_skip("upgrade level-ups", "balance.tres has no big_can upgrade")
@@ -332,7 +343,7 @@ func _part2_purchases(player: Player, counter: ShopCounter, items: ItemManager) 
 				"%s is level %d and cost $%d" % [cans.id, level, cost],
 				"level %d money %d" % [GameState.get_upgrade_level(cans.id), GameState.money])
 	money = GameState.money
-	_expect(counter.server_buy_upgrade(1, cans.id), false, "Already at max level", "maxed upgrade is rejected")
+	_expect(counter.server_buy_upgrade(1, cans.id), false, "Maxed out.", "maxed upgrade is rejected")
 	_check(GameState.money == money, "maxed upgrade costs nothing")
 	_place_at(player, counter.to_global(Vector3(0.0, 0.0, 30.0)))
 	_expect(counter.server_buy_upgrade(1, &"fertilizer"), false, "Too far away", "upgrade from far away is rejected")
@@ -359,9 +370,9 @@ func _part2_shop_ui(player: Player, counter: ShopCounter, items: ItemManager) ->
 		var held := player.get_held_item()
 		_check(held != null and held.get(&"strain_id") == &"purple", "UI BUY -> RPC -> packet in hands", str(held))
 		_check(GameState.money == money - purple.cost, "UI purchase spent $%d" % purple.cost)
-		_check(_toasts.size() >= 1 and String(_toasts[-1][0]).contains("Purple Haze") and _toasts[-1][1] == &"success",
-				"buyer gets a success toast", str(_toasts))
-		_check(ui.get_feedback_text().contains("Purple Haze"), "success shown in the shop footer", ui.get_feedback_text())
+		_check(_toasts.size() >= 1 and String(_toasts[-1][0]) == "Seeds. Don't waste them." and _toasts[-1][1] == &"success",
+				"buyer gets a flat success toast", str(_toasts))
+		_check(ui.get_feedback_text() == "Seeds. Don't waste them.", "success shown in the shop footer", ui.get_feedback_text())
 		await _frames(1)
 		ui.call(&"_refresh")
 		_check(card.get_buy_button().text == "HANDS FULL" and not card.is_buy_enabled(),
@@ -387,10 +398,10 @@ func _part2_shop_ui(player: Player, counter: ShopCounter, items: ItemManager) ->
 func _part2_selling(player: Player, counter: ShopCounter, turn_in: TurnInStation, items: ItemManager) -> void:
 	_place_near(player, turn_in)
 	_clear_hands(player, items)
-	_check(turn_in.get_denied_reason(player) == "Nothing to sell", "session: empty hands -> 'Nothing to sell'")
+	_check(turn_in.get_denied_reason(player) == "Nothing to deposit.", "session: empty hands -> 'Nothing to deposit.'")
 	var can := items.server_spawn_item(Const.ITEM_WATERING_CAN, {}, turn_in.global_position, 1)
-	_check(can != null and turn_in.get_denied_reason(player) == "Only product can be sold here",
-			"watering can -> 'Only product can be sold here'")
+	_check(can != null and turn_in.get_denied_reason(player) == "Product only.",
+			"watering can -> 'Product only.'")
 	_clear_hands(player, items)
 
 	var golden := Config.balance.get_seed(&"golden")
@@ -400,16 +411,16 @@ func _part2_selling(player: Player, counter: ShopCounter, turn_in: TurnInStation
 		return
 	items.server_spawn_item(Const.ITEM_PRODUCT, {"strain_id": golden.id, "amount": 2}, turn_in.global_position, 1)
 	if GameState.phase == GameState.Phase.WAITING:
-		_check(turn_in.get_denied_reason(player) == "Selling opens when the round starts",
-				"product before the round starts -> 'Selling opens when the round starts'")
+		_check(turn_in.get_denied_reason(player) == "Chute opens when the shift starts.",
+				"product before the shift starts -> 'Chute opens when the shift starts.'")
 	GameState.server_start_round()
 	_check(GameState.is_playing() and GameState.round_sales == 0, "round started (PLAYING, sales 0)")
 
 	var mult := GameState.get_sale_multiplier()
 	var value := int(round(2 * golden.sale_value_per_unit * mult))
 	_check(turn_in.can_interact(player), "holding product during the round -> can sell")
-	_check(turn_in.get_prompt(player) == "Sell %s x2 (+$%d)" % [golden.display_name, value],
-			"sell prompt shows strain, amount and value (multiplier %.2f)" % mult, turn_in.get_prompt(player))
+	_check(turn_in.get_prompt(player) == "Deposit %s x2 (+$%d)" % [golden.display_name, value],
+			"deposit prompt shows strain, amount and value (multiplier %.2f)" % mult, turn_in.get_prompt(player))
 	var money := GameState.money
 	turn_in.interact(player)   # full base flow: prediction -> RPC -> range check -> _server_interact
 	_check(GameState.round_sales == value and GameState.money == money + value,

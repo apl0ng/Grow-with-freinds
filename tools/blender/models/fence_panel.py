@@ -59,9 +59,10 @@ def strut(bm, points, w):
     bm.faces.new(list(reversed(rings[-1])))
 
 
-def lattice(x0, x1, z0, z1, pitch=0.2, slope=1.25, segs=3, name="wires", mat="chainlink", phase=0.0):
+def lattice(x0, x1, z0, z1, pitch=0.2, slope=1.25, segs=3, name="wires", mat="chainlink", phase=0.0, split=None):
     """Chain-link diamonds: two families of straight wires z = +-slope * x + c clipped to the rectangle,
-    each split into `segs` pieces so it can belly / tear. Diamonds are `pitch` wide, slope * pitch tall."""
+    each split into `segs` pieces so it can belly / tear. Diamonds are `pitch` wide, slope * pitch tall.
+    `split(x)` -> z: every wire also gets a vertex where it crosses that line (clean paint() boundaries)."""
     bm = bmesh.new()
     for s in (slope, -slope):
         corners = [(x, z) for x in (x0, x1) for z in (z0, z1)]
@@ -77,7 +78,21 @@ def lattice(x0, x1, z0, z1, pitch=0.2, slope=1.25, segs=3, name="wires", mat="ch
             if hi - lo < 0.03:
                 continue
             n = segs if hi - lo > 0.4 else 1
-            strut(bm, [(lo + (hi - lo) * i / n, 0.0, s * (lo + (hi - lo) * i / n) + c) for i in range(n + 1)], WIRE)
+            xs = [lo + (hi - lo) * i / n for i in range(n + 1)]
+            if split is not None:
+                g = lambda x: s * x + c - split(x)
+                m = 48
+                for i in range(m):
+                    a, b = lo + (hi - lo) * i / m, lo + (hi - lo) * (i + 1) / m
+                    if g(a) * g(b) < 0:
+                        for _ in range(30):
+                            mid = (a + b) / 2
+                            a, b = (a, mid) if g(a) * g(mid) <= 0 else (mid, b)
+                        xm = (a + b) / 2
+                        if min(abs(xm - x) for x in xs) > 0.02:
+                            xs.append(xm)
+                xs.sort()
+            strut(bm, [(x, 0.0, s * x + c) for x in xs], WIRE)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     return mesh_obj(name, bm, mat, smooth=30.0)
 
@@ -85,11 +100,12 @@ def lattice(x0, x1, z0, z1, pitch=0.2, slope=1.25, segs=3, name="wires", mat="ch
 def post(x, r, height, cap_r, plate, name, rust_top=0.28, seed=0.0):
     """A galvanised pipe post on a bolted base plate, dome cap, rust creeping up from the floor."""
     parts = [
-        box((plate, plate, 0.022 if r < 0.06 else 0.034), pos=(x, 0, 0), bevel=0.008, mat="metal_dark",
+        box((plate, plate, 0.022 if r < 0.06 else 0.034), pos=(x, 0, 0), bevel=0.005, mat="metal_dark",
             name=name + "_plate"),
-        cyl(r, height, verts=16 if r < 0.06 else 20, pos=(x, 0, 0.01), bevel=0.01, mat="chainlink", name=name),
+        cyl(r, height, verts=16 if r < 0.06 else 20, pos=(x, 0, 0.01), bevel=0.006, mat="chainlink", name=name),
         lathe([(0.0, height - 0.005), (cap_r, height - 0.005), (cap_r, height + 0.03), (cap_r * 0.85, height + 0.06),
-               (cap_r * 0.45, height + 0.08), (0.0, height + 0.085)], verts=16, mat="metal_dark", name=name + "_cap"),
+               (cap_r * 0.45, height + 0.08), (0.0, height + 0.085)], verts=16, pos=(x, 0, 0), mat="metal_dark",
+              name=name + "_cap"),
         band(r, 0.03, rust_top, thickness=0.003, verts=16, rows=1, pos=(x, 0, 0), mat="rust", name=name + "_rust",
              top=lambda a: 0.07 * math.sin(2 * a + seed) + 0.03 * math.sin(5 * a + 1.7 + seed)),
     ]
@@ -97,16 +113,16 @@ def post(x, r, height, cap_r, plate, name, rust_top=0.28, seed=0.0):
     top = 0.022 if r < 0.06 else 0.034
     for sx in (-1, 1):
         for sy in (-1, 1):
-            if r < 0.06 and sx == sy:   # fence posts: 2 bolts (diagonal), gate posts: 4
+            if sx == sy:   # 2 bolts on the diagonal
                 continue
-            parts.append(cyl(0.017, 0.022, verts=6, pos=(x + sx * d, sy * d, top), bevel=0.004, mat="metal_dark",
+            parts.append(cyl(0.017, 0.022, verts=6, pos=(x + sx * d, sy * d, top), bevel=0, mat="metal_dark",
                              name=name + "_bolt"))
     return parts
 
 
 def collar(x, z, r, name):
     """Rail clamp band around a post (a short fat ring)."""
-    return cyl(r, 0.05, verts=12, pos=(x, 0, z - 0.025), bevel=0.01, mat="metal_dark", name=name)
+    return cyl(r, 0.05, verts=12, pos=(x, 0, z - 0.025), bevel=0.005, mat="metal_dark", name=name)
 
 
 # ------------------------------------------------------------------------------------------------- models
@@ -119,7 +135,9 @@ def fence_panel():
     bot = pipe([(-HALF, 0, BOT_Z), (HALF, 0, BOT_Z)], 0.022, verts=8, mat="chainlink", name="bottom_rail")
     collars = [collar(sx * HALF, z, 0.062, "collar") for sx in (-1, 1) for z in (TOP_Z, BOT_Z)]
     # Chain-link diamonds between the posts.
-    wires = lattice(-HALF + 0.05, HALF - 0.055, BOT_Z + 0.015, TOP_Z - 0.02, pitch=0.2, slope=1.25, segs=3)
+    rust_line = lambda x: 0.32 + 0.1 * math.sin(6.0 * x + 0.7) + 0.05 * math.sin(15.0 * x)
+    wires = lattice(-HALF + 0.05, HALF - 0.055, BOT_Z + 0.015, TOP_Z - 0.02, pitch=0.2, slope=1.25, segs=3,
+                    split=rust_line)
     x0, x1, z0, z1 = -HALF, HALF, BOT_Z, TOP_Z
     tear = Vector((HALF - 0.06, BOT_Z))          # bottom-right corner, torn off the rail and curling out
 
@@ -136,7 +154,7 @@ def fence_panel():
         return Vector((co.x, y, z))
     move_verts(wires, sag)
     # Rust creeping up the wire from the floor (a wavy line), everything else galvanised.
-    paint(wires, "rust", lambda c, n: c.z < 0.3 + 0.1 * math.sin(6.0 * c.x + 0.7) + 0.05 * math.sin(15.0 * c.x))
+    paint(wires, "rust", lambda c, n: c.z < rust_line(c.x))
     fence = join(parts + [top, bot, wires] + collars, "Fence")
     export(fence, "fence_panel", kind="prop", mount="floor")
 
@@ -149,32 +167,30 @@ def fence_gate():
         parts += post(sx * 2.5, GATE_POST_R, H, 0.086, 0.28, nm, rust_top=0.34, seed=1.1 + sx)
         # Hinge knuckles on the front of each post (the leaves hang here), strapped round the post.
         for z in (0.36, 1.86):
-            parts.append(cyl(0.03, 0.12, verts=10, pos=(sx * 2.5, -0.115, z), bevel=0.008, mat="metal_dark",
+            parts.append(cyl(0.03, 0.12, verts=12, pos=(sx * 2.5, -0.115, z - 0.01), bevel=0.005, mat="metal_dark",
                              name="knuckle"))
-            parts.append(box((0.07, 0.06, 0.07), pos=(sx * 2.5, -0.085, z + 0.025), bevel=0.012,
+            parts.append(box((0.07, 0.07, 0.07), pos=(sx * 2.5, -0.075, z + 0.015), bevel=0.005,
                              mat="metal_dark", name="hinge_strap"))
-            parts.append(torus(GATE_POST_R + 0.008, 0.013, pos=(sx * 2.5, 0, z + 0.06), major_segments=16,
-                               minor_segments=5, mat="metal_dark", name="hinge_band"))
         parts.append(collar(sx * 2.5, 2.52, 0.09, "tee"))
     bar = pipe([(-2.5, 0, 2.52), (2.5, 0, 2.52)], 0.05, verts=12, mat="chainlink", name="bar")
     # The caution plate sits on the bar on two U-brackets, a little crooked (cheap job).
     tilt = math.radians(-1.6)
-    board = box((2.6, 0.04, 0.62), pos=(0, 0, 2.64), bevel=0.012, mat="caution", name="board")
-    frame = []
-    for (w, h, x, z) in ((2.72, 0.06, 0, 2.58), (2.72, 0.06, 0, 3.26), (0.06, 0.74, -1.33, 2.58), (0.06, 0.74, 1.33, 2.58)):
-        frame.append(box((w, 0.07, h), pos=(x, 0, z), bevel=0.018, mat="metal_dark", name="sign_frame"))
-    bolts = [cyl(0.022, 0.02, verts=6, pos=(sx * 1.2, -0.045, z), rot=(90, 0, 0), bevel=0.005, mat="metal_dark",
-                 name="sign_bolt") for sx in (-1, 1) for z in (2.7, 3.16)]
+    board = box((2.62, 0.04, 0.64), pos=(0, 0, 2.63), bevel=0.006, mat="caution", name="board")
+    frame = box((2.74, 0.07, 0.76), pos=(0, 0, 2.57), bevel=0, mat="metal_dark", name="sign_frame")
+    boolean_cut(frame, box((2.6, 0.2, 0.62), pos=(0, 0, 2.64), bevel=0, name="cut"))
+    bevel(frame, 0.016, segments=2)
+    frame = [frame]
+    bolts = [cyl(0.022, 0.02, verts=6, pos=(sx * 1.22, -0.02, z), rot=(90, 0, 0), bevel=0, mat="metal_dark",
+                 name="sign_bolt") for sx in (-1, 1) for z in (2.7, 3.18)]
     # Rust bleeding from the lower left bolt down the plate.
-    drip = extrude_profile([(-1.23, 2.69), (-1.17, 2.69), (-1.18, 2.62), (-1.2, 2.6), (-1.22, 2.63)], 0.004,
+    drip = extrude_profile([(-1.245, 2.685), (-1.195, 2.685), (-1.205, 2.655), (-1.22, 2.642), (-1.235, 2.655)], 0.004,
                            pos=(0, -0.021, 0), bevel=0, mat="rust", name="sign_drip")
     sign = join([board, drip] + frame + bolts, "sign", origin=(0, 0, 2.58))
     sign.rotation_euler = (0, tilt, 0)
     brackets = []
     for sx in (-0.75, 0.75):
-        brackets.append(pipe([(sx - 0.06, 0.03, 2.66), (sx - 0.06, 0.03, 2.5), (sx + 0.06, 0.03, 2.5),
-                              (sx + 0.06, 0.03, 2.66)], 0.014, verts=6, bend=0.05, mat="metal_dark", name="ubolt"))
-        brackets.append(box((0.08, 0.05, 0.3), pos=(sx, 0.045, 2.55), bevel=0.01, mat="metal_dark", name="strut"))
+        brackets.append(box((0.1, 0.13, 0.05), pos=(sx, 0.0, 2.445), bevel=0.005, mat="metal_dark", name="clamp"))
+        brackets.append(box((0.08, 0.05, 0.36), pos=(sx, 0.045, 2.47), bevel=0.005, mat="metal_dark", name="strut"))
     gate = join(parts + [bar, sign] + brackets, "Gate")
     export(gate, "fence_gate", kind="prop", mount="floor")
 
@@ -190,18 +206,19 @@ def fence_gate_leaf():
                  mat="chainlink", name="frame", caps=True)
     stile = pipe([(0.07, 0, Z0 - 0.02), (0.07, 0, Z1 + 0.02)], 0.032, verts=8, mat="chainlink", name="stile")
     brace = pipe([(0.12, 0, Z0 + 0.05), (W - 0.06, 0, Z1 - 0.06)], 0.02, verts=6, mat="chainlink", name="brace")
-    wires = lattice(0.1, W - 0.03, Z0 + 0.02, Z1 - 0.02, pitch=0.2, slope=1.25, segs=2, phase=0.5)
+    rust_line = lambda x: 0.3 + 0.08 * math.sin(5.0 * x + 2.0)
+    wires = lattice(0.1, W - 0.03, Z0 + 0.02, Z1 - 0.02, pitch=0.2, slope=1.25, segs=2, phase=0.5, split=rust_line)
     move_verts(wires, lambda co: Vector((co.x, co.y - 0.02 * math.sin(math.pi * co.x / W), co.z)))
-    paint(wires, "rust", lambda c, n: c.z < 0.3 + 0.08 * math.sin(5.0 * c.x + 2.0))
+    paint(wires, "rust", lambda c, n: c.z < rust_line(c.x))
     # Hinge sleeves round the hinge axis (x = 0), strapped to the stile.
     hinge = []
     for z in (0.36, 1.86):
-        for dz in (-0.07, 0.12):
-            hinge.append(cyl(0.031, 0.06, verts=10, pos=(0, 0, z + dz), bevel=0.008, mat="metal_dark", name="sleeve"))
-        hinge.append(box((0.09, 0.028, 0.05), pos=(0.035, 0, z + 0.14), bevel=0.008, mat="metal_dark",
-                         name="leaf_strap"))
+        for dz in (-0.075, 0.125):
+            hinge.append(cyl(0.031, 0.07, verts=12, pos=(0, 0, z + dz), bevel=0.005, mat="metal_dark", name="sleeve"))
+            hinge.append(box((0.1, 0.03, 0.05), pos=(0.045, 0, z + dz + 0.01), bevel=0.005, mat="metal_dark",
+                             name="leaf_strap"))
     # A drag wheel under the free end (the droop has it scraping the floor).
-    fork = box((0.05, 0.1, 0.1), pos=(W - 0.08, 0, 0.07), bevel=0.012, mat="metal_dark", name="fork")
+    fork = box((0.05, 0.1, 0.1), pos=(W - 0.08, 0, 0.07), bevel=0.005, mat="metal_dark", name="fork")
     wheel = cyl(0.055, 0.035, verts=12, pos=(W - 0.08, 0.0, 0.055), rot=(90, 0, 0),
                 bevel=0.01, mat="dark", name="wheel", anchor="center")
     for o in (frame, stile, brace, wires, fork):

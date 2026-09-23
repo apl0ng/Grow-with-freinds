@@ -13,10 +13,10 @@ extends Interactable
 ## Products are read by duck typing (item_type == Const.ITEM_PRODUCT, properties strain_id / amount) so this
 ## station does not depend on the Product class being loaded.
 
-const REASON_EMPTY := "Nothing to sell"
-const REASON_NOT_PRODUCT := "Only product can be sold here"
-const REASON_BAD_PRODUCT := "This product can't be sold"
-const REASON_NOT_PLAYING := "Selling opens when the round starts"
+const REASON_EMPTY := "Nothing to deposit."
+const REASON_NOT_PRODUCT := "Product only."
+const REASON_BAD_PRODUCT := "Won't take that."
+const REASON_NOT_PLAYING := "Chute opens when the shift starts."
 const SOLD_META: StringName = &"econ_sold"
 
 ## If true, product can only be sold while a round is running (GameState.is_playing()). Sales between rounds
@@ -47,10 +47,10 @@ func _process(delta: float) -> void:
 func get_prompt(player: Player) -> String:
 	var product := _get_held_product(player)
 	if product == null:
-		return "Sell product"
+		return "Deposit product"
 	var seed_def := _get_product_seed(product)
 	var strain := seed_def.display_name if seed_def != null else str(product.get(&"strain_id"))
-	return "Sell %s x%d (+$%d)" % [strain, _get_product_amount(product), get_sale_value(product)]
+	return "Deposit %s x%d (+$%d)" % [strain, _get_product_amount(product), get_sale_value(product)]
 
 
 func can_interact(player: Player) -> bool:
@@ -169,10 +169,10 @@ func _on_sales_changed(round_sales: int, quota: int) -> void:
 	_last_sales = round_sales
 
 
-## Text of the floating progress label, e.g. "Sold: $120 / $400".
+## Text of the floating progress label, e.g. "DEPOSITED $120 / $400" (flat copy: it is a deposit chute).
 static func get_sold_text(round_sales: int, quota: int) -> String:
 	if quota <= 0:
-		return "Sold: $%d" % round_sales
+		return "DEPOSITED $%d" % round_sales
 	if round_sales >= quota:
-		return "Sold: $%d / $%d\nQUOTA MET!" % [round_sales, quota]
-	return "Sold: $%d / $%d" % [round_sales, quota]
+		return "DEPOSITED $%d / $%d\nPAID… FOR NOW" % [round_sales, quota]
+	return "DEPOSITED $%d / $%d" % [round_sales, quota]

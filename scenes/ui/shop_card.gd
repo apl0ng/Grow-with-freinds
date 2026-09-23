@@ -1,6 +1,8 @@
 class_name ShopCard
 extends PanelContainer
-## One purchasable entry in the ShopUI: a seed strain or a team upgrade (owner: economy agent).
+## One purchasable entry in the SUPPLY WINDOW: a seed strain or a team upgrade, a "favor" (owner: economy agent).
+## Copy is factual and flat: "Grows in ~N s", "Deposits for $X", "Margin +$Y"; blurbs come from Story.get_blurb()
+## (falls back to the data description).
 ## Built from Config.balance data by ShopUI: add it to the tree first, then call setup_seed() / setup_upgrade().
 ## refresh() re-reads GameState (money, levels, multipliers) and updates texts + the BUY button.
 
@@ -47,7 +49,7 @@ func setup_seed(def: SeedDef) -> void:
 	accent = def.color
 	name = "Seed_%s" % String(def.id)
 	_name_label.text = def.display_name
-	_desc_label.text = def.description
+	_desc_label.text = Story.get_blurb(def.id, def.description)
 	_tag_label.text = "SEED PACKET"
 	_glyph.text = ""
 	_shine.visible = true
@@ -65,7 +67,7 @@ func setup_upgrade(def: UpgradeDef) -> void:
 	accent = ShopCounter.get_effect_color(def.effect_key)
 	name = "Upgrade_%s" % String(def.id)
 	_name_label.text = def.display_name
-	_desc_label.text = def.description
+	_desc_label.text = Story.get_blurb(def.id, def.description)
 	_glyph.text = def.display_name.substr(0, 1).to_upper()
 	_shine.visible = false
 	_swatch.add_theme_stylebox_override(&"panel", _make_swatch_box(accent, 16))
@@ -106,28 +108,28 @@ func _refresh_seed(money: int, hands_full: bool) -> void:
 	var total := int(round(seed_def.yield_amount * seed_def.sale_value_per_unit * sale_mult))
 	if seed_def.yield_amount > 1:
 		var per_unit := int(round(seed_def.sale_value_per_unit * sale_mult))
-		_stat2.text = "Sells for $%d  (%d × $%d)" % [total, seed_def.yield_amount, per_unit]
+		_stat2.text = "Deposits for $%d  (%d × $%d)" % [total, seed_def.yield_amount, per_unit]
 	else:
-		_stat2.text = "Sells for $%d" % total
+		_stat2.text = "Deposits for $%d" % total
 	var profit := total - seed_def.cost
-	_stat3.text = "Profit %s$%d per plant" % ["+" if profit >= 0 else "-", absi(profit)]
+	_stat3.text = "Margin %s$%d" % ["+" if profit >= 0 else "-", absi(profit)]
 	_stat3.theme_type_variation = &"SuccessLabel" if profit >= 0 else &"ErrorLabel"
 	var affordable := money >= seed_def.cost
 	if hands_full:
 		_buy.text = "HANDS FULL"
-		_buy.tooltip_text = "Drop or plant what you are holding first"
+		_buy.tooltip_text = "Put down what you're carrying first."
 	else:
 		_buy.text = "BUY  $%d" % seed_def.cost
-		_buy.tooltip_text = "" if affordable else "Not enough money"
+		_buy.tooltip_text = "" if affordable else "Not enough cash."
 	_buy.disabled = hands_full or not affordable
 
 
 func _refresh_upgrade(money: int) -> void:
 	var level := GameState.get_upgrade_level(upgrade_def.id)
 	var maxed := level >= upgrade_def.max_level
-	_tag_label.text = "TEAM UPGRADE  ·  LEVEL %d / %d" % [mini(level, upgrade_def.max_level), upgrade_def.max_level]
-	_stat1.text = "Now: %s" % (_effect_text(level) if level > 0 else "no bonus yet")
-	_stat2.text = "Fully upgraded!" if maxed else "Next: %s" % _effect_text(level + 1)
+	_tag_label.text = "FAVOR  ·  LEVEL %d / %d" % [mini(level, upgrade_def.max_level), upgrade_def.max_level]
+	_stat1.text = "Now: %s" % (_effect_text(level) if level > 0 else "nothing")
+	_stat2.text = "Maxed out." if maxed else "Next: %s" % _effect_text(level + 1)
 	for i in _pip_boxes.size():
 		_pip_boxes[i].bg_color = accent if i < level else PIP_EMPTY
 	if maxed:
@@ -137,7 +139,7 @@ func _refresh_upgrade(money: int) -> void:
 		return
 	var cost := upgrade_def.cost_for_level(level + 1)
 	_buy.text = "BUY  $%d" % cost
-	_buy.tooltip_text = "" if money >= cost else "Not enough money"
+	_buy.tooltip_text = "" if money >= cost else "Not enough cash."
 	_buy.disabled = money < cost
 
 

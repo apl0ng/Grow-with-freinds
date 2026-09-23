@@ -139,11 +139,14 @@ def build():
                      (-0.018, 0.012), (-0.018, h / 2 - 0.05), (-0.035, h / 2 - 0.05)]
         a = extrude_profile(arrow, 0.004, pos=(x, yf + 0.001, zb), bevel=0, mat=ink, name="arrow")
         parts.append(a)
-    # A stencilled lot code on the top front slat: three chunky dashes, the middle one smudged short.
-    for x0, x1 in ((-0.2, -0.07), (-0.04, 0.0), (0.04, 0.2)):
-        parts.append(extrude_profile([(x0, -0.02), (x1, -0.02), (x1, 0.02), (x0, 0.02)], 0.004,
-                                     pos=(0, yf + 0.001, (SLATS[3][0] + SLATS[3][1]) / 2), bevel=0, mat=ink,
-                                     name="code"))
+    # A stencilled lot number "13" on the top front slat (stencil bars with the usual gaps).
+    zc = (SLATS[3][0] + SLATS[3][1]) / 2
+    bars = [(-0.1, -0.055, -0.078, 0.055), (-0.122, 0.03, -0.1, 0.055),                  # 1 + its flag
+            (-0.03, 0.043, 0.035, 0.065), (-0.012, -0.011, 0.035, 0.011), (-0.03, -0.065, 0.035, -0.043),
+            (0.045, 0.004, 0.067, 0.058), (0.045, -0.058, 0.067, -0.004)]                 # 3: bars + split spine
+    for x0, z0, x1, z1 in bars:
+        parts.append(extrude_profile([(x0, z0), (x1, z0), (x1, z1), (x0, z1)], 0.004,
+                                     pos=(0.05, yf + 0.001, zc), bevel=0, mat=ink, name="stencil"))
 
     crate = join(parts, "crate")
     export(crate, "crate", kind="prop", mount="floor")

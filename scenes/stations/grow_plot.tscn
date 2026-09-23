@@ -2,25 +2,15 @@
 
 [ext_resource type="Script" path="res://scripts/stations/grow_plot.gd" id="1_script"]
 [ext_resource type="PackedScene" path="res://scenes/stations/plant_visual.tscn" id="2_plant"]
-[ext_resource type="Material" path="res://art/materials/toon_brown.tres" id="3_brown"]
-[ext_resource type="Material" path="res://art/materials/toon_wood.tres" id="4_wood"]
+[ext_resource type="PackedScene" path="res://art/models/grow_tray.glb" id="3_tray"]
+[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="4_metal_dark"]
 [ext_resource type="Material" path="res://art/materials/toon_soil.tres" id="5_soil"]
-[ext_resource type="Material" path="res://art/materials/toon_dark.tres" id="6_dark"]
 [ext_resource type="Material" path="res://art/materials/toon_water.tres" id="7_water"]
 [ext_resource type="Material" path="res://art/materials/toon_bud.tres" id="8_bud"]
-[ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="9_outline"]
-
-[sub_resource type="BoxMesh" id="BoxMesh_planter"]
-material = ExtResource("3_brown")
-size = Vector3(1.3, 0.42, 1.3)
-
-[sub_resource type="BoxMesh" id="BoxMesh_plinth"]
-material = ExtResource("4_wood")
-size = Vector3(1.38, 0.08, 1.38)
 
 [sub_resource type="BoxMesh" id="BoxMesh_soil_bed"]
 material = ExtResource("5_soil")
-size = Vector3(1.24, 0.06, 1.24)
+size = Vector3(1.3, 0.06, 1.3)
 
 [sub_resource type="SphereMesh" id="SphereMesh_soil_mound"]
 material = ExtResource("5_soil")
@@ -29,53 +19,25 @@ height = 0.2
 radial_segments = 24
 rings = 8
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_rim"]
-material = ExtResource("4_wood")
-radius = 0.085
-height = 1.4
-radial_segments = 12
-rings = 4
-
-[sub_resource type="SphereMesh" id="SphereMesh_knob"]
-material = ExtResource("4_wood")
-radius = 0.11
-height = 0.22
-radial_segments = 12
-rings = 6
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_gauge_slot"]
-material = ExtResource("6_dark")
-radius = 0.07
-height = 0.96
-radial_segments = 12
-rings = 4
-
 [sub_resource type="CylinderMesh" id="CylinderMesh_gauge_fill"]
 material = ExtResource("7_water")
-top_radius = 0.046
-bottom_radius = 0.046
+top_radius = 0.042
+bottom_radius = 0.042
 height = 0.8
 radial_segments = 12
 rings = 1
 
-[sub_resource type="SphereMesh" id="SphereMesh_gauge_drop"]
-material = ExtResource("7_water")
-radius = 0.05
-height = 0.1
-radial_segments = 12
-rings = 6
-
 [sub_resource type="CylinderMesh" id="CylinderMesh_tag_stake"]
-material = ExtResource("4_wood")
-top_radius = 0.018
-bottom_radius = 0.018
+material = ExtResource("4_metal_dark")
+top_radius = 0.016
+bottom_radius = 0.012
 height = 0.34
 radial_segments = 8
 rings = 1
 
 [sub_resource type="BoxMesh" id="BoxMesh_tag_card"]
 material = ExtResource("8_bud")
-size = Vector3(0.2, 0.13, 0.03)
+size = Vector3(0.22, 0.14, 0.025)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_plot"]
 size = Vector3(1.46, 0.52, 1.46)
@@ -102,16 +64,11 @@ script = ExtResource("1_script")
 
 [node name="Visual" type="Node3D" parent="."]
 
-[node name="Plinth" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.04, 0)
-mesh = SubResource("BoxMesh_plinth")
-
-[node name="Planter" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21, 0)
-mesh = SubResource("BoxMesh_planter")
+[node name="Model" parent="Visual" instance=ExtResource("3_tray")]
+outline_width = 0.025
 
 [node name="SoilBed" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0)
 unique_name_in_owner = true
 mesh = SubResource("BoxMesh_soil_bed")
 
@@ -120,63 +77,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.41, 0)
 unique_name_in_owner = true
 mesh = SubResource("SphereMesh_soil_mound")
 
-[node name="Rim" type="Node3D" parent="Visual"]
-
-[node name="RimFront" type="MeshInstance3D" parent="Visual/Rim"]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0.43, 0.65)
-mesh = SubResource("CapsuleMesh_rim")
-material_overlay = ExtResource("9_outline")
-
-[node name="RimBack" type="MeshInstance3D" parent="Visual/Rim"]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0.43, -0.65)
-mesh = SubResource("CapsuleMesh_rim")
-material_overlay = ExtResource("9_outline")
-
-[node name="RimLeft" type="MeshInstance3D" parent="Visual/Rim"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.65, 0.43, 0)
-mesh = SubResource("CapsuleMesh_rim")
-material_overlay = ExtResource("9_outline")
-
-[node name="RimRight" type="MeshInstance3D" parent="Visual/Rim"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.65, 0.43, 0)
-mesh = SubResource("CapsuleMesh_rim")
-material_overlay = ExtResource("9_outline")
-
-[node name="Knob1" type="MeshInstance3D" parent="Visual/Rim"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.65, 0.43, -0.65)
-mesh = SubResource("SphereMesh_knob")
-material_overlay = ExtResource("9_outline")
-
-[node name="Knob2" type="MeshInstance3D" parent="Visual/Rim"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.65, 0.43, -0.65)
-mesh = SubResource("SphereMesh_knob")
-material_overlay = ExtResource("9_outline")
-
-[node name="Knob3" type="MeshInstance3D" parent="Visual/Rim"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.65, 0.43, 0.65)
-mesh = SubResource("SphereMesh_knob")
-material_overlay = ExtResource("9_outline")
-
-[node name="Knob4" type="MeshInstance3D" parent="Visual/Rim"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.65, 0.43, 0.65)
-mesh = SubResource("SphereMesh_knob")
-material_overlay = ExtResource("9_outline")
-
 [node name="WaterGauge" type="Node3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22, 0.66)
-
-[node name="Slot" type="MeshInstance3D" parent="Visual/WaterGauge"]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 0.45, 0, 0, 0)
-mesh = SubResource("CapsuleMesh_gauge_slot")
-material_overlay = ExtResource("9_outline")
-
-[node name="Drop" type="MeshInstance3D" parent="Visual/WaterGauge"]
-transform = Transform3D(1, 0, 0, 0, 1.15, 0, 0, 0, 1, -0.6, 0, 0.02)
-mesh = SubResource("SphereMesh_gauge_drop")
-material_overlay = ExtResource("9_outline")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.24, 0.7)
 
 [node name="FillPivot" type="Node3D" parent="Visual/WaterGauge"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.4, 0, 0.02)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.4, 0, 0)
 unique_name_in_owner = true
 
 [node name="Fill" type="MeshInstance3D" parent="Visual/WaterGauge/FillPivot"]
@@ -190,11 +95,11 @@ unique_name_in_owner = true
 visible = false
 
 [node name="Stake" type="MeshInstance3D" parent="Visual/Tag"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.14, 0)
+transform = Transform3D(0.996195, -0.087156, 0, 0.087156, 0.996195, 0, 0, 0, 1, 0, 0.14, 0)
 mesh = SubResource("CylinderMesh_tag_stake")
 
 [node name="Card" type="MeshInstance3D" parent="Visual/Tag"]
-transform = Transform3D(1, 0, 0, 0, 0.990268, 0.139173, 0, -0.139173, 0.990268, 0, 0.3, 0.012)
+transform = Transform3D(0.996195, -0.086308, -0.01213, 0.087156, 0.9865, 0.138644, 0, -0.139173, 0.990268, -0.0188, 0.3, 0.014)
 unique_name_in_owner = true
 mesh = SubResource("BoxMesh_tag_card")
 

@@ -1,5 +1,7 @@
 extends Control
 ## Main menu: player name, host / join by IP + port, status line (fed by Game.return_to_menu), how-to blurb.
+## Copy is the factory's (STYLE.md "Mood & tone"): host = "Open the floor", join = "Report for shift",
+## quit = "Walk out (you can't)". The title hangs slightly crooked and sways a little; it does not bounce.
 ## Remembers the last name / ip / port in user://settings.cfg (section "menu"; other sections are preserved).
 ##
 ## Command line (after "--"), consumed once per process via Game.cli_auto_start_used:
@@ -11,8 +13,16 @@ const SETTINGS_SECTION := "menu"
 const DEFAULT_IP := "127.0.0.1"
 const MIN_PORT: int = 1024
 const MAX_PORT: int = 65535
-const FUN_NAMES: Array[String] = ["Sprout", "Clover", "Pip", "Basil", "Poppy", "Fern", "Maple", "Juniper",
-	"Radish", "Peanut", "Tulip", "Sage"]
+## Name placeholders: tired, ordinary names (it is a sweatshop, not a garden party).
+const FUN_NAMES: Array[String] = ["Dale", "Marge", "Gus", "Nora", "Lou", "Walt", "Irma", "Hank", "Doris",
+	"Earl", "Vern", "Opal"]
+## Title sway: a crooked sign on one nail (radians, radians, rad/s).
+const TITLE_TILT: float = -0.02
+const TITLE_SWAY: float = 0.008
+const TITLE_SWAY_SPEED: float = 0.45
+const TEXT_HOSTING := "Opening the floor on port %d…"
+const TEXT_JOINING := "Reporting for shift at %s…"
+const TEXT_NO_IP := "Enter the host's IP first."
 
 @onready var title_label: Label = %Title
 @onready var name_edit: LineEdit = %NameEdit
@@ -51,9 +61,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_time += delta
 	title_label.pivot_offset = title_label.size * 0.5
-	title_label.rotation = sin(_time * 1.3) * 0.03
-	var s := 1.0 + sin(_time * 2.2) * 0.025
-	title_label.scale = Vector2(s, s)
+	title_label.rotation = TITLE_TILT + sin(_time * TITLE_SWAY_SPEED) * TITLE_SWAY
 
 # --- Public (used by Game) ------------------------------------------------------------------------------------
 
@@ -90,7 +98,7 @@ func _begin_host(remember: bool) -> void:
 	Sfx.play(&"ui_click")
 	Juice.punch_ui(host_button)
 	_set_busy(true)
-	_show_status("Opening your farm on port %d..." % port, &"info")
+	_show_status(TEXT_HOSTING % port, &"info")
 	# Deferred: Game frees this menu while starting, never do that inside the button's own signal.
 	_do_host.call_deferred(_player_name(), port)
 
@@ -99,7 +107,7 @@ func _begin_join(remember: bool) -> void:
 		return
 	var ip := ip_edit.text.strip_edges()
 	if ip == "":
-		_show_status("Type the host's IP address first.", &"error")
+		_show_status(TEXT_NO_IP, &"error")
 		Sfx.play(&"error")
 		return
 	var port := int(port_spin.value)
@@ -108,7 +116,7 @@ func _begin_join(remember: bool) -> void:
 	Sfx.play(&"ui_click")
 	Juice.punch_ui(join_button)
 	_set_busy(true)
-	_show_status("Connecting to %s:%d..." % [ip, port], &"info")
+	_show_status(TEXT_JOINING % ("%s:%d" % [ip, port]), &"info")
 	_do_join.call_deferred(ip, port, _player_name())
 
 func _do_host(player_name: String, port: int) -> void:

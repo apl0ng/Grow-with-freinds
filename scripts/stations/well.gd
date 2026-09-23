@@ -44,8 +44,8 @@ func get_can_spots() -> Array[Marker3D]:
 func get_prompt(player: Player) -> String:
 	var held := GrowPlot.get_held_item_of(player)
 	if GrowPlot.item_is(held, Const.ITEM_WATERING_CAN):
-		return "Fill watering can (%d/%d)" % [GrowPlot.get_can_charges(held), GrowPlot.get_can_capacity(held)]
-	return "Fill watering can"
+		return "Fill can (%d/%d)" % [GrowPlot.get_can_charges(held), GrowPlot.get_can_capacity(held)]
+	return "Fill can"
 
 func can_interact(player: Player) -> bool:
 	var held := GrowPlot.get_held_item_of(player)
@@ -55,9 +55,9 @@ func can_interact(player: Player) -> bool:
 func get_denied_reason(player: Player) -> String:
 	var held := GrowPlot.get_held_item_of(player)
 	if not GrowPlot.item_is(held, Const.ITEM_WATERING_CAN):
-		return "Grab a watering can first"
+		return "Needs a can."
 	if GrowPlot.get_can_charges(held) >= GrowPlot.get_can_capacity(held):
-		return "Can is already full"
+		return "Can's full."
 	return ""
 
 ## SERVER ONLY.

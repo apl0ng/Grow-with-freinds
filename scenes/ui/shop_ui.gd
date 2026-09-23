@@ -1,10 +1,11 @@
 class_name ShopUI
 extends CanvasLayer
-## Local shop window (owner: economy agent). One instance per ShopCounter, created lazily the first time the local
-## player opens the shop and parented to the viewport root (freed together with the counter).
+## The Boss's SUPPLY WINDOW (owner: economy agent; copy: narrative pass). One instance per ShopCounter, created
+## lazily the first time the local player opens it and parented to the viewport root (freed with the counter).
 ##
-## Tabs: SEEDS (one card per Config.balance.seeds) and UPGRADES (one card per Config.balance.upgrades).
-## Header shows the team wallet (GameState.money). BUY presses are forwarded to the counter, which sends the
+## Tabs: SEEDS (one card per Config.balance.seeds) and FAVORS (the team upgrades, one card per
+## Config.balance.upgrades: the Boss's "favors", which go on the tab). The subtitle follows the tab.
+## Header shows the cash on hand (GameState.money). BUY presses are forwarded to the counter, which sends the
 ## server-validated RPCs; this UI never mutates game state itself and only shows the result.
 ##
 ## While open it holds Game.set_ui_lock(&"shop", true) (player input off, mouse free).
@@ -28,6 +29,8 @@ const REFRESH_INTERVAL_SEC := 0.25
 const E_CLOSE_GRACE_MSEC := 250
 ## Extra metres allowed beyond the opening distance before the walk-away check closes the window.
 const WALK_AWAY_SLACK := 0.75
+const TEXT_SUB_SEEDS := "Everything goes on your tab."
+const TEXT_SUB_FAVORS := "Favors. The Boss adds them to your tab."
 
 var counter: ShopCounter = null
 var player: Player = null
@@ -44,6 +47,7 @@ var _cards: Dictionary = {}   # "seed:<id>" / "upgrade:<id>" -> ShopCard
 
 @onready var _panel: Control = %Panel
 @onready var _money_label: Label = %MoneyLabel
+@onready var _subtitle: Label = %Subtitle
 @onready var _close_button: Button = %CloseButton
 @onready var _seeds_tab: Button = %SeedsTab
 @onready var _upgrades_tab: Button = %UpgradesTab
@@ -136,6 +140,7 @@ func show_tab(index: int, play_sound: bool = true) -> void:
 	_upgrade_grid.visible = _tab == TAB_UPGRADES
 	_style_tab(_seeds_tab, _tab == TAB_SEEDS)
 	_style_tab(_upgrades_tab, _tab == TAB_UPGRADES)
+	_subtitle.text = TEXT_SUB_SEEDS if _tab == TAB_SEEDS else TEXT_SUB_FAVORS
 	_scroll.scroll_vertical = 0
 	if play_sound:
 		Sfx.play(&"ui_click")

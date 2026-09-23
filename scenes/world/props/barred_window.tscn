@@ -1,15 +1,10 @@
 [gd_scene format=3]
 
-[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="1_metal_dark"]
+[ext_resource type="PackedScene" path="res://art/models/barred_window.glb" id="1_window"]
 [ext_resource type="Material" path="res://art/materials/toon_eye_black.tres" id="2_eye_black"]
 [ext_resource type="Material" path="res://art/materials/toon_sparkle.tres" id="3_sparkle"]
-[ext_resource type="Material" path="res://art/materials/toon_concrete_dark.tres" id="4_concrete_dark"]
-[ext_resource type="Material" path="res://art/materials/toon_rust.tres" id="5_rust"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_1"]
-size = Vector3(1.7, 1.3, 0.12)
-
-[sub_resource type="BoxMesh" id="BoxMesh_2"]
 size = Vector3(1.46, 1.06, 0.02)
 
 [sub_resource type="SphereMesh" id="SphereMesh_1"]
@@ -30,76 +25,24 @@ instance_count = 7
 mesh = SubResource("SphereMesh_2")
 buffer = PackedFloat32Array(1, 0, 0, -0.5, 0, 1, 0, 0.35, 0, 0, 0.3, 0.14, 1, 0, 0, -0.2, 0, 1, 0, 0.12, 0, 0, 0.3, 0.14, 1, 0, 0, -0.55, 0, 1, 0, -0.2, 0, 0, 0.3, 0.14, 1, 0, 0, 0.05, 0, 1, 0, 0.4, 0, 0, 0.3, 0.14, 1, 0, 0, 0.15, 0, 1, 0, -0.3, 0, 0, 0.3, 0.14, 1, 0, 0, 0.5, 0, 1, 0, -0.1, 0, 0, 0.3, 0.14, 1, 0, 0, -0.3, 0, 1, 0, -0.38, 0, 0, 0.3, 0.14)
 
-[sub_resource type="CylinderMesh" id="CylinderMesh_1"]
-top_radius = 0.03
-bottom_radius = 0.03
-height = 1.1
-radial_segments = 10
-rings = 1
-
-[sub_resource type="MultiMesh" id="MultiMesh_2"]
-transform_format = 1
-instance_count = 5
-mesh = SubResource("CylinderMesh_1")
-buffer = PackedFloat32Array(1, 0, 0, -0.54, 0, 1, 0, 0, 0, 0, 1, 0.19, 1, 0, 0, -0.27, 0, 1, 0, 0, 0, 0, 1, 0.19, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0.19, 1, 0, 0, 0.27, 0, 1, 0, 0, 0, 0, 1, 0.19, 1, 0, 0, 0.54, 0, 1, 0, 0, 0, 0, 1, 0.19)
-
-[sub_resource type="BoxMesh" id="BoxMesh_3"]
-size = Vector3(1.5, 0.06, 0.05)
-
-[sub_resource type="BoxMesh" id="BoxMesh_4"]
-size = Vector3(1.8, 0.1, 0.22)
-
-[sub_resource type="SphereMesh" id="SphereMesh_3"]
-radius = 0.12
-height = 0.24
-radial_segments = 12
-rings = 6
-
 [node name="BarredWindow" type="Node3D"]
 
-[node name="Visual" type="Node3D" parent="."]
-
-[node name="Frame" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.06)
-cast_shadow = 0
-mesh = SubResource("BoxMesh_1")
-material_override = ExtResource("1_metal_dark")
+[node name="Visual" parent="." instance=ExtResource("1_window")]
 
 [node name="Sky" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.125)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.02)
 cast_shadow = 0
-mesh = SubResource("BoxMesh_2")
+mesh = SubResource("BoxMesh_1")
 material_override = ExtResource("2_eye_black")
 
 [node name="Moon" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.15, 0.38, 0.24, 0.14)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.08, 0.38, 0.24, 0.035)
 cast_shadow = 0
 mesh = SubResource("SphereMesh_1")
 material_override = ExtResource("3_sparkle")
 
 [node name="Stars" type="MultiMeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.105)
 cast_shadow = 0
 multimesh = SubResource("MultiMesh_1")
 material_override = ExtResource("3_sparkle")
-
-[node name="Bars" type="MultiMeshInstance3D" parent="Visual"]
-cast_shadow = 0
-multimesh = SubResource("MultiMesh_2")
-material_override = ExtResource("1_metal_dark")
-
-[node name="CrossBar" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.2)
-cast_shadow = 0
-mesh = SubResource("BoxMesh_3")
-material_override = ExtResource("1_metal_dark")
-
-[node name="Sill" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.7, 0.11)
-mesh = SubResource("BoxMesh_4")
-material_override = ExtResource("4_concrete_dark")
-
-[node name="RustStreak" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(0.5, 0, 0, 0, 2.2, 0, 0, 0, 0.08, -0.35, -0.98, 0.012)
-cast_shadow = 0
-mesh = SubResource("SphereMesh_3")
-material_override = ExtResource("5_rust")

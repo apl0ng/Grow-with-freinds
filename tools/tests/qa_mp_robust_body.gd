@@ -7,7 +7,7 @@ extends "res://tools/tests/qa_net_base.gd"
 ##   M1  malformed RPCs from Alpha (wrong types, wrong arg count, authority-only RPC, teleporting another player):
 ##       the engine rejects them before game code runs (expected ERROR lines on the host), nothing changes
 ##   M2  requests from far away: interact + buy -> "Too far away", nothing changes
-##   M4  double requests in one frame from a real client: pickup (no "Someone is holding this"), buy (bypassing
+##   M4  double requests in one frame from a real client: pickup (no "Someone's carrying that."), buy (bypassing
 ##       the UI), ShopUI double click inside the round trip, plant, harvest, sell -> every effect exactly once
 ##   M7  a client's GameState.request_* calls are ignored
 ##   M5  Alpha and Bravo disconnect in the same frame while holding items: both Player nodes despawn, both items

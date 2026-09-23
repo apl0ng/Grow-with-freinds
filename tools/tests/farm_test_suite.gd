@@ -453,12 +453,12 @@ func _test_plot_interactions() -> void:
 	var product := _make_item(Const.ITEM_PRODUCT)
 	# EMPTY
 	_hold(null)
-	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Needs a seed" and plot.get_prompt(_player) == "Empty plot",
-		"EMPTY + empty hands: denied 'Needs a seed'")
+	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Needs seeds." and plot.get_prompt(_player) == "Empty tray",
+		"EMPTY + empty hands: denied 'Needs seeds.'")
 	_hold(can)
-	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Needs a seed", "EMPTY + can: denied 'Needs a seed'")
+	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Needs seeds.", "EMPTY + can: denied 'Needs seeds.'")
 	_hold(bad_packet)
-	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Unknown seed", "EMPTY + unknown packet: denied")
+	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Unknown seed.", "EMPTY + unknown packet: denied")
 	_hold(packet)
 	check(plot.can_interact(_player) and plot.get_prompt(_player) == "Plant Budget Bud", "EMPTY + packet: 'Plant Budget Bud'", plot.get_prompt(_player))
 	plot._server_interact(_player)
@@ -466,32 +466,32 @@ func _test_plot_interactions() -> void:
 	check((_fake_items.get(&"despawned") as Array).has(packet), "planting despawns the seed packet")
 	# growing
 	_hold(null)
-	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Needs water!", "growing + dry + empty hands: 'Needs water!'")
+	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Dry. Needs water.", "growing + dry + empty hands: 'Dry. Needs water.'")
 	check(plot.get_prompt(_player).begins_with("Budget Bud"), "growing prompt shows strain + status", plot.get_prompt(_player))
 	_hold(packet)
-	check(plot.get_denied_reason(_player) == "Already planted", "growing + packet: 'Already planted'")
+	check(plot.get_denied_reason(_player) == "Already planted.", "growing + packet: 'Already planted.'")
 	_hold(can)
-	check(plot.can_interact(_player) and plot.get_prompt(_player) == "Water plant (dry!)", "growing + can: 'Water plant (dry!)'", plot.get_prompt(_player))
+	check(plot.can_interact(_player) and plot.get_prompt(_player) == "Water plant (dry)", "growing + can: 'Water plant (dry)'", plot.get_prompt(_player))
 	plot._server_interact(_player)
 	check(approx(plot.water, minf(1.0, Config.balance.water_per_charge)) and can.get(&"charges") == 1, "watering uses one charge and adds water_per_charge")
 	plot.water = 1.0
-	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Already watered", "full plot: 'Already watered'")
+	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Already watered.", "full plot: 'Already watered.'")
 	plot.water = 0.5
 	can.set(&"charges", 0)
-	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Watering can is empty", "empty can: 'Watering can is empty'")
+	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Can's empty.", "empty can: 'Can's empty.'")
 	_hold(null)
-	check(plot.get_denied_reason(_player).begins_with("Still growing… ") and plot.get_denied_reason(_player).ends_with("%"),
-		"watered + empty hands: 'Still growing… N%'", plot.get_denied_reason(_player))
+	check(plot.get_denied_reason(_player).begins_with("Not ready. ") and plot.get_denied_reason(_player).ends_with("%"),
+		"watered + empty hands: 'Not ready. N%'", plot.get_denied_reason(_player))
 	# READY
 	plot.stage = GrowPlot.Stage.READY
 	_hold(product)
-	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Hands full", "READY + item: 'Hands full'")
+	check(not plot.can_interact(_player) and plot.get_denied_reason(_player) == "Hands full.", "READY + item: 'Hands full.'")
 	_hold(null)
 	check(plot.can_interact(_player) and plot.get_prompt(_player) == "Harvest Budget Bud x1", "READY + empty hands: 'Harvest Budget Bud x1'", plot.get_prompt(_player))
 	var before := _spawned().size()
 	plot._server_interact(_player)
 	check(plot.stage == GrowPlot.Stage.EMPTY and _spawned().size() == before + 1, "interact on READY harvests")
-	check(not plot.can_interact(null) and plot.get_prompt(null) == "Empty plot", "null player is handled")
+	check(not plot.can_interact(null) and plot.get_prompt(null) == "Empty tray", "null player is handled")
 	Game.world = null
 	await _free_node(plot)
 
@@ -503,14 +503,14 @@ func _test_well_interactions() -> void:
 	var can := _make_item(Const.ITEM_WATERING_CAN, {"charges": 1, "capacity": 4})
 	var product := _make_item(Const.ITEM_PRODUCT)
 	_hold(null)
-	check(not well.can_interact(_player) and well.get_denied_reason(_player) == "Grab a watering can first", "well + empty hands: 'Grab a watering can first'")
+	check(not well.can_interact(_player) and well.get_denied_reason(_player) == "Needs a can.", "well + empty hands: 'Needs a can.'")
 	_hold(product)
-	check(not well.can_interact(_player) and well.get_denied_reason(_player) == "Grab a watering can first", "well + product: denied")
+	check(not well.can_interact(_player) and well.get_denied_reason(_player) == "Needs a can.", "well + product: denied")
 	_hold(can)
-	check(well.can_interact(_player) and well.get_prompt(_player) == "Fill watering can (1/4)", "well + part-empty can: 'Fill watering can (1/4)'", well.get_prompt(_player))
+	check(well.can_interact(_player) and well.get_prompt(_player) == "Fill can (1/4)", "well + part-empty can: 'Fill can (1/4)'", well.get_prompt(_player))
 	well._server_interact(_player)
 	check(can.get(&"charges") == 4, "well fills the can to get_capacity()")
-	check(not well.can_interact(_player) and well.get_denied_reason(_player) == "Can is already full", "well + full can: 'Can is already full'")
+	check(not well.can_interact(_player) and well.get_denied_reason(_player) == "Can's full.", "well + full can: 'Can's full.'")
 	check(not well.server_fill_can(product) and not well.server_fill_can(null), "server_fill_can rejects non-cans")
 	Game.world = null
 	await _free_node(well)

@@ -1,88 +1,19 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scenes/world/props/pendant_lamp.gd" id="1_pendant"]
-[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="2_metal_dark"]
-[ext_resource type="Material" path="res://art/materials/toon_olive.tres" id="3_olive"]
-[ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="4_outline_thin"]
-[ext_resource type="Material" path="res://art/materials/toon_cream.tres" id="5_cream"]
-[ext_resource type="Material" path="res://art/materials/toon_sparkle.tres" id="6_sparkle"]
-
-[sub_resource type="TorusMesh" id="TorusMesh_1"]
-inner_radius = 0.022
-outer_radius = 0.045
-rings = 12
-ring_segments = 6
-
-[sub_resource type="MultiMesh" id="MultiMesh_1"]
-transform_format = 1
-instance_count = 34
-mesh = SubResource("TorusMesh_1")
-buffer = PackedFloat32Array(1, 0, 0, 0, 0, 0, -1, -0.04, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -0.112, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -0.184, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -0.256, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -0.328, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -0.4, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -0.472, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -0.544, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -0.616, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -0.688, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -0.76, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -0.832, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -0.904, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -0.976, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -1.048, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -1.12, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -1.192, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -1.264, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -1.336, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -1.408, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -1.48, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -1.552, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -1.624, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -1.696, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -1.768, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -1.84, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -1.912, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -1.984, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -2.056, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -2.128, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -2.2, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -2.272, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, -2.344, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, -1, -2.416, -1, 0, 0, 0)
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_1"]
-top_radius = 0.05
-bottom_radius = 0.07
-height = 0.12
-radial_segments = 16
-rings = 1
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_2"]
-top_radius = 0.08
-bottom_radius = 0.46
-height = 0.34
-radial_segments = 28
-rings = 1
-cap_bottom = false
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_3"]
-flip_faces = true
-top_radius = 0.07
-bottom_radius = 0.445
-height = 0.33
-radial_segments = 28
-rings = 1
-cap_bottom = false
-
-[sub_resource type="SphereMesh" id="SphereMesh_1"]
-radius = 0.11
-height = 0.22
-radial_segments = 16
-rings = 8
+[ext_resource type="PackedScene" path="res://art/models/pendant_lamp.glb" id="2_lamp"]
 
 [node name="PendantLamp" type="Node3D"]
 script = ExtResource("1_pendant")
 
-[node name="Visual" type="Node3D" parent="."]
+[node name="Visual" parent="." instance=ExtResource("2_lamp")]
+outline_width = 0.018
 
-[node name="Chain" type="MultiMeshInstance3D" parent="Visual"]
+[node name="Lamp" parent="Visual" index="0"]
 cast_shadow = 0
-multimesh = SubResource("MultiMesh_1")
-material_override = ExtResource("2_metal_dark")
 
-[node name="Cap" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2.5, 0)
+[node name="Bulb" parent="Visual" index="1"]
 cast_shadow = 0
-mesh = SubResource("CylinderMesh_1")
-material_override = ExtResource("2_metal_dark")
-
-[node name="Shade" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2.72, 0)
-cast_shadow = 0
-mesh = SubResource("CylinderMesh_2")
-material_override = ExtResource("3_olive")
-material_overlay = ExtResource("4_outline_thin")
-
-[node name="ShadeInner" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2.72, 0)
-cast_shadow = 0
-mesh = SubResource("CylinderMesh_3")
-material_override = ExtResource("5_cream")
-
-[node name="Bulb" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2.83, 0)
-cast_shadow = 0
-mesh = SubResource("SphereMesh_1")
-material_override = ExtResource("6_sparkle")
 
 [node name="Light" type="SpotLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -2.86, 0)

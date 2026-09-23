@@ -27,10 +27,11 @@ CAGE_Y = -0.28   # bar line (Godot z +0.28)
 CAGE_TOP = 2.42  # top rail height
 POST_X = 1.64    # cage end posts
 BACK_Y = 0.56    # back posts of the side cages
-WINDOW = 0.5     # half width of the pay window (the bars inside it stop at WINDOW_Z)
+WINDOW = 0.6     # half width of the pay window (the bars inside it stop at WINDOW_Z)
 WINDOW_Z = 1.5
-JAR_X = (-1.32, -0.96, -0.6)
-JAR_Y = 0.02
+BAR_STEP = 0.3   # front bars at x = -1.5 + i * BAR_STEP; the jars stand between them
+JAR_X = (-1.35, -1.05, -0.75)
+JAR_Y = -0.07
 JAR_FILL = (0.19, 0.13, 0.05)   # seed pile heights: the $90 jar is nearly empty
 BADGE_X = (-0.85, 0.0, 0.85)
 BADGE_Z = 0.56
@@ -55,7 +56,7 @@ def rust_patch(width, height, x, y_face, z0=0.0, rot_z=0.0, seed=0.0, mat=None, 
     for i in range(n, -1, -1):
         t = i / n
         u = -width / 2 + width * t
-        v = height * (0.62 + 0.26 * math.sin(t * 7.0 + seed) + 0.12 * math.sin(t * 13.0 + seed * 2))
+        v = height * (0.66 + 0.2 * math.sin(t * 6.0 + seed) + 0.08 * math.sin(t * 11.0 + seed * 2))
         v *= 0.35 + 0.65 * math.sin(math.pi * t) ** 0.5    # soft shoulders at the ends
         pts.append((u, v))
     return extrude_profile(pts, 0.006, pos=(x, y_face, z0), rot=(0, 0, rot_z), bevel=0.0, mat=mat, name=name)
@@ -117,8 +118,6 @@ def build():
     xs = (W - 0.18) / 2
     parts.append(rust_patch(0.72, 0.38, -xs, 0.05, z0=0.08, rot_z=-90, seed=1.3, mat=rust, name="rust_l"))
     parts.append(rust_patch(0.6, 0.3, xs, -0.1, z0=0.08, rot_z=90, seed=3.0, mat=rust, name="rust_r"))
-    # Grime smear on the ledge where hands rest.
-    parts.append(box((0.62, 0.2, 0.004), pos=(-0.78, -0.45, TOP), bevel=0.0, mat=grime, name="grime"))
 
     # --- the cage --------------------------------------------------------------------------------------------
     for sx in (-1, 1):  # bottom rail, open under the pay window
@@ -138,16 +137,16 @@ def build():
         parts.append(hpipe((x, CAGE_Y, TOP + 0.03), (x, BACK_Y, TOP + 0.03), 0.03, steel, "side_bottom"))
         for y in (-0.05, 0.16, 0.37):
             parts.append(bar(x, y, TOP, CAGE_TOP, 0.022, steel, "side_bar", verts=6))
-    # Front bars, 0.25 m apart; the three in the pay window hang from the header. Rusted feet on most, one
+    # Front bars, BAR_STEP apart; the three in the pay window hang from the header. Rusted feet on most, one
     # rusty replacement, one bent outwards (someone pulled).
-    for i in range(13):
-        x = -1.5 + 0.25 * i
-        z0 = WINDOW_Z if abs(x) < WINDOW else TOP
-        if i == 1:
+    for i in range(11):
+        x = -1.5 + BAR_STEP * i
+        z0 = WINDOW_Z if abs(x) < WINDOW - 0.01 else TOP
+        if i == 0:
             parts.append(pipe([(x, CAGE_Y, z0), (x + 0.02, CAGE_Y - 0.09, 1.7), (x, CAGE_Y, CAGE_TOP)], 0.022,
                               verts=6, bend=0.25, mat=steel, name="bar_bent"))
         else:
-            parts.append(bar(x, CAGE_Y, z0, CAGE_TOP, 0.022, rust if i == 3 else steel, "bar"))
+            parts.append(bar(x, CAGE_Y, z0, CAGE_TOP, 0.022, rust if i == 2 else steel, "bar"))
         if z0 == TOP and i % 3 != 1:
             parts.append(cyl(0.027, 0.11 + 0.05 * (i % 2), verts=6, pos=(x, CAGE_Y, TOP), bevel=0, mat=rust,
                              name="bar_rust"))
@@ -155,8 +154,12 @@ def build():
     # --- pay slot: a dished steel tray passing under the window, "PAY HERE" plate above it ------------------
     parts.append(box((0.66, 0.46, 0.05), pos=(0, CAGE_Y - 0.05, TOP), bevel=0.02, segments=1, mat=steel, name="tray"))
     parts.append(box((0.54, 0.36, 0.012), pos=(0, CAGE_Y - 0.05, TOP + 0.045), bevel=0.0, mat=dark, name="tray_dish"))
-    parts.append(box((0.52, 0.02, 0.13), pos=(0, CAGE_Y - 0.04, WINDOW_Z + 0.07), bevel=0.008, segments=1, mat=cream,
+    # cream "PAY HERE" plate riveted to the bumper right under the tray (the scene writes the text)
+    parts.append(box((0.52, 0.02, 0.12), pos=(0, -D / 2 - 0.063, TOP - 0.145), bevel=0.008, segments=1, mat=cream,
                      name="pay_plate"))
+    for u in (-0.22, 0.22):
+        parts.append(cyl(0.016, 0.012, verts=6, pos=(u, -D / 2 - 0.072, TOP - 0.085), rot=(90, 0, 0), bevel=0,
+                         mat=steel, name="pay_rivet"))
 
     # --- SUPPLY sign box on top of the cage, hung a bit crooked -----------------------------------------------
     sign_z = CAGE_TOP + 0.05
@@ -277,7 +280,7 @@ def build():
         empty("Sign", (0.24 * math.sin(t), sign_y - 0.146, sign_z + 0.24 * math.cos(t))),
         empty("PriceBoard", (pb[0] - 0.31 * math.sin(math.radians(BOARD_TILT)), pb[1] - 0.026, pb[2] - 0.31)),
         empty("Register", (rx, ry, TOP)),
-        empty("PayPlate", (0.0, CAGE_Y - 0.05, WINDOW_Z + 0.135)),
+        empty("PayPlate", (0.0, -D / 2 - 0.074, TOP - 0.085)),
     ]
     # Budget 6000 (station default 5000): this station is four props in one (counter + cage, register, three
     # jars, bell) plus two signs; everything small is already at 6-12 segments.

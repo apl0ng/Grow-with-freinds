@@ -151,7 +151,7 @@ func can_interact(player: Player) -> bool:
 		return false
 	if holder_id == player.peer_id:
 		# A repeated pickup request from the current holder (double press / LMB spam while the first request is
-		# still in flight) is a harmless no-op (server_give_item returns true), never "Someone is holding this".
+		# still in flight) is a harmless no-op (server_give_item returns true), never "Someone's carrying that.".
 		return true
 	if is_held():
 		return false
@@ -161,9 +161,9 @@ func get_denied_reason(player: Player) -> String:
 	if player != null and holder_id == player.peer_id:
 		return ""
 	if is_held():
-		return "Someone is holding this"
+		return "Someone's carrying that."
 	if player != null and _get_held_item_of(player) != null:
-		return "Hands full"
+		return "Hands full."
 	return ""
 
 func _server_interact(player: Player) -> void:

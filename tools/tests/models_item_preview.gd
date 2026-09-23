@@ -84,6 +84,13 @@ func _run() -> void:
 				await _settle(4)
 				await _shot("fp_%s%s" % [item_type, view[0]])
 			head.rotation.x = -0.12
+			if item_type == "product":
+				# Worst case: a big harvest (Product scales its Cluster up to 1.6x).
+				var held: Node = mgr.call("get_held_by", 1)
+				held.set("amount", 5)
+				await _settle(4)
+				await _shot("fp_product_x5")
+				held.set("amount", int(PROPS["product"]["amount"]))
 		if "tp" in _only:
 			var socket: Node3D = bob.call("get_item_socket")
 			var focus := socket.global_position + Vector3(0, 0.15, 0)

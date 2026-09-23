@@ -7,7 +7,7 @@ extends Node
 ##           --sim-quota=350 (what-if quota)
 ## Model (deliberately human-ish, not optimal): sprint speed + 0.25 s per leg, 0.5 s per E press, 2.5 s per shop
 ## purchase (open UI, click, close), one item in hand, cans start at the well; a player waters a growing plot as
-## soon as it shows "dry!" (water < dry_threshold) or was never watered, drops the can to do anything else, and
+## soon as it shows "dry" (water < dry_threshold) or was never watered, drops the can to do anything else, and
 ## buys the seed chosen by the strategy. Plants persist, growth/drain only while PLAYING. Prints when the quota is
 ## met (or the sales at the buzzer) per strategy and team size.
 

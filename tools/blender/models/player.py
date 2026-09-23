@@ -17,6 +17,7 @@ Colours: TINT_body = the player colour (player.gd: Toonify.tint = Toon.grade(pla
 """
 import bpy
 import bmesh
+from mathutils import Euler
 from gwf import *
 
 # Factory palette (STYLE.md section 12; not Toon constants, so pal() can't read them).
@@ -24,14 +25,15 @@ OLIVE = "#7c8665"
 BROWN = pal("COCOA")
 
 R_BELLY = 0.395     # widest body radius (belly, z = Z_BELLY): a pear, heavy at the bottom
-Z_BOTTOM = 0.22     # bean bottom (sits on the stubby legs)
-Z_BELLY = 0.50
-Z_HEAD = 1.32       # start of the head dome
+Z_BOTTOM = 0.25     # bean bottom (sits on the stubby legs)
+Z_BELLY = 0.54
+Z_HEAD = 1.365       # start of the head dome
 R_HEAD = 0.318      # radius where the head dome starts
-Z_TOP = 1.745       # bean top (before the slump)
-HUNCH = 0.10        # the head top is pushed this far forward (m)
-SLUMP = 0.035       # ... and this far down
-FACE_Z = 1.27       # face.tscn origin height on the unslumped bean (eyes ~3 cm above it)
+Z_TOP = 1.79        # bean top (before the slump)
+BEND = math.radians(21)   # the tired hunch: the spine bends forward this much at the head top ...
+BEND_P = 1.5              # ... growing with height ** BEND_P (a rounded back, the head tips forward)
+SPINE = 0.56              # the bend starts above this height
+FACE_Z = 1.295      # face.tscn origin height on the unslumped bean (eyes ~3 cm above it)
 HAT_SCALE = 0.88    # hard hat base radius 0.29 m (perched on the head dome)
 HAT_R = 0.29        # the hard hat's inner radius at its base
 V = 32              # radial segments of the big bean
@@ -57,15 +59,33 @@ def body_r(z):
     return R_HEAD * math.sqrt(max(0.0, 1 - k * k))
 
 
-def slump_t(z):
-    t = max(0.0, min(1.0, (z - 0.72) / (Z_TOP - 0.72)))
-    return t * t
+def bend_theta(z):
+    """Forward bend (radians) of the spine at height z."""
+    t = max(0.0, (z - SPINE) / (Z_TOP - SPINE))
+    return BEND * min(t, 1.0) ** BEND_P
+
+
+def spine(z, steps=40):
+    """(y, z) of the bent spine at unbent height z (arc length is kept: the bean bends, it doesn't stretch)."""
+    if z <= SPINE:
+        return 0.0, z
+    h = (z - SPINE) / steps
+    y, zz = 0.0, SPINE
+    for i in range(steps):
+        th = bend_theta(SPINE + (i + 0.5) * h)
+        y -= math.sin(th) * h
+        zz += math.cos(th) * h
+    return y, zz
 
 
 def slump(co):
-    """The tired hunch: the upper body bends forward and sinks (shear, grows with height squared)."""
-    k = slump_t(co.z)
-    return Vector((co.x, co.y - HUNCH * k, co.z - SLUMP * k))
+    """The tired hunch: every slice of the bean above SPINE turns forward by bend_theta around the bent spine,
+    so the back rounds, the front folds in and the head tips forward and down."""
+    if co.z <= SPINE:
+        return co.copy()
+    th = bend_theta(co.z)
+    y, z = spine(co.z)
+    return Vector((co.x, y + co.y * math.cos(th), z + co.y * math.sin(th)))
 
 
 def on_body(a, z, off=0.0):
@@ -131,20 +151,20 @@ def apron_r(z):
     return body_r(z) + 0.012
 
 
-APRON_TOP = 1.0
+APRON_TOP = 1.04
 BIB_HALF = 0.165     # half width of the bib (m)
 SKIRT_HALF = 0.345   # half width of the skirt
 
 
 def apron_half_angle(z):
-    t = max(0.0, min(1.0, (z - 0.74) / 0.14))
+    t = max(0.0, min(1.0, (z - 0.78) / 0.14))
     t = t * t * (3 - 2 * t)
     half = SKIRT_HALF + (BIB_HALF - SKIRT_HALF) * t
     return math.asin(min(0.95, half / apron_r(z)))
 
 
 def apron_bottom(a):
-    return 0.35 + 0.018 * math.sin(7.0 * a + 1.3) + 0.01 * math.sin(13.0 * a)   # ragged hem
+    return 0.38 + 0.018 * math.sin(7.0 * a + 1.3) + 0.01 * math.sin(13.0 * a)   # ragged hem
 
 
 def apron_point(a, z, off=0.0):
@@ -167,7 +187,7 @@ def apron(canvas):
 def pocket(canvas):
     def fn(u, v):
         a = -0.36 + 0.72 * u
-        z = 0.55 + 0.17 * v + (0.012 * math.sin(math.pi * u) if v == 1.0 else 0.0)
+        z = 0.59 + 0.17 * v + (0.012 * math.sin(math.pi * u) if v == 1.0 else 0.0)
         sag = 0.012 * math.sin(math.pi * u) * (1 - v)   # the full pocket bulges out at the bottom
         return apron_point(a, z, 0.017 + sag), apron_point(a, z, 0.004)
     return shell(fn, 8, 3, "pocket", canvas)
@@ -175,7 +195,7 @@ def pocket(canvas):
 
 def wrench(metal):
     """A wrench poking out of the pocket (right side as the others see it: Blender -X)."""
-    a, z = -0.24, 0.66
+    a, z = -0.24, 0.70
     base = apron_point(a, z, 0.03)
     shaft = box((0.034, 0.016, 0.2), bevel=0.006, segments=1, mat=metal, name="wrench_shaft")
     head = torus(0.034, 0.013, major_segments=10, minor_segments=4, rot=(90, 0, 0), pos=(0, 0, 0.215),
@@ -189,7 +209,7 @@ def wrench(metal):
 
 def stains(grime):
     out = []
-    for a, z, r, sx in ((0.2, 0.84, 0.036, 1.4), (-0.1, 0.44, 0.034, 1.1), (0.28, 0.41, 0.024, 0.8)):
+    for a, z, r, sx in ((0.2, 0.88, 0.036, 1.4), (-0.1, 0.48, 0.034, 1.1), (0.28, 0.45, 0.024, 0.8)):
         s = sphere(r, scale=(sx, 0.16, 1.0), segments=8, rings=4, mat=grime, name="stain")
         s.location = apron_point(a, z, 0.005)
         s.rotation_euler = (0, 0, a)
@@ -199,31 +219,37 @@ def stains(grime):
 
 
 def straps(canvas):
-    """Neck strap from the bib corners around the back of the head, and the waist tie with a sad knot."""
-    pts = []
+    """Cross-back straps: from the bib corners up over the shoulders, crossing on the back down to the waist tie
+    (reads as an apron from behind), plus the waist tie with a sad knot."""
     a0 = apron_half_angle(APRON_TOP - 0.01)
-    n = 16
-    for k in range(n + 1):
-        t = k / n
-        a = a0 + (2 * math.pi - 2 * a0) * t                       # around the back
-        z = APRON_TOP - 0.01 + 0.2 * math.sin(math.pi * t) ** 0.6 - 0.02 * math.sin(math.pi * t) ** 6
-        pts.append(on_body(a, z, 0.012))
-    neck = pipe(pts, 0.017, verts=6, bend=0.0, mat=canvas, name="neck_strap")
-    waist = band(lambda z: body_r(z) + 0.003, 0.765, 0.8, thickness=0.009, verts=24, rows=1, mat=canvas,
+    cross = []
+    for side, off in ((1, 0.012), (-1, 0.022)):                  # one strap lies on the other where they cross
+        pts = []
+        n = 14
+        for k in range(n + 1):
+            t = k / n
+            a = side * (a0 + (math.pi + 0.95 - a0) * t)
+            if t < 0.3:
+                z = APRON_TOP - 0.01 + 0.25 * math.sin(t / 0.3 * math.pi / 2)
+            else:
+                z = APRON_TOP + 0.24 - (APRON_TOP + 0.24 - 0.83) * ((t - 0.3) / 0.7) ** 1.1
+            pts.append(on_body(a, z, off))
+        cross.append(pipe(pts, 0.017, verts=6, bend=0.0, mat=canvas, name="strap"))
+    waist = band(lambda z: body_r(z) + 0.003, 0.805, 0.84, thickness=0.009, verts=24, rows=1, mat=canvas,
                  name="waist_tie")
-    back = on_body(math.pi, 0.782, 0.012)
+    back = on_body(math.pi, 0.822, 0.012)
     knot = sphere(0.034, pos=back, scale=(1.2, 0.8, 1.0), segments=8, rings=5, mat=canvas, name="knot")
     ends = [pipe([back + Vector((dx * 0.02, 0.01, 0)), back + Vector((dx * 0.05, 0.03, -0.1)),
                   back + Vector((dx * 0.055, 0.02, -0.2))], 0.014, verts=4, mat=canvas, name="tie_end")
             for dx in (-1, 1)]
-    return [neck, waist, knot] + ends
+    return cross + [waist, knot] + ends
 
 
 def legs_and_boots(leg_mat, leather, rubber):
     parts = []
     for side in (-1, 1):
         x = 0.155 * side
-        parts.append(capsule(0.1, 0.36, pos=(x, 0.0, 0.03), verts=12, rings=4, mat=leg_mat, name="leg"))
+        parts.append(capsule(0.1, 0.4, pos=(x, 0.0, 0.03), verts=12, rings=4, mat=leg_mat, name="leg"))
         yaw = 11 * side                                   # toes turned out: a tired stance
         upper = box((0.2, 0.27, 0.135), pos=(0, 0.035, 0.03), bevel=0.06, segments=2, mat=leather, name="boot")
         toe = sphere(0.1, pos=(0, -0.095, 0.078), scale=(0.98, 0.95, 0.62), segments=14, rings=6, mat=leather,
@@ -239,22 +265,27 @@ def legs_and_boots(leg_mat, leather, rubber):
     return parts
 
 
+HAT_PROF = [(0.33, 0.0), (0.334, 0.03), (0.33, 0.08), (0.312, 0.14), (0.276, 0.195), (0.22, 0.24),
+            (0.15, 0.27), (0.075, 0.285), (0.0, 0.29)]     # authored at 0.33 m, scaled by HAT_SCALE
+
+
+def dome_r(z):
+    for (r0, z0), (r1, z1) in zip(HAT_PROF, HAT_PROF[1:]):
+        if z0 <= z <= z1:
+            return r0 + (r1 - r0) * (z - z0) / (z1 - z0)
+    return 0.0
+
+
 def hard_hat(shell_mat, sticker, ink):
     """Grubby hard hat: dome + front-to-back ridge + a brim with a longer, drooping front peak. Base at z=0."""
-    prof = [(0.33, 0.0), (0.334, 0.03), (0.33, 0.08), (0.312, 0.14), (0.276, 0.195), (0.22, 0.24),
-            (0.15, 0.27), (0.075, 0.285), (0.0, 0.29)]
+    prof = HAT_PROF
     dome = lathe(prof, verts=24, mat=shell_mat, name="dome", smooth=60)
     dent(dome, (0.2, -0.16, 0.19), radius=0.12, depth=0.03)           # knocked on the front-left
     dent(dome, (-0.26, 0.12, 0.13), radius=0.08, depth=0.018)
-    def dome_r(z):
-        for (r0, z0), (r1, z1) in zip(prof, prof[1:]):
-            if z0 <= z <= z1:
-                return r0 + (r1 - r0) * (z - z0) / (z1 - z0)
-        return 0.0
     ridge = []
     for k in range(15):                                                   # front -> over the top -> back
         t = -1.0 + 2.0 * k / 14
-        z = 0.06 + (0.29 - 0.06) * (1 - abs(t)) ** 0.45 if abs(t) < 1 else 0.06
+        z = 0.085 + (0.29 - 0.085) * (1 - abs(t)) ** 0.45 if abs(t) < 1 else 0.085
         ridge.append(Vector((0.0, (dome_r(z) + 0.006) * (1 if t > 0 else -1), z)))
     ridge[7] = Vector((0.0, 0.0, 0.296))
     ridge = pipe(ridge, 0.024, verts=6, bend=0.0, mat=shell_mat, name="ridge")
@@ -290,9 +321,9 @@ def hard_hat(shell_mat, sticker, ink):
 def arm(side, tint, leather):
     """Tiny arm hanging along the body, glove at the end. side +1 = Blender +X (the character's LEFT)."""
     s = side
-    shoulder = slump(on_body(math.radians(80) * s, 1.0, -0.03))
-    elbow = on_body(math.radians(78) * s, 0.8, 0.045)
-    wrist = on_body(math.radians(62) * s, 0.64, 0.05)
+    shoulder = slump(on_body(math.radians(80) * s, 1.04, -0.03))
+    elbow = on_body(math.radians(78) * s, 0.84, 0.045)
+    wrist = on_body(math.radians(62) * s, 0.68, 0.05)
     limb = pipe([shoulder, elbow, wrist], 0.062, verts=12, bend=0.09, mat=tint, name="arm")
     ball = sphere(0.066, pos=shoulder, segments=10, rings=5, mat=tint, name="shoulder")
     down = (wrist - elbow).normalized()
@@ -306,6 +337,36 @@ def arm(side, tint, leather):
                    rings=5, mat=leather, name="thumb")
     a = join([limb, ball, cuff, mitt, thumb], "ArmL" if s > 0 else "ArmR", origin=shoulder)
     return a
+
+
+def hat_matrix():
+    """World matrix of the hard hat: seated on the slumped head where the dome is HAT_R wide, leaning with the
+    slump, pushed back a little and knocked crooked."""
+    zb = Z_HEAD + (Z_TOP - Z_HEAD) * math.sqrt(1 - (HAT_R / R_HEAD) ** 2)
+    base = slump(Vector((0.0, 0.0, zb))) + Vector((0.01, 0.012, 0.0))
+    rot = Euler((bend_theta(zb) - math.radians(9), math.radians(8), math.radians(-6)), 'XYZ')
+    return Matrix.Translation(base) @ rot.to_matrix().to_4x4()
+
+
+def tuck_head(head, m, margin=0.035):
+    """Pull the (hidden) head top inside the hat dome, `margin` inside its shell, so neither the head nor its
+    2.5 cm ink hull pokes through the hat."""
+    inv = m.inverted()
+    zmax = HAT_PROF[-1][1] * HAT_SCALE - margin
+    moved = 0
+    for v in head.data.vertices:
+        p = inv @ v.co
+        if p.z <= -0.01:
+            continue
+        z = min(p.z, zmax)
+        allowed = max(0.02, dome_r(max(0.0, z) / HAT_SCALE) * HAT_SCALE - margin)
+        r = math.hypot(p.x, p.y)
+        if r > allowed or p.z > zmax:
+            k = min(1.0, allowed / r) if r > 1e-6 else 1.0
+            v.co = m @ Vector((p.x * k, p.y * k, z))
+            moved += 1
+    head.data.update()
+    return moved
 
 
 # ============================================================================================== build
@@ -332,12 +393,10 @@ def build():
 
     # Hard hat: sits low on the slumped head, tilted forward with the slump and knocked crooked.
     hat = hard_hat(hat_mat, lib("caution"), lib("dark"))
-    zb = Z_HEAD + (Z_TOP - Z_HEAD) * math.sqrt(1 - (HAT_R / R_HEAD) ** 2)   # where the dome is HAT_R wide
-    base = slump(Vector((0.0, 0.0, zb)))
-    tilt = math.atan(HUNCH * 2 * math.sqrt(slump_t(zb)) / (Z_TOP - 0.72))
-    hat.location = base + Vector((0.01, 0.012, 0.0))
-    hat.rotation_euler = (tilt - math.radians(7), math.radians(8), math.radians(-6))   # pushed back, crooked
+    hm = hat_matrix()
+    hat.matrix_world = hm
     apply_transform(hat)
+    tuck_head(body, hm)
 
     low = legs_and_boots(leg_mat, leather, rubber)
     body = join(upper + [hat] + low, "Body")
@@ -348,6 +407,7 @@ def build():
     # Face placement for player.tscn (printed; the scene hard-codes it, models_char_test checks it).
     zc = FACE_Z
     centre = slump(Vector((0.0, 0.0, zc)))
+    # (the pivot is on the slumped axis at face height, so a pitch tilt slides the face over the head)
     front = slump(on_body(0.0, zc))
     e = 0.01
     tangent = (slump(on_body(0.0, zc + e)) - slump(on_body(0.0, zc - e))).normalized()   # up along the face

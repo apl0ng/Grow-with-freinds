@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/world/props/flicker_light.gd" id="1_flicker"]
+[ext_resource type="PackedScene" path="res://art/models/fluoro_light_broken.glb" id="2_fixture"]
+
+[node name="FluoroLight" type="Node3D"]
+script = ExtResource("1_flicker")
+flicker = true
+
+[node name="Visual" parent="." instance=ExtResource("2_fixture")]
+
+[node name="Light" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.98, 0)
+light_color = Color(0.839216, 1, 0.878431, 1)
+light_energy = 1.1
+light_specular = 0.1
+omni_range = 7.5

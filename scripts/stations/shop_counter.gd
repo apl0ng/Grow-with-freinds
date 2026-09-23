@@ -23,15 +23,15 @@ const KIND_UPGRADE: StringName = &"upgrade"
 const REASON_NOT_SERVER := "Only the host can process purchases"
 const REASON_NO_PLAYER := "Player not found"
 const REASON_TOO_FAR := "Too far away"
-const REASON_UNKNOWN_SEED := "Unknown seed"
-const REASON_UNKNOWN_UPGRADE := "Unknown upgrade"
-const REASON_HANDS_FULL := "Hands full — drop your item first"
-const REASON_NO_MONEY := "Not enough money"
-const REASON_MAXED := "Already at max level"
-const REASON_UNAVAILABLE := "The shop is closed right now"
-const REASON_FAILED := "Can't buy that right now"
-const REASON_REFUNDED := "Something went wrong, money refunded"
-const REASON_NOT_CONNECTED := "Not connected to the host"
+const REASON_UNKNOWN_SEED := "Unknown seed."
+const REASON_UNKNOWN_UPGRADE := "Unknown favor."
+const REASON_HANDS_FULL := "Hands full."
+const REASON_NO_MONEY := "Not enough cash."
+const REASON_MAXED := "Maxed out."
+const REASON_UNAVAILABLE := "Window's shut."
+const REASON_FAILED := "Can't buy that now."
+const REASON_REFUNDED := "Something broke. Cash refunded."
+const REASON_NOT_CONNECTED := "No connection."
 
 ## An open shop UI closes itself when the local player walks further than this from the counter (metres).
 ## If the shop was opened from further away than this, the UI allows a little slack instead of closing at once,
@@ -65,7 +65,7 @@ func _exit_tree() -> void:
 # --- Interactable overrides ---------------------------------------------------------------------------------------
 
 func get_prompt(_player: Player) -> String:
-	return "Browse seeds & upgrades"
+	return "Buy supplies"
 
 
 func can_interact(_player: Player) -> bool:
@@ -216,7 +216,7 @@ func server_buy_seed(peer_id: int, seed_id: StringName) -> Dictionary:
 		GameState.server_add_money(seed_def.cost)
 		return _fail(REASON_REFUNDED)
 	_rpc_purchase_fx.rpc(peer_id, seed_def.color)
-	return _ok("Bought %s seeds!" % seed_def.display_name)
+	return _ok("Seeds. Don't waste them.")
 
 
 ## SERVER ONLY. Validates and buys the next level of a team upgrade for `peer_id`.
@@ -241,7 +241,7 @@ func server_buy_upgrade(peer_id: int, upgrade_id: StringName) -> Dictionary:
 		return _fail(REASON_NO_MONEY if GameState.money < cost else REASON_FAILED)
 	var new_level := maxi(GameState.get_upgrade_level(upgrade_id), level + 1)
 	_rpc_purchase_fx.rpc(peer_id, get_effect_color(def.effect_key))
-	return _ok("%s upgraded to level %d!" % [def.display_name, new_level])
+	return _ok("%s, level %d. Noted." % [def.display_name, new_level])
 
 
 func _server_in_range(player: Player) -> bool:

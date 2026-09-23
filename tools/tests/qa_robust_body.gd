@@ -4,7 +4,7 @@ extends "res://tools/tests/qa_base.gd"
 ## Sections:
 ##   A  garbage input to every server-side entry point (unknown ids, bad peers, bad props, negative amounts)
 ##   B  rapid double presses (two requests in the same frame): pickup, buy, ShopUI double click, plant, water,
-##      harvest, sell -> every effect happens exactly once, no misleading "Someone is holding this"
+##      harvest, sell -> every effect happens exactly once, no misleading "Someone's carrying that."
 ##   C  dropping near walls, corners, the well, crates and grow plots: the item always lands on the floor or a
 ##      low prop, never buried inside geometry or on a station, and stays reachable by the interaction ray
 ##   D  selling / planting with an item that was despawned in the same frame
@@ -97,7 +97,7 @@ func _section_a_garbage() -> void:
 	var odd := items.server_spawn_item(Const.ITEM_PRODUCT, {"strain_id": 42, "amount": -3}, Vector3(-3, 0, 1)) as Product
 	check(odd != null and odd.amount == 1 and odd.get_seed() == null, "unknown-strain product with amount clamped to 1")
 	var odd_packet := items.server_spawn_item(Const.ITEM_SEED_PACKET, {"strain_id": &"mystery"}, Vector3(-3.5, 0, 1)) as SeedPacket
-	check(odd_packet != null and odd_packet.get_strain_name() == "Mystery", "unknown-strain packet shows 'Mystery'")
+	check(odd_packet != null and odd_packet.get_strain_name() == "Unmarked", "unknown-strain packet shows 'Unmarked'")
 	await wait_frames(2)
 	# Unknown products can't be sold, unknown seeds can't be planted.
 	GameState.request_start_round()
@@ -117,7 +117,7 @@ func _section_a_garbage() -> void:
 	toasts.clear()
 	plot(3).interact(me)
 	await wait_frames(2)
-	check(plot(3).is_empty() and toast_seen("Unknown seed"), "unknown seed refused by the plot")
+	check(plot(3).is_empty() and toast_seen("Unknown seed."), "unknown seed refused by the plot")
 	await _clear_hands()
 	for it in [weird_can, text_can]:
 		items.server_despawn_item(it)
@@ -396,7 +396,7 @@ func _section_d_despawn_same_frame() -> void:
 	turnin._rpc_request_interact()  # raw server path
 	await wait_frames(2)
 	check(GameState.money == money and GameState.round_sales >= 0, "no sale for a despawned product")
-	check(toast_seen(TurnInStation.REASON_EMPTY), "told 'Nothing to sell'")
+	check(toast_seen(TurnInStation.REASON_EMPTY), "told 'Nothing to deposit.'")
 	# Same for planting with a packet that vanished (e.g. RETRY despawned it) in the same frame.
 	var packet := items.server_spawn_item(Const.ITEM_SEED_PACKET, {"strain_id": &"budget"}, Vector3.ZERO, 1)
 	await wait_frames(1)

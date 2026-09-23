@@ -20,6 +20,7 @@ TUBE = 0.026        # tube radius (5 cm: reads at 6 m)
 LEGS_X = (-0.8, 0.02, 0.8)
 M_L, M_W, M_T = 1.84, 0.72, 0.085     # mattress
 SAG = 0.045
+MZ = RAIL_Z + TUBE * 0.4      # mattress bottom
 
 
 def subdivide_axis(obj, axis, cuts):
@@ -81,6 +82,11 @@ def sag_z(x):
     return -SAG * (1 - u * u)
 
 
+def mattress_top(x, y):
+    """World z of the mattress top surface at (x, y) (before its bevel rounds the edges)."""
+    return MZ + M_T + sag_z(x) - 0.012 * (1 - min(1.0, (2 * y / M_W) ** 2))
+
+
 def build():
     steel = lib("metal_dark")
     rust = lib("rust")
@@ -91,52 +97,49 @@ def build():
     wool = material("blanket", pal("COOL_GRAY"), "matte")      # thin grey wool blanket
     parts = []
 
-    # Frame: two side rails bent into end bars at the head end (one U tube) + a straight foot bar.
+    # Frame: the side rails bent into an end bar at the head (one U tube) + a straight foot bar.
     hx = L / 2
-    frame = pipe([(hx, -RAIL_Y, RAIL_Z), (-hx, -RAIL_Y, RAIL_Z), (-hx, RAIL_Y, RAIL_Z), (hx, RAIL_Y, RAIL_Z)],
-                 TUBE, verts=12, bend=0.07, mat=steel, name="rails")
-    foot = pipe([(hx - 0.01, -RAIL_Y - 0.02, RAIL_Z), (hx - 0.01, RAIL_Y + 0.02, RAIL_Z)], TUBE * 0.9, verts=12,
-                mat=steel, name="foot_bar")
-    parts += [frame, foot]
-    # End caps on the open rail ends (rubber plugs).
-    for sy in (-1, 1):
-        parts.append(sphere(TUBE * 1.15, pos=(hx + 0.004, sy * RAIL_Y, RAIL_Z), segments=12, rings=6, mat=grime,
-                            name="plug"))
+    parts.append(pipe([(hx, -RAIL_Y, RAIL_Z), (-hx, -RAIL_Y, RAIL_Z), (-hx, RAIL_Y, RAIL_Z), (hx, RAIL_Y, RAIL_Z)],
+                      TUBE, verts=20, bend=0.07, mat=steel, name="rails"))
+    parts.append(pipe([(hx - 0.012, -RAIL_Y - 0.015, RAIL_Z), (hx - 0.012, RAIL_Y + 0.015, RAIL_Z)], TUBE * 0.9,
+                      verts=16, mat=steel, name="foot_bar"))
+    for sy in (-1, 1):   # rubber plugs on the open rail ends
+        parts.append(cyl(TUBE * 1.15, 0.03, verts=12, pos=(hx - 0.004, sy * RAIL_Y, RAIL_Z), rot=(0, 90, 0),
+                         bevel=0, mat=grime, name="plug"))
 
     # Folding X-legs: two crossing tubes per leg (side by side in x), pinned where they cross, rubber feet.
     for i, lx in enumerate(LEGS_X):
-        splay = (0.0, 0.03, -0.02)[i]   # the middle leg is bent a little
+        splay = (0.0, 0.035, -0.02)[i]   # the middle leg is bent a little
         for sy in (-1, 1):
             ox = sy * TUBE * 1.05
             top = Vector((lx + ox, sy * RAIL_Y, RAIL_Z - 0.01))
             foot_p = Vector((lx + ox + splay, -sy * RAIL_Y, TUBE * 0.9))
-            parts.append(pipe([top, foot_p], TUBE * 0.85, verts=10, mat=steel, name="leg"))
-            parts.append(sphere(0.042, pos=(foot_p.x, foot_p.y, 0.028), scale=(1, 1, 0.66), segments=12, rings=6,
-                                mat=grime, name="foot"))
+            parts.append(pipe([top, foot_p], TUBE * 0.85, verts=16, mat=steel, name="leg"))
+            parts.append(cyl(0.04, 0.035, verts=12, pos=(foot_p.x, foot_p.y, 0.0), radius_top=0.03, bevel=0,
+                             mat=grime, name="foot"))
             # Rust creeping up from the foot (a sleeve on the lowest part of the leg).
             d = (top - foot_p).normalized()
-            parts.append(pipe([foot_p + d * 0.03, foot_p + d * 0.16], TUBE * 0.85 + 0.004, verts=10, mat=rust,
-                              name="leg_rust"))
+            parts.append(pipe([foot_p + d * 0.04, foot_p + d * (0.17 + 0.03 * sy)], TUBE * 0.85 + 0.004, verts=16,
+                              mat=rust, name="leg_rust"))
         # Pivot bolt through both tubes where they cross.
-        parts.append(cyl(0.03, 0.13, verts=10, pos=(lx + splay * 0.5 - 0.065, 0.0, RAIL_Z * 0.5), rot=(0, 90, 0),
-                         bevel=0.008, mat=steel, name="pin"))
+        parts.append(cyl(0.026, 0.12, verts=12, pos=(lx + splay * 0.5 - 0.06, 0.0, RAIL_Z * 0.5), rot=(0, 90, 0),
+                         bevel=0, mat=steel, name="pin"))
     # Rust patches on the rails (sleeves slightly fatter than the tube, uneven lengths).
     for x0, x1, sy in ((-0.62, -0.38, -1), (0.28, 0.4, -1), (0.55, 0.9, 1), (-0.9, -0.7, 1)):
-        parts.append(pipe([(x0, sy * RAIL_Y, RAIL_Z), (x1, sy * RAIL_Y, RAIL_Z)], TUBE + 0.004, verts=12,
+        parts.append(pipe([(x0, sy * RAIL_Y, RAIL_Z), (x1, sy * RAIL_Y, RAIL_Z)], TUBE + 0.004, verts=20,
                           mat=rust, name="rail_rust"))
 
-    # Mattress: a soft slab that sags between the rails (subdivided box bent along x), grime stains.
-    mz = RAIL_Z + TUBE * 0.4
+    # Mattress: a soft slab that sags between the rails (a box split into strips along x), grime stains.
     matt = box((M_L, M_W, M_T), pos=(0, 0, 0), bevel=0, mat=ticking, name="mattress")
     subdivide_axis(matt, 0, 7)
     subdivide_axis(matt, 1, 2)
     move_verts(matt, lambda c: Vector((c.x, c.y * (1.0 - 0.03 * (c.z / M_T)), c.z + sag_z(c.x)
                                        - 0.012 * (1 - (2 * c.y / M_W) ** 2) * (c.z / M_T))))
     bevel(matt, 0.03, segments=2)
-    matt.location = (0.0, 0.0, mz)
+    matt.location = (0.0, 0.0, MZ)
     parts.append(matt)
-    # Stains: thin blotches lying on the mattress top, following the sag.
-    def blotch(cx, cy, rx, ry, seed, mat, lift=0.0):
+
+    def blotch(cx, cy, rx, ry, seed, mat):
         pts = []
         for k in range(14):
             a = 2 * math.pi * k / 14
@@ -144,65 +147,65 @@ def build():
             pts.append((cx + rx * r * math.cos(a), cy + ry * r * math.sin(a)))
         b = extrude_profile(pts, 0.003, rot=(-90, 0, 0), bevel=0, mat=mat, name="stain")
         apply_transform(b)
-        subdivide(b, 2)
-        move_verts(b, lambda c: Vector((c.x, c.y, c.z + mz + M_T - 0.0005 + sag_z(c.x) + lift
-                                        - 0.012 * (1 - min(1.0, (2 * c.y / M_W) ** 2)))))
+        move_verts(b, lambda c: Vector((c.x, c.y, c.z + mattress_top(c.x, c.y) - 0.0005)))
         return b
-    parts.append(blotch(0.12, 0.08, 0.2, 0.13, 0.5, grime))
-    parts.append(blotch(0.42, -0.2, 0.09, 0.06, 2.1, grime))
+    parts.append(blotch(0.05, 0.1, 0.2, 0.13, 0.5, grime))
+    parts.append(blotch(-0.28, -0.2, 0.09, 0.06, 2.1, grime))
 
-    # Pillow: squashed flat and dented where the head goes, a yellowed stain, a little crooked.
-    px, pz = -0.68, mz + M_T + sag_z(-0.68) - 0.012
-    pillow = sphere(0.3, segments=20, rings=10, mat=pillow_mat, name="pillow")
-    move_verts(pillow, lambda c: Vector((c.x * 0.58, c.y * 0.98, max(-0.3, min(0.3, c.z)) * 0.16)))
-    dent(pillow, (0.03, 0.02, 0.05), radius=0.16, depth=0.025, direction=(0, 0, -1))
-    # The old yellowed stain, painted on the top faces off to one side.
-    paint(pillow, stain, lambda c, n: n.z > 0.2 and ((c.x - 0.07) / 0.09) ** 2 + ((c.y + 0.1) / 0.13) ** 2 < 1.0)
-    pillow.matrix_world = Matrix.Translation((px, 0.01, pz + 0.042)) @ Matrix.Rotation(math.radians(-7), 4, 'Z') \
+    # Pillow: a rounded-square cushion (a sphere pushed out to a superellipse: thin seams, a soft middle),
+    # squashed flat and dented where the head goes, the old yellowed stain, a little crooked.
+    px = -0.66
+    pz = mattress_top(px, 0.0) - 0.006
+    pillow = sphere(1.0, segments=16, rings=8, mat=pillow_mat, name="pillow")
+
+    def cushion(c):
+        sx = math.copysign(abs(c.x) ** 0.45, c.x)
+        sy = math.copysign(abs(c.y) ** 0.45, c.y)
+        puff = (1 - 0.35 * (sx * sx + sy * sy))
+        return Vector((sx * 0.2, sy * 0.3, c.z * 0.05 * puff))
+    move_verts(pillow, cushion)
+    dent(pillow, (0.02, 0.03, 0.05), radius=0.17, depth=0.022, direction=(0, 0, -1))
+    paint(pillow, stain, lambda c, n: n.z > 0.2 and ((c.x - 0.08) / 0.075) ** 2 + ((c.y + 0.11) / 0.11) ** 2 < 1.0)
+    pillow.matrix_world = Matrix.Translation((px, 0.01, pz + 0.03)) @ Matrix.Rotation(math.radians(-8), 4, 'Z') \
         @ Matrix.Rotation(math.radians(3), 4, 'X')
     apply_transform(pillow)
     parts.append(pillow)
 
-    # Blanket: kicked into a heap at the foot end (3 squashed, jittered lumps) + a flap hanging over the
-    # back rail, draped down the side.
-    bx = 0.58
-    top_z = mz + M_T + sag_z(bx)
-    for (dx, dy, rx, ry, rz, yaw) in ((0.0, 0.02, 0.26, 0.3, 0.075, 12), (0.14, -0.12, 0.2, 0.2, 0.065, -20),
-                                      (-0.12, 0.14, 0.18, 0.22, 0.055, 30)):
-        lump = sphere(1.0, segments=16, rings=8, mat=wool, name="lump")
-        move_verts(lump, lambda c, rx=rx, ry=ry, rz=rz: Vector((c.x * rx, c.y * ry, c.z * rz
-                                                                  + 0.25 * rz * math.sin(c.x * 5 + c.y * 3))))
-        jitter(lump, 0.008, seed=int(abs(dx * 100)) + 3)
-        lump.matrix_world = Matrix.Translation((bx + dx, dy, top_z + rz * 0.55)) @ Matrix.Rotation(
-            math.radians(yaw), 4, 'Z')
-        apply_transform(lump)
-        parts.append(lump)
-    # Flap: a thin sheet that lies on the mattress edge, rolls over the back rail and hangs down.
-    fx0, fx1, n = 0.35, 0.78, 8
-    thick = 0.014
-    flap = grid_slab("flap", 6, 16, fx1 - fx0, 0.5, thick, wool)
+    # Blanket: one thin wool sheet kicked down to the foot end: rumpled into folds on the mattress, its
+    # front edge rolled up, the back part sliding over the mattress edge and hanging down outside the rail.
+    bx0, bx1 = 0.26, 0.9
+    thick = 0.016
+    R = 0.045                                # roll over the mattress edge
+    top_len = M_W - 0.08                     # sheet length lying on top (from the front edge to the back edge)
+    arc = R * math.pi / 2
+    total = top_len + arc + 0.2
+    sheet = grid_slab("blanket", 9, 18, bx1 - bx0, total, thick, wool)
+
+    def rumple(u, s):
+        """Fold height (>= 0) on the mattress: ridges across the sheet, a heap towards the foot."""
+        k = (u + 0.32) / 0.64                               # 0 at the head side of the sheet .. 1 at the foot
+        ridge = math.sin(11 * u + 4.0 * s + 0.6) ** 2 * 0.03 + math.sin(19 * u - 7 * s) ** 2 * 0.012
+        heap = 0.05 * math.exp(-((k - 0.72) / 0.25) ** 2) * math.exp(-((s - 0.3) / 0.28) ** 2)
+        curl = 0.03 * math.exp(-s / 0.05)                   # front edge rolled up
+        fade = min(1.0, (top_len - s) / 0.1)                 # flat where it slides over the edge
+        return (ridge * min(1.0, k * 2.5) + heap) * max(0.0, fade) + curl
 
     def drape(c):
-        # Sheet coords: u along x, s along the sheet (0..0.12 on the mattress, a quarter roll of radius R over
-        # the mattress edge, then hanging down outside the rail); t = offset through the thickness.
-        u = c.x
-        s = c.y + 0.25
-        t = c.z
-        wave = 0.008 * math.sin(u * 22 + s * 9)
-        edge_y, R = M_W / 2, 0.045
-        z0 = top_z + 0.004
-        xc = u + (fx0 + fx1) / 2
-        if s < 0.12:
-            return Vector((xc, edge_y - 0.12 + s, z0 + t + wave * (s / 0.12)))
-        arc = R * math.pi / 2
-        if s < 0.12 + arc:
-            a = (s - 0.12) / R
-            return Vector((xc, edge_y + (R + t) * math.sin(a), z0 - R + (R + t) * math.cos(a) + wave))
-        down = s - 0.12 - arc
-        return Vector((xc + 0.04 * down, edge_y + R + t + 0.03 * down + wave * 0.6, z0 - R - down + wave))
-    move_verts(flap, drape)
-    set_smooth(flap, 60)
-    parts.append(flap)
+        u, s, t = c.x, c.y + total / 2, c.z
+        x = u + (bx0 + bx1) / 2
+        if s < top_len:
+            y = -M_W / 2 + 0.04 + s
+            return Vector((x, y, mattress_top(x, y) + 0.004 + thick / 2 + rumple(u, s) + t))
+        edge_y = -M_W / 2 + 0.04 + top_len
+        z0 = mattress_top(x, edge_y) + 0.004 + thick / 2
+        if s < top_len + arc:
+            a = (s - top_len) / R
+            return Vector((x, edge_y + (R + t) * math.sin(a), z0 - R + (R + t) * math.cos(a)))
+        down = s - top_len - arc
+        wave = 0.01 * math.sin(u * 20 + down * 8)
+        return Vector((x + 0.05 * down, edge_y + R + t + 0.05 * down + wave, z0 - R - down))
+    move_verts(sheet, drape)
+    parts.append(sheet)
 
     cot = join(parts, "cot")
     # A little crooked on the floor (the whole cot turned 1.5 deg).
