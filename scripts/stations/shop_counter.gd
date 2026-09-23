@@ -13,7 +13,10 @@ extends Interactable
 ##   server  _rpc_buy_result.rpc_id(sender, ok, message, kind, id)  -> toast + sfx + shop UI feedback (buyer only)
 ##   server  _rpc_purchase_fx.rpc(buyer, color)                     -> cosmetic burst/bounce/sfx (everyone)
 ## Upgrades use request_buy_upgrade / server_buy_upgrade the same way (validates player, range, upgrade, max level,
-## then GameState.server_buy_upgrade).
+## the level the buyer's card showed, then GameState.server_buy_upgrade). Favors are team-wide and every level
+## costs more, so a request carries the level it was priced at: two workers pressing BUY on the same card, or a
+## second press on a slow link after the window's double-click guard ran out, must not buy a level (at a price)
+## nobody was shown.
 
 const SHOP_UI_SCENE_PATH := "res://scenes/ui/shop_ui.tscn"
 const UI_LOCK_SOURCE: StringName = &"shop"
@@ -32,6 +35,7 @@ const REASON_UNAVAILABLE := "Window's shut."
 const REASON_FAILED := "Can't buy that now."
 const REASON_REFUNDED := "Something broke. Cash refunded."
 const REASON_NOT_CONNECTED := "No connection."
+const REASON_PRICE_CHANGED := "Price changed. Look again."
 
 ## An open shop UI closes itself when the local player walks further than this from the counter (metres).
 ## If the shop was opened from further away than this, the UI allows a little slack instead of closing at once,
@@ -153,11 +157,13 @@ func request_buy_seed(seed_id: StringName) -> void:
 
 
 ## Any peer (normally from the ShopUI). Asks the host to buy the next level of `upgrade_id` for the team.
-func request_buy_upgrade(upgrade_id: StringName) -> void:
+## `seen_level`: the level the buyer's card showed (its price); the host refuses once the level moved on.
+## -1 = buy whatever the next level is.
+func request_buy_upgrade(upgrade_id: StringName, seen_level: int = -1) -> void:
 	if not _can_send():
 		_show_result(false, REASON_NOT_CONNECTED, KIND_UPGRADE, upgrade_id)
 		return
-	_rpc_request_buy_upgrade.rpc_id(Const.SERVER_PEER_ID, upgrade_id)
+	_rpc_request_buy_upgrade.rpc_id(Const.SERVER_PEER_ID, upgrade_id, seen_level)
 
 
 func _can_send() -> bool:
@@ -179,11 +185,11 @@ func _rpc_request_buy_seed(seed_id: StringName) -> void:
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _rpc_request_buy_upgrade(upgrade_id: StringName) -> void:
+func _rpc_request_buy_upgrade(upgrade_id: StringName, seen_level: int = -1) -> void:
 	if not multiplayer.is_server():
 		return
 	var sender := _get_sender_id()
-	var result := server_buy_upgrade(sender, upgrade_id)
+	var result := server_buy_upgrade(sender, upgrade_id, seen_level)
 	_rpc_buy_result.rpc_id(sender, bool(result["ok"]), String(result["message"]), KIND_UPGRADE, upgrade_id)
 
 
@@ -221,8 +227,9 @@ func server_buy_seed(peer_id: int, seed_id: StringName) -> Dictionary:
 
 ## SERVER ONLY. Validates and buys the next level of a team upgrade for `peer_id`.
 ## Returns {"ok": bool, "reason": String, "message": String} like server_buy_seed().
-## Validation order: host, player exists, in range, upgrade exists, not maxed, GameState.server_buy_upgrade (money).
-func server_buy_upgrade(peer_id: int, upgrade_id: StringName) -> Dictionary:
+## Validation order: host, player exists, in range, upgrade exists, not maxed, still at `seen_level` (when >= 0),
+## GameState.server_buy_upgrade (money).
+func server_buy_upgrade(peer_id: int, upgrade_id: StringName, seen_level: int = -1) -> Dictionary:
 	if not _is_server():
 		return _fail(REASON_NOT_SERVER)
 	var player: Player = Game.get_player(peer_id)
@@ -236,6 +243,8 @@ func server_buy_upgrade(peer_id: int, upgrade_id: StringName) -> Dictionary:
 	var level := GameState.get_upgrade_level(upgrade_id)
 	if level >= def.max_level:
 		return _fail(REASON_MAXED)
+	if seen_level >= 0 and seen_level != level:
+		return _fail(REASON_PRICE_CHANGED)
 	var cost := def.cost_for_level(level + 1)
 	if not GameState.server_buy_upgrade(upgrade_id, peer_id):
 		return _fail(REASON_NO_MONEY if GameState.money < cost else REASON_FAILED)

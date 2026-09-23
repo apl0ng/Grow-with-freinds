@@ -265,7 +265,9 @@ func _on_card_buy_pressed(card: ShopCard) -> void:
 	if card.kind == ShopCounter.KIND_SEED:
 		counter.request_buy_seed(card.item_id)
 	else:
-		counter.request_buy_upgrade(card.item_id)
+		# The level this card is priced at (cards refresh on every level change): the host refuses the press if
+		# the favor moved on before it arrives, instead of selling the next, dearer level.
+		counter.request_buy_upgrade(card.item_id, GameState.get_upgrade_level(card.item_id))
 
 
 func _on_money_changed(money: int) -> void:

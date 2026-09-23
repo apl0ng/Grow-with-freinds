@@ -242,8 +242,10 @@ on `Game.world_ready` (host only, once); on `game_reset` re-homes/refills every 
 `server_fill_can`, `server_spawn_starting_cans`, `server_reset_cans`, `get_can_spots`, `get_can_spot_position`.
 **ShopCounter** (`shop_counter.gd`, owner: economy agent): overrides `interact()` WITHOUT calling super (opening a menu
 is purely local); `open_shop_for(player)`, `get_shop_ui()`, `UI_LOCK_SOURCE = &"shop"`. Buy requests:
-`request_buy_seed(id)` / `request_buy_upgrade(id)` (client) → `_rpc_request_buy_*` → server `server_buy_seed(peer, id)` /
-`server_buy_upgrade(peer, id)` returning `{"ok", "reason", "message"}`; validation order: player exists, range, def exists,
+`request_buy_seed(id)` / `request_buy_upgrade(id, seen_level := -1)` (client) → `_rpc_request_buy_*` → server
+`server_buy_seed(peer, id)` / `server_buy_upgrade(peer, id, seen_level := -1)` returning `{"ok", "reason", "message"}`;
+a favor request carries the level the card was priced at and is refused with "Price changed. Look again." if the
+team level moved on (prevents double-buys across workers or slow links); validation order: player exists, range, def exists,
 hands empty, `GameState.server_try_spend`, spawn packet in the buyer's hands (refund if the spawn fails).
 **TurnInStation** (`turn_in_station.gd`, owner: economy agent): sells a held Product:
 `value = int(round(amount * seed.sale_value_per_unit * GameState.get_sale_multiplier()))` → `GameState.server_add_sale`.
