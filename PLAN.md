@@ -76,7 +76,12 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | 8.2 | Narrative/text pass: HUD, menu, shop UI, overlays, NPC barks, debt board wiring (+ test updates) | lead/writer | todo (after QA) |
 | 8.3 | Dark undertone: material library re-tune, colder environment, sad ToonFace, mood rules in STYLE.md | A | in progress |
 | 8.4 | Sad player faces / slumped idle on the player body | B | todo |
-| 8.5 | Blender pipeline: tools/blender (gwf.py, build.py), Toonify, MODELING.md, reference contact sheets, models_test | pipeline | in progress |
+| 8.5 | Blender pipeline: tools/blender (gwf.py, build.py), Toonify, MODELING.md, reference contact sheets, models_test | pipeline | done |
+| 8.6a | Modeling: player body (sad) + Boss | M1 | in progress |
+| 8.6b | Modeling: shop cage counter, deposit chute, water tank, grow tray | M2 | in progress |
+| 8.6c | Modeling: watering can, seed packet, product bundle | M3 | in progress |
+| 8.6d | Modeling: roller door + beam, barred window, fence + gate, cable tray, pipes, grow-light bar, fluoro | M4 | in progress |
+| 8.6e | Modeling: pallet, crate, cot, camera, punch clock, debt board, clock, sad plant, signs, leaky pipe, hook up drum + lamps | M5 | in progress |
 | 8.6 | Modeling wave (Blender): characters, stations, items + plant stages, room props | modelers | todo (after 8.5) |
 | 8.7 | **Plant deep-dive (user request, back of queue):** take extra time on the plant model across seedling, vegetative, flowering ("fruitation") and ready stages; reference real cannabis morphology (cotyledons + first serrated leaflets, fan leaves with 5–7 serrated fingers on nodes, apical dominance, pistils/bud sites forming, dense colas with sugar leaves when ready, drooping when dry) but keep the output chunky/cartoon like the rest of the game | plant modeler | todo (after 8.6) |
 

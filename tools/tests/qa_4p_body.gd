@@ -66,8 +66,8 @@ func _host_main() -> void:
 	var err := Game.start_host(NAMES["host"], port)
 	if not check(err == OK, "host on port %d" % port):
 		finish(); return
-	await wait_until(func(): return Game.local_player != null, 5.0, "host player spawned")
-	await wait_until(func(): return items_of(Const.ITEM_WATERING_CAN).size() == Config.balance.starting_watering_cans, 3.0, "starting cans spawned")
+	await wait_until(func(): return Game.local_player != null, 10.0, "host player spawned")
+	await wait_until(func(): return items_of(Const.ITEM_WATERING_CAN).size() == Config.balance.starting_watering_cans, 10.0, "starting cans spawned")
 	print("QA4P_HOST_READY")
 
 	step("waiting for Alpha + Bravo")
@@ -75,7 +75,7 @@ func _host_main() -> void:
 		await _abort(); return
 	_ids["a"] = _peer_named("a")
 	_ids["b"] = _peer_named("b")
-	await wait_until(func(): return Game.world.get_player(_ids["a"]) != null and Game.world.get_player(_ids["b"]) != null, 5.0, "their Player nodes exist on the host")
+	await wait_until(func(): return Game.world.get_player(_ids["a"]) != null and Game.world.get_player(_ids["b"]) != null, 10.0, "their Player nodes exist on the host")
 	await wait_sec(0.5)
 	await checkpoint("joined", ["a", "b"])
 
@@ -83,6 +83,27 @@ func _host_main() -> void:
 	GameState.request_start_round()
 	check(GameState.is_playing() and GameState.round_number == 1, "round 1 PLAYING")
 	await checkpoint("round started", ["a", "b"])
+
+	# ---------------------------------------------------------------- (a0) money race
+	step("(a0) Alpha and Bravo buy the last affordable seed in the same frame")
+	GameState.server_add_money(20 - GameState.money)   # exactly one Budget Bud left in the wallet
+	await run_both("a", "goto_station", {"station": "ShopCounter", "distance": 1.3}, "b", "goto_station", {"station": "ShopCounter", "distance": 1.3})
+	var s_buy_a := cmd(_ids["a"], "buy_now", {"seed": "budget"})
+	var s_buy_b := cmd(_ids["b"], "buy_now", {"seed": "budget"})
+	var buy_a := await await_ack(s_buy_a)
+	var buy_b := await await_ack(s_buy_b)
+	check(GameState.money == 0, "money spent exactly once ($%d left, never negative)" % GameState.money)
+	check(items_of(Const.ITEM_SEED_PACKET).size() == 1, "exactly one packet exists")
+	var buyers := int(Game.world.items.get_held_by(_ids["a"]) != null) + int(Game.world.items.get_held_by(_ids["b"]) != null)
+	check(buyers == 1, "exactly one of them holds it")
+	var buy_toasts: Array = (buy_a.get("toasts", []) as Array) + (buy_b.get("toasts", []) as Array)
+	check(buy_toasts.has(ShopCounter.REASON_NO_MONEY), "the other was told 'Not enough money' %s" % [buy_toasts])
+	await checkpoint("after the money race", ["a", "b"])
+	for it in items_of(Const.ITEM_SEED_PACKET):
+		Game.world.items.server_despawn_item(it)
+	GameState.server_add_money(Config.balance.starting_money - GameState.money)
+	await wait_frames(2)
+	await checkpoint("money restored", ["a", "b"])
 
 	# ---------------------------------------------------------------- (a) same-frame pickup race
 	step("(a) Alpha and Bravo grab the same watering can in the same frame")
@@ -152,6 +173,9 @@ func _host_main() -> void:
 	can_b.interact(me)
 	await wait_frames(2)
 	check(can_b.holder_id == 1, "host holds the second can")
+	# An upgrade changes derived values (can capacity) that a late joiner must also get right.
+	GameState.server_add_money(100)
+	check(GameState.server_buy_upgrade(&"big_can", 1), "team bought Bigger Cans (capacity %d)" % GameState.get_can_capacity())
 	await checkpoint("mid-growth, 3 items held", ["a", "b"])
 
 	# ---------------------------------------------------------------- (d) late joiner
@@ -160,7 +184,7 @@ func _host_main() -> void:
 	if not await wait_until(func(): return _peer_named("c") > 0, 40.0, "Charlie registered"):
 		await _abort(); return
 	_ids["c"] = _peer_named("c")
-	await wait_until(func(): return Game.world.get_player(_ids["c"]) != null, 5.0, "Charlie's Player node exists on the host")
+	await wait_until(func(): return Game.world.get_player(_ids["c"]) != null, 10.0, "Charlie's Player node exists on the host")
 	check(Net.players.size() == 4 and Game.world.get_players().size() == 4, "4 players")
 	r = await run_cmd(_ids["c"], "late_check", {"expect": canonical_state()}, 10.0)
 	check(bool(r.get("ok", false)), "Charlie saw the exact host state %d ms after spawning (limit %d ms)" % [int(r.get("ms", -1)), LATE_JOIN_LIMIT_MS])
@@ -180,23 +204,39 @@ func _host_main() -> void:
 	check(Net.players.size() == 4, "still 4 players")
 	await checkpoint("after the refused 5th", ["a", "b", "c"])
 
-	step("grow to READY; Charlie harvests and sells")
+	step("grow to READY; %s and Charlie harvest plot 1 in the same frame" % NAMES[w])
 	Config.growth_speed_override = 25.0
 	await wait_until(func(): return p1.stage == GrowPlot.Stage.READY, 15.0, "plot 1 READY")
 	Config.growth_speed_override = 0.0
+	r = await run_cmd(_ids[w], "drop")
+	check(can_a.holder_id == 0, "%s put the can down" % NAMES[w])
 	await checkpoint("ready", ["a", "b", "c"])
-	r = await run_cmd(_ids["c"], "goto_station", {"station": "GrowPlot1"})
-	r = await run_cmd(_ids["c"], "interact", {"station": "GrowPlot1"})
-	var product := Game.world.items.get_held_by(_ids["c"])
-	check(product is Product and product.get(&"strain_id") == &"budget", "Charlie harvested a Budget Bud product")
+	await run_both(w, "goto_station", {"station": "GrowPlot1"}, "c", "goto_station", {"station": "GrowPlot1"})
+	var s_h1 := cmd(_ids[w], "interact_now", {"station": "GrowPlot1"})
+	var s_h2 := cmd(_ids["c"], "interact_now", {"station": "GrowPlot1"})
+	await await_ack(s_h1)
+	await await_ack(s_h2)
+	check(items_of(Const.ITEM_PRODUCT).size() == 1, "exactly one product from one plant")
 	check(p1.stage == GrowPlot.Stage.EMPTY, "plot 1 EMPTY after the harvest")
+	var harvester := ""
+	for k in [w, "c"]:
+		if Game.world.items.get_held_by(_ids[k]) is Product:
+			harvester = k
+	check(harvester != "", "one of them holds the Budget Bud product")
+	if harvester == "":
+		await _abort(); return
 	await checkpoint("harvested", ["a", "b", "c"])
 	var money_before := GameState.money
-	r = await run_cmd(_ids["c"], "goto_station", {"station": "TurnInStation"})
-	r = await run_cmd(_ids["c"], "interact", {"station": "TurnInStation"})
-	check(GameState.money == money_before + 60 and GameState.round_sales == 60, "sale +$60 (money %d, sold %d)" % [GameState.money, GameState.round_sales])
+	r = await run_cmd(_ids[harvester], "goto_station", {"station": "TurnInStation"})
+	r = await run_cmd(_ids[harvester], "interact", {"station": "TurnInStation"})
+	check(GameState.money == money_before + 60 and GameState.round_sales == 60, "%s sold it: +$60 (money %d, sold %d)" % [NAMES[harvester], GameState.money, GameState.round_sales])
 	check(items_of(Const.ITEM_PRODUCT).is_empty(), "product gone")
 	await checkpoint("sold", ["a", "b", "c"])
+	# The winner takes can A back (the RETRY step below must take a HELD can out of someone's hands).
+	var cmd_seq := cmd(_ids[w], "goto_item", {"item": String(can_a.name)})
+	await await_ack(cmd_seq)
+	r = await run_cmd(_ids[w], "grab", {"item": String(can_a.name)})
+	check(can_a.holder_id == _ids[w], "%s holds can A again" % NAMES[w])
 
 	# ---------------------------------------------------------------- (e) + (h) leave holding a packet, re-join
 	step("(e) %s leaves (return_to_menu) while holding the purple packet" % NAMES[l])
@@ -206,8 +246,8 @@ func _host_main() -> void:
 	var packet := Game.world.items.get_held_by(leaver)
 	check(packet is SeedPacket, "%s holds the packet before leaving" % NAMES[l])
 	cmd(leaver, "leave_rejoin", {"delay": 4.0})
-	await wait_until(func(): return not Net.players.has(leaver), 5.0, "players dict shrank (leaver gone)")
-	await wait_until(func(): return Game.world.get_player(leaver) == null, 3.0, "leaver's Player node despawned on the host")
+	await wait_until(func(): return not Net.players.has(leaver), 10.0, "players dict shrank (leaver gone)")
+	await wait_until(func(): return Game.world.get_player(leaver) == null, 10.0, "leaver's Player node despawned on the host")
 	check(Net.players.size() == 3, "3 players left")
 	if is_instance_valid(packet):
 		check(packet.holder_id == 0, "packet dropped (holder 0)")
@@ -223,7 +263,7 @@ func _host_main() -> void:
 		await _abort(); return
 	_ids[l] = _peer_named(l)
 	check(Net.get_player_name(_ids[l]) == NAMES[l], "same name, not a duplicate-suffixed one ('%s')" % Net.get_player_name(_ids[l]))
-	await wait_until(func(): return Game.world.get_player(_ids[l]) != null, 5.0, "re-joined Player node exists")
+	await wait_until(func(): return Game.world.get_player(_ids[l]) != null, 10.0, "re-joined Player node exists")
 	check(Net.players.size() == 4 and Game.world.get_players().size() == 4, "4 players again")
 	await checkpoint("after re-join", ["a", "b", "c"])
 
@@ -265,14 +305,30 @@ func _host_main() -> void:
 	GameState.server_add_sale(GameState.quota - 60, 1)
 	check(GameState.is_playing(), "still PLAYING just below the quota")
 	Game.world.items.server_spawn_item(Const.ITEM_PRODUCT, {"strain_id": &"budget", "amount": 1}, Vector3.ZERO, _ids["a"])
-	r = await run_cmd(_ids["a"], "goto_station", {"station": "TurnInStation"})
-	r = await run_cmd(_ids["a"], "interact", {"station": "TurnInStation"})
-	await wait_until(func(): return GameState.phase == GameState.Phase.ROUND_SUCCESS, 3.0, "Alpha's sale met the quota -> ROUND_SUCCESS")
+	Game.world.items.server_spawn_item(Const.ITEM_PRODUCT, {"strain_id": &"budget", "amount": 1}, Vector3.ZERO, _ids["c"])
+	await run_both("a", "goto_station", {"station": "TurnInStation"}, "c", "goto_station", {"station": "TurnInStation"})
+	var money_g := GameState.money
+	var quota_g := GameState.quota
+	var s_sell_a := cmd(_ids["a"], "interact_now", {"station": "TurnInStation"})
+	var s_sell_c := cmd(_ids["c"], "interact_now", {"station": "TurnInStation"})
+	var sell_a := await await_ack(s_sell_a)
+	var sell_c := await await_ack(s_sell_c)
+	await wait_until(func(): return GameState.phase == GameState.Phase.ROUND_SUCCESS, 10.0, "a real client sale met the quota -> ROUND_SUCCESS")
+	check(GameState.round_sales == quota_g and GameState.money == money_g + 60, "exactly one of the two same-frame sales counted (sold %d / %d)" % [GameState.round_sales, quota_g])
+	var leftover := items_of(Const.ITEM_PRODUCT)
+	check(leftover.size() == 1 and leftover[0].is_held(), "the late seller keeps the product (not lost, not paid)")
+	var sell_toasts: Array = (sell_a.get("toasts", []) as Array) + (sell_c.get("toasts", []) as Array)
+	check(sell_toasts.has(TurnInStation.REASON_NOT_PLAYING), "the late seller was told selling reopens next round %s" % [sell_toasts])
 	await checkpoint("round success", ["a", "b", "c"], true)
 	GameState.request_next_round()
 	check(GameState.round_number == 2 and GameState.is_playing() and GameState.quota == Config.balance.quota_for_round(2),
 			"host: round 2 PLAYING, quota %d" % Config.balance.quota_for_round(2))
 	await checkpoint("round 2", ["a", "b", "c"], true)
+	if leftover.size() == 1:
+		var keeper := "a" if leftover[0].holder_id == _ids["a"] else "c"
+		r = await run_cmd(_ids[keeper], "interact", {"station": "TurnInStation"})
+		check(GameState.round_sales == 60, "the kept product sells in round 2 (sold %d)" % GameState.round_sales)
+		await checkpoint("round 2 first sale", ["a", "b", "c"], true)
 
 	# ---------------------------------------------------------------- wrap up
 	step("clients leave one by one (simultaneous drops are covered by qa_mp_robust)")
@@ -280,8 +336,8 @@ func _host_main() -> void:
 		var id: int = _ids[k]
 		cmd(id, "finish", {})
 		await wait_until(func(): return not Net.players.has(id), 8.0, "%s left" % NAMES[k])
-	await wait_until(func(): return Net.players.size() == 1, 5.0, "every client left")
-	await wait_until(func(): return Game.world.get_players().size() == 1, 3.0, "only the host's Player node remains")
+	await wait_until(func(): return Net.players.size() == 1, 10.0, "every client left")
+	await wait_until(func(): return Game.world.get_players().size() == 1, 10.0, "only the host's Player node remains")
 	check(Game.world.items.get_held_by(_ids["a"]) == null and Game.world.items.get_held_by(_ids["b"]) == null
 			and Game.world.items.get_held_by(_ids["c"]) == null, "nothing held by departed peers")
 	Game.return_to_menu()
@@ -360,6 +416,12 @@ func _immediate(seq: int, action: String, args: Dictionary) -> bool:
 			it.interact(Game.local_player)
 		_queue.append([seq, "grab_wait", {"item": String(args.get("item", "")), "t": t}])
 		return true
+	if action == "buy_now":
+		var shop: ShopCounter = station("ShopCounter")
+		var tb := toasts.size()
+		shop.request_buy_seed(StringName(String(args.get("seed", ""))))
+		_queue.append([seq, "settle", {"t": tb}])
+		return true
 	if action == "interact_now":
 		var st: Interactable = station(String(args.get("station", "")))
 		var t2 := toasts.size()
@@ -375,8 +437,8 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 		"grab_wait":
 			var it := item_named(String(args.get("item", "")))
 			# Wait until the holder is known here and any denial had time to arrive.
-			await wait_until_quiet(func(): return it != null and it.holder_id != 0, 3.0)
-			await wait_sec(0.3)
+			await wait_until_quiet(func(): return it != null and it.holder_id != 0, 8.0)
+			await sync_with_host()
 			var mine := it != null and it.holder_id == multiplayer.get_unique_id()
 			ack(seq, {"mine": mine, "holder": it.holder_id if it != null else -1, "toasts": toasts_since(int(args.get("t", 0)))})
 		"raw_pickup_request":
@@ -384,13 +446,25 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 			var it := item_named(String(args.get("item", "")))
 			if it != null:
 				stand_near(it, 0.7)
-				await wait_sec(0.45)
+				await server_sees_me()
 				it._rpc_request_interact.rpc_id(1)
-			await wait_sec(0.5)
+			await sync_with_host()
 			ack(seq, {"toasts": toasts_since(t)})
 		"settle":
-			await wait_sec(0.5)
+			await sync_with_host()
 			ack(seq, {"toasts": toasts_since(int(args.get("t", 0)))})
+		"drop":
+			Game.world.items.request_drop()
+			await wait_until_quiet(func(): return Game.local_player.get_held_item() == null, 8.0)
+			await wait_sec(0.2)
+			ack(seq, {})
+		"grab":
+			var it := item_named(String(args.get("item", "")))
+			if it != null:
+				it.interact(Game.local_player)
+			await wait_until_quiet(func(): return it != null and it.holder_id == multiplayer.get_unique_id(), 8.0)
+			await wait_sec(0.2)
+			ack(seq, {"toasts": toasts_since(t)})
 		"late_check":
 			await _late_check(seq, String(args.get("expect", "")))
 		"leave_rejoin":
@@ -435,6 +509,12 @@ func _visual_report() -> String:
 				bad.append("%s not at %s's hand (visible=%s, %.2f m off)" % [it.name, h.name, it.visible, it.global_position.distance_to(want)])
 		elif not it.visible or it.global_position.distance_to(it.rest_position) > 0.01:
 			bad.append("%s floor item misplaced/hidden" % it.name)
+		if it is WateringCan:
+			# Derived from synced charges + the synced upgrade levels: "3/6" with Bigger Cans.
+			var want_label := "%d/%d" % [(it as WateringCan).charges, GameState.get_can_capacity()]
+			var label := it.get_node("ChargeLabel") as Label3D
+			if label.text != want_label or it.get_label_text() != "Watering Can (%s)" % want_label:
+				bad.append("%s label '%s' != '%s'" % [it.name, label.text, want_label])
 	for i in range(1, 7):
 		var p := plot(i)
 		var pv: Node = p.get_node("%Plant")
@@ -456,7 +536,7 @@ func _leave_and_rejoin(delay: float) -> void:
 	check(err == OK, "re-join started")
 	if await wait_until(func(): return Game.local_player != null, 20.0, "re-joined (local Player spawned)"):
 		check(multiplayer.get_unique_id() != old_id, "new peer id %d" % multiplayer.get_unique_id())
-		await wait_until(func(): return Net.players.size() == 4, 5.0, "re-joined registry has 4 players")
+		await wait_until(func(): return Net.players.size() == 4, 10.0, "re-joined registry has 4 players")
 		check(Net.get_player_name(multiplayer.get_unique_id()) == my_name, "kept my name '%s'" % my_name)
 
 

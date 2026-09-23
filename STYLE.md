@@ -252,6 +252,16 @@ Root (Interactable / CharacterBody3D / StaticBody3D, synced; never scaled)
 └─ Body/Shape (colliders, simple boxes/capsules)
 ```
 
+**Models (Blender).** Modelled meshes replace primitives through the pipeline in **MODELING.md**
+(pipeline agent): a bpy script per model family in `tools/blender/models/`, built with
+`python3 tools/blender/build.py <family> --test --shots <dir>` into `res://art/models/<name>.glb`. Every
+model toon-shades itself at runtime (its root is a `Toonify` node, `scripts/art/toonify.gd`): `toon_<x>`
+materials become the library `.tres` itself, `TINT*` parts take the instance's `tint` (strain, player or
+paint colour), `outline_width = 0.025` adds a size-aware ink outline (rule 4 applied per part, no tearing).
+Instance the `.glb` under `Visual` (or **as** `Visual` when a script animates its named parts). Colliders,
+lights, labels and blob shadows stay Godot nodes. Stations and props face +Z, characters and held items
+-Z (the build handles it). Same palette, finishes, sizes and mood as everything in this file.
+
 ---
 
 ## 5. Juice API (`Juice` autoload, `scripts/art/juice.gd`)

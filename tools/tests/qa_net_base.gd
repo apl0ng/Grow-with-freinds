@@ -11,14 +11,16 @@ extends "res://tools/tests/qa_base.gd"
 ##   buy {seed}                    walk to the shop, request_buy_seed(seed); answers {ok, toasts}
 ##   finish                        return_to_menu, check the menu state, stop the loop
 
-const CHECK_TIMEOUT := 4.0
-const ACK_TIMEOUT := 12.0
+const CHECK_TIMEOUT := 8.0
+const ACK_TIMEOUT := 20.0
 
 # --- host ---
 var _seq: int = 0
 var _acks: Dictionary = {}          # seq -> Dictionary
 
 # --- client ---
+var _pos_seq: int = 0
+var _pos_replies: Dictionary = {}   # seq -> Vector3 (host's view of our Player)
 var _queue: Array = []              # [seq, action, args]
 var _stop: bool = false
 ## True while this client is intentionally out of a session (leaving, re-joining): the loop does not fail.
@@ -69,6 +71,61 @@ func _rpc_ack(seq: int, info: Dictionary) -> void:
 
 # =================================================================================================== client side
 
+## Client: after moving the local Player (owner-authoritative, streamed unreliably), wait until the HOST's copy is
+## within `tolerance` m of where we stand, so the server-side range checks see the move. A fixed delay is not
+## enough when the machine is loaded (observed: the host applying no position update for > 1 s under CPU
+## contention). Returns false (and records a FAIL) on timeout.
+func server_sees_me(tolerance: float = 0.3, timeout: float = 8.0) -> bool:
+	var me: Player = Game.local_player
+	if me == null or not Net.is_online():
+		return false
+	var t0 := Time.get_ticks_msec()
+	var last := Vector3.INF
+	while Time.get_ticks_msec() - t0 < timeout * 1000.0:
+		_pos_seq += 1
+		var seq := _pos_seq
+		_rpc_where_am_i.rpc_id(1, seq)
+		var t1 := Time.get_ticks_msec()
+		while not _pos_replies.has(seq) and Time.get_ticks_msec() - t1 < 2000:
+			await get_tree().process_frame
+		if _pos_replies.has(seq):
+			last = _pos_replies[seq]
+			_pos_replies.erase(seq)
+			if last.distance_to(me.global_position) <= tolerance:
+				return true
+		await get_tree().process_frame
+	check(false, "the host saw our move within %.0f s (host view %s, local %s)" % [timeout, last, me.global_position])
+	return false
+
+## Client: reliable ping round trip to the host. Reliable RPCs share ENet channel 0 and arrive in order, so once the
+## pong is here every answer the server sent while handling our earlier requests (denial toasts, purchase results)
+## has arrived as well - no fixed sleeps that break on a loaded machine.
+func sync_with_host(timeout: float = 8.0) -> bool:
+	if not Net.is_online():
+		return false
+	_pos_seq += 1
+	var seq := _pos_seq
+	_rpc_where_am_i.rpc_id(1, seq)
+	var t0 := Time.get_ticks_msec()
+	while not _pos_replies.has(seq) and Time.get_ticks_msec() - t0 < timeout * 1000.0:
+		await get_tree().process_frame
+	var ok := _pos_replies.has(seq)
+	_pos_replies.erase(seq)
+	await wait_frames(2)
+	return ok
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_where_am_i(seq: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	var p := Game.get_player(sender)
+	_rpc_you_are.rpc_id(sender, seq, p.global_position if p != null else Vector3.INF)
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_you_are(seq: int, pos: Vector3) -> void:
+	_pos_replies[seq] = pos
+
 @rpc("authority", "call_remote", "reliable")
 func _rpc_cmd(seq: int, action: String, args: Dictionary) -> void:
 	# Actions that must leave in the same frame as the host's command run right here, inside the network poll.
@@ -116,26 +173,26 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 			var it := item_named(String(args.get("item", "")))
 			if it != null:
 				stand_near(it, 0.7)
-			await wait_sec(0.45)
+			await server_sees_me()
 			ack(seq, {"ok": it != null})
 		"goto_station":
 			stand_near(station(String(args.get("station", ""))), float(args.get("distance", 1.2)))
-			await wait_sec(0.45)
+			await server_sees_me()
 			ack(seq, {"ok": true})
 		"interact":
 			var st: Interactable = station(String(args.get("station", "")))
 			if st != null and me != null:
 				st.interact(me)
-			await wait_sec(0.5)
+			await sync_with_host()
 			ack(seq, {"toasts": toasts_since(t)})
 		"buy":
 			var shop: ShopCounter = station("ShopCounter")
 			stand_near(shop, 1.3)
-			await wait_sec(0.45)
+			await server_sees_me()
 			shop.request_buy_seed(StringName(String(args.get("seed", ""))))
 			var got := await wait_until_quiet(func():
 				var h := me.get_held_item()
-				return h is SeedPacket and String(h.strain_id) == String(args.get("seed", "")), 3.0)
+				return h is SeedPacket and String(h.strain_id) == String(args.get("seed", "")), 8.0)
 			ack(seq, {"ok": got, "toasts": toasts_since(t)})
 		"finish":
 			left_on_purpose = true

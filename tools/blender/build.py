@@ -9,6 +9,8 @@ Owner: pipeline agent. Workflow + conventions: MODELING.md.
                                     default dir: $TMPDIR/gwf_previews)
     --no-import                     skip the Godot import pass (Blender side only)
     --test                          run the headless model suite (tools/tests/models_test.gd) afterwards
+    --shots DIR                     render the built models in-game (Toonify, toon lighting) under xvfb:
+                                    DIR/<first>_sheet_1.png (close-ups) + DIR/<first>_eye.png (player view)
     --verbose                       show exporter / Godot output
     --list                          list the model scripts and exit
 
@@ -16,13 +18,18 @@ Idempotent: a .glb / .glb.import is only rewritten when its bytes change, so God
 changed and git sees no churn. Exit code 0 = every model exported, imported and passed its checks.
 """
 
-import importlib.util
-import os
-import re
-import subprocess
 import sys
-import time
-import traceback
+
+sys.dont_write_bytecode = True  # no __pycache__ in the repo (gwf + model scripts are imported)
+
+import fcntl  # noqa: E402
+import importlib.util  # noqa: E402
+import json  # noqa: E402
+import os  # noqa: E402
+import re  # noqa: E402
+import subprocess  # noqa: E402
+import time  # noqa: E402
+import traceback  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -44,6 +51,8 @@ IMPORT_DEFAULTS = {
     "meshes/generate_lods": "false",     # low-poly already; LODs only add popping
     "meshes/create_shadow_meshes": "true",
     "animation/import": "false",         # animate in Godot (tweens), not in Blender
+    # Object "Hand__L" -> node "Hand" (Godot's glTF import would otherwise rename duplicates "Hand2").
+    "import_script/path": '"res://tools/blender/gwf_post_import.gd"',
 }
 
 
@@ -114,6 +123,32 @@ def import_state(glb_path):
     return True, ""
 
 
+def update_manifest(records, owner):
+    """art/models/manifest.json: one entry per model (kind, Godot front, mount, tris, size, materials,
+    script). Read by tools/tests/models_preview.gd + models_test.gd and handy for level agents. Entries of
+    models not built this run are kept; entries whose .glb is gone are dropped. Written only on change."""
+    path = os.path.join(MODELS_DIR, "manifest.json")
+    old_text = open(path, encoding="utf-8").read() if os.path.exists(path) else None
+    try:
+        data = json.loads(old_text) if old_text else {}
+    except ValueError:
+        data = {}
+    for r in records:
+        if r["problems"]:
+            continue
+        w, h, d = r["size"]
+        data[r["name"]] = {
+            "kind": r["kind"], "front": r["front"], "mount": r["mount"], "tris": r["tris"],
+            "size": [round(w, 3), round(h, 3), round(d, 3)], "materials": r["materials"],
+            "script": "tools/blender/models/%s.py" % owner.get(r["name"], "?"),
+        }
+    data = {k: v for k, v in data.items() if os.path.exists(os.path.join(MODELS_DIR, k + ".glb"))}
+    text = json.dumps(data, indent=1, sort_keys=True) + "\n"
+    if text != old_text:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+
 def load_script(path):
     spec = importlib.util.spec_from_file_location("gwf_model_" + os.path.basename(path)[:-3], path)
     mod = importlib.util.module_from_spec(spec)
@@ -127,13 +162,19 @@ def main(argv):
     preview = "--preview" in flags
     verbose = "--verbose" in flags
     preview_dir = None
+    shots_dir = None
     for i, a in enumerate(argv):
-        if a == "--preview-dir" and i + 1 < len(argv):
-            preview_dir = os.path.abspath(argv[i + 1])
+        if a in ("--preview-dir", "--shots") and i + 1 < len(argv):
+            if a == "--shots":
+                shots_dir = os.path.abspath(argv[i + 1])
+            else:
+                preview_dir = os.path.abspath(argv[i + 1])
             args = [x for x in args if x != argv[i + 1]]
         elif a.startswith("--preview-dir="):
             preview_dir = os.path.abspath(a.split("=", 1)[1])
-    known = {"--preview", "--no-import", "--test", "--verbose", "--list", "--preview-dir"}
+        elif a.startswith("--shots="):
+            shots_dir = os.path.abspath(a.split("=", 1)[1])
+    known = {"--preview", "--no-import", "--test", "--verbose", "--list", "--preview-dir", "--shots"}
     for f in flags:
         if f.split("=")[0] not in known:
             print("unknown option %s\n%s" % (f, __doc__))
@@ -181,6 +222,8 @@ def main(argv):
         print("   %.2f s" % (time.time() - t0))
     t_blender = time.time() - t_start
 
+    update_manifest(gwf.EXPORTS, owner)
+
     # Import params: every model built now, plus any .glb whose .import misses our defaults.
     changed_imports = 0
     built = {r["name"]: r for r in gwf.EXPORTS if not r["problems"]}
@@ -201,8 +244,16 @@ def main(argv):
         print("== godot --import (%d model files, %d import settings changed)" % (
             sum(1 for r in gwf.EXPORTS if r["changed"]), changed_imports))
         try:
-            proc = subprocess.run([GODOT, "--headless", "--path", REPO, "--import"], capture_output=True,
-                                  text=True, timeout=600)
+            # Several modelers may build at once: serialise the Godot import passes on this project.
+            os.makedirs(os.path.join(REPO, ".godot"), exist_ok=True)
+            lock = open(os.path.join(REPO, ".godot", "gwf_import.lock"), "w")
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                proc = subprocess.run([GODOT, "--headless", "--path", REPO, "--import"], capture_output=True,
+                                      text=True, timeout=600)
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+                lock.close()
             out = proc.stdout + proc.stderr
             if verbose:
                 print(out)
@@ -232,13 +283,13 @@ def main(argv):
         if status == "FAIL":
             fails += 1
         w, h, d = rec["size"]
-        rows.append((rec["name"], str(rec["tris"]), "%d" % rec["budget"], "%.2f x %.2f x %.2f" % (w, h, d),
-                     rec["mount"], str(len(rec["materials"])), "changed" if rec["changed"] else "same",
-                     status, "; ".join(notes)))
+        rows.append((rec["name"], rec["kind"], str(rec["tris"]), "%d" % rec["budget"],
+                     "%.2f x %.2f x %.2f" % (w, h, d), rec["mount"], rec["front"], str(len(rec["materials"])),
+                     "changed" if rec["changed"] else "same", status, "; ".join(notes)))
     for stem, err in script_fail.items():
         fails += 1
-        rows.append(("(%s.py)" % stem, "-", "-", "-", "-", "-", "-", "FAIL", err))
-    head = ("model", "tris", "budget", "W x H x D (m)", "mount", "mats", "glb", "status", "notes")
+        rows.append(("(%s.py)" % stem, "-", "-", "-", "-", "-", "-", "-", "-", "FAIL", err))
+    head = ("model", "kind", "tris", "budget", "W x H x D (m)", "mount", "front", "mats", "glb", "status", "notes")
     widths = [max(len(r[i]) for r in rows + [head]) for i in range(len(head) - 1)]
     print()
     print("  ".join(h.ljust(w) for h, w in zip(head, widths)) + "  " + head[-1])
@@ -258,6 +309,20 @@ def main(argv):
         print("previews: %s" % gwf.OPTIONS["preview_dir"])
 
     status = 1 if (fails or godot_errors) else 0
+    built_ok = [r["name"] for r in gwf.EXPORTS if not r["problems"]]
+    if shots_dir and built_ok and "--no-import" not in flags:
+        print("== in-game shots -> %s" % shots_dir)
+        cmd = ["xvfb-run", "-a", "-s", "-screen 0 1280x720x24", GODOT, "--path", REPO, "--rendering-driver",
+               "opengl3", "--rendering-method", "gl_compatibility", "--resolution", "960x540", "-s",
+               "res://tools/tests/models_preview.gd", "--", "--out=" + shots_dir, "--models=" + ",".join(built_ok),
+               "--layout=sheet,eye", "--cols=4", "--cell=420x420", "--size=1600x900", "--prefix=" + built_ok[0]]
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            for line in (proc.stdout + proc.stderr).splitlines():
+                if line.startswith("models_preview: /") or "SCRIPT ERROR" in line:
+                    print("  " + line)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            print("  shots failed: %s" % e)
     if "--test" in flags and "--no-import" not in flags:
         print("== models_test")
         proc = subprocess.run([GODOT, "--headless", "--path", REPO, "-s", "res://tools/tests/models_test.gd"],
@@ -271,4 +336,9 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    code = main(sys.argv[1:])
+    # bpy 4.2 (as a Python module) segfaults during interpreter teardown after any glTF export, AFTER every
+    # file is written. Leave without the teardown so the exit code stays meaningful (0 = all good).
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)

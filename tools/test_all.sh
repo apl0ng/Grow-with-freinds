@@ -28,7 +28,7 @@ export GODOT="${GODOT:-godot}"
 LOGDIR="${TEST_ALL_LOGS:-$(mktemp -d -t test_all.XXXXXX)}"
 mkdir -p "$LOGDIR"
 
-ALL_SUITES=(check art_test world_test items_test farm_test econ_test flow_test items_net_test items_e2e_test
+ALL_SUITES=(check art_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
   qa_mouse_x11)
 
@@ -58,6 +58,14 @@ done
 for p in 7801 7802; do port_busy $p && echo "warning: UDP port $p (tools/smoke.sh) is in use; the smoke suite may fail"; done
 
 # --- runner ------------------------------------------------------------------------------------------------------
+# Suites run in their own session, so Ctrl-C would not reach them: stop the running one explicitly.
+CURRENT_SID=""
+on_interrupt() {
+  echo; echo "test_all: interrupted, stopping the running suite"
+  if [[ -n "$CURRENT_SID" ]]; then pkill -TERM -s "$CURRENT_SID" 2>/dev/null; sleep 1; pkill -KILL -s "$CURRENT_SID" 2>/dev/null; fi
+  exit 130
+}
+trap on_interrupt INT TERM
 ROWS=()
 OVERALL=0
 TOTAL_P=0; TOTAL_F=0; TOTAL_E=0
@@ -93,12 +101,14 @@ run_suite() {
   local log="$LOGDIR/$name.log"
   ERRFILE="$LOGDIR/$name.errors"
   rm -f "$ERRFILE"
-  printf '== %-16s ' "$name"
+  printf '== %-20s ' "$name"
   local t0 t1 rc sid
   t0=$(date +%s.%N)
   setsid timeout -k 10 "$tmo" "$@" >"$log" 2>&1 </dev/null &
   sid=$!
+  CURRENT_SID=$sid
   wait "$sid"; rc=$?
+  CURRENT_SID=""
   t1=$(date +%s.%N)
   # Anything this suite left behind (it is in our session): TERM, then KILL.
   if pgrep -s "$sid" >/dev/null 2>&1; then
@@ -140,7 +150,7 @@ run_suite() {
     cat "${files[@]}" 2>/dev/null | grep -E '^\s*FAIL\b' | head -15 | sed 's/^/     /'
     [[ -s "$ERRFILE" ]] && head -20 "$ERRFILE" | sed 's/^/     /'
   fi
-  ROWS+=("$(printf '%-16s %7d %7d %7d %8s  %s' "$name" "$passed" "$failed" "$errors" "$secs" "$result")")
+  ROWS+=("$(printf '%-20s %7d %7d %7d %8s  %s' "$name" "$passed" "$failed" "$errors" "$secs" "$result")")
   TOTAL_P=$((TOTAL_P + passed)); TOTAL_F=$((TOTAL_F + failed)); TOTAL_E=$((TOTAL_E + errors))
 }
 
@@ -170,6 +180,7 @@ run_suite check           420 "" tools/check.sh
 run_suite art_test        120 "" "${G[@]}" -s $TESTS/art_test.gd
 run_suite world_test      120 "" "${G[@]}" -s $TESTS/world_test.gd
 run_suite items_test      120 "" "${G[@]}" -s $TESTS/items_test.gd
+run_suite items_test_minimal 120 "" "${G[@]}" -s $TESTS/items_test.gd -- --minimal
 run_suite farm_test       120 "" "${G[@]}" -s $TESTS/farm_test.gd
 run_suite econ_test       120 "" "${G[@]}" -s $TESTS/econ_test.gd
 run_suite flow_test       120 "" "${G[@]}" -s $TESTS/flow_test.gd
@@ -193,18 +204,18 @@ if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120
 elif [[ -z "$ONLY" || "$ONLY" == *",qa_mouse_x11,"* ]]; then
-  echo "== qa_mouse_x11     SKIP (xvfb-run not installed)"
-  ROWS+=("$(printf '%-16s %7s %7s %7s %8s  %s' qa_mouse_x11 - - - - SKIP)")
+  echo "== qa_mouse_x11         SKIP (xvfb-run not installed)"
+  ROWS+=("$(printf '%-20s %7s %7s %7s %8s  %s' qa_mouse_x11 - - - - SKIP)")
 fi
 
 T_ALL1=$(date +%s.%N)
 echo
 echo "================================ test_all results ================================"
-printf '%-16s %7s %7s %7s %8s  %s\n' "suite" "passed" "failed" "errors" "seconds" "result"
-printf '%s\n' "----------------------------------------------------------------------------"
+printf '%-20s %7s %7s %7s %8s  %s\n' "suite" "passed" "failed" "errors" "seconds" "result"
+printf '%s\n' "--------------------------------------------------------------------------------"
 for r in "${ROWS[@]}"; do echo "$r"; done
-printf '%s\n' "----------------------------------------------------------------------------"
-printf '%-16s %7d %7d %7d %8s  %s\n' "TOTAL (${#ROWS[@]})" "$TOTAL_P" "$TOTAL_F" "$TOTAL_E" \
+printf '%s\n' "--------------------------------------------------------------------------------"
+printf '%-20s %7d %7d %7d %8s  %s\n' "TOTAL (${#ROWS[@]})" "$TOTAL_P" "$TOTAL_F" "$TOTAL_E" \
   "$(awk -v a="$T_ALL0" -v b="$T_ALL1" 'BEGIN { printf "%.1f", b - a }')" "$([[ $OVERALL -eq 0 ]] && echo PASS || echo FAIL)"
 echo "errors = ERROR / SCRIPT ERROR lines not announced by the test (details: <suite>.errors in the log dir)"
 echo "logs: $LOGDIR"

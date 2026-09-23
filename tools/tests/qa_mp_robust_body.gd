@@ -24,6 +24,7 @@ var port: int = 7980
 var _ids: Dictionary = {}
 var _connected: Array[int] = []
 var _host_left_seen: bool = false
+var _sync_log: Array = []   # host: msec timestamps of Alpha's Player $Sync "synchronized" signal
 
 func _run() -> void:
 	role = str(Config.get_arg("role", "host"))
@@ -45,7 +46,7 @@ func _host_main() -> void:
 	Config.growth_speed_override = 0.0
 	if not check(Game.start_host(NAMES["host"], port) == OK, "host on port %d" % port):
 		finish(); return
-	await wait_until(func(): return Game.local_player != null and items_of(Const.ITEM_WATERING_CAN).size() == 2, 5.0, "host world ready")
+	await wait_until(func(): return Game.local_player != null and items_of(Const.ITEM_WATERING_CAN).size() == 2, 10.0, "host world ready")
 	print("QAMP_HOST_READY")
 	await wait_until(func(): return _peer_named("a") > 0 and _peer_named("b") > 0, 40.0, "Alpha and Bravo registered")
 	await wait_until(func(): return _ghost_id() > 0, 20.0, "Ghost connected (unregistered)")
@@ -54,7 +55,8 @@ func _host_main() -> void:
 	_ids["u"] = _ghost_id()
 	if _ids["a"] <= 0 or _ids["b"] <= 0 or _ids["u"] <= 0:
 		finish(); return
-	await wait_until(func(): return Game.world.get_player(_ids["a"]) != null and Game.world.get_player(_ids["b"]) != null, 5.0, "their Player nodes exist")
+	await wait_until(func(): return Game.world.get_player(_ids["a"]) != null and Game.world.get_player(_ids["b"]) != null, 10.0, "their Player nodes exist")
+	(Game.world.get_player(_ids["a"]).get_node("Sync") as MultiplayerSynchronizer).synchronized.connect(func() -> void: _sync_log.append(Time.get_ticks_msec()))
 	GameState.request_start_round()
 	var money := GameState.money
 	var n_items := Game.world.items.get_items().size()
@@ -66,7 +68,7 @@ func _host_main() -> void:
 	check(Game.world.items.get_held_by(_ids["u"]) == null, "Ghost holds nothing")
 	check((r.get("toasts", []) as Array).has(ShopCounter.REASON_NO_PLAYER), "Ghost's purchase refused: %s" % [r.get("toasts", [])])
 	cmd(_ids["u"], "finish")
-	await wait_until(func(): return not _ids["u"] in multiplayer.get_peers(), 5.0, "Ghost left")
+	await wait_until(func(): return not _ids["u"] in multiplayer.get_peers(), 10.0, "Ghost left")
 
 	step("M1: malformed RPCs from Alpha are rejected by the engine")
 	var b_player := Game.world.get_player(_ids["b"])
@@ -77,9 +79,10 @@ func _host_main() -> void:
 			"RPC '_rpc_state' is not allowed on node /root/GameState"]:
 		expect_error(s)
 	r = await run_cmd(_ids["a"], "garbage_rpcs", {"victim": _ids["b"]})
-	await wait_until(func(): return expected_errors_seen(), 3.0, "every malformed RPC was rejected (logged by the engine)")
+	await wait_until(func(): return expected_errors_seen(), 10.0, "every malformed RPC was rejected (logged by the engine)")
 	check(GameState.money == money and Game.world.items.get_items().size() == n_items, "state unchanged")
 	check(Net.get_player_name(_ids["a"]) == NAMES["a"] and Net.players.size() == 3, "registry unchanged (no re-register / rename)")
+	_where("a", r, station("ShopCounter"))
 	check((r.get("toasts", []) as Array).has(ShopCounter.REASON_UNKNOWN_SEED), "valid-typed unknown seed -> 'Unknown seed' %s" % [r.get("toasts", [])])
 	check((r.get("toasts", []) as Array).has(ShopCounter.REASON_UNKNOWN_UPGRADE), "valid-typed unknown upgrade -> 'Unknown upgrade'")
 	r = await run_cmd(_ids["b"], "position")
@@ -94,6 +97,7 @@ func _host_main() -> void:
 	step("M4: double requests in one frame from a client")
 	var can: Item = items_of(Const.ITEM_WATERING_CAN)[0]
 	r = await run_cmd(_ids["a"], "double_pickup", {"item": String(can.name)})
+	_where("a", r, can)
 	check(can.holder_id == _ids["a"], "Alpha holds the can")
 	check((r.get("toasts", []) as Array).is_empty(), "no error toast for the second pickup request %s" % [r.get("toasts", [])])
 	r = await run_cmd(_ids["a"], "drop")
@@ -138,8 +142,8 @@ func _host_main() -> void:
 	var old_b: int = _ids["b"]
 	cmd(old_a, "leave_now_and_rejoin", {"delay": 3.0})
 	cmd(old_b, "leave_now_and_rejoin", {"delay": 3.0})
-	await wait_until(func(): return Net.players.size() == 1, 5.0, "registry back to the host only")
-	await wait_until(func(): return Game.world.get_players().size() == 1, 3.0, "both Player nodes despawned")
+	await wait_until(func(): return Net.players.size() == 1, 10.0, "registry back to the host only")
+	await wait_until(func(): return Game.world.get_players().size() == 1, 10.0, "both Player nodes despawned")
 	check(can.holder_id == 0 and can2.holder_id == 0, "both cans dropped")
 	check(absf(can.global_position.y) < 0.15 and absf(can2.global_position.y) < 0.15, "both on the floor")
 	await wait_sec(0.5)
@@ -148,7 +152,7 @@ func _host_main() -> void:
 			20.0, "both re-joined with their own names")
 	_ids["a"] = _peer_named("a")
 	_ids["b"] = _peer_named("b")
-	await wait_until(func(): return Game.world.get_players().size() == 3, 5.0, "3 Player nodes again")
+	await wait_until(func(): return Game.world.get_players().size() == 3, 10.0, "3 Player nodes again")
 	await checkpoint_peers("after re-join", [_ids["a"], _ids["b"]], _names())
 
 	step("M6: host leaves while Alpha has the shop open and Bravo the pause menu")
@@ -163,6 +167,21 @@ func _host_main() -> void:
 	await wait_frames(3)
 	check(Game.world == null and not Net.is_online(), "host back in the menu")
 	finish()
+
+## Diagnostics: where the client says it is vs where the host sees it (server range checks use the host view).
+func _where(key: String, r: Dictionary, target: Node3D) -> void:
+	var p := Game.world.get_player(_ids[key])
+	if p == null or target == null:
+		return
+	var now := Time.get_ticks_msec()
+	var recent := _sync_log.filter(func(t): return now - int(t) < 3000)
+	var gaps := []
+	for i in range(1, recent.size()):
+		if int(recent[i]) - int(recent[i - 1]) > 150:
+			gaps.append("%d ms gap ending %d ms ago" % [int(recent[i]) - int(recent[i - 1]), now - int(recent[i])])
+	print("  (Alpha syncs applied in the last 3 s: %d, last one %d ms ago, gaps > 150 ms: %s)" % [recent.size(), now - int(_sync_log.back()) if not _sync_log.is_empty() else -1, gaps])
+	print("  (%s: client says %s, host sees %s / net %s, target %s at %.2f m from the host view)" % [NAMES[key],
+			r.get("pos", "?"), p.global_position, p.net_position, target.global_position, p.global_position.distance_to(target.global_position)])
 
 func _names() -> Dictionary:
 	var out := {}
@@ -225,11 +244,11 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 			(station("TurnInStation") as Interactable)._rpc_request_interact.rpc_id(1)
 			plot(1)._rpc_request_interact.rpc_id(1)
 			Game.world.items._rpc_request_drop.rpc_id(1)
-			await wait_sec(0.6)
+			await sync_with_host()
 			ack(seq, {"toasts": toasts_since(t)})
 		"garbage_rpcs":
 			stand_near(shop, 1.2)
-			await wait_sec(0.45)
+			await server_sees_me()
 			shop._rpc_request_buy_seed.rpc_id(1, 12345)
 			shop._rpc_request_buy_upgrade.rpc_id(1, {"a": 1})
 			Net._rpc_register.rpc_id(1, 42, "red")
@@ -241,46 +260,46 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 			var victim := Game.world.get_player(int(args.get("victim", 0)))
 			if victim != null:
 				victim._rpc_teleport.rpc_id(victim.peer_id, Transform3D(Basis.IDENTITY, Vector3(50, 0, 50)))
-			await wait_sec(0.8)
+			await sync_with_host()
 			check(GameState.money == Config.balance.starting_money, "Alpha: money unchanged ($%d)" % GameState.money)
 			check(Net.get_player_name(multiplayer.get_unique_id()) == NAMES["a"], "Alpha: still called Alpha")
-			ack(seq, {"toasts": toasts_since(t)})
+			ack(seq, {"toasts": toasts_since(t), "pos": me.global_position})
 		"position":
 			await wait_sec(0.3)
 			ack(seq, {"pos": me.global_position})
 		"far_requests":
 			stand_near(station("Well"), 1.4)
-			await wait_sec(0.45)
+			await server_sees_me()
 			(station("TurnInStation") as Interactable)._rpc_request_interact.rpc_id(1)
 			shop.request_buy_seed(&"budget")
-			await wait_sec(0.6)
+			await sync_with_host()
 			ack(seq, {"toasts": toasts_since(t)})
 		"double_pickup":
 			var it := item_named(String(args.get("item", "")))
 			stand_near(it, 0.7)
-			await wait_sec(0.45)
+			await server_sees_me()
 			it.interact(me)
 			it.interact(me)
-			await wait_until_quiet(func(): return it.holder_id == multiplayer.get_unique_id(), 3.0)
-			await wait_sec(0.4)
+			await wait_until_quiet(func(): return it.holder_id == multiplayer.get_unique_id(), 8.0)
+			await sync_with_host()
 			check(it.holder_id == multiplayer.get_unique_id(), "Alpha: holding the can after a double press")
-			ack(seq, {"toasts": toasts_since(t)})
+			ack(seq, {"toasts": toasts_since(t), "pos": me.global_position, "item_pos": it.global_position})
 		"drop":
 			Game.world.items.request_drop()
-			await wait_until_quiet(func(): return me.get_held_item() == null, 3.0)
+			await wait_until_quiet(func(): return me.get_held_item() == null, 8.0)
 			await wait_sec(0.2)
 			ack(seq, {})
 		"double_buy":
 			stand_near(shop, 1.2)
-			await wait_sec(0.45)
+			await server_sees_me()
 			shop.request_buy_seed(&"budget")
 			shop.request_buy_seed(&"budget")
-			await wait_until_quiet(func(): return me.get_held_item() is SeedPacket, 3.0)
-			await wait_sec(0.4)
+			await wait_until_quiet(func(): return me.get_held_item() is SeedPacket, 8.0)
+			await sync_with_host()
 			ack(seq, {"toasts": toasts_since(t)})
 		"ui_double_click":
 			stand_near(shop, 1.2)
-			await wait_sec(0.45)
+			await server_sees_me()
 			shop.open_shop_for(me)
 			await wait_frames(2)
 			var card := shop.get_shop_ui().get_card(ShopCounter.KIND_SEED, &"budget")
@@ -288,17 +307,17 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 			card.get_buy_button().pressed.emit()
 			check(card.is_buy_enabled(), "Alpha: BUY still enabled until the server answers (round trip)")
 			card.get_buy_button().pressed.emit()
-			await wait_until_quiet(func(): return me.get_held_item() is SeedPacket, 3.0)
-			await wait_sec(0.4)
+			await wait_until_quiet(func(): return me.get_held_item() is SeedPacket, 8.0)
+			await sync_with_host()
 			shop.close_shop()
 			ack(seq, {"toasts": toasts_since(t)})
 		"double_interact":
 			var st: Interactable = station(String(args.get("station", "")))
 			stand_near(st, 1.2)
-			await wait_sec(0.45)
+			await server_sees_me()
 			st.interact(me)
 			st.interact(me)
-			await wait_sec(0.6)
+			await sync_with_host()
 			ack(seq, {"toasts": toasts_since(t)})
 		"client_requests":
 			GameState.request_start_round()
@@ -316,7 +335,7 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 			check(Net.get_player_name(multiplayer.get_unique_id()) == NAMES.get(who, ""), "kept my name")
 		"open_shop":
 			stand_near(shop, 1.2)
-			await wait_sec(0.3)
+			await server_sees_me()
 			shop.open_shop_for(me)
 			await wait_frames(2)
 			ack(seq, {"ok": shop.is_shop_open() and Game.is_ui_locked_by(&"shop")})

@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://dwyf6lk1023bk"
-path="res://.godot/imported/pendant_lamp.glb-b66a7804204c0a4d463a247b993e456d.scn"
+uid="uid://dke7h5un7ovc7"
+path="res://.godot/imported/pendant_lamp_short.glb-66715ccb85a138810bcf41f1e9d089be.scn"
 
 [deps]
 
-source_file="res://art/models/pendant_lamp.glb"
-dest_files=["res://.godot/imported/pendant_lamp.glb-b66a7804204c0a4d463a247b993e456d.scn"]
+source_file="res://art/models/pendant_lamp_short.glb"
+dest_files=["res://.godot/imported/pendant_lamp_short.glb-66715ccb85a138810bcf41f1e9d089be.scn"]
 
 [params]
 

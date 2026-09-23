@@ -6,12 +6,15 @@ Workflow, conventions and the review checklist: MODELING.md (repo root).
 
 Conventions (enforced or checked by export()):
   * 1 Blender unit = 1 m. Blender Z is up.
-  * FRONT = Blender +Y. glTF export (+Y up) maps Blender (x, y, z) -> Godot (x, z, -y), so the front
-    ends up facing Godot -Z (Godot's forward; faces go on the -Z side). +X is the model's OWN right (a
-    character's right hand) in both, i.e. on your LEFT when you look at its face.
+  * FRONT = Blender -Y, ALWAYS (what Blender's Front view shows; +X is to your right when you look at
+    it). glTF export (+Y up) maps Blender (x, y, z) -> Godot (x, z, -y), so the front lands on Godot +Z:
+    the convention of the game's stations and room props ("front = +Z faces the room centre / out of the
+    wall"). Characters and held items face Godot -Z (cameras, look_at, face.tscn on -Z): declare them
+    with export(kind="character" | "item") and the export bakes a 180 degree turn (into the mesh data and
+    node positions, never into node rotations). Author everything the same way.
   * Origin = the contact point: floor props at the centre of their footprint on z = 0 (mount="floor"),
     ceiling props at their mount point with everything below z = 0 (mount="ceiling"), wall props with
-    their back on y = 0 and the body in +y (mount="wall").
+    their back on y = 0 and the body towards the front, -y (mount="wall").
   * Flat colours only (no textures, no UVs). Materials come from lib("rust") (the Godot library material
     art/materials/toon_rust.tres, swapped in at runtime) or material("name", "#hex", finish).
   * TINT materials (tint_material()) are recoloured at runtime (strain / player / paint colour).
@@ -38,13 +41,13 @@ __all__ = [
     "reset", "srgb", "material", "lib", "tint_material", "pal", "PALETTE", "FINISH_ROUGHNESS",
     # builders
     "box", "plank", "cyl", "cone", "sphere", "capsule", "torus", "lathe", "pipe", "extrude_profile",
-    "arc_panel", "sag_points", "empty",
+    "arc_panel", "band", "sag_points", "empty",
     # modifiers / ops
     "bevel", "subdiv", "mirror", "array", "boolean_cut", "set_smooth", "join", "duplicate",
     "set_material", "paint", "set_origin", "set_origin_to_floor", "set_parent", "apply_transform", "apply_modifiers",
-    "move_verts", "taper", "jitter", "dent",
+    "move_verts", "taper", "jitter", "dent", "subdivide",
     # output
-    "report", "export", "EXPORTS", "OPTIONS", "FRONT", "REPO", "MODELS_DIR",
+    "report", "export", "EXPORTS", "OPTIONS", "FRONT", "KINDS", "REPO", "MODELS_DIR",
     # re-exports for model scripts
     "Vector", "Matrix", "math",
 ]
@@ -53,7 +56,16 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MODELS_DIR = os.path.join(REPO, "art", "models")
 LIB_DIR = os.path.join(REPO, "art", "materials")
 TOON_GD = os.path.join(REPO, "scripts", "art", "toon.gd")
-FRONT = (0.0, 1.0, 0.0)  # Blender +Y == Godot -Z
+FRONT = (0.0, -1.0, 0.0)  # Blender -Y == Godot +Z (stations/props); kind="character"/"item" -> Godot -Z
+
+# export(kind=...): Godot facing + default tri budget. See MODELING.md "Conventions".
+KINDS = {
+    "prop": ("+z", 3000),       # room decor, furniture, lamps, signs (front = +Z like scenes/world/props)
+    "station": ("+z", 5000),    # interactables the players stand in front of (front = +Z to the room)
+    "character": ("-z", 8000),  # player body, Boss: face on Godot -Z (face.tscn, look_at)
+    "item": ("-z", 1500),       # held items: point along the camera's -Z when held
+    "part": ("+z", 3000),       # pieces other scenes assemble (plant stages, doors, hands)
+}
 
 # Finish -> Principled roughness. Toonify maps roughness back to the same Toon.Finish (>= 0.65 MATTE,
 # <= 0.3 GLOSSY, else SOFT), so these numbers must stay inside those bands.
@@ -298,8 +310,9 @@ def empty(name="pivot", pos=(0, 0, 0), rot=(0, 0, 0)):
     return obj
 
 
-def box(size, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.02, segments=3, mat=None, name="box", anchor="base"):
-    """Box of size (x, y, z) standing on pos (anchor="center" to centre it). bevel = radius in metres."""
+def box(size, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.02, segments=None, mat=None, name="box", anchor="base"):
+    """Box of size (x, y, z) standing on pos (anchor="center" to centre it). bevel = radius in metres
+    (0 = sharp; segments None = auto by size)."""
     sx, sy, sz = size
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1.0)
@@ -315,10 +328,10 @@ def box(size, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.02, segments=3, mat=None, na
 def plank(length, width=0.14, thickness=0.035, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.01, mat="wood",
           name="plank", anchor="base"):
     """A board along X (length) x Y (width) x Z (thickness), small bevel. Rotate for walls/pallets."""
-    return box((length, width, thickness), pos, rot, bevel, 2, mat, name, anchor)
+    return box((length, width, thickness), pos, rot, bevel, None, mat, name, anchor)
 
 
-def cyl(radius, depth, verts=24, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.015, segments=2, mat=None,
+def cyl(radius, depth, verts=24, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.015, segments=None, mat=None,
         name="cyl", anchor="base", radius_top=None):
     """Cylinder along Z standing on pos (radius_top for a tapered/flared one). 24+ verts for anything
     >= 0.3 m, 12-16 for small bits. bevel rounds the cap edges."""
@@ -336,7 +349,7 @@ def cyl(radius, depth, verts=24, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.015, segm
 
 def cone(radius, depth, verts=24, pos=(0, 0, 0), rot=(0, 0, 0), radius_top=0.0, bevel=0.0, mat=None,
          name="cone", anchor="base"):
-    return cyl(radius, depth, verts, pos, rot, bevel, 2, mat, name, anchor, radius_top=radius_top)
+    return cyl(radius, depth, verts, pos, rot, bevel, None, mat, name, anchor, radius_top=radius_top)
 
 
 def sphere(radius, pos=(0, 0, 0), rot=(0, 0, 0), scale=(1, 1, 1), segments=24, rings=12, mat=None,
@@ -489,18 +502,18 @@ def sag_points(a, b, sag=0.1, n=10):
     return [a.lerp(b, t) - Vector((0, 0, sag * 4 * t * (1 - t))) for t in (i / n for i in range(n + 1))]
 
 
-def extrude_profile(points, depth, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.01, segments=2, mat=None,
+def extrude_profile(points, depth, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.01, segments=None, mat=None,
                     name="profile"):
     """A flat polygon given as (u, v) points the way you SEE it looking at the model's front (u to your
-    right, v up), extruded towards the front (+Y) by `depth`: back face at y = pos.y (put it on the
-    surface), front face at pos.y + depth. Signs, brackets, arrows, door leaves, stencils."""
+    right = +X, v up = +Z), extruded towards the front (-Y) by `depth`: back face at y = pos.y (put it on
+    the surface), front face at pos.y - depth. Signs, brackets, arrows, door leaves, stencils."""
     bm = bmesh.new()
-    vs = [bm.verts.new((-u, 0.0, v)) for u, v in points]  # viewer's right == model's -X
+    vs = [bm.verts.new((u, 0.0, v)) for u, v in points]
     face = bm.faces.new(vs)
     bmesh.ops.recalc_face_normals(bm, faces=[face])
     ret = bmesh.ops.extrude_face_region(bm, geom=[face])
     moved = [e for e in ret["geom"] if isinstance(e, bmesh.types.BMVert)]
-    bmesh.ops.translate(bm, vec=(0, depth, 0), verts=moved)
+    bmesh.ops.translate(bm, vec=(0, -depth, 0), verts=moved)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     obj = _link(name, bm, mat, pos, rot, smooth=35.0)
     if bevel and bevel > 0:
@@ -511,16 +524,16 @@ def extrude_profile(points, depth, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.01, seg
 def arc_panel(radius, height, angle=40.0, thickness=0.008, pos=(0, 0, 0), rot=(0, 0, 0), segments=8,
               mat=None, name="panel"):
     """A curved plate hugging a cylinder of `radius` around Z (inner face on the surface), `angle` degrees
-    wide, centred on the FRONT (+Y) side, bottom at pos.z. Labels, rust patches, bands, hatches on drums,
-    tanks, pipes. Use rot=(0, 0, a) to move it around the cylinder."""
+    wide, centred on the FRONT (-Y) side, bottom at pos.z. Labels, rust patches, bands, hatches on drums,
+    tanks, pipes. Use rot=(0, 0, a) to move it around the cylinder (a > 0 turns it towards +X)."""
     bm = bmesh.new()
     rows = []
     for rr in (radius, radius + thickness):
         ring = []
         for i in range(segments + 1):
             a = math.radians(-angle / 2 + angle * i / segments)
-            ring.append((bm.verts.new((rr * math.sin(a), rr * math.cos(a), 0.0)),
-                         bm.verts.new((rr * math.sin(a), rr * math.cos(a), height))))
+            ring.append((bm.verts.new((rr * math.sin(a), -rr * math.cos(a), 0.0)),
+                         bm.verts.new((rr * math.sin(a), -rr * math.cos(a), height))))
         rows.append(ring)
     inner, outer = rows
     for i in range(segments):
@@ -534,9 +547,49 @@ def arc_panel(radius, height, angle=40.0, thickness=0.008, pos=(0, 0, 0), rot=(0
     return _link(name, bm, mat, pos, rot, smooth=40.0)
 
 
+def band(radius, z0, z1, thickness=0.004, verts=24, rows=1, top=None, bottom=None, pos=(0, 0, 0),
+         rot=(0, 0, 0), mat=None, name="band"):
+    """A thin ring hugging a round body between heights z0..z1: paint stripes, rust creeping up from the
+    floor, dirt/water lines. `radius` is a number or a function r(z) (pass the body's own profile so the
+    band follows bellies/tapers). `top` / `bottom` are optional functions of the angle a (radians,
+    0 = the front (-Y), pi/2 = +X) returning a z offset: wavy rust edges, drips. `rows` > 1 adds
+    rows so the band can follow curvature or take a dent(). Smooth edges, unlike paint() on faces."""
+    rf = radius if callable(radius) else (lambda z, _r=radius: _r)
+    bm = bmesh.new()
+    grid_out, grid_in = [], []
+    for i in range(verts):
+        a = 2 * math.pi * i / verts
+        zb = z0 + (bottom(a) if bottom else 0.0)
+        zt = z1 + (top(a) if top else 0.0)
+        col_o, col_i = [], []
+        for k in range(rows + 1):
+            z = zb + (zt - zb) * k / rows
+            r = rf(z)
+            sx, sy = math.sin(a), -math.cos(a)
+            col_o.append(bm.verts.new(((r + thickness) * sx, (r + thickness) * sy, z)))
+            col_i.append(bm.verts.new(((r - thickness) * sx, (r - thickness) * sy, z)))
+        grid_out.append(col_o)
+        grid_in.append(col_i)
+    for i in range(verts):
+        j = (i + 1) % verts
+        for k in range(rows):
+            bm.faces.new((grid_out[i][k], grid_out[j][k], grid_out[j][k + 1], grid_out[i][k + 1]))
+            bm.faces.new((grid_in[i][k + 1], grid_in[j][k + 1], grid_in[j][k], grid_in[i][k]))
+        bm.faces.new((grid_in[i][rows], grid_out[i][rows], grid_out[j][rows], grid_in[j][rows]))
+        bm.faces.new((grid_in[j][0], grid_out[j][0], grid_out[i][0], grid_in[i][0]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return _link(name, bm, mat, pos, rot, smooth=50.0)
+
+
 # ==================================================================================== modifiers + edits
-def bevel(obj, width=0.02, segments=3, angle=35.0):
-    """Rounds edges sharper than `angle` degrees (live modifier; re-calling replaces it)."""
+def _auto_segments(width):
+    return 1 if width < 0.006 else 2 if width < 0.02 else 3
+
+
+def bevel(obj, width=0.02, segments=None, angle=35.0):
+    """Rounds edges sharper than `angle` degrees (live modifier; re-calling replaces it).
+    segments=None picks by size: 1 below 6 mm, 2 below 2 cm, else 3 (small bevels don't need more)."""
+    segments = _auto_segments(width) if segments is None else segments
     mod = obj.modifiers.get("gwf_bevel") or obj.modifiers.new("gwf_bevel", 'BEVEL')
     mod.width = width
     mod.segments = segments
@@ -596,12 +649,18 @@ def _apply_first(obj):
     me = bpy.data.meshes.new_from_object(obj.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
     for m, s in zip(others, states):
         m.show_viewport = s
-    old = obj.data
+    _swap_mesh(obj, me)
     obj.modifiers.remove(obj.modifiers[0])
+
+
+def _swap_mesh(obj, me):
+    """Give obj the mesh `me`, keeping the old mesh's name (no ".001": mesh names reach Godot)."""
+    old = obj.data
+    name = old.name
     obj.data = me
-    me.name = old.name
     if old.users == 0:
         bpy.data.meshes.remove(old)
+    me.name = name
 
 
 def boolean_cut(obj, cutter, keep_cutter=False):
@@ -626,12 +685,8 @@ def apply_modifiers(obj):
     if len(obj.modifiers):
         dg = bpy.context.evaluated_depsgraph_get()
         me = bpy.data.meshes.new_from_object(obj.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
-        old = obj.data
         obj.modifiers.clear()
-        obj.data = me
-        me.name = old.name
-        if old.users == 0:
-            bpy.data.meshes.remove(old)
+        _swap_mesh(obj, me)
     set_smooth(obj, obj.get("gwf_smooth", 35.0))
     return obj
 
@@ -689,6 +744,7 @@ def apply_transform(obj):
     for c in obj.children:
         c.matrix_parent_inverse = obj.matrix_basis @ c.matrix_parent_inverse
     obj.matrix_basis = Matrix.Identity(4)
+    bpy.context.view_layer.update()  # matrix_world is stale until the depsgraph runs
     return obj
 
 
@@ -752,10 +808,12 @@ def duplicate(obj, pos=None, rot=None, name=None):
 def set_origin(obj, point=(0, 0, 0)):
     """Move the origin to a world-space point without moving the geometry."""
     point = Vector(point)
+    bpy.context.view_layer.update()
     if obj.type == 'MESH':
         local = obj.matrix_world.inverted() @ point
         obj.data.transform(Matrix.Translation(-local))
     obj.matrix_world = Matrix.Translation(point) @ Matrix.Translation(-obj.matrix_world.translation) @ obj.matrix_world
+    bpy.context.view_layer.update()
     return obj
 
 
@@ -767,6 +825,7 @@ def set_origin_to_floor(obj):
 
 def set_parent(child, parent):
     """Parent keeping the child's world transform (exports as a Godot child node)."""
+    bpy.context.view_layer.update()  # new objects have a stale matrix_world until the depsgraph runs
     mw = child.matrix_world.copy()
     child.parent = parent
     child.matrix_world = mw
@@ -794,10 +853,23 @@ def taper(obj, top_scale=0.85, axis_min=None, axis_max=None):
     return move_verts(obj, f)
 
 
+def subdivide(obj, cuts=4):
+    """Split every edge of the base mesh into `cuts` + 1 (grid-filled faces): gives dent(), jitter() and
+    taper() vertices to move on boxes and flat panels. Bevels still only round the real edges."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=cuts, use_grid_fill=True)
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+    return obj
+
+
 def dent(obj, point, radius=0.12, depth=0.03, direction=None):
     """Push the surface in around `point` (object-local coords) by up to `depth` metres with a smooth
     falloff over `radius`: battered drums, crushed boxes, sagging shades. Direction defaults to towards
-    the object's vertical axis. Needs enough vertices around the spot; apply before bevel is baked."""
+    the object's vertical axis. Needs vertices around the spot (lathes have them; subdivide() boxes
+    first); works on the base mesh, before the bevel is applied."""
     point = Vector(point)
     if direction is None:
         direction = Vector((-point.x, -point.y, 0.0))
@@ -826,6 +898,53 @@ def jitter(obj, amount=0.01, seed=1):
         v.co += cache[k]
     obj.data.update()
     return obj
+
+
+def _canonical(obj):
+    """Deterministic vertex / edge / face order. Some bmesh ops (create_uvsphere, remove_doubles...) order
+    their output differently from run to run, and the glTF exporter writes triangles in face order, so
+    without this the same script would produce a different .glb (and a reimport + git churn) every time."""
+    if obj.type != 'MESH':
+        return
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+
+    def by(seq, key):  # BMesh sort() only takes numeric keys: rank by the tuple key first
+        seq.index_update()
+        rank = {e.index: i for i, e in enumerate(sorted(seq, key=key))}
+        seq.sort(key=lambda e: rank[e.index])
+        seq.index_update()
+    def r3(c):
+        return (round(c.x, 5), round(c.y, 5), round(c.z, 5))
+    # Position first; coincident vertices (touching parts of a joined mesh) by their faces' centres.
+    by(bm.verts, lambda v: (r3(v.co), tuple(sorted(r3(f.calc_center_median()) for f in v.link_faces))))
+    by(bm.edges, lambda e: tuple(sorted(v.index for v in e.verts)))
+
+    def fkey(f):
+        return (f.material_index, r3(f.calc_center_median()), tuple(sorted(v.index for v in f.verts)))
+    by(bm.faces, fkey)
+    bm.to_mesh(obj.data)
+    bm.free()
+    # Every face starts at its lowest vertex (bevel & co. rotate loops at random; the start decides how a
+    # quad is triangulated and the triangle order).
+    import numpy as np
+    me = obj.data
+    vi = np.empty(len(me.loops), np.int32)
+    ei = np.empty(len(me.loops), np.int32)
+    me.loops.foreach_get("vertex_index", vi)
+    me.loops.foreach_get("edge_index", ei)
+    starts = np.empty(len(me.polygons), np.int32)
+    totals = np.empty(len(me.polygons), np.int32)
+    me.polygons.foreach_get("loop_start", starts)
+    me.polygons.foreach_get("loop_total", totals)
+    for st, tot in zip(starts.tolist(), totals.tolist()):
+        k = int(np.argmin(vi[st:st + tot]))
+        if k:
+            vi[st:st + tot] = np.roll(vi[st:st + tot], -k)
+            ei[st:st + tot] = np.roll(ei[st:st + tot], -k)
+    me.loops.foreach_set("vertex_index", vi)
+    me.loops.foreach_set("edge_index", ei)
+    me.update()
 
 
 # ============================================================================================== reports
@@ -912,8 +1031,8 @@ def _check(info, mount, budget):
         problems.append("floor mount: lowest point is z=%.3f, must be 0 (origin at the floor)" % info["min_z"])
     if mount == "ceiling" and abs(info["max_z"]) > tol:
         problems.append("ceiling mount: highest point is z=%.3f, must be 0 (origin at the mount)" % info["max_z"])
-    if mount == "wall" and abs(info["min_y"]) > tol:
-        problems.append("wall mount: back is at y=%.3f, must be 0 (body in +y)" % info["min_y"])
+    if mount == "wall" and abs(info["max_y"]) > tol:
+        problems.append("wall mount: back is at y=%.3f, must be 0 (body towards the front, -y)" % info["max_y"])
     if mount == "floor":
         cx, cy = info["center_xy"]
         if math.hypot(cx, cy) > 0.25 * max(info["size"][0], info["size"][2]) + 0.02:
@@ -923,18 +1042,41 @@ def _check(info, mount, budget):
     return problems, warnings
 
 
-def export(objs, name, mount="floor", budget=3000, import_params=None):
+def _turn_around(objs):
+    """Rotate a whole hierarchy 180 degrees about the vertical axis through the origin, baked into mesh data
+    and node positions: every local matrix is conjugated (R M R^-1), so rotations stay as they were
+    (identity stays identity) and only translations / vertices turn. Its own inverse."""
+    r = Matrix.Rotation(math.pi, 4, 'Z')
+    done = set()
+    for o in objs:
+        o.matrix_basis = r @ o.matrix_basis @ r
+        o.matrix_parent_inverse = r @ o.matrix_parent_inverse @ r
+        if o.type == 'MESH' and o.data.name not in done:  # linked duplicates share one mesh
+            done.add(o.data.name)
+            o.data.transform(r)
+            o.data.update()
+    bpy.context.view_layer.update()
+
+
+def export(objs, name, kind="prop", mount="floor", budget=None, import_params=None):
     """Export objs (+ their children) to art/models/<name>.glb. The file is only rewritten when its bytes
     change, so re-running is idempotent and Godot only reimports what changed.
-    mount: "floor" | "ceiling" | "wall" | "free" (origin check). budget: tri budget (3000 prop, 8000
-    character, 5000 station). import_params: extra Godot import params for this model (rare)."""
+    kind: "prop" | "station" | "part" (front -> Godot +Z) or "character" | "item" (front -> Godot -Z);
+    also picks the default tri budget (KINDS). Author every model with its front towards Blender -Y.
+    mount: "floor" | "ceiling" | "wall" | "free" (origin check, in Blender space).
+    import_params: extra Godot import params for this model (rare)."""
     objs = [o for o in (objs if isinstance(objs, (list, tuple)) else [objs]) if o is not None]
     if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
         raise ValueError("model name %r must be snake_case" % name)
+    if kind not in KINDS:
+        raise ValueError("kind must be one of %s" % ", ".join(KINDS))
+    front, default_budget = KINDS[kind]
+    budget = default_budget if budget is None else budget
     t0 = time.time()
     all_objs = _walk(objs)
     for o in all_objs:
         apply_modifiers(o)
+        _canonical(o)
     info = report(objs, name)
     problems, warnings = _check(info, mount, budget)
     os.makedirs(MODELS_DIR, exist_ok=True)
@@ -948,6 +1090,9 @@ def export(objs, name, mount="floor", budget=3000, import_params=None):
             o.select_set(True)
         fd, tmp = tempfile.mkstemp(suffix=".glb")
         os.close(fd)
+        turned = front == "-z"
+        if turned:
+            _turn_around(all_objs)
         try:
             with _quiet():
                 bpy.ops.export_scene.gltf(
@@ -959,12 +1104,14 @@ def export(objs, name, mount="floor", budget=3000, import_params=None):
             data = open(tmp, "rb").read()
         finally:
             os.remove(tmp)
+            if turned:
+                _turn_around(all_objs)  # back to the authoring orientation (front -Y)
         old = open(path, "rb").read() if os.path.exists(path) else None
         if old != data:
             with open(path, "wb") as f:
                 f.write(data)
             changed = True
-    rec = dict(info, path=path, mount=mount, budget=budget, problems=problems, warnings=warnings,
+    rec = dict(info, path=path, kind=kind, front=front, mount=mount, budget=budget, problems=problems, warnings=warnings,
                changed=changed, import_params=dict(import_params or {}), seconds=time.time() - t0)
     EXPORTS.append(rec)
     for p in problems:
@@ -979,7 +1126,9 @@ def export(objs, name, mount="floor", budget=3000, import_params=None):
 # ============================================================================================== preview
 def _preview(objs, name, size=256, samples=12):
     """Cycles CPU turntable strip (4 views, front-right first) -> OPTIONS['preview_dir']/<name>.png.
-    ~0.4 s per view at 256 px / 12 samples. For the real in-game look use tools/tests/models_preview.gd."""
+    Measured ~0.15-0.9 s per view at 256 px / 12 samples (0.5-1.5 s per model, + ~4-5 s Cycles warm-up on
+    the first preview of a run); if the first two views take > 10 s it stops there (budget 20 s).
+    For the real in-game look use tools/tests/models_preview.gd."""
     t0 = time.time()
     scene = bpy.context.scene
     lo, hi = _bounds(objs)
@@ -1023,8 +1172,8 @@ def _preview(objs, name, size=256, samples=12):
         import numpy as np
         for i, yaw in enumerate((35, 125, 215, 305)):
             a = math.radians(yaw)
-            d = Vector((math.sin(a) * math.cos(math.radians(22)), math.cos(a) * math.cos(math.radians(22)),
-                        math.sin(math.radians(22))))  # yaw 0 = in front (+Y side)
+            d = Vector((math.sin(a) * math.cos(math.radians(22)), -math.cos(a) * math.cos(math.radians(22)),
+                        math.sin(math.radians(22))))  # yaw 0 = in front (-Y side)
             dist = radius / math.sin(cam_data.angle / 2) * 1.1
             cam.location = center + d * dist
             cam.rotation_euler = (center - cam.location).to_track_quat('-Z', 'Y').to_euler()
@@ -1040,6 +1189,9 @@ def _preview(objs, name, size=256, samples=12):
             tiles.append(px.reshape(size, size, 4))
             bpy.data.images.remove(img)
             os.remove(tmp)
+            if i == 1 and time.time() - t0 > 10.0:  # 4 views would pass 20 s: keep these two
+                print("  preview %s: slow (%.1f s for 2 views), stopping" % (name, time.time() - t0))
+                break
         strip = np.concatenate(tiles, axis=1)
         out = bpy.data.images.new("gwf_strip", width=size * len(tiles), height=size, alpha=True)
         out.pixels.foreach_set(strip.ravel())

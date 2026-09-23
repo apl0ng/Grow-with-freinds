@@ -6,3 +6,7 @@ export/
 # OS
 .DS_Store
 Thumbs.db
+
+# Python bytecode (Blender scripts)
+__pycache__/
+*.pyc

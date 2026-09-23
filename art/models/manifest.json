@@ -1,0 +1,61 @@
+{
+ "oil_drum": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "TINT_paint",
+   "toon_rust",
+   "TINT_stripe",
+   "toon_metal_dark",
+   "toon_cream",
+   "toon_caution",
+   "toon_dark"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/oil_drum.py",
+  "size": [
+   0.703,
+   0.936,
+   0.706
+  ],
+  "tris": 2928
+ },
+ "pendant_lamp": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_metal_dark",
+   "toon_dark",
+   "enamel",
+   "shade_inner",
+   "FLAT_bulb"
+  ],
+  "mount": "ceiling",
+  "script": "tools/blender/models/pendant_lamp.py",
+  "size": [
+   0.937,
+   2.942,
+   0.935
+  ],
+  "tris": 2540
+ },
+ "pendant_lamp_short": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_metal_dark",
+   "toon_dark",
+   "enamel",
+   "shade_inner",
+   "FLAT_bulb"
+  ],
+  "mount": "ceiling",
+  "script": "tools/blender/models/pendant_lamp.py",
+  "size": [
+   0.615,
+   0.923,
+   0.614
+  ],
+  "tris": 2588
+ }
+}

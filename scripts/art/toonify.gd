@@ -8,13 +8,15 @@ extends Node3D
 ## `nodes/root_script` into each .glb.import), so an instanced model converts itself in _ready():
 ##   [node name="Model" parent="Visual" instance=ExtResource("3_drum")]   # nothing else needed
 ##   tint = Color(0.35, 0.45, 0.6, 1)      # optional: recolours TINT* materials (graded colour!)
-##   outline_width = 0.025                 # optional: ink outline hull (0.025 normal, 0.012 thin)
+##   outline_width = 0.025                 # optional: ink outline hull (size-aware per part, see outline())
 ## From code: `($Visual/Model as Toonify).tint = Toon.grade(seed.color)` (recolours live).
 ##
 ## Static helpers work on any subtree (hand-built primitives with material_override are left alone):
 ##   Toonify.toonify($Visual)                                  # convert every StandardMaterial3D below
 ##   Toonify.toonify($Visual, -1.0, Toon.grade(seed.color))    # + recolour TINT* materials
 ##   Toonify.outline($Visual, 0.012)                           # thin ink outline on opaque meshes
+## Outline hulls are INTERNAL children named "ToonOutline" with the meta "toonify_outline": get_children()
+## skips them, find_children() does not, so code that walks meshes should skip that meta.
 ##
 ## Material rules (by the Blender material name; a ".001" suffix is ignored):
 ##   toon_<x>   -> the library material res://art/materials/toon_<x>.tres itself (shared, never copied),
@@ -51,8 +53,9 @@ const MAX_ROUGHNESS := 0.9
 
 static var _cache: Dictionary = {}          # source Material -> {"tint|rim": Material}
 static var _produced: Dictionary = {}       # Material -> true (everything toonify() ever assigned)
-static var _hull_cache: Dictionary = {}     # Mesh -> {surface mask: ArrayMesh}
-static var _outline_mats: Dictionary = {}   # thickness -> Material
+static var _hull_cache: Dictionary = {}     # Mesh -> {"surface mask|thickness": ArrayMesh}
+static var _outline_mats: Dictionary = {}   # &"ink" -> the outline hull material
+static var _missing: Dictionary = {}        # toon_* names without a library file (warned once)
 
 
 func _ready() -> void:
@@ -121,19 +124,18 @@ static func is_tint(m: Material) -> bool:
 
 
 ## Adds (or updates / removes with thickness <= 0) an ink outline hull under every opaque, shaded mesh
-## below `node`. The hull is the same mesh with welded, averaged normals (cached per mesh), so it does not
-## tear on hard edges the way `material_overlay = toon_outline` does on imported meshes. Call after
-## toonify() (transparent and unshaded surfaces are skipped based on the active material).
+## below `node`. The hull is the same mesh with welded, averaged normals pushed out (cached per mesh), so it
+## does not tear on hard edges the way `material_overlay = toon_outline` does on imported meshes. Each
+## connected part is sized on its own (STYLE rule 4, by the part's middle extent): >= 0.25 m gets
+## `thickness`, 0.1-0.25 m gets 48 % (the thin outline), smaller bits (bolts, cords, "!" marks) none.
+## Call after toonify() (transparent and unshaded surfaces are skipped based on the active material).
 static func outline(node: Node, thickness: float = 0.025) -> void:
 	for mi in _mesh_instances(node):
 		var existing := mi.get_node_or_null(NodePath(OUTLINE_NODE)) as MeshInstance3D
-		if thickness <= 0.0 or mi.mesh == null:
-			if existing:
-				existing.queue_free()
-			continue
-		var hull := _hull(mi)
+		var hull := _hull(mi, thickness) if thickness > 0.0 and mi.mesh != null else null
 		if hull == null:
 			if existing:
+				existing.name = &"ToonOutlineFreed" # free the name now: queue_free is deferred
 				existing.queue_free()
 			continue
 		if existing == null:
@@ -145,7 +147,7 @@ static func outline(node: Node, thickness: float = 0.025) -> void:
 			mi.add_child(existing, false, Node.INTERNAL_MODE_BACK)
 		existing.layers = mi.layers
 		existing.mesh = hull
-		existing.material_override = _outline_material(thickness)
+		existing.material_override = _ink()
 
 
 ## Drops every cached conversion (tests; after regenerating the material library in a running editor).
@@ -154,6 +156,7 @@ static func clear_cache() -> void:
 	_produced.clear()
 	_hull_cache.clear()
 	_outline_mats.clear()
+	_missing.clear()
 
 
 # --------------------------------------------------------------------------------------------- internals
@@ -177,7 +180,9 @@ static func _remember(m: Material) -> Material:
 static func _library(nm: String) -> Material:
 	var path := LIB_DIR + nm + ".tres"
 	if not ResourceLoader.exists(path):
-		push_warning("Toonify: material '%s' has no library file %s; converting it instead" % [nm, path])
+		if not _missing.has(nm):
+			_missing[nm] = true
+			push_warning("Toonify: material '%s' has no library file %s; converting it instead" % [nm, path])
 		return null
 	return load(path) as Material
 
@@ -214,28 +219,37 @@ static func _convert(src: BaseMaterial3D, nm: String, rim_amount: float, tint_co
 	return m
 
 
-static func _outline_material(thickness: float) -> Material:
-	var key := snappedf(thickness, 0.0001)
-	if _outline_mats.has(key):
-		return _outline_mats[key]
-	var m: Material
-	if is_equal_approx(key, 0.025):
-		m = Toon.outline(false)
-	elif is_equal_approx(key, 0.012):
-		m = Toon.outline(true)
-	else:
-		var base := Toon.outline(false)
-		m = base.duplicate() if base else StandardMaterial3D.new()
-		if m is BaseMaterial3D:
-			(m as BaseMaterial3D).grow = true
-			(m as BaseMaterial3D).grow_amount = key
-	_outline_mats[key] = m
+## The ink for outline hulls: toon_outline's look (unshaded, front faces culled) without `grow`, because
+## the hull already carries its per-part offset.
+static func _ink() -> Material:
+	if _outline_mats.has(&"ink"):
+		return _outline_mats[&"ink"]
+	var base := Toon.outline(false)
+	var m: BaseMaterial3D = (base.duplicate() as BaseMaterial3D) if base is BaseMaterial3D else StandardMaterial3D.new()
+	if not (base is BaseMaterial3D):
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.cull_mode = BaseMaterial3D.CULL_FRONT
+		m.albedo_color = Toon.INK
+	m.grow = false
+	m.grow_amount = 0.0
+	m.resource_name = "toonify_ink"
+	_outline_mats[&"ink"] = m
 	return m
 
 
-## Opaque, shaded surfaces of `mi` welded into one surface with smooth averaged normals (cached per mesh
-## + surface selection). Returns null when no surface qualifies.
-static func _hull(mi: MeshInstance3D) -> ArrayMesh:
+## STYLE rule 4 as a factor of the full outline for a part whose middle extent is `size` metres.
+static func part_outline_factor(size: float) -> float:
+	if size >= 0.25:
+		return 1.0
+	if size >= 0.1:
+		return 0.48
+	return 0.0
+
+
+## Opaque, shaded surfaces of `mi` welded into one surface with smooth averaged normals, every connected
+## part pushed out by thickness * part_outline_factor(its middle extent) (cached per mesh + surface
+## selection + thickness). Returns null when nothing qualifies.
+static func _hull(mi: MeshInstance3D, thickness: float) -> ArrayMesh:
 	var mesh := mi.mesh
 	var mask := 0
 	for s in mesh.get_surface_count():
@@ -246,9 +260,10 @@ static func _hull(mi: MeshInstance3D) -> ArrayMesh:
 			mask |= 1 << s
 	if mask == 0:
 		return null
+	var key := "%d|%.4f" % [mask, thickness]
 	var per_mesh: Dictionary = _hull_cache.get(mesh, {})
-	if per_mesh.has(mask):
-		return per_mesh[mask]
+	if per_mesh.has(key):
+		return per_mesh[key]
 	var index_of := {}                     # Vector3i (0.1 mm grid) -> welded vertex index
 	var positions := PackedVector3Array()
 	var normals: Array[Vector3] = []
@@ -291,18 +306,69 @@ static func _hull(mi: MeshInstance3D) -> ArrayMesh:
 			tris.append(c)
 	if tris.is_empty():
 		return null
+	# Connected parts (union-find over the welded triangles) and their bounds.
+	var parent := PackedInt32Array()
+	parent.resize(positions.size())
+	for i in positions.size():
+		parent[i] = i
+	for t in range(0, tris.size(), 3):
+		_union(parent, tris[t], tris[t + 1])
+		_union(parent, tris[t], tris[t + 2])
+	var part_box := {}
+	for i in positions.size():
+		var r := _find(parent, i)
+		if part_box.has(r):
+			part_box[r] = (part_box[r] as AABB).expand(positions[i])
+		else:
+			part_box[r] = AABB(positions[i], Vector3.ZERO)
+	var part_offset := {}
+	for r in part_box:
+		var sz := (part_box[r] as AABB).size
+		var dims := [sz.x, sz.y, sz.z]
+		dims.sort()
+		part_offset[r] = thickness * part_outline_factor(dims[1])
+	var out_pos := PackedVector3Array()
+	out_pos.resize(positions.size())
 	var nrm := PackedVector3Array()
 	nrm.resize(normals.size())
+	var any := false
 	for i in normals.size():
-		nrm[i] = normals[i].normalized() if normals[i].length_squared() > 0.0 else Vector3.UP
+		var n := normals[i].normalized() if normals[i].length_squared() > 0.0 else Vector3.UP
+		var off: float = part_offset[_find(parent, i)]
+		any = any or off > 0.0
+		nrm[i] = n
+		out_pos[i] = positions[i] + n * off
+	if not any:
+		return null
+	# Drop the triangles of parts that get no outline.
+	var kept := PackedInt32Array()
+	for t in range(0, tris.size(), 3):
+		if part_offset[_find(parent, tris[t])] > 0.0:
+			kept.append(tris[t])
+			kept.append(tris[t + 1])
+			kept.append(tris[t + 2])
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = positions
+	arrays[Mesh.ARRAY_VERTEX] = out_pos
 	arrays[Mesh.ARRAY_NORMAL] = nrm
-	arrays[Mesh.ARRAY_INDEX] = tris
+	arrays[Mesh.ARRAY_INDEX] = kept
 	var hull := ArrayMesh.new()
 	hull.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	hull.resource_name = mesh.resource_name + "_outline"
-	per_mesh[mask] = hull
+	per_mesh[key] = hull
 	_hull_cache[mesh] = per_mesh
 	return hull
+
+
+static func _find(parent: PackedInt32Array, i: int) -> int:
+	while parent[i] != i:
+		parent[i] = parent[parent[i]]
+		i = parent[i]
+	return i
+
+
+static func _union(parent: PackedInt32Array, a: int, b: int) -> void:
+	var ra := _find(parent, a)
+	var rb := _find(parent, b)
+	if ra != rb:
+		parent[ra] = rb

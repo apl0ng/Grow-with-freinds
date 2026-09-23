@@ -14,6 +14,10 @@ extends SceneTree
 ##   --dir=/abs/dir       every .glb in that folder, loaded at runtime (reference packs)
 ##   --layout=lineup      all models side by side at true scale on a concrete floor (default)
 ##   --layout=sheet       one auto-framed cell per model with name / tris / size, tiled into sheets
+##   --layout=eye         in-game check: player camera (fov 80, eye 1.6 m) in a bare factory corner; floor
+##                        models on the floor, ceiling models hung from --ceiling=6, wall models on the
+##                        back wall at 1.4 m (mount detected from the bounds). Comma-separate to combine:
+##                        --layout=eye,sheet ("both" = lineup,sheet)
 ##   --cols=6 --cell=256x256 --per-sheet=24    sheet geometry
 ##   --size=1600x700      lineup image size
 ##   --outline[=0.025]    ink outline hull on res:// models (Toonify.outline)
@@ -21,7 +25,11 @@ extends SceneTree
 ##   --variants=N         lineup: N copies of each res:// model, cycling through --tints (default 1)
 ##   --tints=#a,#b,#c     tints used by --variants
 ##   --toon-refs          also toonify external refs (default: shown with their own materials)
-##   --yaw=35 --pitch=22  camera angle (degrees; yaw 0 = straight at the model's front, which is -Z)
+##   --yaw=35 --pitch=22  camera angle (degrees; yaw 0 = straight at the front, +yaw = from the +X side)
+##
+## Facing: the camera looks at every model's FRONT. Stations/props face +Z; models whose manifest entry
+## (res://art/models/manifest.json, written by tools/blender/build.py) says front "-z" (characters, held
+## items) are turned 180 degrees for the shot. External .glb refs follow glTF (front +Z).
 ##   --prefix=name        output file name prefix (default "models")
 ##   --shadows            keep sun shadows (llvmpipe doubles the lit side with shadows; off by default)
 ##   --bg=#rrggbb         override the background colour
@@ -30,6 +38,7 @@ extends SceneTree
 ## their textures (the loader tries the import cache first, then reads the PNG directly).
 
 const MODELS_DIR := "res://art/models"
+const MANIFEST := "res://art/models/manifest.json"
 const LIGHTING := "res://art/env/toon_lighting.tscn"
 
 var _out := "user://models_preview"
@@ -48,9 +57,12 @@ var _pitch := 22.0
 var _prefix := "models"
 var _shadows := false
 var _bg := Color(0, 0, 0, 0)
+var _ceiling := 6.0
 
-## [{name, path, external, label}]
+## [{name, path, external}]
 var _entries: Array[Dictionary] = []
+## name -> {kind, front, mount, ...} from the manifest
+var _manifest: Dictionary = {}
 
 
 func _initialize() -> void:
@@ -118,6 +130,12 @@ func _run() -> void:
 			_shadows = true
 		elif a.begins_with("--bg="):
 			_bg = Color(a.trim_prefix("--bg="))
+		elif a.begins_with("--ceiling="):
+			_ceiling = float(a.trim_prefix("--ceiling="))
+	if FileAccess.file_exists(MANIFEST):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(MANIFEST))
+		if parsed is Dictionary:
+			_manifest = parsed
 	if all_models:
 		var files := DirAccess.get_files_at(MODELS_DIR)
 		files.sort()
@@ -133,9 +151,12 @@ func _run() -> void:
 		quit(0)
 		return
 	DirAccess.make_dir_recursive_absolute(_out)
-	if _layout in ["lineup", "both"]:
+	var layouts := _layout.replace("both", "lineup,sheet").split(",", false)
+	if "lineup" in layouts:
 		await _render_lineup()
-	if _layout in ["sheet", "both"]:
+	if "eye" in layouts:
+		await _render_eye()
+	if "sheet" in layouts:
 		await _render_sheets()
 	print("models_preview: wrote %s" % ProjectSettings.globalize_path(_out))
 	quit(0)
@@ -159,6 +180,8 @@ func _instance(entry: Dictionary, tint := Color(0, 0, 0, 0)) -> Node3D:
 			push_error("models_preview: cannot load %s" % entry.path)
 			return null
 		node = ps.instantiate() as Node3D
+		if node and str((_manifest.get(entry.name, {}) as Dictionary).get("front", "+z")) == "-z":
+			node.rotation.y = PI # face the camera like the +Z models
 		if node is Toonify:
 			# The importer attached Toonify as the root script: configure it before _ready() runs.
 			(node as Toonify).tint = tint
@@ -234,19 +257,33 @@ func _make_stage(size: Vector2i) -> SubViewport:
 
 
 func _aim(cam: Camera3D, box: AABB, aspect: float, margin := 1.08) -> void:
+	# Camera on the front side (+Z, see the header), looking back at the box centre; the distance is the
+	# smallest one that keeps all 8 box corners inside the frustum (with `margin`).
 	var c := box.get_center()
 	var yaw := deg_to_rad(_yaw)
 	var pitch := deg_to_rad(_pitch)
-	# Front of every model is -Z, so the camera sits on the -Z side looking back at it.
-	var dir := Vector3(sin(yaw) * cos(pitch), sin(pitch), -cos(yaw) * cos(pitch)).normalized()
-	var r := maxf(box.size.length() * 0.5, 0.05)
-	var half_v := deg_to_rad(cam.fov) * 0.5
-	var half_h := atan(tan(half_v) * aspect)
-	var dist := r / sin(minf(half_v, half_h)) * margin
-	cam.near = maxf(0.01, dist - r * 3.0)
-	cam.far = dist + r * 4.0 + 10.0
-	cam.global_position = c + dir * dist
-	cam.look_at(c, Vector3.UP)
+	var dir := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)).normalized()
+	var tan_v := tan(deg_to_rad(cam.fov) * 0.5) / margin
+	var tan_h := tan_v * aspect
+	var lo := 0.01
+	var hi := maxf(box.size.length(), 0.1) * 20.0
+	for i in 40:
+		var mid := (lo + hi) * 0.5
+		var xf := Transform3D(Basis.looking_at(-dir, Vector3.UP), c + dir * mid)
+		var inv := xf.affine_inverse()
+		var fits := true
+		for k in 8:
+			var p := inv * box.get_endpoint(k)
+			if -p.z < 0.02 or absf(p.x) > -p.z * tan_h or absf(p.y) > -p.z * tan_v:
+				fits = false
+				break
+		if fits:
+			hi = mid
+		else:
+			lo = mid
+	cam.global_transform = Transform3D(Basis.looking_at(-dir, Vector3.UP), c + dir * hi)
+	cam.near = 0.02
+	cam.far = hi + box.size.length() * 2.0 + 20.0
 
 
 func _frames(n: int) -> void:
@@ -277,7 +314,10 @@ func _render_lineup() -> void:
 			row.add_child(node)
 			await process_frame
 			var b := _aabb(node)
+			# Left to right along +X (the camera is on the +Z side). Everything stands on the floor
+			# (ceiling models are lifted onto it).
 			node.position.x += x - b.position.x
+			node.position.y -= b.position.y
 			x += b.size.x + gap
 			placed.append(node)
 			var label := Label3D.new()
@@ -289,7 +329,7 @@ func _render_lineup() -> void:
 			label.outline_modulate = Color("2e2a3d")
 			label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 			label.no_depth_test = true
-			label.position = Vector3(x - gap - b.size.x * 0.5, -0.08, b.position.z - 0.1)
+			label.position = Vector3(x - gap - b.size.x * 0.5, 0.02, b.end.z + 0.12)
 			row.add_child(label)
 	# Centre the row and lay a floor under it.
 	row.position.x = -(x - gap) * 0.5
@@ -297,7 +337,7 @@ func _render_lineup() -> void:
 	var plane := BoxMesh.new()
 	plane.size = Vector3(x + 4.0, 0.05, 8.0)
 	floor_mi.mesh = plane
-	floor_mi.position = Vector3(0, -0.025, 1.5)
+	floor_mi.position = Vector3(0, -0.025, -1.5)
 	floor_mi.material_override = Toon.lib(&"concrete") if ResourceLoader.exists("res://art/materials/toon_concrete.tres") else Toon.lib(&"floor")
 	sv.add_child(floor_mi)
 	await process_frame
@@ -310,6 +350,80 @@ func _render_lineup() -> void:
 	_aim(cam, box, float(_size.x) / _size.y, 1.0)
 	await _frames(6)
 	var path := _out.path_join(_prefix + "_lineup.png")
+	sv.get_texture().get_image().save_png(path)
+	print("models_preview: ", ProjectSettings.globalize_path(path))
+	sv.queue_free()
+	await process_frame
+
+
+# ------------------------------------------------------------------------------------------ eye
+## "floor" | "ceiling" | "wall" | "free": the manifest's mount, else guessed from the unplaced bounds.
+func _mount_of(entry: Dictionary, b: AABB) -> String:
+	var m := str((_manifest.get(entry.name, {}) as Dictionary).get("mount", ""))
+	if m != "":
+		return m
+	if absf(b.position.y) < 0.02:
+		return "floor"
+	if absf(b.end.y) < 0.02:
+		return "ceiling"
+	if absf(b.position.z) < 0.02:
+		return "wall"
+	return "free"
+
+
+func _render_eye() -> void:
+	const WALL_Z := 1.3
+	var sv := _make_stage(_size)
+	var cam := sv.get_node("Cam") as Camera3D
+	cam.fov = 80.0 # the player's camera (scenes/player/player.tscn)
+	var row := Node3D.new()
+	sv.add_child(row)
+	var x := 0.0
+	var gap := 0.5
+	for entry in _entries:
+		var copies := 1 if entry.external else _variants
+		for v in copies:
+			var tint := _tint
+			if not entry.external and not _tints.is_empty() and _variants > 1:
+				tint = _tints[v % _tints.size()]
+			var node := _instance(entry, tint)
+			if node == null:
+				continue
+			row.add_child(node)
+			await process_frame
+			var b := _aabb(node)
+			node.position.x += x - b.position.x
+			match _mount_of(entry, b):
+				"ceiling":
+					node.position.y += _ceiling
+				"wall":
+					node.position += Vector3(0, 1.4 - b.position.y, -WALL_Z - b.position.z)
+				"floor":
+					pass
+				_:
+					node.position.y -= b.position.y
+			x += b.size.x + gap
+	row.position.x = -(x - gap) * 0.5
+	var floor_mi := MeshInstance3D.new()
+	var plane := BoxMesh.new()
+	plane.size = Vector3(40, 0.1, 20)
+	floor_mi.mesh = plane
+	floor_mi.position = Vector3(0, -0.05, 0)
+	floor_mi.material_override = Toon.lib(&"concrete")
+	sv.add_child(floor_mi)
+	var wall := MeshInstance3D.new()
+	var wall_mesh := BoxMesh.new()
+	wall_mesh.size = Vector3(40, _ceiling + 1.0, 0.2)
+	wall.mesh = wall_mesh
+	wall.position = Vector3(0, (_ceiling + 1.0) * 0.5, -WALL_Z - 0.1)
+	wall.material_override = Toon.lib(&"olive")
+	sv.add_child(wall)
+	var half_h := atan(tan(deg_to_rad(cam.fov) * 0.5) * float(_size.x) / _size.y)
+	var dist := maxf(3.2, (x - gap) * 0.5 / tan(half_h) * 1.1 + 0.4)
+	cam.position = Vector3(0, 1.6, dist)
+	cam.look_at(Vector3(0, 1.9, -WALL_Z * 0.5), Vector3.UP)
+	await _frames(6)
+	var path := _out.path_join(_prefix + "_eye.png")
 	sv.get_texture().get_image().save_png(path)
 	print("models_preview: ", ProjectSettings.globalize_path(path))
 	sv.queue_free()
