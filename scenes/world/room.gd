@@ -1,28 +1,36 @@
 class_name Room
 extends Node3D
-## The starting room: geometry, lights, props, station placement and spawn points.
-## Owned by the world/level agent. Contract (CONTRACTS.md) that must be kept:
+## The starting room: a low-budget factory floor the players are stuck in, working off a debt to the Boss.
+## Geometry, lights, props, station placement and spawn points. Owned by the world/level agent.
+## Contract (CONTRACTS.md) that must be kept:
 ##   $Spawns/Spawn1..4 (Marker3D)  - player spawn points (feet level + 0.2 m, facing the shop)
 ##   $Stations/ShopCounter, Well, TurnInStation, GrowPlot1..6 - instances of the station scenes
 ##   get_spawn_points(), get_spawn_transform(index)
 ##
-## Layout (Room-local metres, floor top at y = 0, interior x -8..8, z -6..6, ceiling at y = 4):
-##   north wall (z-) : ShopCounter at (0, 0, -3.7) facing +Z, shelves + sign behind it, two windows
-##   east (x+)       : GrowPlot1..6 in a 2x3 grid (x 3.6 / 6.0, z -2.4 / 0 / 2.4) facing -X, grow lights above
-##   west (x-)       : Well at (-5.6, 0, 0) facing +X, water pipe from the wall into its back
-##   south wall (z+) : TurnInStation at (0, 0, 4.5) facing -Z, crates either side, decorative door
-##   centre          : round rug with the four spawn points
+## Layout (Room-local metres, floor top at y = 0, interior x -10..10, z -7.5..7.5, ceiling at y = 6):
+##   north (z-) : the Boss's booth: ShopCounter (barred pay window) at (0, 0, -5.0) facing +Z, partitions either
+##                side close off the space behind it; DEBT BOARD, wall clock, "WORK HARDER" poster on the wall
+##   east (x+)  : fenced GROW AREA (gate on its west side, caution stripes), GrowPlot1..6 in a 2x3 grid
+##                (x 5.0 / 7.6, z -3.0 / 0 / 3.0) facing -X under two grow-light bars
+##   west (x-)  : Well (water tank) at (-6.8, 0, 0) facing +X with its feed pipe, a barred night window, a leak
+##   south (z+) : TurnInStation at (0, 0, 5.8) facing -Z, the chained + beamed roller door, CLOCK IN, pallets
+##   ceiling    : 6 m, steel beams, pipes, a cable tray, drop-down pendant lamps and a black hole with dust
 ## Every station's "front" (+Z in its local space) faces the room centre.
-## Solid geometry (floor, walls, ceiling, solid props) is on collision layer 1 with mask 0.
+## Solid geometry (floor, walls, ceiling, booth partitions, fences, solid props) is on collision layer 1, mask 0.
+## Props live under $Decor as scenes from scenes/world/props/ with their meshes under a `Visual` child.
 
 ## Interior size in metres (x = width, y = floor-to-ceiling height, z = depth), centred on the Room origin.
-const INTERIOR_SIZE := Vector3(16.0, 4.0, 12.0)
+const INTERIOR_SIZE := Vector3(20.0, 6.0, 15.0)
 
 ## Names of every station node under $Stations (contract).
 const STATION_NAMES: PackedStringArray = [
 	"ShopCounter", "Well", "TurnInStation",
 	"GrowPlot1", "GrowPlot2", "GrowPlot3", "GrowPlot4", "GrowPlot5", "GrowPlot6",
 ]
+
+## The DEBT BOARD sign (a props/sign_board.tscn instance with a `text` property and a `Text` Label3D).
+const DEBT_BOARD_PATH := ^"Decor/DebtBoard"
+const DEBT_BOARD_DEFAULT_TEXT := "PAY UP"
 
 ## Sideways offset (metres, along the spawn marker's local X) applied per wrap-around when more players
 ## than spawn markers join, so a 5th..8th player never spawns inside another one.
@@ -99,6 +107,31 @@ func get_station_access_point(station_name: String, distance: float = 1.3) -> Ve
 	var p := t.origin + front.normalized() * distance
 	p.y = _to_global(Transform3D.IDENTITY).origin.y
 	return p
+
+
+## Writes the DEBT BOARD next to the Boss's window, e.g. "OWED: $400 / SHIFT 1" (shrinks to fit).
+## Local cosmetic: call it on every peer (e.g. from a GameState signal). Null-safe if the board is missing.
+func set_debt_board_text(text: String) -> void:
+	var board := get_node_or_null(DEBT_BOARD_PATH)
+	if board == null:
+		return
+	if &"text" in board:
+		board.set(&"text", text)
+	else:
+		var label := board.get_node_or_null(^"Text") as Label3D
+		if label != null:
+			label.text = text
+
+
+## Current DEBT BOARD text ("" when the board is missing).
+func get_debt_board_text() -> String:
+	var board := get_node_or_null(DEBT_BOARD_PATH)
+	if board == null:
+		return ""
+	if &"text" in board:
+		return String(board.get(&"text"))
+	var label := board.get_node_or_null(^"Text") as Label3D
+	return label.text if label != null else ""
 
 
 # --- helpers ----------------------------------------------------------------------------------------

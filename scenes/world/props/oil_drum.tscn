@@ -1,0 +1,82 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://art/materials/toon_rust.tres" id="1_rust"]
+[ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="2_outline_thin"]
+[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="3_metal_dark"]
+[ext_resource type="Material" path="res://art/materials/toon_concrete_dark.tres" id="4_concrete_dark"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_1"]
+top_radius = 0.31
+bottom_radius = 0.3
+height = 0.9
+radial_segments = 24
+rings = 1
+
+[sub_resource type="TorusMesh" id="TorusMesh_1"]
+inner_radius = 0.29
+outer_radius = 0.335
+rings = 24
+ring_segments = 8
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_2"]
+top_radius = 0.29
+bottom_radius = 0.29
+height = 0.02
+radial_segments = 24
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_3"]
+top_radius = 0.04
+bottom_radius = 0.04
+height = 0.03
+radial_segments = 10
+rings = 1
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
+height = 0.92
+radius = 0.33
+
+[node name="OilDrum" type="StaticBody3D"]
+collision_mask = 0
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+mesh = SubResource("CylinderMesh_1")
+material_override = ExtResource("1_rust")
+material_overlay = ExtResource("2_outline_thin")
+
+[node name="Hoop1" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.04, 0)
+mesh = SubResource("TorusMesh_1")
+material_override = ExtResource("3_metal_dark")
+
+[node name="Hoop2" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.33, 0)
+mesh = SubResource("TorusMesh_1")
+material_override = ExtResource("3_metal_dark")
+
+[node name="Hoop3" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+mesh = SubResource("TorusMesh_1")
+material_override = ExtResource("3_metal_dark")
+
+[node name="Hoop4" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.88, 0)
+mesh = SubResource("TorusMesh_1")
+material_override = ExtResource("3_metal_dark")
+
+[node name="Lid" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+mesh = SubResource("CylinderMesh_2")
+material_override = ExtResource("4_concrete_dark")
+
+[node name="Bung" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.14, 0.915, 0.05)
+mesh = SubResource("CylinderMesh_3")
+material_override = ExtResource("3_metal_dark")
+
+[node name="Shape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.46, 0)
+shape = SubResource("CylinderShape3D_1")

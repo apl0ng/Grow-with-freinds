@@ -1,18 +1,40 @@
-[gd_scene load_steps=46 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" uid="uid://b5lgr55ubyr8n" path="res://scripts/stations/shop_counter.gd" id="1_shop_counter"]
+
 [ext_resource type="PackedScene" path="res://scenes/world/shopkeeper_npc.tscn" id="2_shopkeeper_npc"]
+
 [ext_resource type="Material" path="res://art/materials/toon_dark.tres" id="3_dark"]
+
 [ext_resource type="Material" path="res://art/materials/toon_teal.tres" id="4_teal"]
+
 [ext_resource type="Material" path="res://art/materials/toon_yellow.tres" id="5_yellow"]
+
 [ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="6_outline_thin"]
+
 [ext_resource type="Material" path="res://art/materials/toon_cream.tres" id="7_cream"]
+
 [ext_resource type="Material" path="res://art/materials/toon_white.tres" id="8_white"]
+
 [ext_resource type="Material" path="res://art/materials/toon_wood.tres" id="9_wood"]
+
 [ext_resource type="Material" path="res://art/materials/toon_green.tres" id="10_green"]
+
 [ext_resource type="Material" path="res://art/materials/toon_red.tres" id="11_red"]
+
 [ext_resource type="Material" path="res://art/materials/toon_pink.tres" id="12_pink"]
+
 [ext_resource type="Material" path="res://art/materials/toon_gold.tres" id="13_gold"]
+
+[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="14_metal_dark"]
+
+[ext_resource type="Material" path="res://art/materials/toon_olive.tres" id="15_olive"]
+
+[ext_resource type="Material" path="res://art/materials/toon_caution.tres" id="16_caution"]
+
+[ext_resource type="Material" path="res://art/materials/toon_metal.tres" id="17_metal"]
+
+[ext_resource type="Material" path="res://art/materials/toon_rust.tres" id="18_rust"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_1"]
 size = Vector3(3.3, 0.12, 1.1)
@@ -182,6 +204,36 @@ size = Vector3(3.4, 1.04, 1.2)
 height = 2.3
 radius = 0.45
 
+[sub_resource type="CylinderMesh" id="CylinderMesh_cage_bar"]
+top_radius = 0.022
+bottom_radius = 0.022
+height = 1
+radial_segments = 10
+rings = 1
+
+[sub_resource type="MultiMesh" id="MultiMesh_cage"]
+transform_format = 1
+instance_count = 13
+mesh = SubResource("CylinderMesh_cage_bar")
+buffer = PackedFloat32Array(1, 0, 0, -1.5, 0, 1.5, 0, 1.79, 0, 0, 1, 0.5, 1, 0, 0, -1.25, 0, 1.5, 0, 1.79, 0, 0, 1, 0.5, 1, 0, 0, -1, 0, 1.5, 0, 1.79, 0, 0, 1, 0.5, 1, 0, 0, -0.75, 0, 1.5, 0, 1.79, 0, 0, 1, 0.5, 1, 0, 0, -0.5, 0, 1.5, 0, 1.79, 0, 0, 1, 0.5, 1, 0, 0, -0.25, 0, 1.04, 0, 2.02, 0, 0, 1, 0.5, 1, 0, 0, 0, 0, 1.04, 0, 2.02, 0, 0, 1, 0.5, 1, 0, 0, 0.25, 0, 1.04, 0, 2.02, 0, 0, 1, 0.5, 1, 0, 0, 0.5, 0, 1.5, 0, 1.79, 0, 0, 1, 0.5, 1, 0, 0, 0.75, 0, 1.5, 0, 1.79, 0, 0, 1, 0.5, 1, 0, 0, 1, 0, 1.5, 0, 1.79, 0, 0, 1, 0.5, 1, 0, 0, 1.25, 0, 1.5, 0, 1.79, 0, 0, 1, 0.5, 1, 0, 0, 1.5, 0, 1.5, 0, 1.79, 0, 0, 1, 0.5)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_cage_rail"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 3.1
+radial_segments = 12
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_cage_slot"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 0.62
+radial_segments = 12
+rings = 1
+
+[sub_resource type="BoxMesh" id="BoxMesh_price_board"]
+size = Vector3(0.78, 0.6, 0.03)
+
 [node name="ShopCounter" type="Node3D"]
 script = ExtResource("1_shop_counter")
 
@@ -190,46 +242,46 @@ script = ExtResource("1_shop_counter")
 [node name="Plinth" type="MeshInstance3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
 mesh = SubResource("BoxMesh_1")
-material_override = ExtResource("3_dark")
+material_override = ExtResource("14_metal_dark")
 
 [node name="Body" type="MeshInstance3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.52, 0)
 mesh = SubResource("BoxMesh_2")
-material_override = ExtResource("4_teal")
+material_override = ExtResource("15_olive")
 
 [node name="PillarFL" type="MeshInstance3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 0.51, 0.5)
 mesh = SubResource("CylinderMesh_3")
-material_override = ExtResource("5_yellow")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="PillarFR" type="MeshInstance3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.6, 0.51, 0.5)
 mesh = SubResource("CylinderMesh_3")
-material_override = ExtResource("5_yellow")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="PillarBL" type="MeshInstance3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 0.51, -0.5)
 mesh = SubResource("CylinderMesh_3")
-material_override = ExtResource("5_yellow")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="PillarBR" type="MeshInstance3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.6, 0.51, -0.5)
 mesh = SubResource("CylinderMesh_3")
-material_override = ExtResource("5_yellow")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="PanelBorder" type="MeshInstance3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.52, 0.505)
 mesh = SubResource("BoxMesh_4")
-material_override = ExtResource("5_yellow")
+material_override = ExtResource("16_caution")
 
 [node name="FrontPanel" type="MeshInstance3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.52, 0.52)
 mesh = SubResource("BoxMesh_5")
-material_override = ExtResource("7_cream")
+material_override = ExtResource("14_metal_dark")
 
 [node name="Badges" type="Node3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.52, 0.54)
@@ -240,7 +292,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0, 0)
 [node name="Ring" type="MeshInstance3D" parent="Visual/Badges/Badge1"]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
 mesh = SubResource("CylinderMesh_6")
-material_override = ExtResource("5_yellow")
+material_override = ExtResource("16_caution")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="Face" type="MeshInstance3D" parent="Visual/Badges/Badge1"]
@@ -259,7 +311,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 [node name="Ring" type="MeshInstance3D" parent="Visual/Badges/Badge2"]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
 mesh = SubResource("CylinderMesh_6")
-material_override = ExtResource("5_yellow")
+material_override = ExtResource("16_caution")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="Face" type="MeshInstance3D" parent="Visual/Badges/Badge2"]
@@ -278,7 +330,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0, 0)
 [node name="Ring" type="MeshInstance3D" parent="Visual/Badges/Badge3"]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
 mesh = SubResource("CylinderMesh_6")
-material_override = ExtResource("5_yellow")
+material_override = ExtResource("16_caution")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="Face" type="MeshInstance3D" parent="Visual/Badges/Badge3"]
@@ -296,54 +348,54 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.96, 0)
 
 [node name="Slab" type="MeshInstance3D" parent="Visual/Top"]
 mesh = SubResource("BoxMesh_9")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("17_metal")
 
 [node name="EdgeFront" type="MeshInstance3D" parent="Visual/Top"]
 transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0.52)
 mesh = SubResource("CylinderMesh_10")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="EdgeBack" type="MeshInstance3D" parent="Visual/Top"]
 transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0, -0.52)
 mesh = SubResource("CylinderMesh_10")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="EdgeLeft" type="MeshInstance3D" parent="Visual/Top"]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -1.62, 0, 0)
 mesh = SubResource("CylinderMesh_11")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="EdgeRight" type="MeshInstance3D" parent="Visual/Top"]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 1.62, 0, 0)
 mesh = SubResource("CylinderMesh_11")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="CornerFL" type="MeshInstance3D" parent="Visual/Top"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.62, 0, 0.52)
 mesh = SubResource("SphereMesh_12")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="CornerFR" type="MeshInstance3D" parent="Visual/Top"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.62, 0, 0.52)
 mesh = SubResource("SphereMesh_12")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="CornerBL" type="MeshInstance3D" parent="Visual/Top"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.62, 0, -0.52)
 mesh = SubResource("SphereMesh_12")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="CornerBR" type="MeshInstance3D" parent="Visual/Top"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.62, 0, -0.52)
 mesh = SubResource("SphereMesh_12")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="Jars" type="Node3D" parent="Visual"]
@@ -366,13 +418,13 @@ material_override = ExtResource("7_cream")
 [node name="Lid" type="MeshInstance3D" parent="Visual/Jars/Jar1"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.33, 0)
 mesh = SubResource("CylinderMesh_15")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="Knob" type="MeshInstance3D" parent="Visual/Jars/Jar1"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.38, 0)
 mesh = SubResource("SphereMesh_16")
-material_override = ExtResource("11_red")
+material_override = ExtResource("18_rust")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="PriceTag" type="Label3D" parent="Visual/Jars/Jar1"]
@@ -401,13 +453,13 @@ material_override = ExtResource("7_cream")
 [node name="Lid" type="MeshInstance3D" parent="Visual/Jars/Jar2"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.33, 0)
 mesh = SubResource("CylinderMesh_15")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="Knob" type="MeshInstance3D" parent="Visual/Jars/Jar2"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.38, 0)
 mesh = SubResource("SphereMesh_16")
-material_override = ExtResource("11_red")
+material_override = ExtResource("18_rust")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="PriceTag" type="Label3D" parent="Visual/Jars/Jar2"]
@@ -436,13 +488,13 @@ material_override = ExtResource("7_cream")
 [node name="Lid" type="MeshInstance3D" parent="Visual/Jars/Jar3"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.33, 0)
 mesh = SubResource("CylinderMesh_15")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="Knob" type="MeshInstance3D" parent="Visual/Jars/Jar3"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.38, 0)
 mesh = SubResource("SphereMesh_16")
-material_override = ExtResource("11_red")
+material_override = ExtResource("18_rust")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="PriceTag" type="Label3D" parent="Visual/Jars/Jar3"]
@@ -460,12 +512,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1, 1.04, -0.08)
 [node name="Base" type="MeshInstance3D" parent="Visual/Register"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.13, 0)
 mesh = SubResource("BoxMesh_17")
-material_override = ExtResource("12_pink")
+material_override = ExtResource("15_olive")
 
 [node name="Drawer" type="MeshInstance3D" parent="Visual/Register"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.07, 0.215)
 mesh = SubResource("BoxMesh_18")
-material_override = ExtResource("5_yellow")
+material_override = ExtResource("16_caution")
 
 [node name="Keys" type="MeshInstance3D" parent="Visual/Register"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.275, 0.09)
@@ -497,49 +549,49 @@ material_override = ExtResource("3_dark")
 [node name="Dome" type="MeshInstance3D" parent="Visual/Bell"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
 mesh = SubResource("SphereMesh_22")
-material_override = ExtResource("13_gold")
+material_override = ExtResource("17_metal")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="Knob" type="MeshInstance3D" parent="Visual/Bell"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.125, 0)
 mesh = SubResource("SphereMesh_23")
-material_override = ExtResource("13_gold")
+material_override = ExtResource("17_metal")
 
 [node name="KeeperStep" type="MeshInstance3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, -0.95)
 mesh = SubResource("BoxMesh_24")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 
 [node name="SignFrame" type="Node3D" parent="Visual"]
 
 [node name="PostLeft" type="MeshInstance3D" parent="Visual/SignFrame"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.52, 2.07, -0.42)
 mesh = SubResource("CylinderMesh_25")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="PostRight" type="MeshInstance3D" parent="Visual/SignFrame"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.52, 2.07, -0.42)
 mesh = SubResource("CylinderMesh_25")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="Bar" type="MeshInstance3D" parent="Visual/SignFrame"]
 transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 3.1, -0.42)
 mesh = SubResource("CylinderMesh_26")
-material_override = ExtResource("9_wood")
+material_override = ExtResource("14_metal_dark")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="KnobLeft" type="MeshInstance3D" parent="Visual/SignFrame"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.52, 3.1, -0.42)
 mesh = SubResource("SphereMesh_27")
-material_override = ExtResource("5_yellow")
+material_override = ExtResource("18_rust")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="KnobRight" type="MeshInstance3D" parent="Visual/SignFrame"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.52, 3.1, -0.42)
 mesh = SubResource("SphereMesh_27")
-material_override = ExtResource("5_yellow")
+material_override = ExtResource("18_rust")
 material_overlay = ExtResource("6_outline_thin")
 
 [node name="Sign" type="Node3D" parent="Visual"]
@@ -557,17 +609,17 @@ material_override = ExtResource("3_dark")
 
 [node name="Board" type="MeshInstance3D" parent="Visual/Sign"]
 mesh = SubResource("BoxMesh_29")
-material_override = ExtResource("11_red")
+material_override = ExtResource("16_caution")
 
 [node name="EndLeft" type="MeshInstance3D" parent="Visual/Sign"]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.65, 0, 0)
 mesh = SubResource("CylinderMesh_30")
-material_override = ExtResource("11_red")
+material_override = ExtResource("16_caution")
 
 [node name="EndRight" type="MeshInstance3D" parent="Visual/Sign"]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.65, 0, 0)
 mesh = SubResource("CylinderMesh_30")
-material_override = ExtResource("11_red")
+material_override = ExtResource("16_caution")
 
 [node name="Text" type="Label3D" parent="Visual/Sign"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.01, 0.042)
@@ -575,9 +627,42 @@ double_sided = false
 pixel_size = 0.005
 modulate = Color(1, 0.99, 0.97, 1)
 outline_modulate = Color(0.18, 0.165, 0.24, 1)
-text = "SEEDS"
+text = "SUPPLY"
 font_size = 80
 outline_size = 20
+
+[node name="Cage" type="Node3D" parent="Visual"]
+
+[node name="Bars" type="MultiMeshInstance3D" parent="Visual/Cage"]
+multimesh = SubResource("MultiMesh_cage")
+material_override = ExtResource("14_metal_dark")
+
+[node name="RailTop" type="MeshInstance3D" parent="Visual/Cage"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 2.54, 0.5)
+mesh = SubResource("CylinderMesh_cage_rail")
+material_override = ExtResource("14_metal_dark")
+
+[node name="SlotBar" type="MeshInstance3D" parent="Visual/Cage"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 1.5, 0.5)
+mesh = SubResource("CylinderMesh_cage_slot")
+material_override = ExtResource("14_metal_dark")
+
+[node name="PriceBoard" type="Node3D" parent="Visual"]
+transform = Transform3D(0.99863, 0.052336, 0, -0.052336, 0.99863, 0, 0, 0, 1, 1.12, 1.98, 0.56)
+
+[node name="Board" type="MeshInstance3D" parent="Visual/PriceBoard"]
+mesh = SubResource("BoxMesh_price_board")
+material_override = ExtResource("3_dark")
+
+[node name="Chalk" type="Label3D" parent="Visual/PriceBoard"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.02)
+double_sided = false
+pixel_size = 0.004
+modulate = Color(0.93, 0.93, 0.88, 1)
+outline_modulate = Color(0.18, 0.165, 0.24, 1)
+text = "PRICES\nseeds: see jars\nbreaks: $999\nNO REFUNDS"
+font_size = 22
+outline_size = 4
 
 [node name="ShopkeeperAnchor" type="Node3D" parent="."]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.2, -0.9)

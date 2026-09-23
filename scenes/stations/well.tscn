@@ -1,18 +1,27 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/stations/well.gd" id="1_script"]
-[ext_resource type="Material" path="res://art/materials/toon_gray.tres" id="2_gray"]
-[ext_resource type="Material" path="res://art/materials/toon_white.tres" id="3_white"]
+
+[ext_resource type="Material" path="res://art/materials/toon_concrete_dark.tres" id="2_concrete_dark"]
+
+[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="3_metal_dark"]
+
 [ext_resource type="Material" path="res://art/materials/toon_water.tres" id="4_water"]
-[ext_resource type="Material" path="res://art/materials/toon_wood.tres" id="5_wood"]
-[ext_resource type="Material" path="res://art/materials/toon_red.tres" id="6_red"]
+
+[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="5_metal_dark"]
+
+[ext_resource type="Material" path="res://art/materials/toon_rust.tres" id="6_rust"]
+
 [ext_resource type="Material" path="res://art/materials/toon_dark.tres" id="7_dark"]
+
 [ext_resource type="Material" path="res://art/materials/toon_metal.tres" id="8_metal"]
-[ext_resource type="Material" path="res://art/materials/toon_stone.tres" id="9_stone"]
+
+[ext_resource type="Material" path="res://art/materials/toon_concrete.tres" id="9_concrete"]
+
 [ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="10_outline"]
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_base"]
-material = ExtResource("9_stone")
+material = ExtResource("9_concrete")
 top_radius = 0.92
 bottom_radius = 0.98
 height = 0.52
@@ -20,19 +29,19 @@ radial_segments = 28
 rings = 1
 
 [sub_resource type="TorusMesh" id="TorusMesh_lip"]
-material = ExtResource("9_stone")
+material = ExtResource("9_concrete")
 inner_radius = 0.62
 outer_radius = 1.0
 rings = 28
 ring_segments = 12
 
 [sub_resource type="SphereMesh" id="SphereMesh_stone"]
-material = ExtResource("9_stone")
+material = ExtResource("9_concrete")
 radial_segments = 12
 rings = 6
 
 [sub_resource type="SphereMesh" id="SphereMesh_stone_alt"]
-material = ExtResource("2_gray")
+material = ExtResource("2_concrete_dark")
 radial_segments = 12
 rings = 6
 
@@ -45,7 +54,7 @@ radial_segments = 28
 rings = 1
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_post"]
-material = ExtResource("5_wood")
+material = ExtResource("5_metal_dark")
 top_radius = 0.075
 bottom_radius = 0.085
 height = 2.05
@@ -53,14 +62,14 @@ radial_segments = 10
 rings = 1
 
 [sub_resource type="SphereMesh" id="SphereMesh_post_foot"]
-material = ExtResource("5_wood")
+material = ExtResource("5_metal_dark")
 radius = 0.12
 height = 0.14
 radial_segments = 12
 rings = 6
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_beam"]
-material = ExtResource("5_wood")
+material = ExtResource("5_metal_dark")
 top_radius = 0.055
 bottom_radius = 0.055
 height = 2.2
@@ -68,29 +77,29 @@ radial_segments = 10
 rings = 1
 
 [sub_resource type="PrismMesh" id="PrismMesh_roof"]
-material = ExtResource("6_red")
+material = ExtResource("6_rust")
 size = Vector3(1.7, 0.62, 2.6)
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_ridge"]
-material = ExtResource("5_wood")
+material = ExtResource("5_metal_dark")
 radius = 0.07
 height = 2.8
 radial_segments = 10
 rings = 4
 
 [sub_resource type="BoxMesh" id="BoxMesh_crank_arm"]
-material = ExtResource("5_wood")
+material = ExtResource("5_metal_dark")
 size = Vector3(0.05, 0.3, 0.06)
 
 [sub_resource type="SphereMesh" id="SphereMesh_crank_knob"]
-material = ExtResource("6_red")
+material = ExtResource("6_rust")
 radius = 0.055
 height = 0.11
 radial_segments = 10
 rings = 5
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_rope"]
-material = ExtResource("3_white")
+material = ExtResource("3_metal_dark")
 top_radius = 0.014
 bottom_radius = 0.014
 height = 0.36
@@ -98,7 +107,7 @@ radial_segments = 6
 rings = 1
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_bucket"]
-material = ExtResource("5_wood")
+material = ExtResource("5_metal_dark")
 top_radius = 0.17
 bottom_radius = 0.13
 height = 0.24

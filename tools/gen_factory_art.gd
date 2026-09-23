@@ -18,6 +18,7 @@ const MATERIALS: Dictionary = {
 	"olive": [Color("7c8665"), F.MATTE, -1.0],           # painted walls, lockers, army-surplus stuff
 	"chainlink": [Color("a9b2b8"), F.SOFT, -1.0],        # galvanised fence wire and posts
 	"neon_green": [Color("b5ff7a"), F.GLOW, 1.1],        # fluorescent tubes, neon signs (self-lit)
+	"void": [Color("040405"), F.FLAT, -1.0],             # unlit black: holes, voids (never on objects)
 }
 
 

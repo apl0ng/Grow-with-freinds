@@ -1,125 +1,182 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scenes/world/shopkeeper_npc.gd" id="1_npc"]
-[ext_resource type="Material" path="res://art/materials/toon_brown.tres" id="2_brown"]
+[ext_resource type="Material" path="res://art/materials/toon_dark.tres" id="2_dark"]
 [ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="3_outline_thin"]
-[ext_resource type="Material" path="res://art/materials/toon_purple.tres" id="4_purple"]
+[ext_resource type="Material" path="res://art/materials/toon_brown.tres" id="4_brown"]
 [ext_resource type="Material" path="res://art/materials/toon_outline.tres" id="5_outline"]
 [ext_resource type="Material" path="res://art/materials/toon_cream.tres" id="6_cream"]
-[ext_resource type="Material" path="res://art/materials/toon_skin.tres" id="7_skin"]
-[ext_resource type="Material" path="res://art/materials/toon_eye_white.tres" id="8_eye_white"]
-[ext_resource type="Material" path="res://art/materials/toon_eye_black.tres" id="9_eye_black"]
-[ext_resource type="Material" path="res://art/materials/toon_blush.tres" id="10_blush"]
-[ext_resource type="Material" path="res://art/materials/toon_pink.tres" id="11_pink"]
-[ext_resource type="Material" path="res://art/materials/toon_yellow.tres" id="12_yellow"]
-[ext_resource type="Material" path="res://art/materials/toon_red.tres" id="13_red"]
-[ext_resource type="Material" path="res://art/materials/toon_leaf.tres" id="14_leaf"]
+[ext_resource type="Material" path="res://art/materials/toon_rust.tres" id="7_rust"]
+[ext_resource type="Material" path="res://art/materials/toon_gold.tres" id="8_gold"]
+[ext_resource type="Material" path="res://art/materials/toon_skin.tres" id="9_skin"]
+[ext_resource type="Material" path="res://art/materials/toon_olive.tres" id="10_olive"]
+[ext_resource type="Material" path="res://art/materials/toon_eye_white.tres" id="11_eye_white"]
+[ext_resource type="Material" path="res://art/materials/toon_eye_black.tres" id="12_eye_black"]
+[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="13_metal_dark"]
+[ext_resource type="Material" path="res://art/materials/toon_gray.tres" id="14_gray"]
+[ext_resource type="Material" path="res://art/materials/toon_red.tres" id="15_red"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_1"]
-radius = 0.15
-height = 0.3
-radial_segments = 24
-rings = 12
+radius = 0.16
+height = 0.32
+radial_segments = 16
+rings = 8
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_1"]
-radius = 0.42
-height = 1
+radius = 0.52
+height = 1.15
 radial_segments = 32
 rings = 8
 
 [sub_resource type="SphereMesh" id="SphereMesh_2"]
-radius = 0.34
-height = 0.68
-radial_segments = 32
-rings = 16
+radius = 0.18
+height = 0.36
+radial_segments = 20
+rings = 10
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_2"]
-radius = 0.085
-height = 0.4
+radius = 0.05
+height = 0.5
+radial_segments = 12
+rings = 3
+
+[sub_resource type="TorusMesh" id="TorusMesh_1"]
+inner_radius = 0.3
+outer_radius = 0.36
+rings = 32
+ring_segments = 8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_3"]
+radius = 0.1
+height = 0.58
 radial_segments = 16
 rings = 4
 
 [sub_resource type="SphereMesh" id="SphereMesh_3"]
-radius = 0.1
-height = 0.2
+radius = 0.11
+height = 0.22
 radial_segments = 16
 rings = 8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_4"]
+radius = 0.025
+height = 0.14
+radial_segments = 8
+rings = 2
+
+[sub_resource type="TorusMesh" id="TorusMesh_2"]
+inner_radius = 0.025
+outer_radius = 0.04
+rings = 12
+ring_segments = 6
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+size = Vector3(0.24, 0.07, 0.12)
+
+[sub_resource type="BoxMesh" id="BoxMesh_2"]
+size = Vector3(0.05, 0.075, 0.125)
+
+[sub_resource type="BoxMesh" id="BoxMesh_3"]
+size = Vector3(0.24, 0.006, 0.12)
 
 [sub_resource type="SphereMesh" id="SphereMesh_4"]
 radius = 0.38
 height = 0.76
-radial_segments = 48
-rings = 24
+radial_segments = 40
+rings = 20
 
 [sub_resource type="SphereMesh" id="SphereMesh_5"]
-radius = 0.105
-height = 0.21
+radius = 0.3
+height = 0.6
 radial_segments = 24
 rings = 12
 
 [sub_resource type="SphereMesh" id="SphereMesh_6"]
-radius = 0.06
-height = 0.12
-radial_segments = 16
-rings = 8
+radius = 0.36
+height = 0.72
+radial_segments = 24
+rings = 12
 
 [sub_resource type="SphereMesh" id="SphereMesh_7"]
-radius = 0.022
-height = 0.044
-radial_segments = 8
-rings = 4
+radius = 0.085
+height = 0.17
+radial_segments = 16
+rings = 8
 
 [sub_resource type="SphereMesh" id="SphereMesh_8"]
-radius = 0.07
-height = 0.14
+radius = 0.094
+height = 0.094
 radial_segments = 16
-rings = 8
-
-[sub_resource type="SphereMesh" id="SphereMesh_9"]
-radius = 0.055
-height = 0.11
-radial_segments = 16
-rings = 8
-
-[sub_resource type="SphereMesh" id="SphereMesh_10"]
-radius = 0.1
-height = 0.1
-radial_segments = 24
-rings = 8
+rings = 6
 is_hemisphere = true
 
-[sub_resource type="SphereMesh" id="SphereMesh_11"]
-radius = 0.55
-height = 1.1
-radial_segments = 40
+[sub_resource type="SphereMesh" id="SphereMesh_9"]
+radius = 0.042
+height = 0.084
+radial_segments = 12
+rings = 6
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_5"]
+radius = 0.028
+height = 0.2
+radial_segments = 10
+rings = 3
+
+[sub_resource type="BoxMesh" id="BoxMesh_4"]
+size = Vector3(0.08, 0.02, 0.02)
+
+[sub_resource type="SphereMesh" id="SphereMesh_10"]
+radius = 0.075
+height = 0.15
+radial_segments = 16
 rings = 8
 
+[sub_resource type="SphereMesh" id="SphereMesh_11"]
+radius = 0.075
+height = 0.075
+radial_segments = 16
+rings = 6
+is_hemisphere = true
+
 [sub_resource type="CylinderMesh" id="CylinderMesh_1"]
-top_radius = 0.26
-bottom_radius = 0.31
-height = 0.26
-radial_segments = 32
+top_radius = 0.028
+bottom_radius = 0.028
+height = 0.24
+radial_segments = 10
 rings = 1
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_2"]
-top_radius = 0.3
-bottom_radius = 0.315
-height = 0.07
-radial_segments = 32
-rings = 1
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_3"]
-top_radius = 0.018
-bottom_radius = 0.018
-height = 0.1
-radial_segments = 8
+top_radius = 0.029
+bottom_radius = 0.029
+height = 0.03
+radial_segments = 10
 rings = 1
 
 [sub_resource type="SphereMesh" id="SphereMesh_12"]
-radius = 0.065
-height = 0.13
-radial_segments = 16
+radius = 0.02
+height = 0.04
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="SphereMesh_13"]
+radius = 0.56
+height = 1.12
+radial_segments = 36
 rings = 8
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_3"]
+top_radius = 0.27
+bottom_radius = 0.33
+height = 0.3
+radial_segments = 28
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_4"]
+top_radius = 0.315
+bottom_radius = 0.335
+height = 0.07
+radial_segments = 28
+rings = 1
 
 [node name="ShopkeeperNPC" type="Node3D"]
 script = ExtResource("1_npc")
@@ -127,169 +184,287 @@ script = ExtResource("1_npc")
 [node name="Visual" type="Node3D" parent="."]
 
 [node name="FootLeft" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 0.55, 0, 0, 0, 1.4, -0.17, 0.07, -0.08)
+transform = Transform3D(1, 0, 0, 0, 0.5, 0, 0, 0, 1.5, -0.18, 0.07, -0.1)
 mesh = SubResource("SphereMesh_1")
-material_override = ExtResource("2_brown")
+material_override = ExtResource("2_dark")
 material_overlay = ExtResource("3_outline_thin")
 
 [node name="FootRight" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 0.55, 0, 0, 0, 1.4, 0.17, 0.07, -0.08)
+transform = Transform3D(1, 0, 0, 0, 0.5, 0, 0, 0, 1.5, 0.18, 0.07, -0.1)
 mesh = SubResource("SphereMesh_1")
-material_override = ExtResource("2_brown")
+material_override = ExtResource("2_dark")
 material_overlay = ExtResource("3_outline_thin")
 
 [node name="Torso" type="Node3D" parent="Visual"]
 
 [node name="Body" type="MeshInstance3D" parent="Visual/Torso"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.655, 0)
 mesh = SubResource("CapsuleMesh_1")
-material_override = ExtResource("4_purple")
+material_override = ExtResource("4_brown")
 material_overlay = ExtResource("5_outline")
 
-[node name="Apron" type="MeshInstance3D" parent="Visual/Torso"]
-transform = Transform3D(0.95, 0, 0, 0, 1.15, 0, 0, 0, 0.35, 0, 0.55, -0.33)
+[node name="Shirt" type="MeshInstance3D" parent="Visual/Torso"]
+transform = Transform3D(0.5, 0, 0, 0, 1.2, 0, 0, 0, 0.35, 0, 0.98, -0.42)
 mesh = SubResource("SphereMesh_2")
 material_override = ExtResource("6_cream")
+
+[node name="Tie" type="MeshInstance3D" parent="Visual/Torso"]
+transform = Transform3D(0.997564, -0.069756, 0, 0.068232, 0.975765, 0.207912, -0.014503, -0.207405, 0.978148, 0, 0.86, -0.49)
+mesh = SubResource("CapsuleMesh_2")
+material_override = ExtResource("7_rust")
+
+[node name="GoldChain" type="MeshInstance3D" parent="Visual/Torso"]
+transform = Transform3D(1, 0, 0, 0, 0.882948, 0.469472, 0, -0.469472, 0.882948, 0, 1.13, -0.1)
+mesh = SubResource("TorusMesh_1")
+material_override = ExtResource("8_gold")
 material_overlay = ExtResource("3_outline_thin")
 
 [node name="ArmLeft" type="Node3D" parent="Visual/Torso"]
-transform = Transform3D(0.866025, 0.5, 0, -0.5, 0.866025, 0, 0, 0, 1, -0.34, 0.9, 0)
+transform = Transform3D(0.978148, -0.197736, -0.064248, 0, 0.309017, -0.951057, 0.207912, 0.930274, 0.302264, -0.47, 1.02, -0.05)
 
 [node name="Sleeve" type="MeshInstance3D" parent="Visual/Torso/ArmLeft"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.18, 0)
-mesh = SubResource("CapsuleMesh_2")
-material_override = ExtResource("4_purple")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.26, 0)
+mesh = SubResource("CapsuleMesh_3")
+material_override = ExtResource("4_brown")
 material_overlay = ExtResource("3_outline_thin")
 
-[node name="Hand" type="MeshInstance3D" parent="Visual/Torso/ArmLeft"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.42, 0)
+[node name="Hand" type="Node3D" parent="Visual/Torso/ArmLeft"]
+transform = Transform3D(1, 0, 0, 0, 0.309017, 0.951057, 0, -0.951057, 0.309017, 0, -0.56, 0)
+
+[node name="Palm" type="MeshInstance3D" parent="Visual/Torso/ArmLeft/Hand"]
+transform = Transform3D(1.1, 0, 0, 0, 0.6, 0, 0, 0, 1.2, 0, 0, 0)
 mesh = SubResource("SphereMesh_3")
-material_override = ExtResource("7_skin")
+material_override = ExtResource("9_skin")
 material_overlay = ExtResource("3_outline_thin")
+
+[node name="Ring" type="MeshInstance3D" parent="Visual/Torso/ArmLeft/Hand"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.05, 0.03, -0.06)
+mesh = SubResource("TorusMesh_2")
+material_override = ExtResource("8_gold")
+
+[node name="Cash" type="Node3D" parent="Visual/Torso/ArmLeft/Hand"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.07, -0.02)
+visible = false
+
+[node name="Wad" type="MeshInstance3D" parent="Visual/Torso/ArmLeft/Hand/Cash"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.035, 0)
+mesh = SubResource("BoxMesh_1")
+material_override = ExtResource("10_olive")
+
+[node name="Strap" type="MeshInstance3D" parent="Visual/Torso/ArmLeft/Hand/Cash"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.035, 0)
+mesh = SubResource("BoxMesh_2")
+material_override = ExtResource("6_cream")
+
+[node name="TopBill" type="Node3D" parent="Visual/Torso/ArmLeft/Hand/Cash"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, 0.072, 0)
+
+[node name="Bill" type="MeshInstance3D" parent="Visual/Torso/ArmLeft/Hand/Cash/TopBill"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, 0, 0)
+mesh = SubResource("BoxMesh_3")
+material_override = ExtResource("10_olive")
 
 [node name="ArmRight" type="Node3D" parent="Visual/Torso"]
-transform = Transform3D(0.866025, -0.5, 0, 0.5, 0.866025, 0, 0, 0, 1, 0.34, 0.9, 0)
+transform = Transform3D(0.978148, 0.197736, 0.064248, 0, 0.309017, -0.951057, -0.207912, 0.930274, 0.302264, 0.47, 1.02, -0.05)
 
 [node name="Sleeve" type="MeshInstance3D" parent="Visual/Torso/ArmRight"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.18, 0)
-mesh = SubResource("CapsuleMesh_2")
-material_override = ExtResource("4_purple")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.26, 0)
+mesh = SubResource("CapsuleMesh_3")
+material_override = ExtResource("4_brown")
 material_overlay = ExtResource("3_outline_thin")
 
-[node name="Hand" type="MeshInstance3D" parent="Visual/Torso/ArmRight"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.42, 0)
+[node name="Hand" type="Node3D" parent="Visual/Torso/ArmRight"]
+transform = Transform3D(1, 0, 0, 0, 0.309017, 0.951057, 0, -0.951057, 0.309017, 0, -0.56, 0)
+
+[node name="Palm" type="MeshInstance3D" parent="Visual/Torso/ArmRight/Hand"]
+transform = Transform3D(1.1, 0, 0, 0, 0.6, 0, 0, 0, 1.2, 0, 0, 0)
 mesh = SubResource("SphereMesh_3")
-material_override = ExtResource("7_skin")
+material_override = ExtResource("9_skin")
 material_overlay = ExtResource("3_outline_thin")
+
+[node name="Fingers" type="Node3D" parent="Visual/Torso/ArmRight/Hand"]
+
+[node name="Finger1" type="Node3D" parent="Visual/Torso/ArmRight/Hand/Fingers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06, -0.01, -0.09)
+
+[node name="Tip" type="MeshInstance3D" parent="Visual/Torso/ArmRight/Hand/Fingers/Finger1"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.06)
+mesh = SubResource("CapsuleMesh_4")
+material_override = ExtResource("9_skin")
+
+[node name="Finger2" type="Node3D" parent="Visual/Torso/ArmRight/Hand/Fingers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.02, -0.01, -0.09)
+
+[node name="Tip" type="MeshInstance3D" parent="Visual/Torso/ArmRight/Hand/Fingers/Finger2"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.06)
+mesh = SubResource("CapsuleMesh_4")
+material_override = ExtResource("9_skin")
+
+[node name="Finger3" type="Node3D" parent="Visual/Torso/ArmRight/Hand/Fingers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, -0.01, -0.09)
+
+[node name="Tip" type="MeshInstance3D" parent="Visual/Torso/ArmRight/Hand/Fingers/Finger3"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.06)
+mesh = SubResource("CapsuleMesh_4")
+material_override = ExtResource("9_skin")
+
+[node name="Finger4" type="Node3D" parent="Visual/Torso/ArmRight/Hand/Fingers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.06, -0.01, -0.09)
+
+[node name="Tip" type="MeshInstance3D" parent="Visual/Torso/ArmRight/Hand/Fingers/Finger4"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.06)
+mesh = SubResource("CapsuleMesh_4")
+material_override = ExtResource("9_skin")
 
 [node name="HeadPivot" type="Node3D" parent="Visual/Torso"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 
 [node name="Head" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.26, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.28, 0)
 mesh = SubResource("SphereMesh_4")
-material_override = ExtResource("7_skin")
+material_override = ExtResource("9_skin")
 material_overlay = ExtResource("5_outline")
 
-[node name="EyeLeft" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
-transform = Transform3D(1, 0, 0, 0, 1.15, 0, 0, 0, 0.6, -0.135, 0.31, -0.33)
-cast_shadow = 0
+[node name="Jowls" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
+transform = Transform3D(1.15, 0, 0, 0, 0.6, 0, 0, 0, 1, 0, 0.11, -0.1)
 mesh = SubResource("SphereMesh_5")
-material_override = ExtResource("8_eye_white")
+material_override = ExtResource("9_skin")
 material_overlay = ExtResource("3_outline_thin")
+
+[node name="HairBack" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
+transform = Transform3D(1.05, 0, 0, 0, 0.75, 0, 0, 0, 0.95, 0, 0.34, 0.1)
+mesh = SubResource("SphereMesh_6")
+material_override = ExtResource("2_dark")
+
+[node name="EyeLeft" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.135, 0.36, -0.32)
+cast_shadow = 0
+mesh = SubResource("SphereMesh_7")
+material_override = ExtResource("11_eye_white")
 
 [node name="Pupil" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/EyeLeft"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.01, -0.085)
-cast_shadow = 0
-mesh = SubResource("SphereMesh_6")
-material_override = ExtResource("9_eye_black")
-
-[node name="Shine" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/EyeLeft/Pupil"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.022, 0.026, -0.05)
-cast_shadow = 0
-mesh = SubResource("SphereMesh_7")
-material_override = ExtResource("8_eye_white")
-
-[node name="EyeRight" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
-transform = Transform3D(1, 0, 0, 0, 1.15, 0, 0, 0, 0.6, 0.135, 0.31, -0.33)
-cast_shadow = 0
-mesh = SubResource("SphereMesh_5")
-material_override = ExtResource("8_eye_white")
-material_overlay = ExtResource("3_outline_thin")
-
-[node name="Pupil" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/EyeRight"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.01, -0.085)
-cast_shadow = 0
-mesh = SubResource("SphereMesh_6")
-material_override = ExtResource("9_eye_black")
-
-[node name="Shine" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/EyeRight/Pupil"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.022, 0.026, -0.05)
-cast_shadow = 0
-mesh = SubResource("SphereMesh_7")
-material_override = ExtResource("8_eye_white")
-
-[node name="CheekLeft" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
-transform = Transform3D(1.2, 0, 0, 0, 0.7, 0, 0, 0, 0.4, -0.24, 0.16, -0.28)
-cast_shadow = 0
-mesh = SubResource("SphereMesh_8")
-material_override = ExtResource("10_blush")
-
-[node name="CheekRight" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
-transform = Transform3D(1.2, 0, 0, 0, 0.7, 0, 0, 0, 0.4, 0.24, 0.16, -0.28)
-cast_shadow = 0
-mesh = SubResource("SphereMesh_8")
-material_override = ExtResource("10_blush")
-
-[node name="Nose" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.23, -0.375)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.5, 0, -0.02, -0.062)
 cast_shadow = 0
 mesh = SubResource("SphereMesh_9")
-material_override = ExtResource("11_pink")
+material_override = ExtResource("12_eye_black")
+
+[node name="LidLeft" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/EyeLeft"]
+transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0, 0, 0)
+cast_shadow = 0
+mesh = SubResource("SphereMesh_8")
+material_override = ExtResource("9_skin")
+
+[node name="BrowLeft" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
+transform = Transform3D(0.309017, -0.951057, 0, 0.951057, 0.309017, 0, 0, 0, 1, -0.135, 0.48, -0.33)
+cast_shadow = 0
+mesh = SubResource("CapsuleMesh_5")
+material_override = ExtResource("2_dark")
+
+[node name="EyeRight" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.135, 0.36, -0.32)
+cast_shadow = 0
+mesh = SubResource("SphereMesh_7")
+material_override = ExtResource("11_eye_white")
+
+[node name="Pupil" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/EyeRight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.5, 0, -0.02, -0.062)
+cast_shadow = 0
+mesh = SubResource("SphereMesh_9")
+material_override = ExtResource("12_eye_black")
+
+[node name="LidRight" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/EyeRight"]
+transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0, 0, 0)
+cast_shadow = 0
+mesh = SubResource("SphereMesh_8")
+material_override = ExtResource("9_skin")
+
+[node name="BrowRight" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
+transform = Transform3D(-0.309017, -0.951057, 0, 0.951057, -0.309017, 0, 0, 0, 1, 0.135, 0.48, -0.33)
+cast_shadow = 0
+mesh = SubResource("CapsuleMesh_5")
+material_override = ExtResource("2_dark")
+
+[node name="Sunglasses" type="Node3D" parent="Visual/Torso/HeadPivot"]
+transform = Transform3D(1, 0, 0, 0, 0.990268, 0.139173, 0, -0.139173, 0.990268, 0, 0.26, -0.405)
+
+[node name="LensLeft" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Sunglasses"]
+transform = Transform3D(1.2, 0, 0, 0, 0.6, 0, 0, 0, 0.3, -0.135, 0, -0.01)
+cast_shadow = 0
+mesh = SubResource("SphereMesh_7")
+material_override = ExtResource("12_eye_black")
+
+[node name="LensRight" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Sunglasses"]
+transform = Transform3D(1.2, 0, 0, 0, 0.6, 0, 0, 0, 0.3, 0.135, 0, -0.01)
+cast_shadow = 0
+mesh = SubResource("SphereMesh_7")
+material_override = ExtResource("12_eye_black")
+
+[node name="Bridge" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Sunglasses"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, -0.01)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_4")
+material_override = ExtResource("13_metal_dark")
+
+[node name="Nose" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
+transform = Transform3D(1, 0, 0, 0, 1.1, 0, 0, 0, 1, 0, 0.22, -0.39)
+mesh = SubResource("SphereMesh_10")
+material_override = ExtResource("9_skin")
 material_overlay = ExtResource("3_outline_thin")
 
 [node name="Mouth" type="MeshInstance3D" parent="Visual/Torso/HeadPivot"]
-transform = Transform3D(-1.15, 0, 0, 0, -0.75, 0, 0, 0, 0.5, 0, 0.125, -0.345)
+transform = Transform3D(1.4, 0, 0, 0, 0.6, 0, 0, 0, 0.5, 0, 0.08, -0.405)
 cast_shadow = 0
-mesh = SubResource("SphereMesh_10")
-material_override = ExtResource("9_eye_black")
+mesh = SubResource("SphereMesh_11")
+material_override = ExtResource("12_eye_black")
+
+[node name="Cigar" type="Node3D" parent="Visual/Torso/HeadPivot"]
+transform = Transform3D(0.882948, 0.097609, -0.459212, 0, 0.978148, 0.207912, 0.469472, -0.183575, 0.863653, 0.1, 0.09, -0.4)
+
+[node name="Stick" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Cigar"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.12)
+mesh = SubResource("CylinderMesh_1")
+material_override = ExtResource("4_brown")
+
+[node name="Ash" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Cigar"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.255)
+mesh = SubResource("CylinderMesh_2")
+material_override = ExtResource("14_gray")
+
+[node name="Ember" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Cigar"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.272)
+cast_shadow = 0
+mesh = SubResource("SphereMesh_12")
+material_override = ExtResource("15_red")
 
 [node name="Hat" type="Node3D" parent="Visual/Torso/HeadPivot"]
-transform = Transform3D(0.994522, -0.104528, 0, 0.103511, 0.984843, 0.139173, -0.014548, -0.138411, 0.990268, 0, 0.52, 0.02)
+transform = Transform3D(0.996195, 0.087156, 0, -0.086678, 0.990737, 0.104528, 0.00911, -0.104131, 0.994522, 0, 0.52, 0.02)
 
 [node name="Brim" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Hat"]
-transform = Transform3D(1, 0, 0, 0, 0.07, 0, 0, 0, 1, 0, 0, 0)
-mesh = SubResource("SphereMesh_11")
-material_override = ExtResource("12_yellow")
+transform = Transform3D(1, 0, 0, 0, 0.06, 0, 0, 0, 1, 0, 0, 0)
+mesh = SubResource("SphereMesh_13")
+material_override = ExtResource("13_metal_dark")
 material_overlay = ExtResource("5_outline")
 
 [node name="Crown" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Hat"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.13, 0)
-mesh = SubResource("CylinderMesh_1")
-material_override = ExtResource("12_yellow")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+mesh = SubResource("CylinderMesh_3")
+material_override = ExtResource("13_metal_dark")
 material_overlay = ExtResource("5_outline")
 
 [node name="Band" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Hat"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
-mesh = SubResource("CylinderMesh_2")
-material_override = ExtResource("13_red")
+mesh = SubResource("CylinderMesh_4")
+material_override = ExtResource("2_dark")
 
-[node name="Sprout" type="Node3D" parent="Visual/Torso/HeadPivot/Hat"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.24, 0)
-
-[node name="Stem" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Hat/Sprout"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
-mesh = SubResource("CylinderMesh_3")
-material_override = ExtResource("14_leaf")
-
-[node name="LeafLeft" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Hat/Sprout"]
-transform = Transform3D(1.268831, -0.147916, 0, 0.591666, 0.317208, 0, 0, 0, 0.8, -0.065, 0.09, 0)
-mesh = SubResource("SphereMesh_12")
-material_override = ExtResource("14_leaf")
-material_overlay = ExtResource("3_outline_thin")
-
-[node name="LeafRight" type="MeshInstance3D" parent="Visual/Torso/HeadPivot/Hat/Sprout"]
-transform = Transform3D(1.268831, 0.147916, 0, -0.591666, 0.317208, 0, 0, 0, 0.8, 0.065, 0.09, 0)
-mesh = SubResource("SphereMesh_12")
-material_override = ExtResource("14_leaf")
-material_overlay = ExtResource("3_outline_thin")
+[node name="BarkLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.75, 1.95, -0.35)
+billboard = 1
+double_sided = false
+no_depth_test = true
+pixel_size = 0.005
+modulate = Color(0.9, 0.9, 0.86, 1)
+outline_modulate = Color(0.18, 0.165, 0.24, 1)
+text = ""
+font_size = 48
+outline_size = 12
+visible = false

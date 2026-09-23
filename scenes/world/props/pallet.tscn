@@ -1,0 +1,28 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://art/materials/toon_brown.tres" id="1_brown"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="MultiMesh" id="MultiMesh_1"]
+transform_format = 1
+instance_count = 8
+mesh = SubResource("BoxMesh_1")
+buffer = PackedFloat32Array(1.2, 0, 0, 0, 0, 0.03, 0, 0.135, 0, 0, 0.14, -0.42, 1.2, 0, 0, 0, 0, 0.03, 0, 0.135, 0, 0, 0.14, -0.21, 1.2, 0, 0, 0, 0, 0.03, 0, 0.135, 0, 0, 0.14, 0, 1.2, 0, 0, 0, 0, 0.03, 0, 0.135, 0, 0, 0.14, 0.21, 1.2, 0, 0, 0, 0, 0.03, 0, 0.135, 0, 0, 0.14, 0.42, 0.1, 0, 0, -0.54, 0, 0.12, 0, 0.06, 0, 0, 1, 0, 0.1, 0, 0, 0, 0, 0.12, 0, 0.06, 0, 0, 1, 0, 0.1, 0, 0, 0.54, 0, 0.12, 0, 0.06, 0, 0, 1, 0)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1"]
+size = Vector3(1.2, 0.15, 1)
+
+[node name="Pallet" type="StaticBody3D"]
+collision_mask = 0
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Boards" type="MultiMeshInstance3D" parent="Visual"]
+multimesh = SubResource("MultiMesh_1")
+material_override = ExtResource("1_brown")
+
+[node name="Shape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0)
+shape = SubResource("BoxShape3D_1")

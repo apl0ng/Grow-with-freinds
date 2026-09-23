@@ -1,0 +1,39 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/world/props/sign_board.gd" id="1_sign"]
+[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="2_metal_dark"]
+[ext_resource type="Material" path="res://art/materials/toon_caution.tres" id="3_caution"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+size = Vector3(1, 1, 0.05)
+
+[sub_resource type="BoxMesh" id="BoxMesh_2"]
+size = Vector3(1, 1, 0.03)
+
+[node name="SignBoard" type="Node3D"]
+script = ExtResource("1_sign")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Frame" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.025)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_1")
+material_override = ExtResource("2_metal_dark")
+
+[node name="Board" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.05)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_2")
+material_override = ExtResource("3_caution")
+
+[node name="Text" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.075)
+double_sided = false
+pixel_size = 0.005
+modulate = Color(1, 0.99, 0.97, 1)
+outline_modulate = Color(0.18, 0.165, 0.24, 1)
+text = "SIGN"
+font_size = 72
+outline_size = 18
+line_spacing = -6

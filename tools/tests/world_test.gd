@@ -6,8 +6,10 @@ extends SceneTree
 ## physics (floor under every spawn, closed shell: walls/ceiling/floor on layer 1); layout rules (inside bounds,
 ## >= 1.2 m from walls, >= 1.8 m between stations, fronts face the centre, spawns spaced/clear/facing the shop);
 ## reserved station footprints free of props (colliders AND visuals); every station reachable on foot from the
-## spawn (grid flood fill with a player-sized cylinder); lighting setup.
-## Shopkeeper NPC: pure visual, feet at the origin, faces -Z, ~1.9 m tall, null-safe head tracking + wave.
+## spawn (grid flood fill with a player-sized cylinder) while the Boss's booth behind the counter stays sealed;
+## lighting setup; the ceiling hole is closed for physics; the DEBT BOARD API.
+## Boss NPC (ShopkeeperNPC): pure visual, feet at the origin, faces -Z, ~2 m tall, breathing idle, null-safe
+## head tracking, beckon (wave), cold nod + counting money (cheer), bark() lines and idle barks.
 
 const ROOM_SCENE := "res://scenes/world/room.tscn"
 const NPC_SCENE := "res://scenes/world/shopkeeper_npc.tscn"
@@ -29,7 +31,7 @@ const FOOTPRINTS := {
 	"TurnInStation": Vector2(1.6, 1.6),
 	"GrowPlot": Vector2(1.4, 1.4),
 }
-const EXPECTED_INTERIOR := Vector3(16.0, 4.0, 12.0)
+const EXPECTED_INTERIOR := Vector3(20.0, 6.0, 15.0)
 const MIN_WALL_CLEARANCE := 1.2
 const MIN_STATION_SPACING := 1.8
 const MIN_SPAWN_SPACING := 1.5
@@ -79,6 +81,8 @@ func _run() -> void:
 	_test_footprints(room, space)
 	_test_walkability(room, space)
 	_test_lighting(room)
+	_test_debt_board(room)
+	_test_ceiling_hole(room, space)
 	_test_node_budget(room)
 	room.queue_free()
 	await process_frame
@@ -272,8 +276,8 @@ func _test_footprints(room: Room, space: PhysicsDirectSpaceState3D) -> void:
 		var g := gi as GeometryInstance3D
 		if stations_root.is_ancestor_of(g) or not g.is_visible_in_tree():
 			continue
-		var a: AABB = g.global_transform * g.get_aabb()
-		if a.end.y <= FOOTPRINT_VISUAL_MIN_Y or a.position.y >= FOOTPRINT_VISUAL_MAX_Y:
+		var a: AABB = (g.global_transform * g.get_aabb()).abs()
+		if a.size == Vector3.ZERO or a.end.y <= FOOTPRINT_VISUAL_MIN_Y or a.position.y >= FOOTPRINT_VISUAL_MAX_Y:
 			continue
 		for s in stations:
 			if _footprint_aabb(s).intersects(a):
@@ -285,15 +289,17 @@ func _test_footprints(room: Room, space: PhysicsDirectSpaceState3D) -> void:
 		var g := gi as GeometryInstance3D
 		if stations_root.is_ancestor_of(g) or not g.is_visible_in_tree():
 			continue
-		var a: AABB = (g.global_transform * g.get_aabb()).grow(-0.005)
-		if a.end.y <= FOOTPRINT_VISUAL_MIN_Y:
+		var a: AABB = (g.global_transform * g.get_aabb()).abs()
+		if a.size == Vector3.ZERO or a.end.y <= FOOTPRINT_VISUAL_MIN_Y:
 			continue
+		if a.size.x > 0.02 and a.size.y > 0.02 and a.size.z > 0.02:
+			a = a.grow(-0.005)
 		for s in stations:
 			for cs in s.find_children("*", "CollisionShape3D", true, false):
 				var c := cs as CollisionShape3D
 				if c.shape == null or c.disabled:
 					continue
-				if (c.global_transform * c.shape.get_debug_mesh().get_aabb()).intersects(a):
+				if (c.global_transform * c.shape.get_debug_mesh().get_aabb()).abs().intersects(a):
 					clash.append("%s vs %s" % [room.get_path_to(g), room.get_path_to(c)])
 	_check(clash.is_empty(), "no decor mesh intersects a station's collision %s" % [clash])
 
@@ -392,6 +398,12 @@ func _test_walkability(room: Room, space: PhysicsDirectSpaceState3D) -> void:
 					found = true
 					break
 		all_ok = _check(found, "walkability: %s front is reachable on foot (within %.1f m of its footprint)" % [s.name, FRONT_REACH]) and all_ok
+	# The Boss's booth (behind the shop counter) must be sealed off from the players.
+	var shop := room.get_station("ShopCounter")
+	if shop != null:
+		var behind := shop.global_transform * Vector3(0.0, 0.0, -1.3)
+		var bc := _cell_of(behind, x0, z0, nx, nz)
+		all_ok = _check(reach[bc] == 0, "walkability: the Boss's booth behind the counter is sealed off") and all_ok
 	if not all_ok:
 		_print_grid(free, reach, nx, nz)
 
@@ -420,19 +432,50 @@ func _test_lighting(room: Room) -> void:
 	_check(env != null and env.environment != null, "WorldEnvironment with an Environment")
 	var dirs := 0
 	var dir_shadow := 0
-	var omnis := 0
-	var omni_shadow := 0
+	var locals := 0
+	var local_shadow := 0
+	var spots := 0
 	for l in room.find_children("*", "Light3D", true, false):
 		if stations_root.is_ancestor_of(l):
 			continue
 		if l is DirectionalLight3D:
 			dirs += 1
 			dir_shadow += 1 if (l as Light3D).shadow_enabled else 0
-		elif l is OmniLight3D:
-			omnis += 1
-			omni_shadow += 1 if (l as Light3D).shadow_enabled else 0
+		else:
+			locals += 1
+			local_shadow += 1 if (l as Light3D).shadow_enabled else 0
+			spots += 1 if l is SpotLight3D else 0
 	_check(dirs == 1 and dir_shadow == 1, "one DirectionalLight3D with shadows (got %d, %d with shadows)" % [dirs, dir_shadow])
-	_check(omnis >= 2 and omnis <= 4 and omni_shadow == 0, "2-4 OmniLight3D without shadows (got %d, %d with shadows)" % [omnis, omni_shadow])
+	_check(locals >= 3 and locals <= 8 and local_shadow == 0,
+			"3-8 omni/spot lights without shadows (got %d, %d with shadows)" % [locals, local_shadow])
+	_check(spots >= 3, "drop-down pendant lamps pool light on the floor (%d spot lights)" % spots)
+
+
+func _test_debt_board(room: Room) -> void:
+	var board := room.get_node_or_null(Room.DEBT_BOARD_PATH)
+	if not _check(board != null, "DEBT BOARD exists at %s" % Room.DEBT_BOARD_PATH):
+		return
+	_check(room.get_debt_board_text() == Room.DEBT_BOARD_DEFAULT_TEXT, "debt board default text '%s' (got '%s')"
+			% [Room.DEBT_BOARD_DEFAULT_TEXT, room.get_debt_board_text()])
+	var label := board.get_node_or_null(^"Text") as Label3D
+	var long_text := "OWED: $400 / SHIFT 1"
+	room.set_debt_board_text(long_text)
+	_check(room.get_debt_board_text() == long_text and label != null and label.text == long_text,
+			"set_debt_board_text() writes the board's Label3D")
+	if label != null and board.has_method(&"get_effective_font_size"):
+		var size: int = board.call(&"get_effective_font_size")
+		_check(size < int(board.get(&"font_size")), "long debt text shrinks to fit the board (font %d)" % size)
+	room.set_debt_board_text(Room.DEBT_BOARD_DEFAULT_TEXT)
+
+
+func _test_ceiling_hole(room: Room, space: PhysicsDirectSpaceState3D) -> void:
+	var void_mesh := room.get_node_or_null(^"Ceiling/HoleVoid") as GeometryInstance3D
+	if not _check(void_mesh != null, "ceiling hole void exists"):
+		return
+	var p := void_mesh.global_position
+	var hit := _ray(space, Vector3(p.x, 1.0, p.z), Vector3(p.x, 20.0, p.z), Const.LAYER_WORLD, _non_shell_rids(room))
+	_check(not hit.is_empty() and hit["collider"] == room.get_node(^"Ceiling"),
+			"the ceiling hole is closed for physics (ray up hits the Ceiling: %s)" % _hit_str(hit))
 
 
 func _test_node_budget(room: Room) -> void:
@@ -446,7 +489,7 @@ func _test_node_budget(room: Room) -> void:
 		if n is MeshInstance3D:
 			meshes += 1
 	print("   info: room nodes (excluding station internals) = %d, of which MeshInstance3D = %d" % [count, meshes])
-	_check(count <= 180, "room node count stays reasonable (%d <= 180)" % count)
+	_check(count <= 360, "room node count stays reasonable (%d <= 360)" % count)
 
 
 # --- shopkeeper NPC ---------------------------------------------------------------------------------
@@ -482,11 +525,11 @@ func _test_npc() -> void:
 	# Null-safe idle with no players in the tree.
 	var min_sy := 10.0
 	var max_sy := 0.0
-	for i in 12:
+	for i in 18:
 		await create_timer(0.1).timeout
 		min_sy = minf(min_sy, visual.scale.y)
 		max_sy = maxf(max_sy, visual.scale.y)
-	_check(max_sy - min_sy > 0.02, "idle squash-and-stretch animates (scale.y %.3f..%.3f)" % [min_sy, max_sy])
+	_check(max_sy - min_sy > 0.01, "idle heavy breathing animates (scale.y %.3f..%.3f)" % [min_sy, max_sy])
 	_check(absf(head.rotation.y) < deg_to_rad(20.0), "no players: head only glances around (yaw %.1f deg)" % rad_to_deg(head.rotation.y))
 	# A fake player to the NPC's front-right (+X, -Z) within wave range: head turns toward it and it waves.
 	var dummy := Node3D.new()
@@ -494,14 +537,44 @@ func _test_npc() -> void:
 	root.add_child(dummy)
 	dummy.global_position = Vector3(2.0, 0.0, -1.8)
 	dummy.add_to_group(Const.GROUP_PLAYERS)
-	var max_arm := arm.rotation.z
+	var arm_rest := arm.rotation.x
+	var max_arm := arm.rotation.x
 	for i in 10:
 		await create_timer(0.1).timeout
-		max_arm = maxf(max_arm, arm.rotation.z)
+		max_arm = maxf(max_arm, arm.rotation.x)
 	var expected_yaw := atan2(-2.0, 1.8)
 	_check(absf(angle_difference(head.rotation.y, expected_yaw)) < deg_to_rad(12.0),
 			"head turns toward the nearest player (yaw %.1f deg, expected ~%.1f)" % [rad_to_deg(head.rotation.y), rad_to_deg(expected_yaw)])
-	_check(max_arm > deg_to_rad(90.0), "waves when a player walks up (arm peak %.0f deg)" % rad_to_deg(max_arm))
+	_check(max_arm > arm_rest + deg_to_rad(40.0), "beckons ('get over here') when a player walks up (arm %.0f -> %.0f deg)"
+			% [rad_to_deg(arm_rest), rad_to_deg(max_arm)])
+	# cheer(): cold nod + counting money (the cash wad shows up, then goes away again).
+	var cash := npc.get_node_or_null(^"Visual/Torso/ArmLeft/Hand/Cash") as Node3D
+	npc.call(&"cheer")
+	await create_timer(0.3).timeout
+	_check(cash != null and cash.visible, "cheer() shows him counting money")
+	await create_timer(1.6).timeout
+	_check(cash != null and not cash.visible, "the money goes away again after counting")
+	# bark(): a flat floating line that disappears after its duration.
+	var npc_boss := npc as ShopkeeperNPC
+	npc_boss.bark("Tick tock.", 0.4)
+	var bark_label := npc.get_node_or_null(^"BarkLabel") as Label3D
+	_check(npc_boss.get_current_bark() == "Tick tock." and bark_label != null and bark_label.visible,
+			"bark() shows the line above him")
+	await create_timer(1.3).timeout
+	_check(npc_boss.get_current_bark() == "", "the bark fades out after its duration")
+	# Idle barks: a random line from idle_lines every bark_interval_min..max seconds.
+	_check(npc_boss.idle_lines.size() >= 5 and npc_boss.bark_interval_min >= 20.0 and npc_boss.bark_interval_max <= 40.0,
+			"idle barks default to 5+ lines every 20-40 s")
+	npc_boss.bark_interval_min = 0.2
+	npc_boss.bark_interval_max = 0.3
+	npc_boss.bark("", 0.1)   # resets the idle timer with the short interval
+	var heard := ""
+	for i in 12:
+		await create_timer(0.1).timeout
+		if npc_boss.get_current_bark() != "":
+			heard = npc_boss.get_current_bark()
+			break
+	_check(heard in npc_boss.idle_lines, "idle timer barks a random line ('%s')" % heard)
 	# Player leaves (freed): stays null-safe.
 	dummy.queue_free()
 	for i in 6:

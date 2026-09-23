@@ -13,13 +13,14 @@ extends SceneTree
 const ROOM_SCENE := "res://scenes/world/room.tscn"
 ## name -> [camera position, look-at target] (Room space; eye height ~1.6 m)
 const VIEWS := {
-	"spawn_north": [Vector3(0.9, 1.6, 0.6), Vector3(0.0, 1.3, -4.0)],
-	"spawn_south": [Vector3(0.0, 1.6, 0.0), Vector3(0.0, 1.1, 6.0)],
-	"east_plots": [Vector3(-0.5, 1.6, 1.0), Vector3(5.0, 0.6, 0.0)],
-	"west_well": [Vector3(0.5, 1.6, 0.5), Vector3(-6.0, 0.9, 0.0)],
-	"shop_close": [Vector3(0.0, 1.7, -2.3), Vector3(0.0, 1.45, -5.0)],
-	"overview_sw": [Vector3(-7.4, 3.7, 5.6), Vector3(0.5, 0.0, -1.0)],
-	"overview_ne": [Vector3(7.4, 3.7, -5.6), Vector3(-1.0, 0.0, 1.0)],
+	"spawn_north": [Vector3(1.0, 1.6, 0.9), Vector3(0.0, 1.5, -5.0)],
+	"spawn_south": [Vector3(0.0, 1.6, 0.4), Vector3(-0.5, 1.2, 7.5)],
+	"east_plots": [Vector3(-0.5, 1.6, 1.0), Vector3(6.3, 0.6, 0.0)],
+	"west_well": [Vector3(0.5, 1.6, 0.5), Vector3(-7.5, 1.0, 0.0)],
+	"shop_close": [Vector3(0.0, 1.7, -3.1), Vector3(0.0, 1.5, -6.2)],
+	"ceiling_hole": [Vector3(-1.2, 1.6, 1.2), Vector3(-3.5, 5.6, 3.2)],
+	"overview_sw": [Vector3(-9.2, 4.3, 6.2), Vector3(1.5, 0.0, -1.5)],
+	"overview_ne": [Vector3(9.2, 4.3, -6.1), Vector3(-1.5, 0.0, 1.5)],
 }
 
 var _out := "user://world_preview"

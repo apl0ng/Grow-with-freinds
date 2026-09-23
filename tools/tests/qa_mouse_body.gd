@@ -54,6 +54,7 @@ func _run() -> void:
 	Game.start_host("Mouse", port)
 	await wait_until(func(): return Game.local_player != null, 5.0, "hosted a third time")
 	await wait_frames(5)
+	hud = Game.world.get_node("HUD") as HUD
 	GameState.request_start_round()
 	GameState.time_left = 0.05
 	await wait_until(func(): return GameState.phase == GameState.Phase.ROUND_FAILED, 3.0, "round failed")

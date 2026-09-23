@@ -8,7 +8,7 @@
 #
 # Order: tools/check.sh -> single-process suites -> multi-process suites -> tools/smoke.sh -> QA suites.
 # Ports: multi-process suites get unique UDP ports from QA_BASE_PORT (default 7900): econ_mp +11, net_test
-#   +21..+32, qa_robust +71, qa_solo +72, qa_4p +50, qa_mp_robust +80. A base whose ports are already bound
+#   +21..+32, qa_robust +71, qa_solo +72, qa_mouse_x11 +73, qa_4p +50, qa_mp_robust +80. A base whose ports are already bound
 #   (e.g. by a leftover process) is skipped in steps of 100. smoke.sh keeps its fixed 7801/7802; the
 #   self-spawning suites (items_net/items_e2e/farm_net/farm_world/flow_mp/econ_test) pick random ports.
 # Leftovers: every suite runs in its own session (setsid) under `timeout`; afterwards any process still in that
@@ -19,6 +19,8 @@
 #   failed check, a non-zero exit or zero passed checks fails the suite.
 #   Not counted: "WARNING: N ObjectDB instances were leaked at exit" (engine warning about the Sfx autoload's
 #   generated AudioStreamWAV objects at shutdown; harmless).
+# qa_mouse_x11 needs a real display server (headless always reads MOUSE_MODE_VISIBLE): it runs under xvfb-run
+#   (software GL, Dummy audio) and is reported as SKIP when xvfb-run is not installed.
 # Exit code 0 only if every suite passed. Logs: $TEST_ALL_LOGS (default: a fresh temp dir, printed at the end).
 set -u
 cd "$(dirname "$0")/.."
@@ -27,7 +29,8 @@ LOGDIR="${TEST_ALL_LOGS:-$(mktemp -d -t test_all.XXXXXX)}"
 mkdir -p "$LOGDIR"
 
 ALL_SUITES=(check art_test world_test items_test farm_test econ_test flow_test items_net_test items_e2e_test
-  farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust)
+  farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
+  qa_mouse_x11)
 
 ONLY=""
 case "${1:-}" in
@@ -45,7 +48,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 50 71 72 80; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 50 71 72 73 80; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -99,7 +102,7 @@ run_suite() {
   t1=$(date +%s.%N)
   # Anything this suite left behind (it is in our session): TERM, then KILL.
   if pgrep -s "$sid" >/dev/null 2>&1; then
-    echo -n "(cleaning up leftover processes) "
+    echo -n "(cleaning up leftovers: $(pgrep -s "$sid" -l | awk '{print $2}' | sort | uniq -c | xargs)) "
     pkill -TERM -s "$sid" 2>/dev/null; sleep 1; pkill -KILL -s "$sid" 2>/dev/null
   fi
   local files=("$log")
@@ -185,6 +188,14 @@ rm -rf "$LOGDIR/qa4p"; mkdir -p "$LOGDIR/qa4p"
 run_suite qa_4p           300 "$LOGDIR/qa4p/*.log" env QA4P_PORT=$((BASE + 50)) QA4P_LOGS="$LOGDIR/qa4p" tools/tests/qa_4p.sh
 rm -rf "$LOGDIR/qamp"; mkdir -p "$LOGDIR/qamp"
 run_suite qa_mp_robust    240 "$LOGDIR/qamp/*.log" env QAMP_PORT=$((BASE + 80)) QAMP_LOGS="$LOGDIR/qamp" tools/tests/qa_mp_robust.sh
+
+if command -v xvfb-run >/dev/null 2>&1; then
+  run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
+    --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120
+elif [[ -z "$ONLY" || "$ONLY" == *",qa_mouse_x11,"* ]]; then
+  echo "== qa_mouse_x11     SKIP (xvfb-run not installed)"
+  ROWS+=("$(printf '%-16s %7s %7s %7s %8s  %s' qa_mouse_x11 - - - - SKIP)")
+fi
 
 T_ALL1=$(date +%s.%N)
 echo
