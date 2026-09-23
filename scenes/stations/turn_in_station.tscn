@@ -274,8 +274,8 @@ pixel_size = 0.005
 modulate = Color(0.95, 0.93, 0.85, 1)
 outline_modulate = Color(0.18, 0.165, 0.24, 1)
 text = "DEPOSIT PRODUCT\nNO REFUNDS"
-font_size = 26
-outline_size = 8
+font_size = 22
+outline_size = 7
 
 [node name="Coin" type="Node3D" parent="Visual/Sign"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, 0)

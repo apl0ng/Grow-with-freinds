@@ -270,37 +270,110 @@ func _drop_from(tag: String, feet: Vector3, look_at_point: Vector3, pitch_deg: f
 	items.server_despawn_item(it)
 	await wait_frames(1)
 
+func _wall_name(wall: Vector3) -> String:
+	return {Vector3.LEFT: "west", Vector3.RIGHT: "east", Vector3.FORWARD: "north", Vector3.BACK: "south"}.get(wall, str(wall))
+
+## True if a standing player capsule fits at `feet` (no static geometry, not inside a station).
+func _player_fits(feet: Vector3) -> bool:
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.4
+	cap.height = 1.8
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = cap
+	q.transform = Transform3D(Basis.IDENTITY, feet + Vector3.UP * 0.95)
+	q.collision_mask = Const.LAYER_WORLD
+	q.exclude = [me.get_rid()]
+	return me.get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
+
+## A free standing spot 0.45 m from the wall in direction `wall` (skips the first `skip` free spots), or INF.
+func _free_spot_near_wall(wall: Vector3, skip: int = 0) -> Vector3:
+	var b: AABB = Game.world.room.get_bounds()
+	var along := Vector3(absf(wall.z), 0.0, absf(wall.x))
+	var half_len := (b.size.x if along.x > 0.5 else b.size.z) * 0.5 - 0.6
+	var c := b.get_center()
+	var base := Vector3(c.x, 0.0, c.z)
+	var reach := (b.size.x if wall.x != 0.0 else b.size.z) * 0.5 - 0.45
+	var t := -half_len
+	while t <= half_len:
+		var spot := base + wall * reach + along * t
+		if _player_fits(spot):
+			if skip <= 0:
+				return spot
+			skip -= 1
+			t += 1.0
+			continue
+		t += 0.25
+	return Vector3.INF
+
+## [spot, diagonal direction into the corner] for the first corner with room for the player, or [INF, ZERO].
+func _free_corner_spot() -> Array:
+	var b: AABB = Game.world.room.get_bounds()
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			var spot := Vector3(b.get_center().x + sx * (b.size.x * 0.5 - 0.5), 0.0, b.get_center().z + sz * (b.size.z * 0.5 - 0.5))
+			if _player_fits(spot):
+				return [spot, Vector3(sx, 0.0, sz).normalized()]
+	return [Vector3.INF, Vector3.ZERO]
+
+## Room decor nodes whose collider top (ray down at the node origin) lies between 0.6 m and 1.0 m: name -> position.
+func _mid_height_props() -> Dictionary:
+	var out := {}
+	var decor := Game.world.room.get_node_or_null("Decor")
+	if decor == null:
+		return out
+	var space := me.get_world_3d().direct_space_state
+	for n in decor.get_children():
+		var n3 := n as Node3D
+		if n3 == null or n3.find_children("*", "CollisionObject3D", true, false).is_empty() and not n3 is CollisionObject3D:
+			continue
+		var top := n3.global_position + Vector3.UP * 3.0
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(top, n3.global_position + Vector3.DOWN * 0.1, Const.LAYER_WORLD))
+		if hit.is_empty():
+			continue
+		var h: float = (hit["position"] as Vector3).y
+		if h > FLOOR_PROBE_START and h < WALL_CHECK_HEIGHT and (n3.is_ancestor_of(hit["collider"]) or hit["collider"] == n3):
+			out[str(n3.name)] = n3.global_position
+	return out
+
+const FLOOR_PROBE_START := 0.6   # ItemManager.FLOOR_PROBE_UP
+const WALL_CHECK_HEIGHT := 1.0   # ItemManager.DROP_CHEST_HEIGHT
+
 func _section_c_drops() -> void:
 	step("C: dropping near walls, corners, the well, crates and plots")
 	me.process_mode = Node.PROCESS_MODE_DISABLED # keep the body exactly where the test puts it
 	await _clear_hands()
-	var b: AABB = Game.world.room.get_bounds()
-	var cx := b.get_center().x
-	var cz := b.get_center().z
-	var west := b.position.x
-	var east := b.end.x
-	var north := b.position.z
-	var south := b.end.z
-	await _drop_from("west wall", Vector3(west + 0.45, 0.0, cz + 2.0), Vector3(west - 1, 0, cz + 2.0))
-	await _drop_from("north wall", Vector3(cx - 3.0, 0.0, north + 0.45), Vector3(cx - 3.0, 0, north - 1))
-	await _drop_from("south wall", Vector3(cx - 3.2, 0.0, south - 0.45), Vector3(cx - 3.2, 0, south + 1))
-	await _drop_from("east wall", Vector3(east - 0.45, 0.0, cz + 4.6), Vector3(east + 1, 0, cz + 4.6))
-	await _drop_from("corner (diagonal)", Vector3(west + 0.5, 0.0, north + 0.5), Vector3(west - 1, 0, north - 1))
-	await _drop_from("wall, looking straight down", Vector3(west + 0.45, 0.0, cz - 2.0), Vector3(west - 1, 0, cz - 2.0), -89.0)
-	await _drop_from("wall, looking straight up", Vector3(west + 0.45, 0.0, cz - 2.5), Vector3(west - 1, 0, cz - 2.5), 89.0)
+	# Standing spots 0.45 m from each wall (and in a corner), searched along the wall so room edits (props) do not
+	# put the player inside geometry.
+	for wall in [Vector3.LEFT, Vector3.FORWARD, Vector3.BACK, Vector3.RIGHT]:
+		var spot := _free_spot_near_wall(wall)
+		if check(spot != Vector3.INF, "found a free spot along the %s wall" % _wall_name(wall)):
+			await _drop_from("%s wall" % _wall_name(wall), spot, spot + wall * 2.0)
+	var corner := _free_corner_spot()
+	if check(corner[0] != Vector3.INF, "found a free corner spot"):
+		await _drop_from("corner (diagonal)", corner[0], corner[0] + corner[1] * 2.0)
+	var west := _free_spot_near_wall(Vector3.LEFT, 1)
+	if west != Vector3.INF:
+		await _drop_from("wall, looking straight down", west, west + Vector3.LEFT * 2.0, -89.0)
+		await _drop_from("wall, looking straight up", west, west + Vector3.LEFT * 2.0, 89.0)
 	# The well: 0.76 m ring under the 1.0 m wall check (used to bury the item inside the ring).
 	for d in [1.25, 1.5, 1.8]:
 		var front: Vector3 = well.global_position + well.global_basis.z.normalized() * d
 		await _drop_from("well front at %.2f m" % d, Vector3(front.x, 0.0, front.z), well.global_position)
 	var side: Vector3 = well.global_position + well.global_basis.x.normalized() * 1.4
 	await _drop_from("well side", Vector3(side.x, 0.0, side.z), well.global_position)
-	# A lone 0.9 m crate.
-	var crate := Game.world.room.get_node_or_null("Decor/CrateC") as Node3D
-	if crate != null:
-		var toward := (Vector3(cx, 0, cz) - crate.global_position)
-		toward.y = 0.0
-		var spot: Vector3 = crate.global_position + toward.normalized() * 1.05
-		await _drop_from("crate", Vector3(spot.x, 0.0, spot.z), crate.global_position)
+	# Every decor prop whose top is between the floor probe start (0.6 m) and the wall check (1.0 m), e.g. a lone
+	# 0.9 m crate: stand as close as the body allows, facing it, and drop.
+	var mids := _mid_height_props()
+	check(true, "%d mid-height props to drop against: %s" % [mids.size(), mids.keys()])
+	for prop_name in mids:
+		var at: Vector3 = mids[prop_name]
+		var c := Game.world.room.get_bounds().get_center()
+		var toward := Vector3(c.x - at.x, 0.0, c.z - at.z).normalized()
+		var d := 0.4
+		while d < 2.5 and not _player_fits(Vector3(at.x, 0.0, at.z) + toward * d):
+			d += 0.1
+		if d < 2.5:
+			await _drop_from("prop %s" % prop_name, Vector3(at.x, 0.0, at.z) + toward * d, at)
 	# An EMPTY grow plot: the item must not rest on the soil (it would be buried in the plant once planted).
 	var p := plot(5)
 	var pf: Vector3 = p.global_position + p.global_basis.z.normalized() * 1.2

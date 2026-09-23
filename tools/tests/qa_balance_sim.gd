@@ -40,6 +40,7 @@ class Agent:
 	var can: Can = null
 	var packet: SeedDef = null
 	var product_value: int = 0
+	var target_plot: int = -1     # plot reserved for the packet being bought / carried
 	var plan: Array = []          # queued Callables executed when busy reaches 0
 
 func _ready() -> void:
@@ -133,9 +134,9 @@ func _simulate(n_agents: int, strat: String, money: int, quota: int, growth: flo
 				step.call()
 				continue
 			# Decide (an idle agent holds no reservations: its plan is empty).
-			for p in plots:
-				if p.reserved == a.id:
-					p.reserved = -1
+			for i in plots.size():
+				if plots[i].reserved == a.id and i != a.target_plot:
+					plots[i].reserved = -1
 			for c in cans:
 				if c.reserved == a.id:
 					c.reserved = -1
@@ -146,13 +147,12 @@ func _simulate(n_agents: int, strat: String, money: int, quota: int, growth: flo
 					a.holding = "")
 				continue
 			if a.holding == "packet":
-				var target := _find_plot(plots, a, func(p: Plot) -> bool: return p.seed == null)
-				if target < 0:
-					continue
+				var target := a.target_plot
 				_go(a, "plot%d" % (target + 1), PRESS, func():
 					plots[target].seed = a.packet   # the soil keeps its water from the previous plant
 					plots[target].grown = 0.0
 					plots[target].reserved = -1
+					a.target_plot = -1
 					a.holding = "")
 				continue
 			var thirsty := _find_plot(plots, a, func(p: Plot) -> bool: return p.seed != null and not p.ready and p.water < b.dry_threshold)
@@ -199,12 +199,12 @@ func _simulate(n_agents: int, strat: String, money: int, quota: int, growth: flo
 			var seed := _choose_seed(strat, int(st["money"]) - int(st["reserved"]))
 			if empty >= 0 and seed != null:
 				st["reserved"] += seed.cost
+				a.target_plot = empty
 				_go(a, "shop", BUY, func():
 					st["reserved"] -= seed.cost
 					st["money"] -= seed.cost
 					a.packet = seed
-					a.holding = "packet"
-					plots[empty].reserved = -1)
+					a.holding = "packet")
 				continue
 			if empty >= 0:
 				plots[empty].reserved = -1

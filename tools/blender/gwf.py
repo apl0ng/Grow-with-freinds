@@ -7,7 +7,8 @@ Workflow, conventions and the review checklist: MODELING.md (repo root).
 Conventions (enforced or checked by export()):
   * 1 Blender unit = 1 m. Blender Z is up.
   * FRONT = Blender +Y. glTF export (+Y up) maps Blender (x, y, z) -> Godot (x, z, -y), so the front
-    ends up facing Godot -Z (Godot's forward; faces go on the -Z side). Right = +X in both.
+    ends up facing Godot -Z (Godot's forward; faces go on the -Z side). +X is the model's OWN right (a
+    character's right hand) in both, i.e. on your LEFT when you look at its face.
   * Origin = the contact point: floor props at the centre of their footprint on z = 0 (mount="floor"),
     ceiling props at their mount point with everything below z = 0 (mount="ceiling"), wall props with
     their back on y = 0 and the body in +y (mount="wall").
@@ -37,11 +38,11 @@ __all__ = [
     "reset", "srgb", "material", "lib", "tint_material", "pal", "PALETTE", "FINISH_ROUGHNESS",
     # builders
     "box", "plank", "cyl", "cone", "sphere", "capsule", "torus", "lathe", "pipe", "extrude_profile",
-    "sag_points", "empty",
+    "arc_panel", "sag_points", "empty",
     # modifiers / ops
     "bevel", "subdiv", "mirror", "array", "boolean_cut", "set_smooth", "join", "duplicate",
-    "set_material", "set_origin", "set_origin_to_floor", "set_parent", "apply_transform", "apply_modifiers",
-    "move_verts", "taper", "jitter",
+    "set_material", "paint", "set_origin", "set_origin_to_floor", "set_parent", "apply_transform", "apply_modifiers",
+    "move_verts", "taper", "jitter", "dent",
     # output
     "report", "export", "EXPORTS", "OPTIONS", "FRONT", "REPO", "MODELS_DIR",
     # re-exports for model scripts
@@ -490,10 +491,11 @@ def sag_points(a, b, sag=0.1, n=10):
 
 def extrude_profile(points, depth, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.01, segments=2, mat=None,
                     name="profile"):
-    """A flat polygon drawn as seen from the FRONT (x right, z up), extruded along +Y (towards the
-    back) by `depth`, front face at y = pos.y. Signs, brackets, arrows, door leaves, stencils."""
+    """A flat polygon given as (u, v) points the way you SEE it looking at the model's front (u to your
+    right, v up), extruded towards the front (+Y) by `depth`: back face at y = pos.y (put it on the
+    surface), front face at pos.y + depth. Signs, brackets, arrows, door leaves, stencils."""
     bm = bmesh.new()
-    vs = [bm.verts.new((x, 0.0, z)) for x, z in points]
+    vs = [bm.verts.new((-u, 0.0, v)) for u, v in points]  # viewer's right == model's -X
     face = bm.faces.new(vs)
     bmesh.ops.recalc_face_normals(bm, faces=[face])
     ret = bmesh.ops.extrude_face_region(bm, geom=[face])
@@ -504,6 +506,32 @@ def extrude_profile(points, depth, pos=(0, 0, 0), rot=(0, 0, 0), bevel=0.01, seg
     if bevel and bevel > 0:
         globals()["bevel"](obj, min(bevel, depth * 0.45), segments)
     return obj
+
+
+def arc_panel(radius, height, angle=40.0, thickness=0.008, pos=(0, 0, 0), rot=(0, 0, 0), segments=8,
+              mat=None, name="panel"):
+    """A curved plate hugging a cylinder of `radius` around Z (inner face on the surface), `angle` degrees
+    wide, centred on the FRONT (+Y) side, bottom at pos.z. Labels, rust patches, bands, hatches on drums,
+    tanks, pipes. Use rot=(0, 0, a) to move it around the cylinder."""
+    bm = bmesh.new()
+    rows = []
+    for rr in (radius, radius + thickness):
+        ring = []
+        for i in range(segments + 1):
+            a = math.radians(-angle / 2 + angle * i / segments)
+            ring.append((bm.verts.new((rr * math.sin(a), rr * math.cos(a), 0.0)),
+                         bm.verts.new((rr * math.sin(a), rr * math.cos(a), height))))
+        rows.append(ring)
+    inner, outer = rows
+    for i in range(segments):
+        bm.faces.new((outer[i][0], outer[i + 1][0], outer[i + 1][1], outer[i][1]))
+        bm.faces.new((inner[i][1], inner[i + 1][1], inner[i + 1][0], inner[i][0]))
+        bm.faces.new((inner[i][0], inner[i + 1][0], outer[i + 1][0], outer[i][0]))
+        bm.faces.new((outer[i][1], outer[i + 1][1], inner[i + 1][1], inner[i][1]))
+    for i in (0, segments):
+        bm.faces.new((inner[i][0], outer[i][0], outer[i][1], inner[i][1]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return _link(name, bm, mat, pos, rot, smooth=40.0)
 
 
 # ==================================================================================== modifiers + edits
@@ -636,6 +664,24 @@ def set_material(obj, mat):
     return obj
 
 
+def paint(obj, mat, where):
+    """Colour-block faces: every face whose centre/normal (object-local, base mesh before modifiers)
+    satisfies where(center, normal) gets `mat`. Two-tone bodies, painted stripes, rust creeping up from
+    the floor, the inside of a shade. Returns the number of faces painted."""
+    m = _resolve_mat(mat)
+    mats = obj.data.materials
+    idx = next((i for i, x in enumerate(mats) if x == m), None)
+    if idx is None:
+        mats.append(m)
+        idx = len(mats) - 1
+    n = 0
+    for p in obj.data.polygons:
+        if where(p.center.copy(), p.normal.copy()):
+            p.material_index = idx
+            n += 1
+    return n
+
+
 def apply_transform(obj):
     """Bake location/rotation/scale into the mesh (origin -> world origin)."""
     if obj.type == 'MESH':
@@ -745,6 +791,25 @@ def taper(obj, top_scale=0.85, axis_min=None, axis_max=None):
     def f(co):
         k = 1 + (top_scale - 1) * max(0.0, min(1.0, (co.z - lo) / span))
         return Vector((co.x * k, co.y * k, co.z))
+    return move_verts(obj, f)
+
+
+def dent(obj, point, radius=0.12, depth=0.03, direction=None):
+    """Push the surface in around `point` (object-local coords) by up to `depth` metres with a smooth
+    falloff over `radius`: battered drums, crushed boxes, sagging shades. Direction defaults to towards
+    the object's vertical axis. Needs enough vertices around the spot; apply before bevel is baked."""
+    point = Vector(point)
+    if direction is None:
+        direction = Vector((-point.x, -point.y, 0.0))
+        direction = direction.normalized() if direction.length > 1e-6 else Vector((0, 0, -1))
+    direction = Vector(direction).normalized()
+
+    def f(co):
+        d = (co - point).length
+        if d >= radius:
+            return co
+        k = (1 - (d / radius) ** 2) ** 2
+        return co + direction * depth * k
     return move_verts(obj, f)
 
 

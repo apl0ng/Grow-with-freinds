@@ -72,7 +72,7 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | 7.1 | Lead smoke tests (solo + host/client loop) | lead | done |
 | 7.2 | Unified runner, 4-player stress test, robustness sweep, bug fixes | H | in progress |
 | 7.3 | Room lighting cool-down per art measurements | C | done |
-| 8.1 | Factory retheme: room, props, Boss NPC, station visuals, factory palette | C | in progress |
+| 8.1 | Factory retheme: room, props, Boss NPC, station visuals, factory palette | C | done |
 | 8.2 | Narrative/text pass: HUD, menu, shop UI, overlays, NPC barks, debt board wiring (+ test updates) | lead/writer | todo (after QA) |
 | 8.3 | Dark undertone: material library re-tune, colder environment, sad ToonFace, mood rules in STYLE.md | A | in progress |
 | 8.4 | Sad player faces / slumped idle on the player body | B | todo |
