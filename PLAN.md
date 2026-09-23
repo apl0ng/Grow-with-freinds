@@ -74,6 +74,10 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
 | 7.3 | Room lighting cool-down per art measurements | C | done |
 | 8.1 | Factory retheme: room, props, Boss NPC, station visuals, factory palette | C | in progress |
 | 8.2 | Narrative/text pass: HUD, menu, shop UI, overlays, NPC barks, debt board wiring (+ test updates) | lead/writer | todo (after QA) |
+| 8.3 | Dark undertone: material library re-tune, colder environment, sad ToonFace, mood rules in STYLE.md | A | in progress |
+| 8.4 | Sad player faces / slumped idle on the player body | B | todo |
+| 8.5 | Blender pipeline: tools/blender (gwf.py, build.py), Toonify, MODELING.md, reference contact sheets, models_test | pipeline | in progress |
+| 8.6 | Modeling wave (Blender): characters, stations, items + plant stages, room props | modelers | todo (after 8.5) |
 
 ## Decisions
 - **Theme (user direction, after M6): the starting room is a LOW-BUDGET FACTORY.** The crew is here against their
@@ -81,6 +85,14 @@ server-authoritative. Lead: Claude (lead dev / PM). Interfaces live in **CONTRAC
   setting, palette and all copy (HUD, menu, shop, overlays, NPC barks) shift to grim-but-charming sweatshop tone:
   rounds are "shifts", the quota is the "payment due", the shop is the Boss's supply window, the turn-in is a
   deposit chute. Retheme runs as: (1) visual pass on room/props/NPC/station visuals, (2) narrative/text pass after QA.
+- **User direction (after retheme start): slight dark undertone everywhere; NOBODY is happy** (sad/tired faces, no
+  smiles, no celebration effects) so the game never glamorizes anything; room bigger (~20×15×6 m), pendant lights
+  dropping from a tall dim ceiling, a black hole in the ceiling you cannot see through, door barred with a skinny beam.
+- **User direction: all models authored in Blender, inspired by asset packs (never copied), imported into Godot.**
+  Blender is available as the bpy 4.2 Python module (no GUI), so models are built by bpy scripts under
+  tools/blender/models/*.py and exported to art/models/*.glb; Kenney CC0 starter kits (from GitHub) are style reference
+  only. Godot instances the .glb under each scene's `Visual` node and `Toonify.toonify()` converts materials to the
+  toon look at runtime. Primitive-mesh visuals are placeholders until each model lands.
 - **Quota = sales this round**, not wallet balance. Spending on seeds never lowers quota progress. Wallet carries over.
 - **Round ends immediately when the quota is met** (`end_round_on_quota_met = true`, tweakable). Missing it at 0:00 = game over (host can Retry → full reset).
 - **Plants persist across rounds**; growth and water drain only tick while a round is PLAYING (no free growth on the end screen).
