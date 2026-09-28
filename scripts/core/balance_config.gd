@@ -47,6 +47,52 @@ extends Resource
 @export var mouse_sensitivity: float = 0.0025
 @export var interact_distance: float = 3.0
 
+@export_group("Discipline (M10)")
+## Write-ups a worker can take in one shift before the Boss sends them to the back room.
+@export var write_ups_to_backroom: int = 3
+## Seconds a worker spends in the back room (input off, spectating).
+@export var backroom_sec: float = 30.0
+## Cash docked from the team on every write-up.
+@export var write_up_fine: int = 25
+
+@export_group("Events (M10)")
+## Master switch for random shift events (inspections, power cuts, audits, rats).
+@export var events_enabled: bool = true
+## Seconds into a shift before the first event may start.
+@export var event_first_delay_sec: float = 40.0
+## Gap between the end of one event and the start of the next (random in this range).
+@export var event_gap_min_sec: float = 45.0
+@export var event_gap_max_sec: float = 90.0
+## How long the Boss walks the floor.
+@export var inspection_sec: float = 35.0
+## Seconds in the Boss's sight before a standing worker is written up for loitering.
+@export var loiter_sec: float = 3.0
+## A power cut ends by itself after this long if nobody resets the fuse box.
+@export var power_cut_max_sec: float = 40.0
+## Seconds of holding E at the fuse box to reset it.
+@export var fuse_reset_sec: float = 2.5
+## An audit raises the payment due by this fraction.
+@export var audit_raise_fraction: float = 0.1
+
+@export_group("Physical (M10)")
+## Launch speed of a thrown item (m/s).
+@export var throw_speed: float = 9.0
+## A thrown item within this distance of a worker's chest hits them.
+@export var throw_hit_radius: float = 0.6
+## Seconds a hit worker cannot move.
+@export var hit_stun_sec: float = 0.5
+## Shove: reach (m), horizontal impulse (m/s), stun (s) and per-shover cooldown (s).
+@export var shove_range: float = 1.8
+@export var shove_impulse: float = 5.5
+@export var shove_stun_sec: float = 0.35
+@export var shove_cooldown_sec: float = 0.8
+
+@export_group("Voice (M10)")
+## Distance at which a voice fades out (m).
+@export var voice_range: float = 14.0
+## Push-to-talk by default; false = open mic with an energy gate.
+@export var voice_push_to_talk: bool = true
+
 @export_group("Networking")
 @export var default_port: int = 7777
 @export var max_players: int = 4

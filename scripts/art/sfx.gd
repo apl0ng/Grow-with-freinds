@@ -29,7 +29,13 @@ const SOUNDS: Array[StringName] = [
 	&"round_win", &"round_lose", &"tick", &"ui_click", &"ui_open", &"ui_close",
 	# extras (art pass 1)
 	&"ready", &"refill", &"ui_hover", &"coin", &"pop", &"whoosh", &"countdown", &"round_start",
+	# M10 friendslop pass (lead placeholders; the audio agent refines the recipes)
+	&"step", &"throw", &"bonk", &"shove", &"ping", &"chat", &"alarm", &"power_down", &"power_up", &"keys",
+	&"write_up", &"door_slam", &"confiscate", &"hum", &"rat",
 ]
+
+## Sounds synthesised as seamless loops (loop_mode FORWARD over the whole buffer): ambience and walking keys.
+const LOOPING: Array[StringName] = [&"hum", &"keys"]
 
 ## Per-sound playback settings: [volume_db, pitch_variation (+-fraction), 3D unit_size].
 const SETTINGS := {
@@ -56,6 +62,21 @@ const SETTINGS := {
 	&"whoosh": [-8.0, 0.08, 5.0],
 	&"countdown": [-6.0, 0.0, 5.0],
 	&"round_start": [-8.0, 0.0, 10.0],
+	&"step": [-14.0, 0.12, 4.0],
+	&"throw": [-8.0, 0.08, 5.0],
+	&"bonk": [-3.0, 0.08, 6.0],
+	&"shove": [-6.0, 0.10, 5.0],
+	&"ping": [-9.0, 0.0, 8.0],
+	&"chat": [-14.0, 0.05, 5.0],
+	&"alarm": [-7.0, 0.0, 12.0],
+	&"power_down": [-5.0, 0.0, 12.0],
+	&"power_up": [-6.0, 0.0, 12.0],
+	&"keys": [-12.0, 0.0, 5.0],
+	&"write_up": [-6.0, 0.03, 6.0],
+	&"door_slam": [-2.0, 0.03, 10.0],
+	&"confiscate": [-6.0, 0.05, 6.0],
+	&"hum": [-22.0, 0.0, 12.0],
+	&"rat": [-10.0, 0.10, 4.0],
 }
 
 enum Wave { SINE, TRIANGLE, SQUARE, SAW, CHIP }
@@ -388,10 +409,93 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 		&"whoosh":
 			b = _buf(0.35)
 			_noise(b, rng, 0.0, 0.32, 0.6, 0.25, 0.03, 0.12, 2.0)
+		# --- M10 placeholders (lead). Dull, low, factory. The audio agent owns the final recipes. ---
+		&"step":   # a soft scuff on concrete
+			b = _buf(0.11)
+			_noise(b, rng, 0.0, 0.09, 0.5, 0.22, 0.03, 0.002, 7.0)
+			_tone(b, 0.0, 0.05, 140.0, 90.0, 0.35, Wave.SINE, 0.001, 6.0)
+		&"throw":  # a short heave of air
+			b = _buf(0.28)
+			_noise(b, rng, 0.0, 0.26, 0.55, 0.35, 0.05, 0.06, 2.5)
+			_tone(b, 0.0, 0.1, 220.0, 120.0, 0.2, Wave.SINE, 0.003, 4.0)
+		&"bonk":   # a bundle to the head: dull thud, no comedy sting
+			b = _buf(0.24)
+			_tone(b, 0.0, 0.2, 190.0, 55.0, 1.0, Wave.SINE, 0.001, 6.0)
+			_noise(b, rng, 0.0, 0.03, 0.5, 0.5, 0.1, 0.0005, 6.0)
+			_lowpass(b, 0.5)
+		&"shove":  # cloth against cloth, a grunt of a low tone
+			b = _buf(0.18)
+			_noise(b, rng, 0.0, 0.12, 0.5, 0.3, 0.05, 0.003, 5.0)
+			_tone(b, 0.0, 0.12, 130.0, 85.0, 0.6, Wave.TRIANGLE, 0.004, 5.0)
+			_lowpass(b, 0.4)
+		&"ping":   # two dull toks
+			b = _buf(0.22)
+			_tone(b, 0.0, 0.06, 880.0, 860.0, 0.7, Wave.SINE, 0.001, 5.0)
+			_tone(b, 0.09, 0.1, 660.0, 640.0, 0.7, Wave.SINE, 0.001, 5.0)
+			_lowpass(b, 0.55)
+		&"chat":   # a flick of paper
+			b = _buf(0.07)
+			_noise(b, rng, 0.0, 0.05, 0.35, 0.8, 0.3, 0.0005, 7.0)
+		&"alarm":  # a flat two-tone factory buzzer, twice
+			b = _buf(1.1)
+			for i in 2:
+				_tone(b, i * 0.55, 0.24, 220.0, 220.0, 0.55, Wave.SQUARE, 0.01, 0.6)
+				_tone(b, i * 0.55 + 0.26, 0.24, 165.0, 165.0, 0.55, Wave.SQUARE, 0.01, 0.6)
+			_lowpass(b, 0.18)
+		&"power_down":  # the mains hum sagging into nothing
+			b = _buf(1.0)
+			_tone(b, 0.0, 0.95, 110.0, 28.0, 0.7, Wave.SAW, 0.01, 2.5)
+			_noise(b, rng, 0.0, 0.5, 0.2, 0.2, 0.02, 0.05, 4.0)
+			_lowpass(b, 0.15)
+		&"power_up":  # a breaker thunk and a fluoro stuttering back on
+			b = _buf(0.9)
+			_tone(b, 0.0, 0.08, 120.0, 60.0, 0.9, Wave.SINE, 0.001, 5.0)
+			_noise(b, rng, 0.0, 0.03, 0.5, 0.6, 0.1, 0.0005, 6.0)
+			for t in [0.2, 0.36, 0.5]:
+				_tone(b, t, 0.07, 100.0, 100.0, 0.35, Wave.SQUARE, 0.005, 1.0)
+			_tone(b, 0.62, 0.28, 100.0, 100.0, 0.35, Wave.SQUARE, 0.01, 0.8)
+			_lowpass(b, 0.2)
+		&"keys":   # keys on a belt, half a second, loops while the Boss walks
+			b = _buf(0.5)
+			for i in 6:
+				var t := rng.randf_range(0.0, 0.42)
+				var f := rng.randf_range(2400.0, 4200.0)
+				_tone(b, t, 0.05, f, f * 0.97, rng.randf_range(0.15, 0.3), Wave.SINE, 0.0005, 5.0)
+			_noise(b, rng, 0.0, 0.5, 0.06, 0.9, 0.5, 0.05, 1.0)
+		&"write_up":  # a pen scratching, then the stamp
+			b = _buf(0.5)
+			_noise(b, rng, 0.0, 0.22, 0.3, 0.7, 0.4, 0.02, 2.0)
+			_tone(b, 0.3, 0.14, 160.0, 70.0, 0.9, Wave.SINE, 0.001, 6.0)
+			_noise(b, rng, 0.3, 0.03, 0.4, 0.5, 0.1, 0.0005, 6.0)
+		&"door_slam":  # a steel door, far too heavy
+			b = _buf(0.6)
+			_tone(b, 0.0, 0.4, 70.0, 28.0, 1.0, Wave.SINE, 0.001, 5.0)
+			_noise(b, rng, 0.0, 0.08, 0.6, 0.4, 0.05, 0.001, 5.0)
+			_tone(b, 0.02, 0.5, 720.0, 700.0, 0.12, Wave.SINE, 0.001, 6.0)
+			_lowpass(b, 0.35)
+		&"confiscate":  # snatched out of your hands
+			b = _buf(0.3)
+			_noise(b, rng, 0.0, 0.1, 0.4, 0.4, 0.08, 0.002, 4.0)
+			_tone(b, 0.05, 0.22, 520.0, 190.0, 0.6, Wave.SINE, 0.003, 4.0)
+			_lowpass(b, 0.5)
+		&"hum":    # mains hum, one second, seamless
+			b = _buf(1.0)
+			_tone(b, 0.0, 1.0, 60.0, 60.0, 0.6, Wave.SINE, 0.0, 0.0)
+			_tone(b, 0.0, 1.0, 120.0, 120.0, 0.25, Wave.SINE, 0.0, 0.0)
+			_tone(b, 0.0, 1.0, 180.0, 180.0, 0.08, Wave.SINE, 0.0, 0.0)
+		&"rat":    # two thin squeaks
+			b = _buf(0.22)
+			_tone(b, 0.0, 0.06, 3000.0, 3600.0, 0.6, Wave.SINE, 0.002, 3.0)
+			_tone(b, 0.1, 0.08, 3300.0, 2800.0, 0.5, Wave.SINE, 0.002, 3.0)
 		_:
 			b = _buf(0.1)
 			_tone(b, 0.0, 0.08, 600.0, 600.0, 0.5, Wave.SINE, 0.002, 4.0)
-	return _to_wav(b)
+	var wav := _to_wav(b)
+	if sound in LOOPING:
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = 0
+		wav.loop_end = b.size()
+	return wav
 
 func _buf(seconds: float) -> PackedFloat32Array:
 	var b := PackedFloat32Array()

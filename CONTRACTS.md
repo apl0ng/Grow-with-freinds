@@ -300,3 +300,121 @@ Materials: `res://art/materials/toon_<name>.tres` (see STYLE.md for the list). U
 ## Command line (for local multi-instance testing)
 `godot --path . -- --host [--name=Alice] [--port=7777]` · `godot --path . -- --join=127.0.0.1 [--name=Bob]`
 `--fast` (growth 20x, 60 s rounds) · `--round-sec=N` · `--growth-mult=N`. Handled by main_menu.gd (auto host/join) and Config.
+
+---
+
+# M10 — Friendslop pass (lead; rationale in FRIENDSLOP.md, tasks in PLAN.md)
+
+New autoloads, in project.godot order after Story: `Voice` (scripts/core/voice.gd, voice agent), `Events`
+(scripts/core/events.gd, events agent), `Comms` (scripts/core/comms.gd, ui agent). The lead committed STUBS with
+the exact surfaces below so every agent can build against them; the owner replaces the bodies, never the surface.
+New input actions (project.godot): `throw` (RMB, R), `shove` (F), `ping` (MMB, X), `chat` (T), `push_to_talk` (V),
+`spectate_next` (D, Right), `spectate_prev` (A, Left). `audio/driver/enable_input` is on (microphone).
+New balance knobs (BalanceConfig groups "Discipline", "Events", "Physical", "Voice"): see balance_config.gd.
+New Const: `GROUP_NPCS`, `STAT_*` keys, `WRITE_UP_*` reasons, `UI_LOCK_BACKROOM`.
+
+## GameState additions (lead) — stats, write-ups, back room, audits
+```gdscript
+signal stats_changed                                          # every peer: `stats` changed
+signal worker_written_up(peer_id: int, reason: String, count: int)   # every peer; count = strikes after this one (0 = sent to the back room)
+signal backroom_changed(peer_id: int, active: bool)           # every peer
+var stats: Dictionary       # peer_id -> {Const.STAT_* -> int}; reset at every shift start / game reset, kept through the end screen
+var write_ups: Dictionary   # peer_id -> strikes this shift (cleared when sent to the back room, at shift end and on reset)
+var backroom: Dictionary    # peer_id -> round time_left at which the worker is released
+func get_stat(peer_id, key) -> int; func get_worker_stats(peer_id) -> Dictionary; func get_write_ups(peer_id) -> int
+func is_in_backroom(peer_id) -> bool; func get_backroom_time_left(peer_id) -> float; func get_backroom_peers() -> Array[int]
+# SERVER ONLY:
+func server_add_stat(peer_id, key: StringName, amount := 1) -> void          # broadcasts the state
+func server_write_up(peer_id, reason: String) -> int   # fine (write_up_fine), STAT_WRITE_UPS++, strikes++; at write_ups_to_backroom -> back room; returns strikes (0 after the back room)
+func server_send_to_backroom(peer_id, seconds := -1.0) -> bool               # PLAYING only (uses the shift timer), false otherwise
+func server_release_from_backroom(peer_id) -> void
+func server_raise_quota(fraction: float) -> int                              # audit: quota *= 1 + fraction while PLAYING; returns the new quota
+```
+Deposits are counted by `server_add_sale` itself (STAT_DEPOSITED += amount). GrowPlot counts planted / watered /
+harvested in `_server_interact`. Everything else (throws, hits, shoves, pings) is the feature owner's call.
+The host releases back-room workers when the shift timer passes their release time, at shift end, and when the
+peer leaves. The UI (ui agent) locks input with `Game.set_ui_lock(Const.UI_LOCK_BACKROOM, true)` and shows the
+overlay on `backroom_changed` for the local peer; the events agent moves the body (`Player.server_teleport`) to
+the room's `BackRoomSpot` when `backroom_changed(peer, true)` fires on the host, and back to a spawn on release.
+
+## Voice (voice agent) — scripts/core/voice.gd
+```gdscript
+signal speaking_changed(peer_id: int, speaking: bool)     # remote heard / local transmitting
+signal input_level_changed(level: float)                  # local mic 0..1 (~20 Hz while capturing)
+var enabled: bool; var push_to_talk: bool; var output_volume_db: float; var input_gain: float; var transmitting: bool
+func is_speaking(peer_id) -> bool; func is_transmitting() -> bool; func get_input_level() -> float
+func is_mic_available() -> bool; func get_speaking_peers() -> Array[int]
+```
+Capture: `AudioStreamMicrophone` on a muted `Mic` bus + `AudioEffectCapture`; 20 ms frames, 16 kHz mono, mu-law
+8-bit (320 bytes). Transport: `@rpc("any_peer", "call_remote", "unreliable")` `_rpc_voice(seq: int, frame:
+PackedByteArray)` sent with `rpc()` (server relay). Receivers drop frames larger than 400 bytes, more than 60 per
+second per peer, or from peers not in `Net.players`. Playback: one `AudioStreamPlayer3D` + `AudioStreamGenerator`
+per remote peer under `Game.world` ("VoiceOut/<peer>"), moved to the speaker's head each frame, unit_size about
+`voice_range / 2`, max_distance `voice_range`. Back room: see the header of voice.gd. `push_to_talk` action = hold to
+send; open mic = energy gate. Headless: no capture, receive path still works (tests feed synthetic frames).
+
+## Events (events agent) — scripts/core/events.gd
+```gdscript
+signal event_started(kind: StringName, params: Dictionary); signal event_ended(kind: StringName); signal power_changed(on: bool)
+const EVENT_INSPECTION, EVENT_POWER_CUT, EVENT_AUDIT, EVENT_RAT
+var active_event: StringName; var power_on: bool
+func is_power_on() -> bool; func is_event_active(kind := &"") -> bool; func get_event_time_left() -> float
+func are_events_enabled() -> bool     # balance.events_enabled and not --no-events and (window or --events)
+func server_start_event(kind, params := {}) -> bool; func server_end_event() -> void; func request_event(kind) -> void
+```
+Host schedules events only while PLAYING (first after `event_first_delay_sec`, then gaps in
+[event_gap_min_sec, event_gap_max_sec]); one at a time; late joiners get the current state. Signals fire on every
+peer from call_local RPCs. **Inspection:** the Boss (ShopkeeperNPC, `walk_route(points)`, `is_walking()`, group
+GROUP_NPCS) leaves the booth and walks `Room.get_inspection_route()` for `inspection_sec`; every 0.5 s the host
+checks each worker on the floor: within 5 m, inside a 120 degree cone in front of him, line of sight (ray on
+LAYER_WORLD from his eyes to the worker's chest, 1.0 m up when standing, 0.6 m crouched): holding a product ->
+`GameState.server_write_up(peer, Const.WRITE_UP_SKIMMING)` + the product despawned; not moving (< 0.3 m in
+`loiter_sec`) -> WRITE_UP_LOITERING; a worker is written up at most once per 5 s. **Power cut:** `Room.set_power(false)`
+(lights to ~6 %, grow bars off, fluoros dark; `Room.is_power_on()`), growth pauses (`GrowPlot.tick` checks
+`Events.is_power_on()`), ends when a worker holds E for `fuse_reset_sec` at `Stations/FuseBox` (`FuseBox`
+station, `scripts/stations/fuse_box.gd`, `is_tripped()`, progress synced for the prompt) or after
+`power_cut_max_sec`. **Audit:** `GameState.server_raise_quota(fraction)` (lead) once, instant. **Rat (stretch):**
+a `Rat` NPC runs from a wall gap to a growing plot and eats stage progress until a worker comes within 1.5 m.
+Story (ui agent) owns every line of copy for these; Events only emits signals (plus `worker_written_up` from GameState).
+
+## Comms (ui agent) — scripts/core/comms.gd
+```gdscript
+signal ping_received(peer_id: int, position: Vector3); signal chat_received(peer_id: int, text: String)
+const CHAT_MAX_CHARS := 120; const PING_MIN_GAP_SEC := 0.8; const CHAT_MIN_GAP_SEC := 0.5; const PING_MAX_RANGE := 40.0
+func ping(world_position: Vector3) -> void; func say(text: String) -> void; static func sanitize_chat(text) -> String
+```
+`@rpc("any_peer", "call_local", "unreliable")` for pings, `reliable` for chat; receivers validate the sender is in
+`Net.players`, rate-limit per sender, sanitize, and emit. The HUD draws a marker (Label3D + a small diamond in the
+sender's colour, 4 s) and the chat log (bottom-left, 8 s fade; T opens the line, Enter sends, Esc closes; the chat
+box takes a UI lock `&"chat"` while open). `STAT_PINGS` via `GameState.server_add_stat` from the host receiver.
+
+## Player / items additions (physics agent)
+```gdscript
+# Player
+func request_shove(target_peer: int) -> void                  # local -> server; validated (range shove_range, cooldown)
+func server_shove(target: Player, direction: Vector3, from_behind: bool) -> void   # server -> target owner RPC
+func apply_stagger(impulse: Vector3, stun_sec: float) -> void  # owner: velocity += impulse, input off for stun_sec, camera kick
+func is_stunned() -> bool
+signal staggered(by_peer: int)                                 # every peer (cosmetic RPC), for sounds / faces
+# Interactor: "throw" -> ItemManager.request_throw(); "shove" -> a Player under the crosshair within shove_range
+# Item (synced, server authority): flight_origin: Vector3, flight_velocity: Vector3, flight_serial: int (0 = not flying)
+func is_flying() -> bool
+# ItemManager
+func request_throw() -> void                                                        # local: throw what I hold
+func server_throw_item(item: Item, origin: Vector3, velocity: Vector3, thrower: int) -> bool
+```
+Flight: the server sets the three synced values once; every peer integrates the arc locally (gravity 9.8) from
+`flight_origin` at `flight_velocity`; the server steps the same arc in `_physics_process`, raycasts each step on
+LAYER_WORLD | LAYER_INTERACTABLE, and ends the flight by placing the item (`server_drop_item` rules: free spot, never
+inside geometry) and clearing `flight_serial`. A worker whose chest is within `throw_hit_radius` of the arc is hit:
+`server_shove(target, dir, true)` with `hit_stun_sec`, their held item is released, STAT_HITS for the thrower,
+`Sfx "bonk"`. A product that ends its flight inside the TurnInStation's collider is sold as if deposited by the
+thrower (`TurnInStation.server_sell_item(product, seller_peer)`). Players collide with players
+(`collision_mask` world | player); footsteps: `Sfx.play(&"step", feet)` per stride on remote players, 2D and quiet
+on the local one. A stunned player ignores movement input; the shove itself is `@rpc("any_peer", "call_remote",
+"reliable")` on the Player with a server-sender check (players have owner authority).
+
+## Sounds added by the lead (placeholder recipes; the audio agent refines them)
+`step`, `throw`, `bonk`, `shove`, `ping`, `chat`, `alarm` (event start), `power_down`, `power_up`, `keys` (the Boss
+walking; loops), `write_up`, `door_slam`, `confiscate`, `hum` (room ambience; loops), `rat`. Loops:
+`Sfx.play_loop(name, node_or_position) -> int` / `Sfx.stop_loop(handle)` (audio agent).

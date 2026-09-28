@@ -1,6 +1,6 @@
 extends Node
 ## Autoload "GameState": money, quota, timer, rounds, upgrades. Owned by the game-flow/UI agent.
-## Do NOT add a class_name (autoload).
+## M10 (lead): per-worker shift stats, write-ups + fines, the back room, audits. Do NOT add a class_name (autoload).
 ##
 ## Phases:  MENU -> WAITING -> PLAYING -> ROUND_SUCCESS -> PLAYING (next round) ...
 ##                                      \-> ROUND_FAILED  -> WAITING (retry = full reset)
@@ -14,11 +14,19 @@ extends Node
 ## dictionary (it is tiny) and broadcasts it with a reliable call_local RPC, so the host applies it
 ## through exactly the same code path as the clients. `_apply_state()` diffs the incoming state
 ## against the current one and emits the *_changed signals on every peer; event RPCs
-## (_rpc_sale, _rpc_purchase, _rpc_round_started, _rpc_round_ended, _rpc_game_reset) additionally
-## emit their event signal on every peer, after the state has been applied.
+## (_rpc_sale, _rpc_purchase, _rpc_round_started, _rpc_round_ended, _rpc_game_reset, _rpc_written_up)
+## additionally emit their event signal on every peer, after the state has been applied.
 ## The countdown is separate: the host ticks `time_left` and sends `_rpc_time` every
 ## TIME_SYNC_INTERVAL seconds (unreliable_ordered); clients tick locally in between (never below 0)
 ## and never end a round themselves - the host's reliable _rpc_round_ended does that.
+##
+## M10 state (all in the same state dictionary, CONTRACTS.md "GameState additions"):
+##   stats      peer_id -> {Const.STAT_* -> int}: this shift's ledger (the shift report). Reset when a shift starts
+##              and on a game reset; kept through the end screen. Deposits are counted here in server_add_sale.
+##   write_ups  peer_id -> strikes this shift. At Config.balance.write_ups_to_backroom the worker goes to the
+##              back room and the strikes clear. Cleared at shift end / reset. Each write-up docks write_up_fine.
+##   backroom   peer_id -> the round time_left at which the worker is released (uses the shift timer, so no extra
+##              sync): the host releases them in _process, at shift end and when the peer leaves. PLAYING only.
 
 enum Phase { MENU, WAITING, PLAYING, ROUND_SUCCESS, ROUND_FAILED }
 
@@ -38,6 +46,13 @@ signal upgrade_level_changed(upgrade_id: StringName, level: int)
 ## Server-side handlers should put the world back to its starting layout idempotently:
 ## clear grow plots, despawn loose items/products/seed packets, reset / respawn the starting cans.
 signal game_reset
+## M10, every peer: the per-worker ledger changed (any stat of any worker, or a reset).
+signal stats_changed
+## M10, every peer: `peer_id` was written up for `reason` (Const.WRITE_UP_*); `count` = strikes after this one,
+## 0 when this one sent them to the back room (backroom_changed(peer_id, true) follows in the same frame).
+signal worker_written_up(peer_id: int, reason: String, count: int)
+## M10, every peer: `peer_id` entered (true) / left (false) the back room.
+signal backroom_changed(peer_id: int, active: bool)
 
 ## Seconds between host -> client timer syncs (unreliable_ordered).
 const TIME_SYNC_INTERVAL: float = 0.5
@@ -49,6 +64,12 @@ var quota: int = 0
 var round_sales: int = 0
 var time_left: float = 0.0
 var upgrades: Dictionary = {}   # StringName upgrade_id -> int level
+## M10: peer_id (int) -> {StringName stat -> int}. Read with get_stat(); mutate only through server_*.
+var stats: Dictionary = {}
+## M10: peer_id (int) -> int strikes this shift.
+var write_ups: Dictionary = {}
+## M10: peer_id (int) -> float round time_left at which the worker is released.
+var backroom: Dictionary = {}
 
 ## True on the peer that initialised the current session with server_reset_game() (= the host).
 var _authoritative: bool = false
@@ -71,6 +92,8 @@ func _ready() -> void:
 		Game.world_ready.connect(_on_world_ready)
 	# Host, WAITING: the coming shift's payment follows the team size while workers clock in.
 	Net.players_changed.connect(_on_players_changed)
+	# Host: a departing worker leaves the back room and loses their strikes (their stats stay for the report).
+	Net.peer_left.connect(_on_peer_left)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -118,6 +141,40 @@ func get_phase_name() -> String:
 	if phase >= 0 and phase < keys.size():
 		return String(keys[phase])
 	return "UNKNOWN"
+
+## M10: one stat of one worker this shift (0 when unknown).
+func get_stat(peer_id: int, key: StringName) -> int:
+	var row: Variant = stats.get(peer_id)
+	if row is Dictionary:
+		return int((row as Dictionary).get(key, 0))
+	return 0
+
+## M10: a copy of a worker's ledger ({} when unknown).
+func get_worker_stats(peer_id: int) -> Dictionary:
+	var row: Variant = stats.get(peer_id)
+	return (row as Dictionary).duplicate() if row is Dictionary else {}
+
+## M10: strikes a worker carries this shift.
+func get_write_ups(peer_id: int) -> int:
+	return int(write_ups.get(peer_id, 0))
+
+## M10: true while the worker sits in the back room.
+func is_in_backroom(peer_id: int) -> bool:
+	return backroom.has(peer_id)
+
+## M10: seconds until the worker is released (0 when not in the back room; counts down with the shift timer).
+func get_backroom_time_left(peer_id: int) -> float:
+	if not backroom.has(peer_id):
+		return 0.0
+	return maxf(time_left - float(backroom[peer_id]), 0.0)
+
+## M10: peers in the back room, sorted.
+func get_backroom_peers() -> Array[int]:
+	var out: Array[int] = []
+	for k in backroom.keys():
+		out.append(int(k))
+	out.sort()
+	return out
 
 
 # ---------------------------------------------------------------------------------------------
@@ -180,6 +237,8 @@ func server_add_sale(amount: int, seller_peer: int) -> void:
 	var s := _snapshot()
 	s["money"] = money + amount
 	s["sales"] = round_sales + amount
+	if seller_peer > 0:
+		_bump_stat(s["stats"], seller_peer, Const.STAT_DEPOSITED, amount)
 	_rpc_sale.rpc(s, amount, seller_peer)
 	if Config.balance.end_round_on_quota_met and phase == Phase.PLAYING and round_sales >= quota:
 		_server_end_round(true)
@@ -210,6 +269,80 @@ func server_buy_upgrade(upgrade_id: StringName, buyer_peer: int) -> bool:
 	_rpc_purchase.rpc(s, cost, buyer_peer, "%s Lv %d" % [def.display_name, level + 1])
 	return true
 
+## M10. Adds `amount` to one stat of one worker (Const.STAT_*) and broadcasts the state.
+func server_add_stat(peer_id: int, key: StringName, amount: int = 1) -> void:
+	if not _require_server("server_add_stat"):
+		return
+	if peer_id <= 0 or amount == 0 or phase == Phase.MENU:
+		return
+	var s := _snapshot()
+	_bump_stat(s["stats"], peer_id, key, amount)
+	_rpc_state.rpc(s)
+
+## M10. The Boss writes `peer_id` up for `reason` (Const.WRITE_UP_*): the team is docked write_up_fine, the
+## worker's STAT_WRITE_UPS and strikes go up; at write_ups_to_backroom strikes the worker goes to the back room
+## (PLAYING only; otherwise the strikes just stay at the threshold). Returns the strikes after this write-up
+## (0 = sent to the back room). Emits worker_written_up on every peer.
+func server_write_up(peer_id: int, reason: String) -> int:
+	if not _require_server("server_write_up"):
+		return 0
+	if peer_id <= 0 or phase == Phase.MENU:
+		return 0
+	var s := _snapshot()
+	s["money"] = maxi(money - maxi(Config.balance.write_up_fine, 0), 0)
+	_bump_stat(s["stats"], peer_id, Const.STAT_WRITE_UPS, 1)
+	var strikes := get_write_ups(peer_id) + 1
+	var wu: Dictionary = s["write_ups"]
+	var br: Dictionary = s["backroom"]
+	if strikes >= maxi(Config.balance.write_ups_to_backroom, 1) and phase == Phase.PLAYING:
+		strikes = 0
+		wu.erase(peer_id)
+		br[peer_id] = _release_time(Config.balance.backroom_sec)
+	else:
+		wu[peer_id] = strikes
+	_rpc_written_up.rpc(s, peer_id, reason, strikes)
+	return strikes
+
+## M10. Sends a worker to the back room for `seconds` (backroom_sec when negative). PLAYING only: the release
+## time rides on the shift timer. False when not playing / unknown peer. Emits backroom_changed on every peer.
+func server_send_to_backroom(peer_id: int, seconds: float = -1.0) -> bool:
+	if not _require_server("server_send_to_backroom"):
+		return false
+	if peer_id <= 0 or phase != Phase.PLAYING:
+		return false
+	var s := _snapshot()
+	var br: Dictionary = s["backroom"]
+	br[peer_id] = _release_time(Config.balance.backroom_sec if seconds < 0.0 else seconds)
+	var wu: Dictionary = s["write_ups"]
+	wu.erase(peer_id)
+	_rpc_state.rpc(s)
+	return true
+
+## M10. Lets a worker out of the back room now (no-op if they are not in it).
+func server_release_from_backroom(peer_id: int) -> void:
+	if not _require_server("server_release_from_backroom"):
+		return
+	if not backroom.has(peer_id):
+		return
+	var s := _snapshot()
+	var br: Dictionary = s["backroom"]
+	br.erase(peer_id)
+	_rpc_state.rpc(s)
+
+## M10 (audit). Raises the payment due by `fraction` of its current value (at least $1) while PLAYING.
+## Returns the new quota (unchanged when not playing). Ends the shift at once if sales already cover it.
+func server_raise_quota(fraction: float) -> int:
+	if not _require_server("server_raise_quota"):
+		return quota
+	if phase != Phase.PLAYING or fraction <= 0.0:
+		return quota
+	var s := _snapshot()
+	s["quota"] = quota + maxi(int(round(float(quota) * fraction)), 1)
+	_rpc_state.rpc(s)
+	if Config.balance.end_round_on_quota_met and round_sales >= quota:
+		_server_end_round(true)
+	return quota
+
 ## WAITING -> PLAYING (same round) or ROUND_SUCCESS -> PLAYING (next round). From MENU it first
 ## initialises the session. Ignored while PLAYING or after a failure (use server_reset_game()).
 func server_start_round() -> void:
@@ -234,6 +367,9 @@ func server_start_round() -> void:
 	s["sales"] = 0 # quota = sales made during THIS round
 	s["time"] = Config.balance.round_length_sec
 	s["serial"] = _serial + 1
+	s["stats"] = {}      # a fresh ledger every shift
+	s["write_ups"] = {}
+	s["backroom"] = {}
 	_authoritative = true
 	_time_sync_accum = 0.0
 	_rpc_round_started.rpc(s)
@@ -255,6 +391,9 @@ func server_reset_game() -> void:
 		"time": Config.balance.round_length_sec,
 		"upgrades": {},
 		"serial": _serial + 1,
+		"stats": {},
+		"write_ups": {},
+		"backroom": {},
 	}
 	if was_live:
 		_rpc_game_reset.rpc(s)
@@ -308,7 +447,7 @@ func reset_local() -> void:
 	_has_state = false
 	var s := {
 		"phase": Phase.MENU, "money": 0, "round": 1, "quota": 0, "sales": 0,
-		"time": 0.0, "upgrades": {}, "serial": 0,
+		"time": 0.0, "upgrades": {}, "serial": 0, "stats": {}, "write_ups": {}, "backroom": {},
 	}
 	_apply_state(s, true)
 
@@ -327,6 +466,7 @@ func _process(delta: float) -> void:
 	if time_left <= 0.0:
 		_server_end_round(round_sales >= quota)
 		return
+	_server_release_due()
 	_time_sync_accum += delta
 	if _time_sync_accum >= TIME_SYNC_INTERVAL:
 		_time_sync_accum = 0.0
@@ -340,7 +480,25 @@ func _server_end_round(success: bool) -> void:
 	s["phase"] = Phase.ROUND_SUCCESS if success else Phase.ROUND_FAILED
 	if not success:
 		s["time"] = 0.0
+	s["write_ups"] = {}
+	s["backroom"] = {} # everyone is let out when the shift ends (the stats stay for the report)
 	_rpc_round_ended.rpc(s, success)
+
+## Host: lets out every back-room worker whose release time has passed (one broadcast for all of them).
+func _server_release_due() -> void:
+	if backroom.is_empty():
+		return
+	var due: Array[int] = []
+	for k in backroom.keys():
+		if time_left <= float(backroom[k]):
+			due.append(int(k))
+	if due.is_empty():
+		return
+	var s := _snapshot()
+	var br: Dictionary = s["backroom"]
+	for id in due:
+		br.erase(id)
+	_rpc_state.rpc(s)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -387,6 +545,13 @@ func _rpc_game_reset(state: Dictionary) -> void:
 	_apply_state(state, true)
 	game_reset.emit()
 
+## M10: a write-up. The state carries the fine, the stat and (maybe) the back-room entry; the event signal follows.
+@rpc("authority", "call_local", "reliable")
+func _rpc_written_up(state: Dictionary, peer_id: int, reason: String, count: int) -> void:
+	_mark_client_if_remote()
+	_apply_state(state, false)
+	worker_written_up.emit(peer_id, reason, count)
+
 ## Host -> clients countdown sync. Ignored unless PLAYING the same round (stale packets).
 @rpc("authority", "call_remote", "unreliable_ordered")
 func _rpc_time(synced_time_left: float, serial: int) -> void:
@@ -410,6 +575,9 @@ func _snapshot() -> Dictionary:
 		"time": time_left,
 		"upgrades": upgrades.duplicate(),
 		"serial": _serial,
+		"stats": stats.duplicate(true),
+		"write_ups": write_ups.duplicate(),
+		"backroom": backroom.duplicate(),
 	}
 
 ## Applies a state dictionary and emits change signals. `force` emits every state signal
@@ -423,6 +591,8 @@ func _apply_state(state: Dictionary, force: bool) -> void:
 	var old_quota := quota
 	var old_time := time_left
 	var old_upgrades := upgrades
+	var old_stats := stats
+	var old_backroom := backroom
 
 	phase = int(state.get("phase", phase))
 	money = int(state.get("money", money))
@@ -437,6 +607,9 @@ func _apply_state(state: Dictionary, force: bool) -> void:
 		for key: Variant in (raw_ups as Dictionary):
 			new_upgrades[StringName(str(key))] = int((raw_ups as Dictionary)[key])
 	upgrades = new_upgrades
+	stats = _parse_stats(state.get("stats", stats))
+	write_ups = _parse_int_map(state.get("write_ups", write_ups), false)
+	backroom = _parse_int_map(state.get("backroom", backroom), true)
 
 	if force or money != old_money:
 		money_changed.emit(money)
@@ -458,6 +631,15 @@ func _apply_state(state: Dictionary, force: bool) -> void:
 		var after := int(upgrades.get(id, 0))
 		if force or before != after:
 			upgrade_level_changed.emit(id, after)
+	if force or _stats_differ(old_stats, stats):
+		stats_changed.emit()
+	# Back room: entries that appeared / vanished (before the phase signal, so overlays see the phase last).
+	for k in old_backroom.keys():
+		if not backroom.has(k):
+			backroom_changed.emit(int(k), false)
+	for k in backroom.keys():
+		if force or not old_backroom.has(k):
+			backroom_changed.emit(int(k), true)
 	if force or phase != old_phase:
 		phase_changed.emit(phase)
 
@@ -472,6 +654,58 @@ func _require_server(fn_name: String) -> bool:
 	if multiplayer.has_multiplayer_peer() and multiplayer.is_server():
 		return true
 	push_error("GameState.%s called on a non-server peer" % fn_name)
+	return false
+
+## Round time_left at which a back-room stay of `seconds` ends (never below 0: the shift end lets everyone out).
+func _release_time(seconds: float) -> float:
+	return maxf(time_left - maxf(seconds, 0.0), 0.0)
+
+## stats[peer][key] += amount inside a snapshot's stats dictionary.
+static func _bump_stat(stats_dict: Dictionary, peer_id: int, key: StringName, amount: int) -> void:
+	var row: Variant = stats_dict.get(peer_id)
+	if not row is Dictionary:
+		row = {}
+		stats_dict[peer_id] = row
+	(row as Dictionary)[key] = int((row as Dictionary).get(key, 0)) + amount
+
+## {peer -> {stat -> int}} from whatever arrived over the wire (keys become int / StringName, values int).
+static func _parse_stats(raw: Variant) -> Dictionary:
+	var out: Dictionary = {}
+	if not raw is Dictionary:
+		return out
+	for pk: Variant in (raw as Dictionary):
+		var row: Variant = (raw as Dictionary)[pk]
+		if not row is Dictionary:
+			continue
+		var clean: Dictionary = {}
+		for sk: Variant in (row as Dictionary):
+			clean[StringName(str(sk))] = int((row as Dictionary)[sk])
+		out[int(str(pk))] = clean
+	return out
+
+## {peer -> int | float} from the wire.
+static func _parse_int_map(raw: Variant, as_float: bool) -> Dictionary:
+	var out: Dictionary = {}
+	if not raw is Dictionary:
+		return out
+	for pk: Variant in (raw as Dictionary):
+		var v: Variant = (raw as Dictionary)[pk]
+		out[int(str(pk))] = float(v) if as_float else int(v)
+	return out
+
+static func _stats_differ(a: Dictionary, b: Dictionary) -> bool:
+	if a.size() != b.size():
+		return true
+	for pk: Variant in a:
+		if not b.has(pk):
+			return true
+		var ra: Dictionary = a[pk]
+		var rb: Dictionary = b[pk]
+		if ra.size() != rb.size():
+			return true
+		for sk: Variant in ra:
+			if int(rb.get(sk, -1)) != int(ra[sk]):
+				return true
 	return false
 
 func _on_world_ready(world: Node) -> void:
@@ -499,6 +733,17 @@ func _on_players_changed() -> void:
 		return
 	var s := _snapshot()
 	s["quota"] = q
+	_rpc_state.rpc(s)
+
+## Host: a departed worker is out of the back room and off the strike list (their ledger stays for the report).
+func _on_peer_left(peer_id: int) -> void:
+	if phase == Phase.MENU or not is_local_host():
+		return
+	if not backroom.has(peer_id) and not write_ups.has(peer_id):
+		return
+	var s := _snapshot()
+	(s["backroom"] as Dictionary).erase(peer_id)
+	(s["write_ups"] as Dictionary).erase(peer_id)
 	_rpc_state.rpc(s)
 
 func _host_init_session() -> void:

@@ -13,3 +13,6 @@ __pycache__/
 
 # Godot binary downloaded by launch.ps1
 tools/godot/
+
+# Claude Code session data (agent worktrees live in .claude/worktrees/)
+.claude/

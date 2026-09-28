@@ -233,11 +233,14 @@ func _server_interact(player: Player) -> void:
 				var items := _item_manager()
 				if items != null:
 					items.server_despawn_item(held)
+				GameState.server_add_stat(player.peer_id, Const.STAT_PLANTED)
 		Stage.READY:
-			server_harvest(player)
+			if server_harvest(player):
+				GameState.server_add_stat(player.peer_id, Const.STAT_HARVESTED)
 		_:
 			if item_is(held, Const.ITEM_WATERING_CAN) and get_can_charges(held) > 0 and server_water(1.0):
 				held.set(&"charges", get_can_charges(held) - 1)
+				GameState.server_add_stat(player.peer_id, Const.STAT_WATERED)
 
 # --------------------------------------------------------------------------------------------------
 # Server API (host only; also used by tests and other systems)

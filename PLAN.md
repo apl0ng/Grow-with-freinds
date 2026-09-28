@@ -199,3 +199,40 @@ Works: WAITING → PLAYING (host presses Enter) → ROUND_SUCCESS (quota met, im
 next round with scaled quota or RETRY (full reset, plants/items cleared) / main menu; HUD with round, timer (red +
 ticks under 30 s), quota bar, wallet, player list, prompt, held item, toasts; round-end overlay; pause menu.
 Test: `flow_test` (145), `flow_mp_test` (two processes).
+
+## M10 Friendslop pass (in progress, 2026-09-28)
+Why and what: **FRIENDSLOP.md**. Interfaces: CONTRACTS.md "M10". Lead prep landed first (stats / write-ups /
+back room in GameState, stub autoloads Voice / Events / Comms, input actions, balance knobs, placeholder sounds,
+test_all.sh runs under Git Bash without setsid); the wave runs in parallel git worktrees, one branch per agent,
+merged by the lead.
+
+| Agent | Scope | Owns (nobody else edits these) |
+|---|---|---|
+| **voice** | proximity voice chat, push-to-talk, back-room channel, speaking signals | scripts/core/voice.gd, tools/tests/voice_* |
+| **physics** | throw (arc, hits, chute shots), shove, worker collision, footsteps, stagger | scripts/player/**, scenes/player/**, scripts/interaction/**, scripts/items/**, scenes/items/**, scripts/stations/turn_in_station.gd, tools/tests/physics_* |
+| **events** | Events autoload, inspection (Boss walks + sight), power cut + FuseBox station, audit, rat (stretch), room hooks | scripts/core/events.gd, scenes/world/shopkeeper_npc.*, scenes/world/room.*, scenes/world/props/rat.*, scenes/stations/fuse_box.tscn, scripts/stations/fuse_box.gd, scripts/stations/grow_plot.gd, tools/tests/events_* |
+| **ui** | HUD marks + event banner, back-room overlay + spectator, shift report, ping + chat (Comms), Boss lines, pause-menu voice settings | scripts/ui/**, scenes/ui/**, scripts/core/comms.gd, scripts/core/story.gd, tools/tests/ui_m10_* |
+| **audio** | new sound recipes, loops (keys, hum), event alarms, levels | scripts/art/sfx.gd, tools/tests/art_test.gd |
+| **modeling** | Blender 5.2 on Windows for the pipeline; fuse_box, clipboard, rat, backroom_door models | tools/blender/**, art/models/{fuse_box,clipboard,rat,backroom_door}.*, art/models/manifest.json, MODELING.md, tools/tests/models_props_test.gd |
+| **lead** | GameState, Const, BalanceConfig, project.godot, CONTRACTS/PLAN/FRIENDSLOP, test_all.sh, integration (model swaps, suite registration), QA | everything else |
+
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 10.0 | Design (FRIENDSLOP.md), contracts, GameState stats / write-ups / back room / audits + discipline test, stubs, inputs, knobs, sounds, Windows test runner | lead | done |
+| 10.1 | Voice autoload: capture, mu-law codec, relay, 3D playback, back-room channel, tests | voice | in progress |
+| 10.2 | Throw + hits + chute shots, shove, player collision, footsteps, stagger, tests | physics | in progress |
+| 10.3 | Events: scheduler, inspection walk + sight checks, power cut + fuse box, audit, rat, room hooks, tests | events | in progress |
+| 10.4 | HUD marks / banner, back-room overlay + spectator camera, shift report, Comms (ping, chat), Story lines, pause voice settings, tests | ui | in progress |
+| 10.5 | Sounds: steps, keys loop, breaker, hum, door, alarms, write-up; loop API; art_test rows | audio | in progress |
+| 10.6 | Models: fuse_box, clipboard, rat, backroom_door; build.py on Windows / Blender 5.2 | modeling | in progress |
+| 10.7 | Integration: merge, model swaps into scenes, register suites, full test_all green, playtest with 2 windows | lead | todo |
+| 10.8 | QA sweep: 4-player cases for throws / shoves / inspection / back room; regression fixes | qa | todo |
+
+Decisions:
+- **Events are off in headless sessions unless `--events` is passed** (and always off with `--no-events`), so every
+  existing suite keeps deterministic shifts; event tests opt in.
+- **Back room uses the shift timer** (`backroom[peer]` = time_left at release): no extra timer sync, released at
+  shift end. Only while PLAYING.
+- **Story owns all new copy** (inspection lines, write-ups, events, report verdicts); Events only emits signals.
+- **Worktrees:** agents work in `.claude/worktrees/<agent>` on branch `m10/<agent>` from the lead prep commit and
+  commit there; the lead merges. Shared files (project.godot, CONTRACTS, PLAN, test_all.sh, sound names) are lead-only.

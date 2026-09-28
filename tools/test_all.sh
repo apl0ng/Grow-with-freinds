@@ -28,10 +28,14 @@ cd "$(dirname "$0")/.."
 export GODOT="${GODOT:-godot}"
 LOGDIR="${TEST_ALL_LOGS:-$(mktemp -d -t test_all.XXXXXX)}"
 mkdir -p "$LOGDIR"
+# setsid + pkill -s isolate every suite in its own session on Linux; Git Bash (Windows) has neither, so the runner
+# degrades to plain background jobs there (M10 lead).
+HAVE_SETSID=0
+if command -v setsid >/dev/null 2>&1 && command -v pgrep >/dev/null 2>&1; then HAVE_SETSID=1; fi
 
 ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test models_arch_test models_char_test models_plant_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
-  review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel qa_mouse_x11)
+  review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline qa_mouse_x11)
 
 ONLY=""
 case "${1:-}" in
@@ -105,14 +109,19 @@ run_suite() {
   printf '== %-20s ' "$name"
   local t0 t1 rc sid
   t0=$(date +%s.%N)
-  setsid timeout -k 10 "$tmo" "$@" >"$log" 2>&1 </dev/null &
+  if [[ $HAVE_SETSID -eq 1 ]]; then
+    setsid timeout -k 10 "$tmo" "$@" >"$log" 2>&1 </dev/null &
+  else
+    # Git Bash on Windows has no setsid / session ids: run in our own session, no leftover sweep.
+    timeout -k 10 "$tmo" "$@" >"$log" 2>&1 </dev/null &
+  fi
   sid=$!
   CURRENT_SID=$sid
   wait "$sid"; rc=$?
   CURRENT_SID=""
   t1=$(date +%s.%N)
   # Anything this suite left behind (it is in our session): TERM, then KILL.
-  if pgrep -s "$sid" >/dev/null 2>&1; then
+  if [[ $HAVE_SETSID -eq 1 ]] && pgrep -s "$sid" >/dev/null 2>&1; then
     echo -n "(cleaning up leftovers: $(pgrep -s "$sid" -l | awk '{print $2}' | sort | uniq -c | xargs)) "
     pkill -TERM -s "$sid" 2>/dev/null; sleep 1; pkill -KILL -s "$sid" 2>/dev/null
   fi
@@ -228,6 +237,8 @@ run_suite review_core_slots 240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_c
 # lights, return_to_menu leaves nothing; plus a real client process. Ports +97..+99 (probed; busy ones skipped).
 # Screenshots: tools/tests/review_viewmodel_preview.gd under xvfb (see its header).
 run_suite review_viewmodel 150 "" "${G[@]}" -s $TESTS/review_viewmodel_test.gd -- --port=$((BASE + 97))
+# M10 lead: GameState stats / write-ups / fines / back room / audits (single host on +41).
+run_suite discipline      120 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/discipline_body.gd --port=$((BASE + 41))
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120
