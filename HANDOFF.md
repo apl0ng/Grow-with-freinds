@@ -4,15 +4,21 @@
 You are taking over as lead developer on this Godot 4.7.2 project from a cloud session that could not reach the
 user's computer. The user wants the game launched and played on their PC.
 
-1. The repo is cloned at `C:\Games\Grow-with-freinds` (branch `claude/quota-farming-game-lead-hcy18f`, everything
-   is pushed; `git pull` first).
+1. On this PC the repo is cloned at `C:\Users\ap_lo\OneDrive\Desktop\Grow With Freinds` (branch
+   `claude/quota-farming-game-lead-hcy18f`; the `C:\Games` path from the cloud session never existed here). `git pull` first.
+   Godot 4.7.2 is already extracted at `%USERPROFILE%\Downloads\Godot_v4.7.2-stable_win64.exe\` (a folder); the launcher
+   finds it there, so nothing is downloaded.
 2. Run `.\launch.cmd` (or `.\launch.ps1`) from that folder. It finds Godot 4.7.2 or asks to download it into
    `tools\godot\`, then opens the game at the main menu. Tell the user to press Host, then Enter in the room.
    `.\launch.ps1 -Players 2 -Fast` opens two local windows (host + client) for co-op testing.
-3. `launch.ps1` was written blind (no PowerShell in the cloud container). If it errors, fix it in place: it must
-   locate a Godot 4.7.x exe (GODOT env var, tools\godot\, PATH, common folders), download
+3. `launch.ps1` was written blind in the cloud and fixed on this PC (2026-09-23). It now runs a headless
+   `--import` on the first launch (a fresh clone has no `.godot\` cache, so the GLB models cannot load outside the
+   editor; `-Import` forces one after pulling new models), ignores folders that merely share the exe name, and builds
+   the `--name=WorkerN` arguments correctly for `-Players N` (inside `@(...)` the comma bound before `+`). It still
+   locates a Godot 4.7.x exe (GODOT env var, tools\godot\, PATH, common folders, Downloads), downloads
    `https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_win64.exe.zip`
-   when missing, and run `godot --path <repo> -- --host|--join=IP --name=... [--fast]`.
+   when missing, and runs `godot --path <repo> -- --host|--join=IP --name=... [--fast]`. Verified on the RTX 4070
+   SUPER: solo menu -> Host, and `-Players 2 -Fast` (Worker1 hosts, Worker2 joins and registers).
 4. If the game itself misbehaves on real hardware, note that the cloud session only ever previewed the Forward+
    renderer on software Vulkan and GL Compatibility; sounds were never heard by a human. Those are the most likely
    places for surprises.
