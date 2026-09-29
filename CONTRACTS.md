@@ -416,5 +416,7 @@ on the local one. A stunned player ignores movement input; the shove itself is `
 
 ## Sounds added by the lead (placeholder recipes; the audio agent refines them)
 `step`, `throw`, `bonk`, `shove`, `ping`, `chat`, `alarm` (event start), `power_down`, `power_up`, `keys` (the Boss
-walking; loops), `write_up`, `door_slam`, `confiscate`, `hum` (room ambience; loops), `rat`. Loops:
-`Sfx.play_loop(name, node_or_position) -> int` / `Sfx.stop_loop(handle)` (audio agent).
+walking; loops), `write_up`, `door_slam`, `confiscate`, `hum` (room ambience; loops), `rat`. Delivered by the audio
+agent: `play(sound, position := Vector3.INF, volume_offset_db := 0.0)`, `play_loop(name, target) -> int` (INF = 2D, Vector3 =
+fixed, Node3D = follows), `stop_loop(handle, fade_sec := 0.15)`, `stop_all_loops()`, `is_loop_playing(handle)`,
+`set_loop_volume(handle, db)`, `static measure(stream) -> {peak, rms, dc, seconds, samples, clipped}`.

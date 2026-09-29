@@ -369,8 +369,31 @@ per-sound retrigger guard, own `SFX` bus (added at runtime). Unknown names warn 
 | `tick` | click | last 10 s of the timer |
 | `ui_click` / `ui_open` / `ui_close` | tock / rising blip / falling blip | UI |
 | extras: `ready` (one low break-room ding), `refill` (glugs), `ui_hover` (tiny tick), `coin` (dull coin), `pop` (generic pop), `whoosh`, `countdown` (3-2-1 beep), `round_start` (flat factory shift buzzer) | | |
+| `step` | soft scuff on concrete, a little grit (pitch varies per stride) | one per stride: remote players 3D, the local player 2D with a `-8.0` offset |
+| `throw` | short heave of air and a sleeve | item leaves the hand |
+| `bonk` | dull thud with a small clonk, no sting | a bundle hits a head |
+| `shove` | cloth and a low grunt-like tone | worker pushed |
+| `ping` | two dull toks, the second lower (intercom "you") | Comms ping, 3D at the pinged point |
+| `chat` | a paper flick | chat line arrives |
+| `alarm` | flat two-tone factory buzzer, twice, harsh but quiet | event start |
+| `power_down` | relay click, the mains hum sags into nothing | power cut |
+| `power_up` | breaker thunk, a fluoro stutters three times, then holds | power back (start the `hum` loop as it ends) |
+| `keys` | keys on a belt, one stride, seamless 0.5 s loop | `play_loop(&"keys", boss)` while the Boss walks; `stop_loop` when he stops |
+| `write_up` | pen scratching, then a rubber stamp | write-up issued |
+| `door_slam` | a steel door far too heavy, lowpassed ring and frame rattle | back room door |
+| `confiscate` | cloth and a short falling tone | item taken out of your hands |
+| `hum` | 60 Hz mains hum with harmonics, seamless 1.0 s loop, very quiet | room ambience: `play_loop(&"hum")` 2D, stop on power cut |
+| `rat` | two thin squeaks | the rat |
 
 Naming: lowercase snake_case; `ui_*` for interface, `round_*` for round flow, plain verbs for gameplay.
+
+**M10 API additions (audio agent):** `Sfx.play(name, position := Vector3.INF, volume_offset_db := 0.0)`. Loops:
+`play_loop(name, target) -> int` (Vector3.INF = 2D, a Vector3 = fixed point, a Node3D = follows the node and ends
+itself when it is freed; 0 when refused: unknown, not in `Sfx.LOOPING`, disabled, 8 loops already),
+`stop_loop(handle, fade_sec := 0.15)`, `stop_all_loops()`, `is_loop_playing(handle)`, `set_loop_volume(handle, db)`;
+`stop_all()` stops loops too. Loops are never stolen by one-shots. `Sfx.measure(stream)` gives {peak, rms, dc,
+seconds, samples, clipped} for tests. The dB ladder lives in the sfx.gd header.
+
 A new sound = a recipe in `Sfx._synth()` + a row in `Sfx.SETTINGS` + an entry in `Sfx.SOUNDS` (ask the
 art agent). Other API: `play_at(name, node3d)`, `has_sound`, `get_stream` (for your own looping
 player), `get_sound_names`, `stop_all`, `volume_db` (SFX bus), `enabled`.
