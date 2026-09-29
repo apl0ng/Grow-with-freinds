@@ -22,6 +22,16 @@ extends Node
 ##   first deposit of a shift                    first_sale    CHATTER
 ##   anything bought (seeds or a favor)          purchase      CHATTER
 ##   a worker joins / leaves                     joined / left CHATTER
+##   M10 (ui agent), from Events / GameState signals (Events only emits; Story owns every line of copy):
+##   inspection starts / ends (Events.event_started/ended)   inspection_start MAJOR / inspection_end PROGRESS
+##   power cut / audit / rat starts                          power_cut / audit / rat  PROGRESS
+##   power back on (Events.power_changed(true))              power_back    PROGRESS
+##   a write-up (GameState.worker_written_up)                skimming / loitering / write_up_other  MAJOR ("%s" = name)
+##   sent to / let out of the back room (backroom_changed)   backroom / backroom_release MAJOR (release only while
+##                                                           PLAYING; a write-up that sends someone to the back room
+##                                                           says only the back-room line)
+##   "confiscated" ("That's mine now.") is a line for whoever takes the product: Story.bark_now(Story.line("confiscated")).
+##   Shift report verdicts: get_report_verdicts() (round_end.gd shows them), format strings verdict_*.
 ## Rate limit: MAJOR lines always show at once. A lighter line shows only if the last Story line is at least
 ## MIN_BARK_GAP_SEC old, or was a lighter non-MAJOR line (PROGRESS cuts off CHATTER); otherwise it waits in a
 ## one-slot queue (heavier wins, ties keep the newest) and is dropped after PENDING_TTL_SEC or when the phase /
@@ -55,6 +65,23 @@ var lines: Dictionary = {
 	"joined": "Another one. Get to work.",
 	"left": "One less to pay.",
 	"last_call": "Tick tock.",
+	# M10: inspections, write-ups, the back room, events (flat, no "!"; "%s" = the worker's name).
+	"inspection_start": "Walking the floor. Don't make me stop.",
+	"inspection_end": "…Back to the window.",
+	"skimming": "Skimming, %s.",
+	"loitering": "Standing around, %s.",
+	"write_up_other": "Written up, %s.",
+	"backroom": "%s. Back room. Now.",
+	"backroom_release": "Back to work, %s.",
+	"confiscated": "That's mine now.",
+	"power_cut": "Not my problem.",
+	"power_back": "…Took you long enough.",
+	"audit": "The number went up.",
+	"rat": "Rats. Not my problem either.",
+	# M10: shift report verdicts (round_end.gd), "%s" = the worker's name.
+	"verdict_least": "Least useful: %s.",
+	"verdict_noticed": "He noticed: %s.",
+	"verdict_worst": "Worst behaved: %s.",
 	"board_owed": "OWED %s / SHIFT %d",
 	"board_paid": "PAID… FOR NOW",
 	"board_done": "YOU'RE DONE",
@@ -107,6 +134,19 @@ func _ready() -> void:
 	Net.peer_joined.connect(_on_peer_joined)
 	Net.peer_left.connect(_on_peer_left)
 	Game.world_ready.connect(_on_world_ready)
+	# M10: discipline + events. Guarded so a renamed sibling surface degrades to silence, never to a crash.
+	if GameState.has_signal(&"worker_written_up"):
+		GameState.worker_written_up.connect(_on_worker_written_up)
+	if GameState.has_signal(&"backroom_changed"):
+		GameState.backroom_changed.connect(_on_backroom_changed)
+	var events: Node = get_node_or_null(^"/root/Events")
+	if events != null:
+		if events.has_signal(&"event_started"):
+			events.connect(&"event_started", _on_event_started)
+		if events.has_signal(&"event_ended"):
+			events.connect(&"event_ended", _on_event_ended)
+		if events.has_signal(&"power_changed"):
+			events.connect(&"power_changed", _on_power_changed)
 
 
 func _process(delta: float) -> void:
@@ -223,6 +263,72 @@ static func format_money(amount: int) -> String:
 	return ("-$" if amount < 0 else "$") + grouped
 
 
+## M10: the workers on the shift report: every registered peer plus every peer with a ledger entry that left
+## (Net.get_player_name still knows departed names), sorted by id.
+static func get_report_peers() -> Array[int]:
+	var ids: Dictionary = {}
+	for k in Net.players.keys():
+		ids[int(k)] = true
+	for k in GameState.stats.keys():
+		ids[int(k)] = true
+	var out: Array[int] = []
+	for k in ids.keys():
+		out.append(int(k))
+	out.sort()
+	return out
+
+
+## M10: a worker's usefulness this shift: deposited + 20 x (planted + watered + harvested) - 50 x write-ups.
+static func get_report_score(peer_id: int) -> int:
+	var gs: Node = GameState
+	var doing: int = gs.get_stat(peer_id, Const.STAT_PLANTED) + gs.get_stat(peer_id, Const.STAT_WATERED) \
+			+ gs.get_stat(peer_id, Const.STAT_HARVESTED)
+	return gs.get_stat(peer_id, Const.STAT_DEPOSITED) + 20 * doing - 50 * gs.get_stat(peer_id, Const.STAT_WRITE_UPS)
+
+
+## M10: the shift report's verdict lines, in order (round_end.gd shows them under the per-worker table):
+##   "Least useful: <name>."  the lowest score (get_report_score; ties: the lowest peer id)
+##   "He noticed: <name>."    the most deposited, only if somebody deposited anything (ties: lowest id)
+##   "Worst behaved: <name>." the most write-ups, only if there were any (ties: lowest id)
+## With a single worker: only "Least useful" when they deposited nothing, else only "He noticed".
+func get_report_verdicts() -> PackedStringArray:
+	var out := PackedStringArray()
+	var peers := get_report_peers()
+	if peers.is_empty():
+		return out
+	var least := peers[0]
+	var least_score := get_report_score(least)
+	var noticed := peers[0]
+	var noticed_amount := GameState.get_stat(noticed, Const.STAT_DEPOSITED)
+	var worst := peers[0]
+	var worst_count := GameState.get_stat(worst, Const.STAT_WRITE_UPS)
+	for id in peers:
+		var score := get_report_score(id)
+		if score < least_score:
+			least = id
+			least_score = score
+		var deposited := GameState.get_stat(id, Const.STAT_DEPOSITED)
+		if deposited > noticed_amount:
+			noticed = id
+			noticed_amount = deposited
+		var strikes := GameState.get_stat(id, Const.STAT_WRITE_UPS)
+		if strikes > worst_count:
+			worst = id
+			worst_count = strikes
+	if peers.size() == 1:
+		if noticed_amount > 0:
+			out.append(line("verdict_noticed") % Net.get_player_name(noticed))
+		else:
+			out.append(line("verdict_least") % Net.get_player_name(least))
+		return out
+	out.append(line("verdict_least") % Net.get_player_name(least))
+	if noticed_amount > 0:
+		out.append(line("verdict_noticed") % Net.get_player_name(noticed))
+	if worst_count > 0:
+		out.append(line("verdict_worst") % Net.get_player_name(worst))
+	return out
+
+
 # ---------------------------------------------------------------------------------------------
 # Signal handlers (every peer)
 # ---------------------------------------------------------------------------------------------
@@ -308,6 +414,58 @@ func _on_world_ready(_world: Node) -> void:
 	refresh_board()
 
 
+# --- M10: discipline + events ------------------------------------------------------------------
+
+## A write-up names the worker. count == 0 means this one sent them to the back room: backroom_changed follows in
+## the same frame and its line is the one that matters, so the write-up itself stays quiet then.
+func _on_worker_written_up(peer_id: int, reason: String, count: int) -> void:
+	if not _in_session() or count == 0:
+		return
+	var key := "write_up_other"
+	if reason == Const.WRITE_UP_SKIMMING:
+		key = "skimming"
+	elif reason == Const.WRITE_UP_LOITERING:
+		key = "loitering"
+	_request_named(key, Net.get_player_name(peer_id), Weight.MAJOR)
+
+
+func _on_backroom_changed(peer_id: int, active: bool) -> void:
+	if not _in_session():
+		return
+	if active:
+		_request_named("backroom", Net.get_player_name(peer_id), Weight.MAJOR)
+	elif GameState.phase == GameState.Phase.PLAYING:
+		# Released by the timer or the host; the shift end lets everyone out silently (paid / missed says it).
+		_request_named("backroom_release", Net.get_player_name(peer_id), Weight.MAJOR)
+
+
+func _on_event_started(kind: StringName, _params: Dictionary) -> void:
+	if not _in_session():
+		return
+	match kind:
+		&"inspection":
+			_request("inspection_start", Weight.MAJOR)
+		&"power_cut":
+			_request("power_cut", Weight.PROGRESS)
+		&"audit":
+			_request("audit", Weight.PROGRESS)
+		&"rat":
+			_request("rat", Weight.PROGRESS)
+
+
+func _on_event_ended(kind: StringName) -> void:
+	if not _in_session():
+		return
+	if kind == &"inspection":
+		_request("inspection_end", Weight.PROGRESS)
+
+
+## The mains came back (fuse box reset). Going dark is announced by the power_cut event itself.
+func _on_power_changed(on: bool) -> void:
+	if on and _in_session():
+		_request("power_back", Weight.PROGRESS)
+
+
 # ---------------------------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------------------------
@@ -316,6 +474,19 @@ func _request(key: String, weight: int) -> void:
 	var text := line(key)
 	if text == "":
 		return
+	if weight >= Weight.MAJOR or _can_show_now(weight):
+		_show(text, weight)
+		return
+	if _pending.is_empty() or weight >= int(_pending["weight"]):
+		_pending = {"text": text, "weight": weight, "at": _clock, "context": _context()}
+
+
+## _request for a line with one "%s" (the worker's name).
+func _request_named(key: String, worker_name: String, weight: int) -> void:
+	var fmt := line(key)
+	if fmt == "":
+		return
+	var text := fmt % worker_name if fmt.contains("%s") else fmt
 	if weight >= Weight.MAJOR or _can_show_now(weight):
 		_show(text, weight)
 		return
