@@ -131,9 +131,18 @@ func add_line(peer_id: int, text: String) -> void:
 		tween.tween_callback(label.queue_free)
 
 
-## Text typed by workers must never open a bbcode tag.
+## Text typed by workers must never open a bbcode tag (one pass, so the escapes themselves are not re-escaped).
 static func escape_bbcode(text: String) -> String:
-	return text.replace("[", "[lb]").replace("]", "[rb]")
+	var out := ""
+	for i in text.length():
+		var ch := text[i]
+		if ch == "[":
+			out += "[lb]"
+		elif ch == "]":
+			out += "[rb]"
+		else:
+			out += ch
+	return out
 
 
 func _on_chat_received(peer_id: int, text: String) -> void:

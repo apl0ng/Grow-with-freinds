@@ -415,10 +415,11 @@ func get_ping_point() -> Vector3:
 
 ## M10 (tests): the live ping marker of a worker, or null.
 func get_ping_marker(peer_id: int) -> Node:
-	var marker: Node = _ping_markers.get(peer_id)
-	if marker == null or not is_instance_valid(marker) or marker.is_queued_for_deletion():
+	var marker: Variant = _ping_markers.get(peer_id) # untyped: a freed marker must not raise on assignment
+	if not is_instance_valid(marker) or (marker as Node).is_queued_for_deletion():
+		_ping_markers.erase(peer_id)
 		return null
-	return marker
+	return marker as Node
 
 
 ## "$1,234" (negative: "-$50").
@@ -491,7 +492,7 @@ func _on_worker_written_up(peer_id: int, reason: String, _count: int) -> void:
 	var text := TEXT_WRITE_UP_PLAIN % worker_name
 	if reason == Const.WRITE_UP_SKIMMING or reason == Const.WRITE_UP_LOITERING:
 		text = TEXT_WRITE_UP % [worker_name, reason]
-	show_toast(text, &"error")
+	Game.toast(text, &"error") # through Game so every toast listener (tests included) sees it; lands in show_toast
 	play_sfx(&"write_up", &"error")
 	if peer_id == _local_peer_id() and is_inside_tree():
 		Juice.shake(prompt_panel)
@@ -608,9 +609,10 @@ func _on_ping_received(peer_id: int, position: Vector3) -> void:
 	var world: Node = Game.world
 	if world == null or not is_instance_valid(world) or not world.is_inside_tree():
 		return
-	var old: Node = _ping_markers.get(peer_id)
-	if old != null and is_instance_valid(old):
-		old.queue_free()
+	var old: Variant = _ping_markers.get(peer_id)
+	if is_instance_valid(old):
+		(old as Node).queue_free()
+	_ping_markers.erase(peer_id)
 	var marker := PING_MARKER_SCENE.instantiate() as PingMarker
 	world.add_child(marker)
 	marker.place(peer_id, position)
