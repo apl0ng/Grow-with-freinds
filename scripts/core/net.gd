@@ -191,8 +191,20 @@ static func _is_hidden_char(c: int) -> bool:
 func _on_peer_connected(peer_id: int) -> void:
 	if not is_host:
 		return
+	_disable_packet_throttle(peer_id)
 	# Drop peers that never register (stray connections, incompatible builds...).
 	get_tree().create_timer(REGISTER_TIMEOUT_SEC).timeout.connect(_on_register_timeout.bind(peer_id))
+
+## ENet's packet throttle drops UNRELIABLE packets at the sender whenever the round-trip time jitters, which
+## costs 20-80 % of the voice frames on a loaded machine (M10 voice agent measured 10 of 50 frames arriving with
+## the defaults, 50 of 50 with deceleration 0). The game's bandwidth is tiny, so the throttle has no job here:
+## deceleration 0 keeps it at full send rate for every link. Called on both ends of every connection.
+func _disable_packet_throttle(peer_id: int) -> void:
+	if _peer == null:
+		return
+	var link: ENetPacketPeer = _peer.get_peer(peer_id)
+	if link != null:
+		link.throttle_configure(5000, 2, 0)
 
 func _on_register_timeout(peer_id: int) -> void:
 	if not is_host or players.has(peer_id) or not _is_peer_connected(peer_id):
@@ -288,6 +300,7 @@ func _unique_name(wanted: String, taken_by: Dictionary) -> String:
 
 func _on_connected_to_server() -> void:
 	_log("connected, registering")
+	_disable_packet_throttle(Const.SERVER_PEER_ID)
 	_rpc_register.rpc_id(Const.SERVER_PEER_ID, local_name, local_color)
 
 func _on_connection_failed() -> void:

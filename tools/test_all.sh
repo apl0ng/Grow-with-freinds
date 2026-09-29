@@ -35,7 +35,8 @@ if command -v setsid >/dev/null 2>&1 && command -v pgrep >/dev/null 2>&1; then H
 
 ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test models_arch_test models_char_test models_plant_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
-  review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline qa_mouse_x11)
+  review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline voice_test voice_mp
+  qa_mouse_x11)
 
 ONLY=""
 case "${1:-}" in
@@ -53,7 +54,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 50 71 72 73 74 80 91 92 95 96; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 43 44 50 71 72 73 74 80 91 92 95 96; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -239,6 +240,11 @@ run_suite review_core_slots 240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_c
 run_suite review_viewmodel 150 "" "${G[@]}" -s $TESTS/review_viewmodel_test.gd -- --port=$((BASE + 97))
 # M10 lead: GameState stats / write-ups / fines / back room / audits (single host on +41).
 run_suite discipline      120 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/discipline_body.gd --port=$((BASE + 41))
+# M10 voice: codec, downsampler, routes, receive validation, speaking, emitters, back-room routes, settings (+43).
+run_suite voice_test      120 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/voice_test.gd --port=$((BASE + 43))
+# M10 voice: a real host and client exchange voice frames over ENet in both directions (+44).
+rm -rf "$LOGDIR/voice"; mkdir -p "$LOGDIR/voice"
+run_suite voice_mp        150 "$LOGDIR/voice/*.log" env VOICE_MP_PORT=$((BASE + 44)) VOICE_MP_LOGS="$LOGDIR/voice" tools/tests/voice_mp.sh
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120
