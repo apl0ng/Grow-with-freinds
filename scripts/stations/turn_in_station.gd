@@ -12,12 +12,20 @@ extends Interactable
 ##
 ## Products are read by duck typing (item_type == Const.ITEM_PRODUCT, properties strain_id / amount) so this
 ## station does not depend on the Product class being loaded.
+##
+## M10 chute shots (physics agent): a thrown product whose flight ends inside the collider (Body/Shape, grown by
+## CHUTE_SHOT_MARGIN) or within reach of the slot on top (get_mouth_position()) is sold for the thrower through
+## server_sell_item(product, seller_peer), the same path _server_interact() uses (one `_server_sell`).
 
 const REASON_EMPTY := "Nothing to deposit."
 const REASON_NOT_PRODUCT := "Product only."
 const REASON_BAD_PRODUCT := "Won't take that."
 const REASON_NOT_PLAYING := "Chute opens when the shift starts."
 const SOLD_META: StringName = &"econ_sold"
+## The slot on the top plate, in this node's space (deposit_chute.py: SLOT_Y = 0.13 behind the rollers, TOP = 0.9).
+const MOUTH_LOCAL := Vector3(0.0, 0.92, -0.13)
+## A flight point this far outside the collider still counts as "in the chute" (ray hits land on its surface).
+const CHUTE_SHOT_MARGIN: float = 0.1
 
 ## If true, product can only be sold while a round is running (GameState.is_playing()). Sales between rounds
 ## would otherwise count toward a round that has already ended and be lost for the next quota.
@@ -65,19 +73,71 @@ func get_denied_reason(player: Player) -> String:
 func _server_interact(player: Player) -> void:
 	if _get_denial(player) != "":
 		return
-	var product := _get_held_product(player)
+	_server_sell(_get_held_product(player), player.peer_id)
+
+
+## SERVER ONLY. Sells `product` (held, on the floor or mid-flight: a chute shot) as if `seller_peer` deposited it.
+## Same rules as the E interaction: a real product with a value, not sold already, only while PLAYING when
+## `sell_only_while_playing`. Returns true when the sale went through (the item is despawned).
+func server_sell_item(product: Item, seller_peer: int) -> bool:
+	if not multiplayer.is_server():
+		push_error("TurnInStation.server_sell_item called on a client")
+		return false
+	if product == null or not is_instance_valid(product) or product.is_queued_for_deletion():
+		return false
+	if product.item_type != Const.ITEM_PRODUCT or product.has_meta(SOLD_META):
+		return false
+	if sell_only_while_playing and not GameState.is_playing():
+		return false
+	return _server_sell(product, seller_peer)
+
+
+## SERVER ONLY. The one sale path: value, SOLD mark, GameState.server_add_sale, despawn, cosmetics on every peer.
+func _server_sell(product: Item, seller_peer: int) -> bool:
+	if product == null or not is_instance_valid(product):
+		return false
 	var seed_def := _get_product_seed(product)
 	var value := get_sale_value(product)
 	if value <= 0:
-		return
+		return false
 	var items := _get_item_manager()
 	if items == null:
-		return
+		items = ItemManager.find(product)
+	if items == null:
+		return false
 	# Mark first: a second sell request processed before the despawn lands can never pay twice.
 	product.set_meta(SOLD_META, true)
-	GameState.server_add_sale(value, player.peer_id)
+	GameState.server_add_sale(value, seller_peer)
 	items.server_despawn_item(product)
-	_rpc_sold_fx.rpc(value, seed_def.color)
+	_rpc_sold_fx.rpc(value, seed_def.color if seed_def != null else Color.WHITE)
+	return true
+
+
+# --- M10 chute geometry ----------------------------------------------------------------------------------------------
+
+## Where the slot on top is, in world space (the target of a chute shot).
+func get_mouth_position() -> Vector3:
+	return to_global(MOUTH_LOCAL)
+
+
+## World-space bounds of the interaction collider (Body/Shape), or an empty AABB without one.
+func get_collider_aabb() -> AABB:
+	var shape_node := get_node_or_null(^"Body/Shape") as CollisionShape3D
+	var box := shape_node.shape as BoxShape3D if shape_node != null else null
+	if box == null:
+		return AABB()
+	return shape_node.global_transform * AABB(-box.size * 0.5, box.size)
+
+
+## True if a flight ending at `point` counts as a deposit: inside the collider (with CHUTE_SHOT_MARGIN) or within
+## `mouth_radius` of the slot.
+func accepts_flight_point(point: Vector3, mouth_radius: float) -> bool:
+	if not point.is_finite():
+		return false
+	var box := get_collider_aabb()
+	if box.size != Vector3.ZERO and box.grow(CHUTE_SHOT_MARGIN).has_point(point):
+		return true
+	return point.distance_to(get_mouth_position()) <= mouth_radius
 
 
 # --- Value helpers --------------------------------------------------------------------------------------------------

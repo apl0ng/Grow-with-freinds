@@ -35,6 +35,28 @@ extends CharacterBody3D
 ## The SubViewport only renders while an item is registered (add_view_model_user); otherwise it is UPDATE_DISABLED
 ## and the Screen is hidden. The held item calls sync_view_model() right after snapping to %HandSocket
 ## (process priority 10), so camera and item always come from the same camera state within a frame.
+##
+## M10 physical comedy (physics agent):
+##   * Workers collide with each other: collision_mask = world | player (enforced in _ready). Remote bodies are
+##     kinematic and moved by their synced pose, so only the LOCAL body slides / depenetrates. _can_stand_up() probes
+##     static geometry only, so a crouched worker under another one never stays stuck.
+##   * Stagger: apply_stagger(impulse, stun_sec) on the OWNER adds the impulse (plus a small hop), ignores movement
+##     input until the stun passes (is_stunned()), kicks the camera (roll +-CAMERA_KICK_ROLL_DEG, a pitch nudge) and
+##     bounces the body. The server never moves a player itself: server_shove() sends _rpc_staggered to the target's
+##     owner (any_peer + "sender is the server" check, because players have owner authority). The owner then broadcasts
+##     the cosmetic _rpc_stagger_fx (any_peer, call_local, reliable; accepted from the server or the node's owner
+##     only), which plays "shove" / "bonk", bounces the body and emits `staggered(by_peer)` on EVERY peer.
+##   * Shove: request_shove(target_peer) -> _rpc_request_shove on the server (sender must own this node): validates
+##     back room, stun, range (shove_range + 1 m slack, NaN-safe), per-shover cooldown; from behind (target facing .
+##     push direction > 0.5) the target's held item is released first.
+##   * Footsteps: remote bodies play "step" at the feet when the walk phase crosses 0 / PI while moving; the local body
+##     plays a quiet 2D "step" per stride walked on the floor. Never while airborne, stunned or in the back room.
+##     `footstep(position)` is emitted for every step this peer played (test hook).
+
+## M10: every peer, after a stagger (shove or a thrown item) landed on this worker. by_peer = who did it.
+signal staggered(by_peer: int)
+## M10: this peer played a footstep for this worker (position = the feet). Test hook.
+signal footstep(position: Vector3)
 
 const STAND_HEIGHT: float = 1.8
 const CROUCH_HEIGHT: float = 1.2
@@ -69,6 +91,26 @@ const VIEW_MODEL_NEAR: float = 0.01
 const VIEW_MODEL_FAR: float = 4.0
 ## Meta on a Light3D this player shared with the view model: [original layers, original light_cull_mask].
 const META_VIEW_MODEL_LIGHT: StringName = &"view_model_light"
+## M10 stagger: small upward hop added to every stagger impulse (m/s).
+const STAGGER_HOP: float = 1.5
+## M10 stagger: horizontal deceleration while stunned (m/s^2); the stumble carries instead of braking at GROUND_ACCEL.
+const STAGGER_FRICTION: float = 6.0
+## M10 stagger camera kick: roll (degrees, sign = away from the push), pitch nudge (degrees), total duration (s).
+const CAMERA_KICK_ROLL_DEG: float = 6.0
+const CAMERA_KICK_PITCH_DEG: float = 2.5
+const CAMERA_KICK_SEC: float = 0.35
+## M10 footsteps: metres walked on the floor per local step (walking / sprinting); remote steps follow the walk phase.
+const STEP_STRIDE_WALK: float = 0.75
+const STEP_STRIDE_SPRINT: float = 0.6
+## Remote bodies below this smoothed speed (m/s) are standing: no walk cycle, no steps (same threshold as the bob).
+const WALK_ANIM_MIN_SPEED: float = 0.4
+## Chest height above the feet (m), standing / crouched: where thrown items hit and where the Boss looks.
+const CHEST_HEIGHT_STANDING: float = 1.0
+const CHEST_HEIGHT_CROUCHED: float = 0.6
+## Another body closer than this (horizontally) counts as sitting on the same spot; the local body steps this far
+## aside first so the collision recovery separates the two sideways instead of stacking them.
+const COINCIDENT_DISTANCE: float = 0.03
+const COINCIDENT_NUDGE: float = 0.08
 
 ## LOCAL player only: draw the held item in the first-person view model so it never clips into walls or stations.
 ## false puts held items back into the world pass (the old, clipping behaviour; e.g. for before/after captures).
@@ -140,6 +182,12 @@ var _view_model_closing: bool = false           # leaving the tree: uses_view_mo
 var _view_model_env_source: Environment = null  # the Environment the view-model copy was made from
 var _view_model_env_ready: bool = false
 var _view_model_lights: Array[WeakRef] = []     # lights this player added the view-model bit to
+# M10 physical (see the header). The stun clock is set by apply_stagger (owner), by the cosmetic fx RPC (every peer,
+# so remote bodies skip footsteps while stumbling) and by the server when it staggers this player.
+var _stun_until_msec: int = 0
+var _shove_ready_msec: int = 0                  # SERVER: when this worker may shove again (per-shover cooldown)
+var _stride_accum: float = 0.0                  # local: metres walked on the floor since the last step
+var _kick_tween: Tween = null                   # local camera kick
 
 func _enter_tree() -> void:
 	var id := str(name).to_int()
@@ -170,6 +218,9 @@ func _ready() -> void:
 	process_priority = -10
 	process_physics_priority = -10
 	_gravity = float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
+	# M10: workers collide with the room AND with each other (the scene says so too; enforced here).
+	collision_layer = Const.LAYER_PLAYER
+	collision_mask = Const.LAYER_WORLD | Const.LAYER_PLAYER
 	# Per-instance collision shape (the scene's sub-resource is shared between all players).
 	var base_shape := collision.shape as CapsuleShape3D
 	_shape = base_shape.duplicate() as CapsuleShape3D if base_shape != null else CapsuleShape3D.new()
@@ -377,6 +428,191 @@ func respawn() -> void:
 	if is_local():
 		_teleport_local(_get_spawn_transform())
 
+# --- M10: stagger / shove -----------------------------------------------------------------------------------------
+
+## True while this worker is stumbling: movement input is ignored, no footsteps, no shoving or throwing. Set on the
+## owner by apply_stagger(); other peers (and the server) mirror it from the stagger they saw.
+func is_stunned() -> bool:
+	return Time.get_ticks_msec() < _stun_until_msec
+
+## OWNER (or an unowned body on the host): a stumble. `impulse` is added to the velocity (its horizontal part, plus
+## a STAGGER_HOP hop), movement input is ignored for `stun_sec`, the camera gets a kick and the body bounces.
+## Non-finite values are ignored.
+func apply_stagger(impulse: Vector3, stun_sec: float) -> void:
+	if not impulse.is_finite() or not is_finite(stun_sec):
+		return
+	var push := Vector3(impulse.x, 0.0, impulse.z)
+	velocity += push + Vector3.UP * STAGGER_HOP
+	_stun_until_msec = maxi(_stun_until_msec, Time.get_ticks_msec() + int(maxf(stun_sec, 0.0) * 1000.0))
+	if is_local():
+		_camera_kick(push)
+	if visual != null:
+		Juice.bounce(visual, 0.25)
+
+## LOCAL player: asks the server to shove `target_peer` (the Interactor calls this on the "shove" action).
+func request_shove(target_peer: int) -> void:
+	if not is_local() or target_peer <= 0 or target_peer == peer_id:
+		return
+	_rpc_request_shove.rpc_id(Const.SERVER_PEER_ID, target_peer)
+
+## SERVER ONLY. This worker shoves `target`: `direction` (horizontal) * shove_impulse, shove_stun_sec (or `stun_sec`
+## when >= 0, e.g. hit_stun_sec for a thrown item); from behind the target's held item is released first. The
+## target's owner receives _rpc_staggered and does the actual stumble (movement is owner-authoritative); the
+## cosmetic broadcast then fires `staggered` on every peer. `hit` = a thrown item (bonk) rather than a shove.
+func server_shove(target: Player, direction: Vector3, from_behind: bool, stun_sec: float = -1.0, hit: bool = false) -> void:
+	Player.server_stagger(target, direction, from_behind, peer_id, stun_sec, hit)
+
+## SERVER ONLY. Staggers `target` on behalf of `by_peer` (0 = nobody, e.g. an item thrown by a worker who left).
+## See server_shove(). Works for the host's own player and for bodies without a connected owner (tests).
+static func server_stagger(target: Player, direction: Vector3, from_behind: bool, by_peer: int,
+		stun_sec: float = -1.0, hit: bool = false) -> void:
+	if target == null or not is_instance_valid(target) or not target.is_inside_tree() or target.is_queued_for_deletion():
+		return
+	if not target.multiplayer.is_server():
+		push_error("Player.server_stagger called on a client")
+		return
+	var flat := Vector3(direction.x, 0.0, direction.z)
+	if not flat.is_finite() or flat.length_squared() < 0.000001:
+		flat = target.get_flat_forward() * -1.0 # straight at them from the front
+	flat = flat.normalized()
+	var stun := stun_sec if stun_sec >= 0.0 else Config.balance.shove_stun_sec
+	var impulse := flat * Config.balance.shove_impulse
+	if from_behind:
+		var mgr := ItemManager.find(target)
+		if mgr != null and mgr.get_held_by(target.peer_id) != null:
+			mgr.server_release_holder(target.peer_id)
+	# The server's own view of the stun (shove / throw validation, remote footsteps).
+	target._stun_until_msec = maxi(target._stun_until_msec, Time.get_ticks_msec() + int(stun * 1000.0))
+	if target.is_local():
+		target._stagger_locally(impulse, stun, by_peer, hit)
+	elif target.multiplayer.get_peers().has(target.peer_id):
+		target._rpc_staggered.rpc_id(target.peer_id, impulse, stun, by_peer, hit)
+	else:
+		# A body without a connected owner (host-side fake worker in tests): nobody else can stumble it.
+		target._stagger_locally(impulse, stun, by_peer, hit)
+
+## Horizontal facing (body yaw), unit length; Vector3.FORWARD if the transform is broken.
+func get_flat_forward() -> Vector3:
+	var f := -global_basis.z
+	f.y = 0.0
+	if not f.is_finite() or f.length_squared() < 0.000001:
+		return Vector3.FORWARD
+	return f.normalized()
+
+## Where a thrown item hits this worker (and where the Boss looks): feet + chest height, crouch-aware.
+func get_chest_position() -> Vector3:
+	return global_position + Vector3.UP * (CHEST_HEIGHT_CROUCHED if crouching else CHEST_HEIGHT_STANDING)
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_request_shove(target_peer: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender == 0:
+		sender = Const.SERVER_PEER_ID
+	if sender != peer_id or not is_inside_tree():
+		return # a shove request is only valid on the shover's own node
+	var b: BalanceConfig = Config.balance
+	if is_stunned() or GameState.is_in_backroom(peer_id):
+		return
+	var target: Player = Game.get_player(target_peer)
+	if target == null or target == self or not target.is_inside_tree() or GameState.is_in_backroom(target_peer):
+		return
+	var d := global_position.distance_to(target.global_position)
+	# `not <=`: a NaN position (broken sync) is never in range.
+	if not (d <= b.shove_range + 1.0):
+		return
+	var now := Time.get_ticks_msec()
+	if now < _shove_ready_msec:
+		return
+	_shove_ready_msec = now + int(maxf(b.shove_cooldown_sec, 0.0) * 1000.0)
+	var direction := target.global_position - global_position
+	direction.y = 0.0
+	if not direction.is_finite() or direction.length_squared() < 0.000001:
+		direction = get_flat_forward()
+	direction = direction.normalized()
+	var from_behind := target.get_flat_forward().dot(direction) > 0.5
+	server_shove(target, direction, from_behind)
+	GameState.server_add_stat(peer_id, Const.STAT_SHOVES)
+
+## Server -> the owner of this player: stumble. Players have owner authority, so this is any_peer + a sender check.
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_staggered(impulse: Vector3, stun_sec: float, by_peer: int, hit: bool) -> void:
+	if multiplayer.get_remote_sender_id() != Const.SERVER_PEER_ID or not is_local():
+		return
+	_stagger_locally(impulse, stun_sec, by_peer, hit)
+
+func _stagger_locally(impulse: Vector3, stun_sec: float, by_peer: int, hit: bool) -> void:
+	apply_stagger(impulse, stun_sec)
+	_rpc_stagger_fx.rpc(by_peer, stun_sec, hit)
+
+## Cosmetic, every peer: the sound at the body, a bounce, the `staggered` signal. Only the server or this node's
+## owner may trigger it. Reliable on purpose (one small packet per stagger): a lost one would mean no bonk, no
+## `staggered` for faces / HUD marks and a remote body that keeps taking footsteps while it stumbles.
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_stagger_fx(by_peer: int, stun_sec: float, hit: bool) -> void:
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != Const.SERVER_PEER_ID and sender != peer_id:
+		return
+	if not is_inside_tree():
+		return
+	if is_finite(stun_sec):
+		_stun_until_msec = maxi(_stun_until_msec, Time.get_ticks_msec() + int(clampf(stun_sec, 0.0, 5.0) * 1000.0))
+	var sound: StringName = &"bonk" if hit else &"shove"
+	if is_local():
+		Sfx.play(sound)
+	else:
+		Sfx.play(sound, get_chest_position())
+		if visual != null:
+			Juice.bounce(visual, 0.25)
+	staggered.emit(by_peer)
+
+## Local camera kick: roll away from the push and a small pitch nudge on %Camera (not on $Head: the head pitch is the
+## synced look), tweened back to rest over CAMERA_KICK_SEC.
+func _camera_kick(push: Vector3) -> void:
+	if camera == null or not camera.is_inside_tree():
+		return
+	var side := global_basis.x.dot(push)
+	var roll := -signf(side) * CAMERA_KICK_ROLL_DEG if absf(side) > 0.05 else CAMERA_KICK_ROLL_DEG
+	var pitch := -CAMERA_KICK_PITCH_DEG if global_basis.z.dot(push) < 0.0 else CAMERA_KICK_PITCH_DEG
+	if _kick_tween != null and _kick_tween.is_valid():
+		_kick_tween.kill()
+	camera.rotation = Vector3.ZERO
+	_kick_tween = create_tween()
+	_kick_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_kick_tween.tween_property(camera, ^"rotation", Vector3(deg_to_rad(pitch), 0.0, deg_to_rad(roll)), CAMERA_KICK_SEC * 0.35)
+	_kick_tween.tween_property(camera, ^"rotation", Vector3.ZERO, CAMERA_KICK_SEC * 0.65)
+
+# --- M10: footsteps -------------------------------------------------------------------------------------------------
+
+## Local body: one quiet 2D step per stride walked on the floor (never airborne, stunned or in the back room).
+func _update_local_footsteps(moved: Vector3, can_move: bool) -> void:
+	if not is_on_floor() or is_stunned() or GameState.is_in_backroom(peer_id):
+		_stride_accum = 0.0
+		return
+	moved.y = 0.0
+	var d := moved.length()
+	if d < 0.0005:
+		return
+	_stride_accum += d
+	var sprinting := can_move and not crouching and Input.is_action_pressed(&"sprint")
+	var stride := STEP_STRIDE_SPRINT if sprinting else STEP_STRIDE_WALK
+	if _stride_accum >= stride:
+		_stride_accum = fmod(_stride_accum, stride)
+		Sfx.play(&"step")
+		footstep.emit(global_position)
+
+## Remote body: a step each time the walk phase crosses 0 or PI while the body is moving.
+func _update_remote_footsteps(prev_phase: float) -> void:
+	var half_before := int(prev_phase / PI)
+	var half_now := int(_walk_phase / PI)
+	if half_before == half_now:
+		return
+	if _visual_speed <= WALK_ANIM_MIN_SPEED or is_stunned() or GameState.is_in_backroom(peer_id):
+		return
+	Sfx.play(&"step", global_position)
+	footstep.emit(global_position)
+
 # --- Local simulation ---------------------------------------------------------------------------------------
 
 func _input(event: InputEvent) -> void:
@@ -396,7 +632,8 @@ func _input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	if not is_local():
 		return
-	var can_move := _input_enabled()
+	var stunned := is_stunned()
+	var can_move := _input_enabled() and not stunned
 	if not is_on_floor():
 		velocity.y -= _gravity * delta
 
@@ -417,10 +654,15 @@ func _physics_process(delta: float) -> void:
 	wish = wish.normalized() * minf(input_dir.length(), 1.0)
 	var target := wish * _current_speed(can_move)
 	var accel := GROUND_ACCEL if is_on_floor() else AIR_ACCEL
+	if stunned:
+		accel = minf(accel, STAGGER_FRICTION) # the stumble carries; the worker cannot brake it
 	var horizontal := Vector2(velocity.x, velocity.z).move_toward(Vector2(target.x, target.z), accel * delta)
 	velocity.x = horizontal.x
 	velocity.z = horizontal.y
+	_unstick_from_coincident_bodies()
+	var before := global_position
 	move_and_slide()
+	_update_local_footsteps(global_position - before, can_move)
 
 	if global_position.y < FALL_LIMIT_Y:
 		_teleport_local(_get_spawn_transform())
@@ -468,6 +710,24 @@ func _get_spawn_transform() -> Transform3D:
 		return parent_3d.global_transform.affine_inverse() * xf if parent_3d != null else xf
 	return Transform3D(Basis.IDENTITY, Vector3(0.0, 1.0, 0.0))
 
+## Two capsules on exactly the same spot (a teleport onto another worker: the same back-room marker, a reset) have no
+## horizontal separating axis, so the physics recovery would stack them vertically. A deterministic sideways nudge
+## (direction from the peer id, so two peers pick different sides) turns that into an ordinary horizontal push.
+func _unstick_from_coincident_bodies() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	for c in parent.get_children():
+		var other := c as Player
+		if other == null or other == self or other.is_queued_for_deletion():
+			continue
+		var d := other.global_position - global_position
+		if not d.is_finite() or absf(d.y) > CROUCH_HEIGHT or Vector2(d.x, d.z).length_squared() > COINCIDENT_DISTANCE * COINCIDENT_DISTANCE:
+			continue
+		var angle := float(peer_id) * 2.399963 # golden angle: consecutive peers step off in different directions
+		global_position += Vector3(cos(angle), 0.0, sin(angle)) * COINCIDENT_NUDGE
+		return
+
 func _can_stand_up() -> bool:
 	if not is_inside_tree():
 		return true
@@ -477,7 +737,9 @@ func _can_stand_up() -> bool:
 	var params := PhysicsShapeQueryParameters3D.new()
 	params.shape = probe
 	params.transform = Transform3D(Basis.IDENTITY, global_position + Vector3(0.0, STAND_HEIGHT * 0.5 + 0.05, 0.0))
-	params.collision_mask = collision_mask
+	# Static geometry only: another worker standing on top of a crouched one must never pin them down for good
+	# (move_and_slide pushes the bodies apart once this one stands up).
+	params.collision_mask = Const.LAYER_WORLD
 	params.exclude = [get_rid()]
 	return get_world_3d().direct_space_state.intersect_shape(params, 1).is_empty()
 
@@ -515,10 +777,14 @@ func _animate_body(delta: float) -> void:
 	moved.y = 0.0
 	var speed := moved.length() / maxf(delta, 0.0001)
 	_visual_speed = lerpf(_visual_speed, speed, 1.0 - exp(-10.0 * delta))
-	if _visual_speed > 0.4:
+	var prev_phase := _walk_phase
+	if _visual_speed > WALK_ANIM_MIN_SPEED:
 		_walk_phase = fmod(_walk_phase + delta * (6.0 + _visual_speed * 1.6), TAU)
 	else:
 		_walk_phase = move_toward(_walk_phase, 0.0 if _walk_phase < PI else TAU, delta * 8.0)
+		if _walk_phase >= TAU:
+			_walk_phase = 0.0 # at rest again (TAU and 0 are the same pose; keeps the step counter honest)
+	_update_remote_footsteps(prev_phase)
 	var amount := clampf(_visual_speed / Config.balance.walk_speed, 0.0, 1.0)
 	visual.position.y = absf(sin(_walk_phase)) * 0.08 * amount
 	visual.rotation.z = sin(_walk_phase) * 0.06 * amount

@@ -11,20 +11,32 @@ extends Node3D
 ##   no target / UI locked -> ("", false)                              hidden
 ## The HUD connects to Game.local_player.get_interactor().prompt_changed; prompt_text / prompt_enabled hold the
 ## current state for listeners that connect late.
+##
+## M10 (physics agent): a second ray on world | player for Config.balance.shove_range finds the worker under the
+## crosshair (`shove_target`). When they are nearer than the interactable hit (or there is none) the prompt reads
+## "[F] Shove <name>" (the HUD does not prefix a prompt that starts with "["), greyed while we are stunned. Inputs:
+## "throw" (RMB / R) -> ItemManager.request_throw() while holding something; "shove" (F) -> player.request_shove().
 
 ## Emitted whenever the prompt text should change. "" means hide the prompt.
 signal prompt_changed(text: String, enabled: bool)
 ## Emitted when the looked-at interactable changes (may be null).
 signal target_changed(target: Interactable)
+## M10: the worker under the crosshair within shove range changed (may be null).
+signal shove_target_changed(target: Player)
 
 var player: Player
 var current_target: Interactable = null
+## M10: the other worker under the crosshair within shove range (null = none).
+var shove_target: Player = null
 ## Last emitted prompt (read-only for other scripts).
 var prompt_text: String = ""
 var prompt_enabled: bool = false
 
 var _camera: Camera3D = null
 var _target_id: int = 0
+var _shove_target_id: int = 0
+var _target_distance: float = INF   # camera -> interactable hit (INF without a target)
+var _shove_distance: float = INF    # camera -> worker hit (INF without one)
 
 func _ready() -> void:
 	player = _find_player()
@@ -51,6 +63,24 @@ func try_drop() -> void:
 		return
 	items.request_drop()
 
+## M10: asks the server to throw the held item (bound to the "throw" action: RMB / R). Local player only.
+func try_throw() -> void:
+	if not _is_local_player() or player.is_stunned():
+		return
+	var items := ItemManager.find(player)
+	if items == null or items.get_held_by(player.peer_id) == null:
+		return
+	items.request_throw()
+
+## M10: asks the server to shove the worker under the crosshair (bound to the "shove" action: F). Local player only.
+func try_shove() -> void:
+	if not _is_local_player() or player.is_stunned():
+		return
+	if not is_instance_valid(shove_target) or not shove_target.is_inside_tree():
+		_set_shove_target(null)
+		return
+	player.request_shove(shove_target.peer_id)
+
 ## Raycasts now and refreshes target + prompt (normally done every physics frame).
 func refresh() -> void:
 	if not _is_local_player():
@@ -59,6 +89,7 @@ func refresh() -> void:
 		_set_prompt("", false)
 		return
 	_set_target(_raycast_target())
+	_set_shove_target(_raycast_shove_target())
 	_update_prompt()
 
 ## The camera the ray starts from (the player's %Camera).
@@ -83,6 +114,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed(&"drop"):
 		try_drop()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(&"throw"):
+		if event is InputEventMouseButton and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			return # a click that recaptures the mouse is not a throw
+		try_throw()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(&"shove"):
+		if event is InputEventMouseButton and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			return
+		try_shove()
 		get_viewport().set_input_as_handled()
 
 # --- Internals ---------------------------------------------------------------------------------------------------
@@ -110,15 +151,48 @@ func _raycast_target() -> Interactable:
 	query.collide_with_areas = true
 	query.collide_with_bodies = true
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	_target_distance = INF
 	if hit.is_empty():
 		return null
 	var node := hit.get("collider") as Node
 	while node != null:
 		if node is Interactable:
 			var target := node as Interactable
-			return target if _is_valid_target(target) else null
+			if not _is_valid_target(target):
+				return null
+			_target_distance = from.distance_to(hit["position"])
+			return target
 		node = node.get_parent()
 	return null
+
+## M10: the other worker's body under the crosshair within shove_range (walls block), or null.
+func _raycast_shove_target() -> Player:
+	_shove_distance = INF
+	var cam := get_camera()
+	if cam == null or not cam.is_inside_tree():
+		return null
+	var from := cam.global_position
+	var to := from - cam.global_transform.basis.z.normalized() * Config.balance.shove_range
+	var exclude: Array[RID] = [player.get_rid()]
+	var query := PhysicsRayQueryParameters3D.create(from, to, Const.LAYER_WORLD | Const.LAYER_PLAYER, exclude)
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return null
+	var other := hit.get("collider") as Player
+	if other == null or other == player or not is_instance_valid(other) or other.is_queued_for_deletion():
+		return null
+	_shove_distance = from.distance_to(hit["position"])
+	return other
+
+func _set_shove_target(target: Player) -> void:
+	if not is_instance_valid(target) or not target.is_inside_tree():
+		target = null
+	var id := target.get_instance_id() if target != null else 0
+	if id == _shove_target_id:
+		return
+	_shove_target_id = id
+	shove_target = target
+	shove_target_changed.emit(target)
 
 ## Variant parameter on purpose: passing a freed object to a typed parameter is a script error.
 func _is_valid_target(target: Variant) -> bool:
@@ -139,6 +213,10 @@ func _set_target(target: Interactable) -> void:
 	target_changed.emit(target)
 
 func _update_prompt() -> void:
+	# M10: a worker nearer than the interactable under the crosshair (or with nothing else there) is the prompt.
+	if shove_target != null and (current_target == null or _shove_distance < _target_distance):
+		_set_prompt("[%s] Shove %s" % [HUD.action_key_text(&"shove", "F"), shove_target.display_name], not player.is_stunned())
+		return
 	if current_target == null:
 		_set_prompt("", false)
 		return
