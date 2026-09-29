@@ -304,8 +304,11 @@ func server_reset() -> void:
 	water = 0.0
 
 ## Growth / drain step. Called every frame on the host by _process; public so tests can drive it.
+## M10: nothing grows or drinks while the mains are off (Events power cut).
 func tick(delta: float) -> void:
 	if delta <= 0.0 or not GameState.is_playing() or not is_growing():
+		return
+	if not Events.is_power_on():
 		return
 	var b := Config.balance
 	if water >= b.dry_threshold:

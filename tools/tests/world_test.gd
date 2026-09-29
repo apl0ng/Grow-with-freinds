@@ -23,7 +23,10 @@ const STATION_SCENES := {
 	"GrowPlot4": "res://scenes/stations/grow_plot.tscn",
 	"GrowPlot5": "res://scenes/stations/grow_plot.tscn",
 	"GrowPlot6": "res://scenes/stations/grow_plot.tscn",
+	"FuseBox": "res://scenes/stations/fuse_box.tscn",
 }
+## Wall-mounted stations (M10 FuseBox: origin on the wall at 1.2 m, front +X) are contract nodes but exempt from
+## the floor-layout, footprint and walk-up rules below (Room.WALL_STATION_NAMES).
 ## Reserved floor footprint per station kind (x = local width, y = local depth along the front axis).
 const FOOTPRINTS := {
 	"ShopCounter": Vector2(3.4, 1.2),
@@ -193,10 +196,24 @@ func _test_shell(room: Room, space: PhysicsDirectSpaceState3D) -> void:
 
 # --- layout -----------------------------------------------------------------------------------------
 
+## Stations that stand on the floor (every station except the wall-mounted ones).
+func _floor_stations(room: Room) -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	for s in room.get_stations():
+		if not Room.is_wall_station(String(s.name)):
+			out.append(s)
+	return out
+
+
 func _test_layout(room: Room) -> void:
 	var b := room.get_bounds()
 	var centre := b.get_center()
-	var stations := room.get_stations()
+	var stations := _floor_stations(room)
+	for w in room.get_stations():
+		if Room.is_wall_station(String(w.name)):
+			_check(w.global_basis.y.normalized().dot(Vector3.UP) > 0.999, "%s (wall-mounted) is upright" % w.name)
+			_check(b.grow(0.05).has_point(w.global_position) and w.global_position.y > 0.8 and w.global_position.y < 2.0,
+					"%s (wall-mounted) hangs inside the room at hand height (y=%.2f)" % [w.name, w.global_position.y])
 	for s in stations:
 		var p := s.global_position
 		_check(absf(p.y - b.position.y) < 0.001, "%s origin is at floor level (y=%.3f)" % [s.name, p.y])
@@ -243,7 +260,7 @@ func _footprint_of(station: Node3D) -> Vector2:
 
 
 func _test_footprints(room: Room, space: PhysicsDirectSpaceState3D) -> void:
-	var stations := room.get_stations()
+	var stations := _floor_stations(room)
 	var stations_root := room.get_node("Stations")
 	# (a) Colliders: nothing but the station itself inside its reserved footprint (above the floor).
 	for s in stations:
@@ -383,7 +400,7 @@ func _test_walkability(room: Room, space: PhysicsDirectSpaceState3D) -> void:
 	for m in pts:
 		var c := _cell_of(m.global_position, x0, z0, nx, nz)
 		all_ok = _check(reach[c] == 1, "walkability: %s is reachable from Spawn1" % m.name) and all_ok
-	for s in room.get_stations():
+	for s in _floor_stations(room):
 		var fp := _footprint_of(s)
 		var inv := s.global_transform.affine_inverse()
 		var found := false
