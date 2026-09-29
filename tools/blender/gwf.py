@@ -1,4 +1,6 @@
-"""gwf.py - Grow With Friends Blender helper library (bpy 4.2, no GUI). Owner: pipeline agent.
+"""gwf.py - Grow With Friends Blender helper library (bpy 4.2 module or Blender 5.2 --background, no GUI).
+Owner: pipeline agent. API differences between the versions are guarded in _principled(), export() and
+_preview() (see MODELING.md "Windows / Blender 5.2"); everything else is plain bmesh + modifiers.
 
 Every model script in tools/blender/models/ does `from gwf import *` and defines `build()`, which builds
 one model (or a family) and calls `export(...)`. Run scripts through tools/blender/build.py, never directly.
@@ -34,7 +36,10 @@ import sys
 import tempfile
 import time
 import contextlib
+import warnings
 from mathutils import Vector, Matrix, Euler
+
+BLENDER_VERSION = tuple(bpy.app.version[:2])  # (4, 2) module on Linux, (5, 2) blender.exe on Windows
 
 __all__ = [
     # scene + materials
@@ -148,8 +153,16 @@ def _hex(color):
 
 def _principled(name, lin_rgba, roughness, emission=0.0, double_sided=False):
     m = bpy.data.materials.new(name)
-    m.use_nodes = True
-    bsdf = m.node_tree.nodes["Principled BSDF"]
+    if m.node_tree is None or not getattr(m, "use_nodes", True):
+        with warnings.catch_warnings():  # 5.x: use_nodes is deprecated (materials always have nodes)
+            warnings.simplefilter("ignore")
+            m.use_nodes = True
+    bsdf = m.node_tree.nodes.get("Principled BSDF")
+    if bsdf is None:
+        bsdf = m.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
+        out = next((n for n in m.node_tree.nodes if n.type == 'OUTPUT_MATERIAL'), None) or m.node_tree.nodes.new(
+            "ShaderNodeOutputMaterial")
+        m.node_tree.links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
     bsdf.inputs["Base Color"].default_value = lin_rgba
     bsdf.inputs["Metallic"].default_value = 0.0
     bsdf.inputs["Roughness"].default_value = roughness
@@ -158,8 +171,10 @@ def _principled(name, lin_rgba, roughness, emission=0.0, double_sided=False):
         bsdf.inputs["Emission Strength"].default_value = emission
     if lin_rgba[3] < 1.0:
         bsdf.inputs["Alpha"].default_value = lin_rgba[3]
-        m.blend_method = 'BLEND'
-        m.surface_render_method = 'BLENDED'
+        if hasattr(m, "blend_method"):  # EEVEE legacy (gone after 5.x); the glTF exporter reads it in 4.2
+            m.blend_method = 'BLEND'
+        if hasattr(m, "surface_render_method"):  # 4.2+
+            m.surface_render_method = 'BLENDED'
     m.use_backface_culling = not double_sided  # glTF doubleSided=false -> Godot cull back faces
     m.diffuse_color = lin_rgba  # viewport colour
     return m
@@ -1042,6 +1057,29 @@ def _check(info, mount, budget):
     return problems, warnings
 
 
+_GLTF_RENAMES = {  # old name -> newer names to try when an exporter drops/renames an option
+    "export_apply": ("export_apply_modifiers",),
+    "export_image_format": ("export_image_format",),
+}
+
+
+def _gltf_args(**kwargs):
+    """Keep only the options this Blender's glTF exporter knows (names moved between versions); unknown
+    ones are dropped with a note under --verbose, renamed ones are mapped."""
+    known = {p.identifier for p in bpy.ops.export_scene.gltf.get_rna_type().properties}
+    out = {}
+    for k, v in kwargs.items():
+        if k in known:
+            out[k] = v
+            continue
+        alt = next((a for a in _GLTF_RENAMES.get(k, ()) if a in known), None)
+        if alt:
+            out[alt] = v
+        elif OPTIONS.get("verbose"):
+            print("  gltf exporter %s: no option %s (dropped)" % (bpy.app.version_string, k))
+    return out
+
+
 def _turn_around(objs):
     """Rotate a whole hierarchy 180 degrees about the vertical axis through the origin, baked into mesh data
     and node positions: every local matrix is conjugated (R M R^-1), so rotations stay as they were
@@ -1095,12 +1133,12 @@ def export(objs, name, kind="prop", mount="floor", budget=None, import_params=No
             _turn_around(all_objs)
         try:
             with _quiet():
-                bpy.ops.export_scene.gltf(
+                bpy.ops.export_scene.gltf(**_gltf_args(
                     filepath=tmp, export_format='GLB', use_selection=True, export_apply=True, export_yup=True,
                     export_texcoords=False, export_normals=True, export_tangents=False,
                     export_materials='EXPORT', export_image_format='NONE', export_cameras=False,
                     export_lights=False, export_animations=False, export_skins=False, export_morph=False,
-                    export_extras=False, will_save_settings=False)
+                    export_extras=False, will_save_settings=False))
             data = open(tmp, "rb").read()
         finally:
             os.remove(tmp)
@@ -1164,7 +1202,10 @@ def _preview(objs, name, size=256, samples=12):
     scene.render.resolution_y = size
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = 'PNG'
-    scene.view_settings.view_transform = 'Standard'
+    try:
+        scene.view_settings.view_transform = 'Standard'  # 5.x default is AgX; both configs have Standard
+    except TypeError:
+        pass
     out_dir = OPTIONS["preview_dir"]
     os.makedirs(out_dir, exist_ok=True)
     tiles = []
