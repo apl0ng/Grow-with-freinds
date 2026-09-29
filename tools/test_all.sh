@@ -35,12 +35,8 @@ if command -v setsid >/dev/null 2>&1 && command -v pgrep >/dev/null 2>&1; then H
 
 ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test models_arch_test models_char_test models_plant_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
-<<<<<<< HEAD
   review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline lan voice_test voice_mp physics physics_mp ui_m10 ui_m10_mp events events_mp
-=======
-  review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline voice_test voice_mp physics physics_mp ui_m10 ui_m10_mp events events_mp
   review_m10 review_m10_mp
->>>>>>> m11/review
   qa_mouse_x11)
 
 ONLY=""
@@ -59,11 +55,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-<<<<<<< HEAD
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 50 51 61 62 71 72 73 74 80 91 92 95 96; do
-=======
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 61 62 71 72 73 74 80 91 92 95 96; do
->>>>>>> m11/review
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 61 62 71 72 73 74 80 91 92 95 96; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
