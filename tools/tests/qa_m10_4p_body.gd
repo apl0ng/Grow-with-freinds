@@ -408,7 +408,10 @@ func _case_backroom() -> void:
 	var release := float(GameState.backroom.get(_ids["b"], -1.0))
 	check(absf(GameState.time_left - release - b.backroom_sec) < 1.0, "the release rides the shift timer (%.0f s stay)" % (GameState.time_left - release))
 	var spot := room.get_backroom_transform(0).origin
+	print("  (physics mismatch before Bravo enters: %s)" % [_phys_mismatch()])
 	await wait_until(func() -> bool: return _player("b") != null and _player("b").global_position.distance_to(spot) < 0.4, 5.0, "host: Bravo's body at the BackRoomSpot")
+	await wait_frames(2)
+	print("  (physics mismatch with Bravo inside: %s)" % [_phys_mismatch()])
 	var r := await run_cmd(_ids["b"], "backroom_check")
 	check(bool(r.get("locked", false)), "Bravo: UI locked by the back room")
 	check(bool(r.get("overlay", false)), "Bravo: overlay open")
@@ -426,15 +429,80 @@ func _case_backroom() -> void:
 	var spawn := room.get_spawn_transform(_player("b").spawn_index).origin
 	await wait_until(func() -> bool: return _player("b").global_position.distance_to(spawn) < 0.6, 5.0, "host: Bravo's body back at his spawn")
 	await wait_sec(0.3)
+	print("  (physics mismatch after the timer release: %s)" % [_phys_mismatch()])
 	r = await run_cmd(_ids["b"], "backroom_check")
 	check(not bool(r.get("locked", true)) and not bool(r.get("overlay", true)), "Bravo: lock + overlay gone")
 	check(bool(r.get("own_camera", false)) and int(r.get("cameras", 1)) == 0, "Bravo: own camera current, no SpectatorCamera node left")
 
-	step("the host in the back room; Alpha throws through its spot: no hit")
-	check(GameState.server_send_to_backroom(1, 20.0), "host sent to the back room")
+	step("two workers in the back room at once sit on different spots (the lower peer id enters second)")
+	var pair: Array = [_ids["b"], _ids["c"]]
+	pair.sort()
+	var first: int = pair[1]
+	var second: int = pair[0]
+	check(GameState.server_send_to_backroom(first, 20.0) and GameState.server_send_to_backroom(second, 20.0), "both sent")
+	var p_first := Game.world.get_player(first)
+	var p_second := Game.world.get_player(second)
+	await wait_until(func() -> bool: return _at_a_backroom_slot(p_first) and _at_a_backroom_slot(p_second), 5.0, "both bodies at back-room markers")
+	await wait_frames(2)
+	print("  (physics mismatch with the pair inside: %s)" % [_phys_mismatch()])
+	var apart := p_first.global_position.distance_to(p_second.global_position)
+	check(apart > 1.0, "they sit %.2f m apart (different slots)" % apart)
+	r = await run_cmd(_ids["a"], "report_player", {"peer": first})
+	var r2 := await run_cmd(_ids["a"], "report_player", {"peer": second})
+	check(Vector3(r.get("pos", Vector3.INF)).distance_to(Vector3(r2.get("pos", Vector3.INF))) > 1.0, "Alpha sees them apart too")
+	GameState.server_release_from_backroom(first)
+	GameState.server_release_from_backroom(second)
 	await wait_frames(3)
+	check(GameState.backroom.is_empty(), "both released")
+	# Their bodies must have synced back to their spawns before the host is put on the marker (a body still
+	# standing there would push the host off it).
+	await wait_until(func() -> bool: return not _at_a_backroom_slot(p_first) and not _at_a_backroom_slot(p_second), 5.0, "both bodies left the markers")
+	await wait_frames(2)
+	print("  (physics mismatch after the pair left: %s)" % [_phys_mismatch()])
+
+	step("a worker standing on another worker is not flung when that worker is teleported away")
+	# Remote bodies are kinematic colliders that jump to a synced position in one physics tick. A worker standing on
+	# one must not inherit that jump as a moving-platform velocity (observed: the host carried 8 m across the room).
 	var me: Player = Game.local_player
-	check(me.global_position.distance_to(spot) < 0.4, "host body at the spot")
+	var pb := _player("b")
+	var under := pb.global_position
+	_put_me(under + Vector3.UP * Player.STAND_HEIGHT, under + Vector3(0.0, 0.0, 1.0))
+	await wait_sec(0.5)
+	var on_head := me.global_position.y > 1.2 and Vector2(me.global_position.x - under.x, me.global_position.z - under.z).length() < 0.5
+	check(on_head, "the host stands on Bravo (%s over %s)" % [me.global_position, under])
+	var here := me.global_position
+	check(GameState.server_send_to_backroom(_ids["b"], 20.0), "Bravo is sent to the back room from under the host")
+	await wait_sec(0.8)
+	var carried := Vector2(me.global_position.x - here.x, me.global_position.z - here.z).length()
+	check(carried < 1.0 and me.global_position.y < 0.3, "the host dropped to the floor where it stood (moved %.2f m, now %s)" % [carried, me.global_position])
+	GameState.server_release_from_backroom(_ids["b"])
+	await wait_until(func() -> bool: return not _at_a_backroom_slot(pb), 5.0, "Bravo back out")
+	await wait_frames(2)
+	_put_me(Vector3(1.0, 0.05, -1.6), Vector3(1.0, 0.05, 1.0))
+	await wait_sec(0.3)
+
+	step("the host in the back room; Alpha throws through its spot: no hit")
+	_backroom_ev.clear()
+	var host_before := me.global_position
+	var others := []
+	for p in Game.world.get_players():
+		var phys: Transform3D = PhysicsServer3D.body_get_state(p.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM)
+		others.append("%d node %s physics %s shape h%.1f%s" % [p.peer_id, p.global_position, phys.origin, p._shape.height, " crouched" if p.crouching else ""])
+	print("  (bodies before: %s; host spawn index %d)" % [others, me.spawn_index])
+	check(GameState.server_send_to_backroom(1, 20.0), "host sent to the back room")
+	var trace := [me.global_position]
+	print("  (overlapping the marker right after the teleport: %s)" % [_bodies_at(spot, me)])
+	for i in 3:
+		await get_tree().process_frame
+		trace.append(me.global_position)
+		var hits := []
+		for c in me.get_slide_collision_count():
+			var col := me.get_slide_collision(c).get_collider()
+			hits.append(String(col.name) if col != null else "?")
+		print("  (frame %d: host at %s, slide collisions %s, floor %s)" % [i + 1, me.global_position, hits, me.is_on_floor()])
+	print("  (host body trace: %s)" % [trace])
+	check(_backroom_ev.has([1, true]), "backroom_changed(host, true) fired %s" % [_backroom_ev])
+	check(me.global_position.distance_to(spot) < 0.4, "host body at the spot (%s vs %s, was %s, slots %s)" % [me.global_position, spot, host_before, Events._backroom_slots])
 	check(Game.is_ui_locked_by(Const.UI_LOCK_BACKROOM), "host UI locked")
 	var hud := _hud()
 	check(hud.back_room.is_open() and get_viewport().get_camera_3d() == hud.back_room.get_spectator_camera(), "host: overlay + spectator camera")
@@ -604,7 +672,7 @@ func _case_rat() -> void:
 	check(_ev_ended.size() == 1 and _ev_ended[0][0] == Events.EVENT_RAT, "event_ended(rat)")
 	await wait_until(func() -> bool: return room.get_node_or_null(^"Rat") == null, 8.0, "host: he is gone")
 	for k in ["a", "b", "c"]:
-		r = await run_cmd(_ids[k], "report")
+		r = await run_cmd(_ids[k], "wait_no_rat")
 		check(not bool(r.get("rat", true)) and String(r.get("active", "?")) == "", "%s: rat gone, no event" % NAMES[k])
 	p2.server_reset()
 	r = await run_cmd(_ids["c"], "goto", {"pos": _park["c"]})
@@ -964,6 +1032,46 @@ func _player(key: String) -> Player:
 
 func _put_me(pos: Vector3, look: Vector3) -> void:
 	_place_local(pos, look, null, null)
+
+
+## Diagnostics: every Player whose physics body sits away from its node ("peer: node -> physics").
+func _phys_mismatch() -> Array:
+	var out := []
+	if Game.world == null:
+		return out
+	for p in Game.world.get_players():
+		var phys: Transform3D = PhysicsServer3D.body_get_state(p.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM)
+		if phys.origin.distance_to(p.global_position) > 0.1:
+			out.append("%d: node %s physics %s" % [p.peer_id, p.global_position, phys.origin])
+	return out
+
+
+## Names of the colliders (world | players) a standing capsule at `at` overlaps, `me` excluded (diagnostics).
+func _bodies_at(at: Vector3, me: Player) -> Array:
+	var out := []
+	var space := Game.world.get_world_3d().direct_space_state
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.35
+	capsule.height = Player.STAND_HEIGHT
+	var params := PhysicsShapeQueryParameters3D.new()
+	params.shape = capsule
+	params.transform = Transform3D(Basis.IDENTITY, at + Vector3.UP * Player.STAND_HEIGHT * 0.5)
+	params.collision_mask = Const.LAYER_WORLD | Const.LAYER_PLAYER
+	params.exclude = [me.get_rid()]
+	for hit in space.intersect_shape(params, 8):
+		var col: Object = hit.get("collider")
+		out.append("%s@%s" % [col.name if col is Node else str(col), (col as Node3D).global_position if col is Node3D else "?"])
+	return out
+
+
+## True when `p` stands within 0.4 m of one of the room's back-room slots.
+func _at_a_backroom_slot(p: Player) -> bool:
+	if p == null or not is_instance_valid(p) or Game.world == null:
+		return false
+	for slot in Room.BACKROOM_SLOTS.size():
+		if p.global_position.distance_to(Game.world.room.get_backroom_transform(slot).origin) < 0.4:
+			return true
+	return false
 
 
 func _none_flying() -> bool:

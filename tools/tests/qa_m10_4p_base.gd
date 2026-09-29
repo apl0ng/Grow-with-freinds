@@ -487,6 +487,10 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 			ack(seq, {"pos": me.global_position if me != null else Vector3.INF, "crouching": me != null and me.crouching})
 		"report":
 			ack(seq, _report())
+		"wait_no_rat":
+			# The flee runs on each peer's own clock: give the rat a few seconds to reach the gap and free itself.
+			await wait_until_quiet(func() -> bool: return not bool(_report()["rat"]), 6.0)
+			ack(seq, _report())
 		"report_items":
 			var rep := _report()
 			rep["items_by_name"] = _items_report(args.get("names", []))
