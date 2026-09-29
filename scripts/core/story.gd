@@ -139,7 +139,7 @@ func _ready() -> void:
 		GameState.worker_written_up.connect(_on_worker_written_up)
 	if GameState.has_signal(&"backroom_changed"):
 		GameState.backroom_changed.connect(_on_backroom_changed)
-	var events: Node = get_node_or_null(^"/root/Events")
+	var events: Node = Events
 	if events != null:
 		if events.has_signal(&"event_started"):
 			events.connect(&"event_started", _on_event_started)

@@ -168,10 +168,10 @@ func _ready() -> void:
 	GameState.stats_changed.connect(refresh_marks)
 	GameState.worker_written_up.connect(_on_worker_written_up)
 	GameState.backroom_changed.connect(_on_backroom_changed)
-	var voice: Node = get_node_or_null(^"/root/Voice")
+	var voice: Node = Voice
 	if voice != null and voice.has_signal(&"speaking_changed"):
 		voice.connect(&"speaking_changed", _on_speaking_changed)
-	var events: Node = get_node_or_null(^"/root/Events")
+	var events: Node = Events
 	if events != null:
 		if events.has_signal(&"event_started"):
 			events.connect(&"event_started", _on_event_started)
@@ -526,7 +526,7 @@ func _apply_speaking_mark(peer_id: int) -> void:
 	var speak: Label = _player_rows[peer_id]["speak"]
 	var speaking := bool(_speaking_signal.get(peer_id, false))
 	if not speaking:
-		var voice: Node = get_node_or_null(^"/root/Voice")
+		var voice: Node = Voice
 		if voice != null and voice.has_method(&"is_speaking"):
 			speaking = bool(voice.call(&"is_speaking", peer_id))
 	var shown := speak.modulate.a > 0.5
@@ -552,7 +552,7 @@ func _on_event_ended(_kind: StringName) -> void:
 
 ## Late join / HUD built mid-event: pick up the running event from Events without a pop.
 func _sync_event_banner() -> void:
-	var events: Node = get_node_or_null(^"/root/Events")
+	var events: Node = Events
 	if events == null or not events.has_method(&"is_event_active"):
 		return
 	if bool(events.call(&"is_event_active")):
@@ -593,7 +593,7 @@ func _event_title() -> String:
 
 func _update_event_countdown() -> void:
 	var text := _event_title()
-	var events: Node = get_node_or_null(^"/root/Events")
+	var events: Node = Events
 	if events != null and events.has_method(&"get_event_time_left"):
 		var left := float(events.call(&"get_event_time_left"))
 		if left > 0.0:

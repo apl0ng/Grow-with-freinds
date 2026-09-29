@@ -15,7 +15,8 @@ const COLUMNS: Array = [
 	["WORKER", false], ["DEPOSITED", true], ["PLANTED", true], ["WATERED", true],
 	["HARVESTED", true], ["WRITE-UPS", true], ["THROWS/HITS", true],
 ]
-const ROW_FONT_SIZE: int = 18
+const ROW_FONT_SIZE: int = 16
+const VERDICT_FONT_SIZE: int = 18
 const NAME_MAX_WIDTH: float = 150.0
 
 var _row_peers: Array[int] = []
@@ -23,7 +24,8 @@ var _verdict_texts: PackedStringArray = []
 
 @onready var title_label: Label = %Title
 @onready var grid: GridContainer = %Grid
-@onready var verdicts_box: VBoxContainer = %Verdicts
+## Verdict lines flow on one row and wrap when the names are long (HFlowContainer).
+@onready var verdicts_box: Container = %Verdicts
 
 
 func _ready() -> void:
@@ -62,6 +64,7 @@ func refresh() -> void:
 	for text in _verdict_texts:
 		var label := Label.new()
 		label.text = text
+		label.add_theme_font_size_override(&"font_size", VERDICT_FONT_SIZE)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		verdicts_box.add_child(label)

@@ -37,7 +37,7 @@ layout_mode = 2
 
 [node name="VBox" type="VBoxContainer" parent="Center/Card"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="Center/Card/VBox"]
 layout_mode = 2
@@ -98,15 +98,21 @@ theme_type_variation = &"SubtleLabel"
 text = "VOICE"
 horizontal_alignment = 1
 
-[node name="MicToggle" type="CheckButton" parent="Center/Card/VBox/Voice/VoiceBox"]
+[node name="Toggles" type="HBoxContainer" parent="Center/Card/VBox/Voice/VoiceBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="MicToggle" type="CheckButton" parent="Center/Card/VBox/Voice/VoiceBox/Toggles"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 focus_mode = 0
 text = "Microphone"
 
-[node name="PttToggle" type="CheckButton" parent="Center/Card/VBox/Voice/VoiceBox"]
+[node name="PttToggle" type="CheckButton" parent="Center/Card/VBox/Voice/VoiceBox/Toggles"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 focus_mode = 0
 text = "Push to talk (V)"
 
@@ -137,6 +143,7 @@ text = "0 dB"
 horizontal_alignment = 2
 
 [node name="MeterRow" type="HBoxContainer" parent="Center/Card/VBox/Voice/VoiceBox"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 12
 

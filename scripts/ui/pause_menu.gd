@@ -46,6 +46,7 @@ var _other_unlock_frame: int = -1
 @onready var volume_slider: HSlider = %VolumeSlider
 @onready var volume_value: Label = %VolumeValue
 @onready var input_meter: ProgressBar = %InputMeter
+@onready var meter_row: Control = %MeterRow
 @onready var no_mic_label: Label = %NoMicLabel
 
 ## True while sync_voice_controls() writes the widgets (their signals must not write back into Voice).
@@ -157,6 +158,7 @@ func sync_voice_controls() -> void:
 		mic_toggle.disabled = true
 		ptt_toggle.disabled = true
 		volume_slider.editable = false
+		meter_row.visible = false
 		no_mic_label.visible = true
 	else:
 		mic_toggle.button_pressed = bool(voice.get(&"enabled"))
@@ -165,6 +167,8 @@ func sync_voice_controls() -> void:
 		volume_slider.value = db
 		volume_value.text = TEXT_VOLUME % roundi(db)
 		var mic_ok := bool(voice.call(&"is_mic_available")) if voice.has_method(&"is_mic_available") else false
+		# One row: the meter with a microphone, the flat note without one (keeps the card short).
+		meter_row.visible = mic_ok
 		no_mic_label.visible = not mic_ok
 		input_meter.value = float(voice.call(&"get_input_level")) if voice.has_method(&"get_input_level") else 0.0
 	_syncing_voice = false
@@ -202,7 +206,7 @@ func _on_input_level_changed(level: float) -> void:
 
 
 func _voice() -> Node:
-	return get_node_or_null(^"/root/Voice")
+	return Voice
 
 
 func _set_locked(locked: bool) -> void:

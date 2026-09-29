@@ -237,6 +237,13 @@ func _section_event_banner() -> void:
 	check(hud.get_event_text() == "POWER CUT" and hud.event_hint.visible and hud.event_hint.text == "Find the breaker.",
 			"POWER CUT banner + hint (%s)" % hud.get_event_text())
 	check(Story.last_bark == "Not my problem.", "Boss: '%s'" % Story.last_bark)
+	await wait_sec(0.4) # pop-in done
+	var quota_rect := hud.quota_panel.get_global_rect()
+	var event_rect := hud.event_panel.get_global_rect()
+	check(absf(quota_rect.get_center().x - 640.0) < 2.0 and absf(event_rect.get_center().x - 640.0) < 2.0
+			and event_rect.position.y >= quota_rect.end.y and event_rect.position.y < quota_rect.end.y + 24.0
+			and not event_rect.intersects(hud.players_panel.get_global_rect()),
+			"event banner centred right under the payment bar (payment %s, event %s)" % [quota_rect, event_rect])
 	_story_gap()
 	Events.power_changed.emit(true)
 	check(Story.last_bark == "…Took you long enough.", "power back: '%s'" % Story.last_bark)
@@ -368,7 +375,9 @@ func _section_backroom() -> void:
 	GameState.server_send_to_backroom(3, 6.0)
 	await wait_frames(2)
 	check(br.get_watched_peer() == 2 and hud.is_backroom_tag_shown(3), "a worker sent to the back room leaves the targets")
-	check(get_viewport().get_visible_rect().encloses(br.column.get_global_rect()), "overlay column on screen")
+	await wait_sec(0.4) # pop-in over
+	check(get_viewport().get_visible_rect().encloses(br.column.get_global_rect()) and br.column.get_global_rect().size.y > 100.0,
+			"overlay column on screen (%s)" % br.column.get_global_rect())
 	GameState.server_release_from_backroom(1)
 	await wait_frames(2)
 	check(not br.is_open() and not br.visible, "released: overlay hidden")
@@ -417,7 +426,9 @@ func _section_report() -> void:
 			"verdicts %s" % [verdicts])
 	check(verdicts == Story.get_report_verdicts(), "verdicts come from Story.get_report_verdicts()")
 	var vp := get_viewport().get_visible_rect()
-	check(vp.encloses(re.card.get_global_rect()), "round-end card with 4 report rows fits 1280x720 (%s)" % re.card.get_global_rect())
+	await wait_sec(0.5) # the card's pop-in must be over: a scaled rect would pass any fit check
+	check(vp.encloses(re.card.get_global_rect()) and re.card.get_global_rect().size.y > 400.0,
+			"round-end card with 4 report rows fits 1280x720 (%s)" % re.card.get_global_rect())
 	GameState.server_add_stat(2, Const.STAT_PLANTED, 5)
 	await wait_frames(1)
 	check(report.get_cell_text(2, 2) == "5", "stats_changed refreshes the open report")
@@ -448,7 +459,8 @@ func _section_report() -> void:
 	await wait_frames(2)
 	check(re.is_open() and report.get_row_peers() == [1, 2, 4], "failure screen: report rows for the live workers (%s)" % [report.get_row_peers()])
 	check(report.get_verdict_texts() == PackedStringArray(["Least useful: Reviewer."]), "nobody did anything: %s" % [report.get_verdict_texts()])
-	check(vp.encloses(re.card.get_global_rect()), "failure card fits 1280x720")
+	await wait_sec(0.5)
+	check(vp.encloses(re.card.get_global_rect()) and re.card.get_global_rect().size.y > 400.0, "failure card fits 1280x720 (%s)" % re.card.get_global_rect())
 	re.primary_button.pressed.emit()
 	await wait_frames(3)
 	check(GameState.phase == GameState.Phase.WAITING and not re.is_open(), "START OVER -> WAITING, overlay gone")
@@ -477,7 +489,11 @@ func _section_pause_voice() -> void:
 	check(is_equal_approx(Voice.output_volume_db, -12.0) and pm.volume_value.text == "-12 dB", "volume slider writes Voice.output_volume_db (%s)" % pm.volume_value.text)
 	Voice.input_level_changed.emit(0.5)
 	check(is_equal_approx(pm.input_meter.value, 0.5), "input meter follows Voice.input_level_changed")
-	check(get_viewport().get_visible_rect().encloses(pm.card.get_global_rect()), "pause card with the voice section fits 1280x720 (%s)" % pm.card.get_global_rect())
+	check(pm.meter_row.visible == Voice.is_mic_available(), "the meter row shows only with a microphone")
+	await wait_sec(0.5) # pop-in over before measuring
+	var pause_rect := pm.card.get_global_rect()
+	check(get_viewport().get_visible_rect().encloses(pause_rect) and pause_rect.size.y > 300.0 and pause_rect.size.y <= 660.0,
+			"pause card with the voice section fits 1280x720 with margin (%s)" % pause_rect)
 	Voice.enabled = enabled0
 	Voice.push_to_talk = ptt0
 	Voice.output_volume_db = vol0
