@@ -141,6 +141,43 @@ Table columns: `glb changed/same` (was the file rewritten), `status` ok / WARN (
 footprint) / FAIL (not exported: bad size, origin not on the contact point, faces without material,
 default Blender material, import failed, script crashed; the reason is in the notes).
 
+### Windows / Blender 5.2 (this PC; the cloud sessions use the Linux bpy 4.2 module)
+
+There is no `python` with bpy here: Blender 5.2.2 LTS is installed as an application and build.py runs
+**inside** it. From Git Bash in the repo root:
+
+```bash
+export GODOT="/c/Users/ap_lo/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe"
+export BLENDER="/c/Program Files/Blender Foundation/Blender 5.2/blender.exe"     # optional: it is the default
+"$BLENDER" --background --python tools/blender/build.py -- fuse_box rat --test   # our args go after "--"
+"$GODOT" --headless --path . --import                                             # after every build, before tests
+```
+
+`python tools/blender/build.py ...` (any Python without bpy, or with `--blender` / `BLENDER` set) re-runs
+itself under blender.exe with the same arguments and forwards the exit code, so both spellings work; the
+Blender start-up costs ~5 s per run, so batch your families. Inside Blender, build.py reads its own
+arguments after `--` (Blender's own come first) and still leaves through `os._exit`. Compatibility
+guards (gwf.py, both versions build the same meshes): `Material.use_nodes` only when the node tree is
+missing (deprecated in 5.x), `blend_method` / `surface_render_method` by `hasattr`, glTF exporter options
+filtered against this Blender's operator (`_gltf_args`), the preview view transform in a try. build.py:
+`fcntl` is optional (a `msvcrt` byte-range lock on Windows), `--shots` without `xvfb-run` opens a small
+real Godot window at 1500,900 for a few seconds (no virtual display here: keep it rare).
+
+**Do not rebuild shipped models on another Blender version.** The 5.2 exporter writes the same vertices,
+triangles and materials as 4.2 (checked on oil_drum, security_camera, watering_can: same tris, size and
+accessor counts) but a different `generator` string, so every re-exported `.glb` is "changed" and a full
+`build.py` run would churn the whole of art/models. Build only your own families; verify compatibility with
+`--out DIR` (the .glb files go to DIR, no manifest / .import / Godot pass) and compare the table with
+manifest.json. If a run did rewrite others: `git checkout -- art/models/<name>.glb art/models/<name>.glb.import`.
+Godot's `--import` also rewrites every `.glb.import` with LF line endings on this CRLF checkout (pure
+line-ending churn): `git checkout -- art/models/*.glb.import` before committing.
+
+**Visual check without xvfb:** `--preview --preview-dir DIR` renders a Cycles turntable strip per model
+(4 views, background, no window) in ~0.2 s each; open the PNGs (the Read tool shows them). It is not the
+in-game look (no toon shading, no outline) but shapes, proportions, colour blocks and the front direction
+read fine. For the real look use `--shots DIR` once at the end (a small window flashes) or
+`tools/tests/models_preview.gd` with `--position 1500,900 --resolution 640x360` on the console exe.
+
 ---
 
 ## 5. Hooking a model into a Godot scene (without breaking contracts)
@@ -309,6 +346,15 @@ All paths are relative to `scenes/`. ✅ = shipped (in `art/models/manifest.json
 | ✅ `pipe_straight_2m`, `pipe_straight_1m`, `pipe_elbow`, `pipe_valve`, `pipe_hanger`, `leaky_pipe` (flanges are built into the straights) | Ø 0.2, modules | room ceiling/walls, `leaky_pipe.tscn` (6 m = segments) | `metal_dark` + rust, flanges with bolts. Keep the leaky pipe's `Puddle`/`Drop` in the scene |
 | ✅ `cable_tray_2m` | 2 × 0.1 × 0.3, ceiling | room | Sagging cables (`sag_points`) |
 | Caution stripes, posters, decals | – | room | Stay flat Godot meshes / `sign_board` (not worth modelling) |
+
+**M10 friendslop props** (modeling agent; built on Windows / Blender 5.2, scenes by the events agent)
+
+| Model | Size / mount | Scene | Notes |
+|---|---|---|---|
+| ✅ `fuse_box` | 0.51 × 0.85 × 0.32, wall (origin = the cabinet's bottom centre on the wall; place the node ~1.1 m up) | `stations/fuse_box.tscn`, instanced **as** `Visual` | Rigged: `Cabinet` (static) + `Lever` (pivot on its axle at (0.175, 0.34, 0.225), pointing up at rest; `Lever.rotation.x = deg_to_rad(130)` = tripped: down and out of the wall). Door ajar + crooked, "FUSES" caution plate, red grip, rust drips onto the wall |
+| ✅ `backroom_door` | 1.10 × 2.20 × 0.17, wall, feet on the floor | room `Decor/BackRoomDoor`, instanced **as** `Visual` | Rigged: `Frame` + `Backing` (a void-black slab in the opening; hide it for a see-through doorway) static, `Door` (pivot on the hinge edge at (-0.46, 0, 0.07); `Door.rotation.y = deg_to_rad(80)` swings the leaf through the wall plane, away from the viewer). Wired window, "STAFF ONLY", kick plate askew, "NO BREAKS" tag, boot dents |
+| ✅ `clipboard` | 0.25 × 0.36 × 0.07, floor (item, front -Z: the sheets face -Z), budget 1500 | the Boss's `Visual/Torso/ArmRight/Hand` during inspections | One mesh, no rig. Standing upright on its bottom edge; in a palm-down hand rotate it -90° about X (sheets up) |
+| ✅ `rat` | 0.13 × 0.07 × 0.35 (nose at -Z), floor, budget 2000 | `world/props/rat.tscn`, instanced **as** `Visual` | Rigged: `Body` (static, one unioned part so it gets the thin outline) + `Tail` (pivot at the rump (0, 0.046, 0.06), rest identity; `Tail.rotation.y` swishes). Thin, head hanging, heavy lids, bald patches, tail dragging |
 
 ---
 
