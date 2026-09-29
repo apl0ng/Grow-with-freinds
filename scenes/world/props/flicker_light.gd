@@ -14,6 +14,8 @@ var _light: Light3D
 var _tubes: Node3D
 var _energy: float = 1.0
 var _wait: float = 0.0
+var _powered: bool = true
+var _stutter: Tween
 
 
 func _ready() -> void:
@@ -22,7 +24,26 @@ func _ready() -> void:
 	if _light != null:
 		_energy = _light.light_energy
 	_wait = randf_range(min_gap, max_gap)
-	set_process(flicker and (_light != null or _tubes != null))
+	set_process(_powered and flicker and (_light != null or _tubes != null))
+
+
+## M10 (power cut, called by Room.set_power): off = tubes dark, no stutters, the light's energy left alone
+## (the Room fades every light itself); on = tubes back, stutters resume. Idempotent.
+func set_powered(on: bool) -> void:
+	if on == _powered:
+		return
+	_powered = on
+	if _stutter != null and _stutter.is_valid():
+		_stutter.kill()
+	if _tubes != null:
+		_tubes.visible = on
+	if on:
+		_wait = randf_range(min_gap, maxf(max_gap, min_gap))
+	set_process(on and flicker and (_light != null or _tubes != null))
+
+
+func is_powered() -> bool:
+	return _powered
 
 
 func _process(delta: float) -> void:
@@ -31,6 +52,7 @@ func _process(delta: float) -> void:
 		return
 	_wait = randf_range(min_gap, maxf(max_gap, min_gap))
 	var tw := create_tween()
+	_stutter = tw
 	for i in randi_range(2, 4):
 		tw.tween_callback(_set_on.bind(false))
 		tw.tween_interval(randf_range(0.03, 0.09))

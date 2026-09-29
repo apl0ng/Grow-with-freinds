@@ -54,6 +54,40 @@
 [ext_resource type="PackedScene" path="res://art/models/ceiling_panel_hole.glb" id="51_ceiling_hole"]
 [ext_resource type="PackedScene" path="res://art/models/ceiling_beam.glb" id="52_ceiling_beam"]
 [ext_resource type="PackedScene" path="res://art/models/hole_rim.glb" id="53_hole_rim"]
+[ext_resource type="PackedScene" path="res://scenes/stations/fuse_box.tscn" id="54_fuse_box"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_pw_south"]
+size = Vector3(0.12, 3, 0.95)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pw_south"]
+size = Vector3(0.12, 3, 0.95)
+
+[sub_resource type="BoxMesh" id="BoxMesh_pw_stub"]
+size = Vector3(0.12, 3, 0.15)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pw_stub"]
+size = Vector3(0.12, 3, 0.15)
+
+[sub_resource type="BoxMesh" id="BoxMesh_pw_header"]
+size = Vector3(0.12, 0.85, 0.9)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pw_header"]
+size = Vector3(0.12, 0.85, 0.9)
+
+[sub_resource type="BoxMesh" id="BoxMesh_door_leaf"]
+size = Vector3(0.06, 2.1, 0.9)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_door_leaf"]
+size = Vector3(0.06, 2.12, 0.92)
+
+[sub_resource type="BoxMesh" id="BoxMesh_door_plate"]
+size = Vector3(0.012, 0.3, 0.22)
+
+[sub_resource type="SphereMesh" id="SphereMesh_door_knob"]
+radius = 0.035
+height = 0.07
+radial_segments = 12
+rings = 6
 
 [sub_resource type="Environment" id="Environment_factory"]
 background_mode = 1
@@ -564,8 +598,18 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.6, 3.2, 0)
 collision_mask = 0
 
 [node name="PartitionWest" type="MeshInstance3D" parent="Decor/Booth"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.06, 1.5, -6.5)
-mesh = SubResource("BoxMesh_14")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.06, 1.5, -5.975)
+mesh = SubResource("BoxMesh_pw_south")
+material_override = ExtResource("5_olive")
+
+[node name="PartitionWestStub" type="MeshInstance3D" parent="Decor/Booth"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.06, 1.5, -7.425)
+mesh = SubResource("BoxMesh_pw_stub")
+material_override = ExtResource("5_olive")
+
+[node name="PartitionWestHeader" type="MeshInstance3D" parent="Decor/Booth"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.06, 2.575, -6.9)
+mesh = SubResource("BoxMesh_pw_header")
 material_override = ExtResource("5_olive")
 
 [node name="CapWest" type="MeshInstance3D" parent="Decor/Booth"]
@@ -574,8 +618,16 @@ mesh = SubResource("BoxMesh_15")
 material_override = ExtResource("8_metal_dark")
 
 [node name="ShapeWest" type="CollisionShape3D" parent="Decor/Booth"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.06, 1.5, -6.5)
-shape = SubResource("BoxShape3D_4")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.06, 1.5, -5.975)
+shape = SubResource("BoxShape3D_pw_south")
+
+[node name="ShapeWestStub" type="CollisionShape3D" parent="Decor/Booth"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.06, 1.5, -7.425)
+shape = SubResource("BoxShape3D_pw_stub")
+
+[node name="ShapeWestHeader" type="CollisionShape3D" parent="Decor/Booth"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.06, 2.575, -6.9)
+shape = SubResource("BoxShape3D_pw_header")
 
 [node name="PartitionEast" type="MeshInstance3D" parent="Decor/Booth"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.06, 1.5, -6.5)
@@ -785,6 +837,90 @@ initial_velocity_max = 0.6
 scale_amount_min = 0.6
 scale_amount_max = 1.4
 
+[node name="BackRoomDoor" type="Node3D" parent="Decor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.06, 0, -7.35)
+
+[node name="Hinge" type="Node3D" parent="Decor/BackRoomDoor"]
+
+[node name="Visual" type="Node3D" parent="Decor/BackRoomDoor/Hinge"]
+
+[node name="Leaf" type="MeshInstance3D" parent="Decor/BackRoomDoor/Hinge/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, 0.45)
+mesh = SubResource("BoxMesh_door_leaf")
+material_override = ExtResource("8_metal_dark")
+
+[node name="Plate" type="MeshInstance3D" parent="Decor/BackRoomDoor/Hinge/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.036, 1.55, 0.45)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_door_plate")
+material_override = ExtResource("7_caution")
+
+[node name="Knob" type="MeshInstance3D" parent="Decor/BackRoomDoor/Hinge/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06, 1.0, 0.78)
+cast_shadow = 0
+mesh = SubResource("SphereMesh_door_knob")
+material_override = ExtResource("10_rust")
+
+[node name="Body" type="StaticBody3D" parent="Decor/BackRoomDoor"]
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Decor/BackRoomDoor/Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.06, 0.45)
+shape = SubResource("BoxShape3D_door_leaf")
+
+[node name="BackRoomSpot" type="Marker3D" parent="Decor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.2, -6.7)
+
+[node name="InspectionRoute" type="Node3D" parent="Decor"]
+
+[node name="P1" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0, -6.9)
+
+[node name="P2" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -6.9)
+
+[node name="P3" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.2, 0, -3.6)
+
+[node name="P4" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0, -0.4)
+
+[node name="P5" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 0, 0)
+
+[node name="P6" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.9, 0, 0)
+
+[node name="P7" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.9, 0, -2.4)
+
+[node name="P8" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.9, 0, 2.4)
+
+[node name="P9" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.9, 0, 0.2)
+
+[node name="P10" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.3, 0, 0)
+
+[node name="P11" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.9, 0, 0.4)
+
+[node name="P12" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0, 4.1)
+
+[node name="P13" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.8, 0, -2)
+
+[node name="P14" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -6.2)
+
+[node name="P15" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -6.9)
+
+[node name="P16" type="Marker3D" parent="Decor/InspectionRoute"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0, -6.9)
+
 [node name="Spawns" type="Node3D" parent="."]
 
 [node name="Spawn1" type="Marker3D" parent="Spawns"]
@@ -827,3 +963,6 @@ transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5, 0, 3)
 
 [node name="GrowPlot6" parent="Stations" instance=ExtResource("36_grow_plot")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 7.6, 0, 3)
+
+[node name="FuseBox" parent="Stations" instance=ExtResource("54_fuse_box")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.98, 1.2, -4)

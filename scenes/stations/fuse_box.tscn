@@ -1,0 +1,86 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/stations/fuse_box.gd" id="1_fuse_box"]
+[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="2_metal_dark"]
+[ext_resource type="Material" path="res://art/materials/toon_caution.tres" id="3_caution"]
+[ext_resource type="Material" path="res://art/materials/toon_rust.tres" id="4_rust"]
+[ext_resource type="Material" path="res://art/materials/toon_eye_black.tres" id="5_black"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_box"]
+size = Vector3(0.5, 0.7, 0.25)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_box"]
+size = Vector3(0.5, 0.7, 0.25)
+
+[sub_resource type="BoxMesh" id="BoxMesh_plate"]
+size = Vector3(0.3, 0.1, 0.012)
+
+[sub_resource type="BoxMesh" id="BoxMesh_stripe"]
+size = Vector3(0.3, 0.02, 0.004)
+
+[sub_resource type="BoxMesh" id="BoxMesh_slot"]
+size = Vector3(0.06, 0.24, 0.01)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_handle"]
+top_radius = 0.018
+bottom_radius = 0.018
+height = 0.18
+radial_segments = 12
+rings = 1
+
+[sub_resource type="SphereMesh" id="SphereMesh_knob"]
+radius = 0.035
+height = 0.07
+radial_segments = 12
+rings = 6
+
+[node name="FuseBox" type="Node3D"]
+script = ExtResource("1_fuse_box")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Box" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.125)
+mesh = SubResource("BoxMesh_box")
+material_override = ExtResource("2_metal_dark")
+
+[node name="Plate" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.26, 0.256)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_plate")
+material_override = ExtResource("3_caution")
+
+[node name="Stripe" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.26, 0.264)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_stripe")
+material_override = ExtResource("5_black")
+
+[node name="Slot" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, 0.02, 0.255)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_slot")
+material_override = ExtResource("5_black")
+
+[node name="Lever" type="Node3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, -0.06, 0.27)
+
+[node name="Handle" type="MeshInstance3D" parent="Visual/Lever"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.09, 0)
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_handle")
+material_override = ExtResource("4_rust")
+
+[node name="Knob" type="MeshInstance3D" parent="Visual/Lever"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, 0)
+cast_shadow = 0
+mesh = SubResource("SphereMesh_knob")
+material_override = ExtResource("3_caution")
+
+[node name="Body" type="StaticBody3D" parent="."]
+collision_layer = 4
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.125)
+shape = SubResource("BoxShape3D_box")

@@ -8,13 +8,28 @@ extends Node3D
 var _pan: Node3D
 var _led: Node3D
 var _t: float = 0.0
+var _powered: bool = true
 
 
 func _ready() -> void:
 	_pan = get_node_or_null(^"Visual/Pan") as Node3D
 	_led = get_node_or_null(^"Visual/Pan/Tilt/Led") as Node3D
 	_t = randf() * maxf(pan_period, 0.1)
-	set_process(_pan != null or _led != null)
+	set_process(_powered and (_pan != null or _led != null))
+
+
+## M10 (power cut, called by Room.set_power): off = LED dark and the camera freezes; on = back to panning.
+func set_powered(on: bool) -> void:
+	if on == _powered:
+		return
+	_powered = on
+	if _led != null:
+		_led.visible = on
+	set_process(on and (_pan != null or _led != null))
+
+
+func is_powered() -> bool:
+	return _powered
 
 
 func _process(delta: float) -> void:
