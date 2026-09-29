@@ -62,7 +62,8 @@ func _host_target() -> Vector3:
 	return _spawn_point(3)
 
 func _a_target() -> Vector3:
-	return _spawn_point(2)
+	# Beside spawn 3, not on it: the late joiner spawns there and M10 workers collide (A would be pushed off).
+	return _spawn_point(2) + Vector3(0.0, 0.0, -1.2)
 
 func _b_target() -> Vector3:
 	return _spawn_point(0)
@@ -92,7 +93,7 @@ func _run_solo() -> void:
 	_check(not p.get_node("%NameLabel").visible, "local name label hidden")
 	_check(p.get_item_socket() == p.get_node("%HandSocket"), "local item socket is %HandSocket")
 	_check(p.get_interactor() != null, "%Interactor present")
-	_check(p.collision_layer == Const.LAYER_PLAYER and p.collision_mask == Const.LAYER_WORLD, "player layers 2 / mask 1")
+	_check(p.collision_layer == Const.LAYER_PLAYER and p.collision_mask == (Const.LAYER_WORLD | Const.LAYER_PLAYER), "player layers 2 / mask world|player (M10: workers collide)")
 	await _wait(func() -> bool: return p.is_on_floor(), 5.0)
 	_check(p.is_on_floor(), "player lands on the floor")
 	# Movement through the real input actions.

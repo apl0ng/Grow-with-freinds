@@ -55,6 +55,7 @@
 [ext_resource type="PackedScene" path="res://art/models/ceiling_beam.glb" id="52_ceiling_beam"]
 [ext_resource type="PackedScene" path="res://art/models/hole_rim.glb" id="53_hole_rim"]
 [ext_resource type="PackedScene" path="res://scenes/stations/fuse_box.tscn" id="54_fuse_box"]
+[ext_resource type="PackedScene" path="res://art/models/backroom_door.glb" id="55_backroom_door"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_pw_south"]
 size = Vector3(0.12, 3, 0.95)
@@ -844,22 +845,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.06, 0, -7.35)
 
 [node name="Visual" type="Node3D" parent="Decor/BackRoomDoor/Hinge"]
 
-[node name="Leaf" type="MeshInstance3D" parent="Decor/BackRoomDoor/Hinge/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, 0.45)
-mesh = SubResource("BoxMesh_door_leaf")
-material_override = ExtResource("8_metal_dark")
+[node name="Model" parent="Decor/BackRoomDoor" instance=ExtResource("55_backroom_door")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0, 0, 0.46)
+outline_width = 0.012
 
-[node name="Plate" type="MeshInstance3D" parent="Decor/BackRoomDoor/Hinge/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.036, 1.55, 0.45)
-cast_shadow = 0
-mesh = SubResource("BoxMesh_door_plate")
-material_override = ExtResource("7_caution")
-
-[node name="Knob" type="MeshInstance3D" parent="Decor/BackRoomDoor/Hinge/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06, 1.0, 0.78)
-cast_shadow = 0
-mesh = SubResource("SphereMesh_door_knob")
-material_override = ExtResource("10_rust")
+[node name="Backing" parent="Decor/BackRoomDoor/Model"]
+visible = false
 
 [node name="Body" type="StaticBody3D" parent="Decor/BackRoomDoor"]
 collision_mask = 0

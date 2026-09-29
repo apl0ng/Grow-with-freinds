@@ -16,10 +16,16 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 - Two local instances: `godot --path . -- --host --name=Alice` and `godot --path . -- --join=127.0.0.1 --name=Bob`.
 - `--fast` makes growth 20× faster and shifts 60 s; `--growth-mult=N`, `--round-sec=N` for finer control.
 - Controls: WASD move · Shift sprint · Space jump · Ctrl/C crouch · mouse look · E / LMB interact · Q / G drop ·
-  Enter starts the shift (host) · Esc pause (or closes the supply window).
+  RMB / R throw · F shove · MMB / X ping · T chat · V push-to-talk · Enter starts the shift (host) · Esc pause (or
+  closes the supply window). Voice, chat and ping settings live in the pause menu.
+- Friendslop pass (M10, see FRIENDSLOP.md): proximity voice chat, throwing and shoving, worker collision, random shift
+  events (the Boss walks the floor and writes up skimmers and loiterers, power cuts with a fuse box, audits, a rat),
+  three write-ups send a worker to the back room (spectating), a shift report with verdicts. `--no-events` disables
+  the events; headless runs need `--events` to enable them.
 
 ## Test
-- `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 3–4 minutes, prints a table.
+- `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows
+  run it from Git Bash with `export GODOT=<path to Godot_v4.7.2-stable_win64_console.exe>` (no setsid needed).
 - `tools/check.sh` — loads every script/scene/resource and boots the menu.
 - `tools/smoke.sh` — solo loop and a real host+client pair.
 

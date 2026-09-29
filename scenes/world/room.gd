@@ -46,7 +46,11 @@ const BACKROOM_DOOR_PATH := ^"Decor/BackRoomDoor"
 const BACKROOM_SLOTS: Array[Vector3] = [Vector3.ZERO, Vector3(-2.4, 0.0, 0.0), Vector3(0.0, 0.0, -0.5), Vector3(-2.4, 0.0, -0.5)]
 ## Hinge swing when the door is open (degrees) and the tween time.
 const DOOR_OPEN_DEG := 100.0
+## The modelled leaf (backroom_door.glb `Door`, hinge edge pivot) swings this far (+Y) into the booth when open.
+const DOOR_MODEL_OPEN_DEG := 80.0
 const DOOR_SWING_SEC := 0.45
+## Room ambience: the mains hum loop (Sfx `hum`), running while the power is on.
+const HUM_SOUND: StringName = &"hum"
 ## The doorway centre, hinge-local (half the leaf width along the hinge's +Z).
 const DOOR_CENTRE_OFFSET := Vector3(0.0, 0.0, 0.45)
 ## Power cut: every light drops to this fraction of its energy, the ambient to AMBIENT_OFF_FRACTION, over POWER_TWEEN_SEC.
@@ -60,6 +64,30 @@ var _door_tween: Tween
 var _door_open: bool = false
 var _light_base: Dictionary = {}   # Light3D instance id -> base energy (captured the first time the power goes)
 var _ambient_base: float = -1.0
+var _hum_handle: int = 0
+
+
+func _ready() -> void:
+	_set_hum(true)
+
+
+func _exit_tree() -> void:
+	_set_hum(false)
+
+
+## Starts / stops the mains hum (Sfx.play_loop, 2D). Looked up at runtime: this script is a compile-time
+## dependency of `-s` test scripts, which cannot name autoloads. Idempotent.
+func _set_hum(on: bool) -> void:
+	var sfx := get_node_or_null(^"/root/Sfx")
+	if sfx == null:
+		return
+	if on:
+		if _hum_handle == 0 and is_inside_tree() and sfx.has_method(&"play_loop"):
+			_hum_handle = int(sfx.call(&"play_loop", HUM_SOUND))
+	elif _hum_handle != 0:
+		if sfx.has_method(&"stop_loop"):
+			sfx.call(&"stop_loop", _hum_handle)
+		_hum_handle = 0
 
 ## Sideways offset (metres, along the spawn marker's local X) applied per wrap-around when more players
 ## than spawn markers join, so a 5th..8th player never spawns inside another one.
@@ -242,18 +270,26 @@ func set_backroom_door_open(open: bool) -> void:
 	if door == null:
 		return
 	var hinge := door.get_node_or_null(^"Hinge") as Node3D
-	if hinge == null:
+	var leaf := door.get_node_or_null(^"Model/Door") as Node3D # the modelled leaf (backroom_door.glb)
+	if hinge == null and leaf == null:
 		return
 	var target := Vector3(0.0, deg_to_rad(-DOOR_OPEN_DEG) if open else 0.0, 0.0)
+	var leaf_target := Vector3(0.0, deg_to_rad(DOOR_MODEL_OPEN_DEG) if open else 0.0, 0.0)
 	if _door_tween != null and _door_tween.is_valid():
 		_door_tween.kill()
 	if not is_inside_tree():
-		hinge.rotation = target
+		if hinge != null:
+			hinge.rotation = target
+		if leaf != null:
+			leaf.rotation = leaf_target
 		return
-	_door_tween = create_tween()
-	_door_tween.tween_property(hinge, ^"rotation", target, DOOR_SWING_SEC).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT if open else Tween.EASE_IN)
+	_door_tween = create_tween().set_parallel(true)
+	if hinge != null:
+		_door_tween.tween_property(hinge, ^"rotation", target, DOOR_SWING_SEC).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT if open else Tween.EASE_IN)
+	if leaf != null:
+		_door_tween.tween_property(leaf, ^"rotation", leaf_target, DOOR_SWING_SEC).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT if open else Tween.EASE_IN)
 	if not open:
-		_door_tween.tween_callback(_play_door_slam)
+		_door_tween.chain().tween_callback(_play_door_slam)
 
 
 ## The Sfx autoload is looked up at runtime: this script is a compile-time dependency of `-s` test scripts
@@ -284,6 +320,7 @@ func set_power(on: bool) -> void:
 		_power_tween.kill()
 	var animate := is_inside_tree()
 	_power_tween = create_tween().set_parallel(true) if animate else null
+	_set_hum(on)
 	if not on:
 		_set_fixtures_powered(false)
 	for l in find_children("*", "Light3D", true, false):

@@ -219,13 +219,13 @@ merged by the lead.
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | 10.0 | Design (FRIENDSLOP.md), contracts, GameState stats / write-ups / back room / audits + discipline test, stubs, inputs, knobs, sounds, Windows test runner | lead | done |
-| 10.1 | Voice autoload: capture, mu-law codec, relay, 3D playback, back-room channel, tests | voice | in progress |
-| 10.2 | Throw + hits + chute shots, shove, player collision, footsteps, stagger, tests | physics | in progress |
-| 10.3 | Events: scheduler, inspection walk + sight checks, power cut + fuse box, audit, rat, room hooks, tests | events | in progress |
-| 10.4 | HUD marks / banner, back-room overlay + spectator camera, shift report, Comms (ping, chat), Story lines, pause voice settings, tests | ui | in progress |
-| 10.5 | Sounds: steps, keys loop, breaker, hum, door, alarms, write-up; loop API; art_test rows | audio | in progress |
-| 10.6 | Models: fuse_box, clipboard, rat, backroom_door; build.py on Windows / Blender 5.2 | modeling | in progress |
-| 10.7 | Integration: merge, model swaps into scenes, register suites, full test_all green, playtest with 2 windows | lead | todo |
+| 10.1 | Voice autoload: capture, mu-law codec, relay, 3D playback, back-room channel, tests | voice | done |
+| 10.2 | Throw + hits + chute shots, shove, player collision, footsteps, stagger, tests | physics | done |
+| 10.3 | Events: scheduler, inspection walk + sight checks, power cut + fuse box, audit, rat, room hooks, tests | events | done |
+| 10.4 | HUD marks / banner, back-room overlay + spectator camera, shift report, Comms (ping, chat), Story lines, pause voice settings, tests | ui | done |
+| 10.5 | Sounds: steps, keys loop, breaker, hum, door, alarms, write-up; loop API; art_test rows | audio | done |
+| 10.6 | Models: fuse_box, clipboard, rat, backroom_door; build.py on Windows / Blender 5.2 | modeling | done |
+| 10.7 | Integration: merge, model swaps into scenes, register suites, full test_all green, playtest with 2 windows | lead | done (all six branches merged; model swaps; full suite green on Windows) |
 | 10.8 | QA sweep: 4-player cases for throws / shoves / inspection / back room; regression fixes | qa | todo |
 
 Decisions:

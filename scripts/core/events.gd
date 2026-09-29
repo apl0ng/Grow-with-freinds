@@ -86,6 +86,7 @@ var _sight_accum: float = 0.0
 var _seen_since: Dictionary = {}     # peer_id -> [clock when anchored, anchor position]
 var _last_write_up: Dictionary = {}  # peer_id -> clock of the last write-up
 var _keys_accum: float = 0.0
+var _keys_handle: int = 0            # Sfx loop handle of the walking Boss's keys (0 = silent)
 var _rat_squeak_left: float = 0.0
 var _rng := RandomNumberGenerator.new()
 
@@ -593,14 +594,15 @@ func _local_tick(delta: float) -> void:
 		if boss == null or room == null:
 			return
 		if boss.is_walking():
-			_keys_accum += delta
-			if _keys_accum >= KEYS_INTERVAL:
-				_keys_accum -= KEYS_INTERVAL
-				Sfx.play(&"keys", boss.global_position + Vector3.UP * 0.9)
+			_set_keys_loop(true, boss)
 			room.set_backroom_door_open(boss.global_position.distance_to(room.get_backroom_door_position()) < DOOR_RANGE)
-		elif room.is_backroom_door_open():
-			room.set_backroom_door_open(false)
-	elif active_event == EVENT_RAT:
+		else:
+			_set_keys_loop(false, null)
+			if room.is_backroom_door_open():
+				room.set_backroom_door_open(false)
+	else:
+		_set_keys_loop(false, null)
+	if active_event == EVENT_RAT:
 		var rat := _rat()
 		if rat == null:
 			return
@@ -608,6 +610,17 @@ func _local_tick(delta: float) -> void:
 		if _rat_squeak_left <= 0.0:
 			_rat_squeak_left = _rng.randf_range(RAT_SQUEAK_MIN, RAT_SQUEAK_MAX)
 			Sfx.play(&"rat", rat.global_position + Vector3.UP * 0.1)
+
+
+## The keys-on-a-belt loop (Sfx `keys`, follows the Boss) runs exactly while he walks; idempotent.
+func _set_keys_loop(on: bool, boss: Node3D) -> void:
+	if on:
+		if _keys_handle == 0 and boss != null and Sfx.has_method(&"play_loop"):
+			_keys_handle = int(Sfx.call(&"play_loop", &"keys", boss))
+	elif _keys_handle != 0:
+		if Sfx.has_method(&"stop_loop"):
+			Sfx.call(&"stop_loop", _keys_handle)
+		_keys_handle = 0
 
 
 ## Every peer: start (or resume, for a late joiner) the Boss's deterministic walk.

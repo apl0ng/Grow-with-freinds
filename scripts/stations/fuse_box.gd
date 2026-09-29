@@ -20,7 +20,9 @@ const PROMPT_RESET := "Hold %s · Reset the breaker"
 const PROMPT_HOLDING := "Hold %s · Reset the breaker · %.1f s"
 const REASON_NOTHING := "Nothing to reset."
 const REASON_TOO_FAR := "Too far."
-const LEVER_TRIPPED_DEG := 55.0
+## Lever pose while tripped: the fuse_box.glb `Lever` (art/models, pivot at its axle, rest = up) points down and out
+## of the wall at +130 degrees about X; the tween applies deg_to_rad(-LEVER_TRIPPED_DEG), hence the sign.
+const LEVER_TRIPPED_DEG := -130.0
 const LEVER_SWING_SEC := 0.18
 ## After a request the box waits this long before another hold can send again (a "Too far." refusal is a toast).
 const RESEND_GUARD_SEC := 1.0

@@ -420,3 +420,42 @@ walking; loops), `write_up`, `door_slam`, `confiscate`, `hum` (room ambience; lo
 agent: `play(sound, position := Vector3.INF, volume_offset_db := 0.0)`, `play_loop(name, target) -> int` (INF = 2D, Vector3 =
 fixed, Node3D = follows), `stop_loop(handle, fade_sec := 0.15)`, `stop_all_loops()`, `is_loop_playing(handle)`,
 `set_loop_volume(handle, db)`, `static measure(stream) -> {peak, rms, dc, seconds, samples, clipped}`.
+
+## M10 as delivered (integration notes, lead)
+Additions and deviations reported by the agents and merged as is; the stub surfaces above still hold.
+- **Net (lead):** every ENet link gets `throttle_configure(5000, 2, 0)` on both ends (`Net._disable_packet_throttle`):
+  the throttle dropped 20-80 % of unreliable voice frames under jitter.
+- **Voice:** `settings_path`, `static get_route(listener_in_backroom, speaker_in_backroom)`, `static encode_mulaw /
+  decode_mulaw`, `load_settings() / save_settings()`, `get_stats()`, `get_output_node(peer)`, `debug_inject_frame(peer,
+  frame, seq := -1)`, `debug_send_frame(frame)`; `--no-mic` disables capture. Speaking marks are arrival-based (a
+  floor worker still sees a muted back-room worker's mark). Suites: voice_test (+43), voice_mp (+44).
+- **Physics:** `Player.server_shove(target, direction, from_behind, stun_sec := -1.0, hit := false)` (the from-behind
+  item release lives inside it), static `Player.server_stagger(target, direction, from_behind, by_peer, stun_sec :=
+  -1.0, hit := false)`, `get_flat_forward()`, `get_chest_position()`, signal `footstep(position)`; the stagger fx RPC
+  `_rpc_stagger_fx` is RELIABLE (a lost packet left a remote body stepping while stunned); `_rpc_request_shove`,
+  `_rpc_staggered(impulse, stun_sec, by_peer, hit)`. `Item.flight_changed(flying)`, `get_flight_point(t)`,
+  `get_flight_time()`, `thrower_id` (server only), `REASON_IN_THE_AIR`; `ItemManager.compute_throw_origin /
+  compute_throw_velocity`, `_rpc_request_throw`; `TurnInStation.get_collider_aabb()`, `accepts_flight_point()`;
+  `Interactor.shove_target`, `shove_target_changed`, `try_throw()`, `try_shove()`. `_can_stand_up` ignores players.
+  Suites: physics (+61), physics_mp (+62).
+- **Events:** signal `worker_spotted(peer_id, reason)` (cosmetic); inspection params carry `speed`; `tick(delta)`,
+  `pick_kind(previous)`, `get_next_event_in()`, `get_event_params()`, `server_sight_check()`, `server_set_power(on)`.
+  ShopkeeperNPC: `walk_route(points, speed := 1.6, start_offset_sec := 0.0)`, `return_home()`, `is_walking()`,
+  `get_eye_position()`, `get_facing()`, `get_walk_progress()`. Room: `STATION_NAMES` has 10 entries (FuseBox),
+  `WALL_STATION_NAMES`, `is_wall_station()`, `get_inspection_route()`, `get_backroom_spot() / get_backroom_transform(slot)`,
+  `get_backroom_door*()`, `set_backroom_door_open(open)`, `set_power(on)` (also dims the ambient to 25 %),
+  `is_power_on()`; the room runs the `hum` ambience loop while the power is on (lead). FuseBox: hold progress is local
+  only (not synced); `is_tripped()`, `get_hold_progress()`, `is_holding()`, `request_reset()`. The booth door's
+  collider is always solid. Suites: events (+42, `--events --round-sec=900`), events_mp (+47).
+- **UI / Comms / Story:** Comms `CHAT_MAX_RAW_CHARS`, `pings_sent`, `lines_sent`, `reset_limits()`, RPCs `_rpc_ping` /
+  `_rpc_chat`; new classes `ChatBox` (lock `&"chat"`), `BackRoomOverlay`, `PingMarker`, `ShiftReport`; HUD
+  `%QuotaColumn` wraps `%QuotaPanel` + `%EventPanel`, helpers `refresh_marks`, `get_event_text`, `ping_here`...;
+  Story keys `inspection_start/end`, `skimming`, `loitering`, `write_up_other`, `backroom`, `backroom_release`,
+  `confiscated` (not auto-triggered), `power_cut`, `power_back`, `audit`, `rat`, `verdict_least/noticed/worst`,
+  `get_report_verdicts()`, static `get_report_peers() / get_report_score()`. Suites: ui_m10 (+45), ui_m10_mp (+46).
+- **Models:** `fuse_box.glb` (instanced as the station's `Visual`, lever tripped = +130 degrees about X),
+  `clipboard.glb` (the Boss's `Clipboard/Visual`, laid flat by a -90 degree X rotation), `rat.glb` (rat.tscn `Visual`,
+  `Visual/Tail` swishes), `backroom_door.glb` (`Decor/BackRoomDoor/Model`, rotated -90 degrees about Y so its hinge
+  edge sits on the placeholder hinge; `Model/Door` swings +80 degrees; `Backing` hidden). Built on this PC with
+  Blender 5.2 through `blender.exe --background --python tools/blender/build.py -- <family>`; never run a full
+  unnamed build here (MODELING.md "Windows / Blender 5.2").
