@@ -1,8 +1,10 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/round_end.tscn" id="2_roundend"]
 [ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="3_pause"]
+[ext_resource type="PackedScene" path="res://scenes/ui/chat.tscn" id="4_chat"]
+[ext_resource type="PackedScene" path="res://scenes/ui/backroom_overlay.tscn" id="5_backroom"]
 
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_hud")
@@ -58,7 +60,7 @@ theme_override_font_sizes/font_size = 48
 text = "00:00"
 horizontal_alignment = 1
 
-[node name="QuotaPanel" type="PanelContainer" parent="Root/Stats"]
+[node name="QuotaColumn" type="VBoxContainer" parent="Root/Stats"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 5
@@ -68,19 +70,25 @@ offset_top = 16.0
 offset_bottom = 16.0
 grow_horizontal = 2
 mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="QuotaPanel" type="PanelContainer" parent="Root/Stats/QuotaColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
 theme_type_variation = &"HudPanel"
 
-[node name="VBox" type="VBoxContainer" parent="Root/Stats/QuotaPanel"]
+[node name="VBox" type="VBoxContainer" parent="Root/Stats/QuotaColumn/QuotaPanel"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="QuotaTitle" type="Label" parent="Root/Stats/QuotaPanel/VBox"]
+[node name="QuotaTitle" type="Label" parent="Root/Stats/QuotaColumn/QuotaPanel/VBox"]
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
 text = "THIS SHIFT"
 horizontal_alignment = 1
 
-[node name="QuotaLabel" type="Label" parent="Root/Stats/QuotaPanel/VBox"]
+[node name="QuotaLabel" type="Label" parent="Root/Stats/QuotaColumn/QuotaPanel/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudLabel"
@@ -88,7 +96,7 @@ theme_override_font_sizes/font_size = 28
 text = "PAYMENT DUE $0 / $0"
 horizontal_alignment = 1
 
-[node name="QuotaBar" type="ProgressBar" parent="Root/Stats/QuotaPanel/VBox"]
+[node name="QuotaBar" type="ProgressBar" parent="Root/Stats/QuotaColumn/QuotaPanel/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(440, 30)
 layout_mode = 2
@@ -97,6 +105,34 @@ theme_type_variation = &"QuotaBar"
 max_value = 1.0
 step = 0.0
 show_percentage = false
+
+[node name="EventPanel" type="PanelContainer" parent="Root/Stats/QuotaColumn"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+theme_type_variation = &"HudPanel"
+
+[node name="VBox" type="VBoxContainer" parent="Root/Stats/QuotaColumn/EventPanel"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="EventLabel" type="Label" parent="Root/Stats/QuotaColumn/EventPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudLabel"
+theme_override_font_sizes/font_size = 26
+text = "INSPECTION 0:31"
+horizontal_alignment = 1
+
+[node name="EventHint" type="Label" parent="Root/Stats/QuotaColumn/EventPanel/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "Find the breaker."
+horizontal_alignment = 1
 
 [node name="WalletPanel" type="PanelContainer" parent="Root/Stats"]
 unique_name_in_owner = true
@@ -304,6 +340,14 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+
+[node name="Chat" parent="Root" instance=ExtResource("4_chat")]
+unique_name_in_owner = true
+layout_mode = 1
+
+[node name="BackRoom" parent="Root" instance=ExtResource("5_backroom")]
+unique_name_in_owner = true
+layout_mode = 1
 
 [node name="RoundEnd" parent="Root" instance=ExtResource("2_roundend")]
 unique_name_in_owner = true

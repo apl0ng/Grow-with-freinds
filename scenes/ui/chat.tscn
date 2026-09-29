@@ -1,0 +1,33 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/chat_box.gd" id="1_chat"]
+
+[node name="Chat" type="VBoxContainer"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 3
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -80.0
+offset_right = 416.0
+offset_bottom = -80.0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 6
+script = ExtResource("1_chat")
+
+[node name="Log" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Input" type="LineEdit" parent="."]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+placeholder_text = "Enter sends. Esc drops it."
+max_length = 120
+context_menu_enabled = false
