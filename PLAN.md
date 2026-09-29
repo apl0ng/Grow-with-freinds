@@ -244,3 +244,4 @@ Decisions:
 | 11.2 | Four-player stress of M10 (same-frame throws, chute shots, shove chains, inspection with churn, back room, power cut, voice/chat floods, retry, a full shift with the scheduler on) qa_m10_4p | qa | in progress |
 | 11.3 | Shareable Windows build: export_presets.cfg ("Windows Desktop", embedded PCK) + tools/export.ps1 (installs the Windows export templates on request, exports, zips) | lead | done (templates not downloaded yet: the user's call, ~1 GB) |
 | 11.4 | `--mute` / `-Mute` / saved Sound toggle; playtest switches `--auto-start`, `--first-event`, `--event-delay` | lead | done |
+| 11.5 | LAN discovery: Lan autoload (UDP beacon on 7778 while hosting) + "Floors open nearby" in the menu; lan suite | lead | done |

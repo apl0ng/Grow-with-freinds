@@ -36,6 +36,8 @@ func _run() -> void:
 	check(_changes == before + 1, "games_changed emitted once for a new entry")
 	check(Lan.debug_inject_beacon("10.0.0.5", {"gwf": 1, "port": 7777, "name": "Marge", "players": 2, "max": 4}), "refresh accepted")
 	check(Lan.get_games().size() == 1, "refresh does not duplicate")
+	check(Lan.debug_inject_beacon("127.0.0.1", {"gwf": 1, "port": 7777, "name": "Marge", "players": 2, "max": 4}), "loopback twin accepted")
+	check(Lan.get_games().size() == 1 and Lan.get_games()[0]["ip"] == "10.0.0.5", "a loopback twin of a LAN entry is hidden from the list")
 	for i in 40:
 		Lan.debug_inject_beacon("10.0.1.%d" % (i + 1), {"gwf": 1, "port": 7777, "name": "H%d" % i})
 	check(Lan.get_games().size() <= Lan.MAX_PEERS_LISTED, "list capped at MAX_PEERS_LISTED (%d)" % Lan.get_games().size())

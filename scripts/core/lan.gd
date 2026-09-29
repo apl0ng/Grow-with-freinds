@@ -73,13 +73,27 @@ func is_listening() -> bool:
 	return _listener != null
 
 
-## Nearby games, newest first: [{"ip", "port", "name", "players", "max", "seen"}].
+## Nearby games, newest first: [{"ip", "port", "name", "players", "max", "seen"}]. A loopback entry (the host's own
+## 127.0.0.1 beacon, seen when a menu runs on the hosting PC) is hidden when the same floor (name + port) is also
+## listed under a real address.
 func get_games() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for key in _games:
-		out.append((_games[key] as Dictionary).duplicate())
+		var g: Dictionary = _games[key]
+		if String(g["ip"]) == "127.0.0.1" and _has_lan_twin(g):
+			continue
+		out.append(g.duplicate())
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["seen"]) > float(b["seen"]))
 	return out
+
+
+## True when another (non-loopback) entry advertises the same name and port.
+func _has_lan_twin(g: Dictionary) -> bool:
+	for key in _games:
+		var o: Dictionary = _games[key]
+		if String(o["ip"]) != "127.0.0.1" and o["name"] == g["name"] and int(o["port"]) == int(g["port"]):
+			return true
+	return false
 
 
 ## Test hook: handles `payload` as if it had arrived from `ip` (same validation as the real path).
