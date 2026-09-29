@@ -10,13 +10,35 @@ extends CanvasLayer
 ##   centre        phase banner (WAITING: host "ENTER · START SHIFT" hint; the mouse is captured while waiting so
 ##                 Enter is the real path and the button only reacts if the mouse is somehow free / clients wait)
 ##   bottom-right  toast stack (Game.toast_requested / show_toast), max MAX_TOASTS visible
-##   overlays      %RoundEnd (round_end.tscn) and %PauseMenu (pause_menu.tscn)
+##   overlays      %RoundEnd (round_end.tscn), %PauseMenu (pause_menu.tscn), %BackRoom (backroom_overlay.tscn)
+## M10 (friendslop pass, ui agent):
+##   WORKERS rows   a "))" speaking mark next to the name (Voice.speaking_changed + a SPEAK_POLL_SEC poll of
+##                  Voice.is_speaking), "×" per strike (GameState.get_write_ups, Toon.ERROR) and a "(back room)" tag
+##                  (GameState.is_in_backroom); refreshed on stats_changed / worker_written_up / backroom_changed /
+##                  players_changed
+##   event banner   %EventPanel under the payment bar: "INSPECTION 0:31" / "POWER CUT" + "Find the breaker." /
+##                  "AUDIT" / "RAT" from Events.event_started / event_ended, countdown from Events.get_event_time_left()
+##                  (the alarm sound is the events agent's)
+##   write-ups      a toast for everyone ("<name> written up: skimming."), the write_up sound, and a shake of the
+##                  prompt panel when it is us
+##   ping           the "ping" action (MMB / X, mouse captured, no UI lock): a ray from the local camera on
+##                  world | interactable | item up to PING_RAY_LENGTH (else PING_FALLBACK_DISTANCE ahead) ->
+##                  Comms.ping(point); every Comms.ping_received spawns a PingMarker under Game.world (one per worker)
+##   chat           %Chat (chat.tscn) bottom-left above the held item; the "chat" action (T) opens its line
 ## Copy is flat and joyless on purpose (STYLE.md "Mood & tone"): no "!" and no cheer.
 ## Null-safe before the local player spawns and when Net is offline (solo tests).
 
 const TOAST_SCENE: PackedScene = preload("res://scenes/ui/toast.tscn")
+const PING_MARKER_SCENE: PackedScene = preload("res://scenes/ui/ping_marker.tscn")
 const MAX_TOASTS: int = 4
 const HELD_POLL_SEC: float = 0.1
+## Seconds between polls of Voice.is_speaking for the WORKERS marks (the signal is the fast path).
+const SPEAK_POLL_SEC: float = 0.2
+## Ping ray: how far a ping reaches, and where it lands when the ray hits nothing.
+const PING_RAY_LENGTH: float = 30.0
+const PING_FALLBACK_DISTANCE: float = 8.0
+## Reserved width of the speaking mark, so a row does not jump when a worker talks.
+const SPEAK_MARK_WIDTH: float = 26.0
 const TIMER_WARN_SEC: float = 30.0
 ## Last seconds that use the "countdown" blip instead of "tick" (when Sfx has it).
 const COUNTDOWN_SEC: int = 5
@@ -50,6 +72,18 @@ const TEXT_WAIT_CLIENT_TITLE := "STAND BY"
 const TEXT_WAIT_CLIENT := "Waiting for the shift to start."
 const TEXT_COVERED := "Payment covered. Keep depositing."
 const TEXT_RESET := "Starting over. Shift 1."
+## M10 copy.
+const TEXT_BANNER_TIP := "Plant now. Nothing grows until the shift starts.\n%s · chat"
+const TEXT_SPEAKING_MARK := "))"
+const TEXT_STRIKE_MARK := "×"
+const TEXT_BACKROOM_TAG := "(back room)"
+const TEXT_WRITE_UP := "%s written up: %s."
+const TEXT_WRITE_UP_PLAIN := "%s written up."
+const TEXT_EVENT_INSPECTION := "INSPECTION"
+const TEXT_EVENT_POWER_CUT := "POWER CUT"
+const TEXT_EVENT_POWER_HINT := "Find the breaker."
+const TEXT_EVENT_AUDIT := "AUDIT"
+const TEXT_EVENT_RAT := "RAT"
 
 @onready var root_control: Control = %Root
 @onready var stats: Control = %Stats
@@ -77,6 +111,21 @@ const TEXT_RESET := "Starting over. Shift 1."
 @onready var round_end: RoundEndOverlay = %RoundEnd
 @onready var pause_menu: PauseMenu = %PauseMenu
 @onready var toasts: VBoxContainer = %Toasts
+@onready var event_panel: Control = %EventPanel
+@onready var event_label: Label = %EventLabel
+@onready var event_hint: Label = %EventHint
+@onready var chat: ChatBox = %Chat
+@onready var back_room: BackRoomOverlay = %BackRoom
+
+## M10: peer_id -> {"row", "name", "speak", "strikes", "backroom"} (the WORKERS rows and their marks).
+var _player_rows: Dictionary = {}
+## M10: peer_id -> bool from Voice.speaking_changed (OR-ed with the Voice.is_speaking poll).
+var _speaking_signal: Dictionary = {}
+var _speak_poll_accum: float = 0.0
+## M10: the running event's kind (&"" = none) for the banner.
+var _event_kind: StringName = &""
+## M10: peer_id -> PingMarker (a new ping replaces the worker's previous marker).
+var _ping_markers: Dictionary = {}
 
 var _local_player: Node = null
 var _has_local_player: bool = false
@@ -114,12 +163,28 @@ func _ready() -> void:
 	start_button.pressed.connect(_on_start_pressed)
 	crosshair.draw.connect(_on_crosshair_draw)
 	pause_menu.closed.connect(_on_pause_closed)
+	# M10: marks, write-ups, events, pings. Sibling autoloads are used through their contract surface only and
+	# guarded, so a renamed signal degrades to a missing mark, never to a broken HUD.
+	GameState.stats_changed.connect(refresh_marks)
+	GameState.worker_written_up.connect(_on_worker_written_up)
+	GameState.backroom_changed.connect(_on_backroom_changed)
+	var voice: Node = get_node_or_null(^"/root/Voice")
+	if voice != null and voice.has_signal(&"speaking_changed"):
+		voice.connect(&"speaking_changed", _on_speaking_changed)
+	var events: Node = get_node_or_null(^"/root/Events")
+	if events != null:
+		if events.has_signal(&"event_started"):
+			events.connect(&"event_started", _on_event_started)
+		if events.has_signal(&"event_ended"):
+			events.connect(&"event_ended", _on_event_ended)
+	Comms.ping_received.connect(_on_ping_received)
 
 	_ui_locked = Game.is_ui_locked()
 	_stats_ready = GameState.phase != GameState.Phase.MENU
 	_last_money = GameState.money
 	_last_sales = GameState.round_sales
 	refresh_all()
+	_sync_event_banner()
 	var existing: Node = Game.local_player
 	if is_instance_valid(existing):
 		_set_local_player(existing)
@@ -131,14 +196,33 @@ func _process(delta: float) -> void:
 		_held_poll_accum = 0.0
 		_poll_local_player()
 		_update_held_item()
+	_speak_poll_accum += delta
+	if _speak_poll_accum >= SPEAK_POLL_SEC:
+		_speak_poll_accum = 0.0
+		_poll_speaking()
+	if event_panel.visible:
+		_update_event_countdown()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_action_pressed(&"start_round") or event.is_echo():
+	if event.is_echo():
 		return
-	if GameState.phase == GameState.Phase.WAITING and GameState.is_local_host() and not Game.is_ui_locked():
-		get_viewport().set_input_as_handled()
-		_on_start_pressed()
+	if event.is_action_pressed(&"start_round"):
+		if GameState.phase == GameState.Phase.WAITING and GameState.is_local_host() and not Game.is_ui_locked():
+			get_viewport().set_input_as_handled()
+			_on_start_pressed()
+	elif event.is_action_pressed(&"chat"):
+		if not Game.is_ui_locked() and Game.world != null and chat != null:
+			get_viewport().set_input_as_handled()
+			chat.open()
+	elif event.is_action_pressed(&"ping"):
+		if Game.is_ui_locked():
+			return
+		# A click that (re)captures the mouse should not also ping (same rule as the Interactor).
+		if event is InputEventMouseButton and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			return
+		if ping_here():
+			get_viewport().set_input_as_handled()
 
 
 # ---------------------------------------------------------------------------------------------
@@ -198,11 +282,12 @@ func refresh_all() -> void:
 	crosshair.visible = not _ui_locked
 
 
-## Rebuilds the player list from Net.players (names in their colors).
+## Rebuilds the player list from Net.players (names in their colors), marks included (refresh_marks).
 func refresh_players() -> void:
 	for child: Node in player_list.get_children():
 		player_list.remove_child(child)
 		child.queue_free()
+	_player_rows.clear()
 	var ids: Array = Net.players.keys()
 	ids.sort()
 	players_panel.visible = not ids.is_empty()
@@ -226,6 +311,12 @@ func refresh_players() -> void:
 		row.add_child(swatch)
 		var name_label := _player_label(Net.get_player_name(peer_id), color, PLAYER_NAME_FONT_SIZE)
 		row.add_child(name_label)
+		# Speaking mark: always laid out (reserved width), shown by alpha while the worker is heard.
+		var speak := _player_label(TEXT_SPEAKING_MARK, color, PLAYER_NAME_FONT_SIZE)
+		speak.custom_minimum_size.x = SPEAK_MARK_WIDTH
+		speak.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		speak.modulate.a = 0.0
+		row.add_child(speak)
 		var tags: PackedStringArray = []
 		if peer_id == Const.SERVER_PEER_ID:
 			tags.append(TEXT_HOST_TAG)
@@ -233,8 +324,101 @@ func refresh_players() -> void:
 			tags.append(TEXT_YOU_TAG)
 		if not tags.is_empty():
 			row.add_child(_player_label("(%s)" % ", ".join(tags), color, PLAYER_TAG_FONT_SIZE))
+		var strikes := _player_label("", Toon.ERROR, PLAYER_NAME_FONT_SIZE)
+		strikes.visible = false
+		row.add_child(strikes)
+		var backroom := _player_label(TEXT_BACKROOM_TAG, color, PLAYER_TAG_FONT_SIZE)
+		backroom.visible = false
+		row.add_child(backroom)
 		player_list.add_child(row)
+		_player_rows[peer_id] = {"row": row, "name": name_label, "speak": speak, "strikes": strikes, "backroom": backroom}
 		_fit_player_name(row, name_label)
+	refresh_marks()
+
+
+## M10: updates every row's write-up marks, back-room tag and speaking mark from GameState / Voice (no rebuild).
+func refresh_marks() -> void:
+	for peer_id: int in _player_rows.keys():
+		var entry: Dictionary = _player_rows[peer_id]
+		var strikes: Label = entry["strikes"]
+		var count := GameState.get_write_ups(peer_id)
+		strikes.text = TEXT_STRIKE_MARK.repeat(count)
+		var backroom: Label = entry["backroom"]
+		var in_backroom := GameState.is_in_backroom(peer_id)
+		var changed := strikes.visible != (count > 0) or backroom.visible != in_backroom
+		strikes.visible = count > 0
+		backroom.visible = in_backroom
+		_apply_speaking_mark(peer_id)
+		if changed:
+			_fit_player_name(entry["row"], entry["name"])
+
+
+## M10 (tests): true while the row's speaking mark is shown.
+func is_speaking_mark_shown(peer_id: int) -> bool:
+	if not _player_rows.has(peer_id):
+		return false
+	return (_player_rows[peer_id]["speak"] as Label).modulate.a > 0.5
+
+
+## M10 (tests): the row's strike marks ("" when the worker has none).
+func get_strike_marks(peer_id: int) -> String:
+	if not _player_rows.has(peer_id):
+		return ""
+	var strikes: Label = _player_rows[peer_id]["strikes"]
+	return strikes.text if strikes.visible else ""
+
+
+## M10 (tests): true while the row carries the "(back room)" tag.
+func is_backroom_tag_shown(peer_id: int) -> bool:
+	if not _player_rows.has(peer_id):
+		return false
+	return (_player_rows[peer_id]["backroom"] as Label).visible
+
+
+## M10 (tests): the event banner's text ("" while hidden).
+func get_event_text() -> String:
+	return event_label.text if event_panel.visible else ""
+
+
+## M10: pings what the local camera looks at (the "ping" action). False without a local player / camera.
+func ping_here() -> bool:
+	var point := get_ping_point()
+	if not point.is_finite():
+		return false
+	Comms.ping(point)
+	return true
+
+
+## M10: the point a ping from the local camera lands on (Vector3.INF without a camera): the first hit on
+## world | interactable | item within PING_RAY_LENGTH, else PING_FALLBACK_DISTANCE ahead.
+func get_ping_point() -> Vector3:
+	var player: Node = _local_player if is_instance_valid(_local_player) else Game.local_player
+	if player == null or not is_instance_valid(player) or not player.is_inside_tree():
+		return Vector3.INF
+	var cam := player.get(&"camera") as Camera3D
+	if cam == null or not cam.is_inside_tree():
+		return Vector3.INF
+	var origin := cam.global_position
+	var dir := -cam.global_basis.z.normalized()
+	var world_3d := cam.get_world_3d()
+	if world_3d != null and world_3d.direct_space_state != null:
+		var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * PING_RAY_LENGTH,
+				Const.LAYER_WORLD | Const.LAYER_INTERACTABLE | Const.LAYER_ITEM)
+		query.collide_with_areas = true
+		if player is CollisionObject3D:
+			query.exclude = [(player as CollisionObject3D).get_rid()]
+		var hit := world_3d.direct_space_state.intersect_ray(query)
+		if not hit.is_empty() and hit.has("position"):
+			return hit["position"]
+	return origin + dir * PING_FALLBACK_DISTANCE
+
+
+## M10 (tests): the live ping marker of a worker, or null.
+func get_ping_marker(peer_id: int) -> Node:
+	var marker: Node = _ping_markers.get(peer_id)
+	if marker == null or not is_instance_valid(marker) or marker.is_queued_for_deletion():
+		return null
+	return marker
 
 
 ## "$1,234" (negative: "-$50").
@@ -292,9 +476,146 @@ func _on_phase_changed(new_phase: int) -> void:
 	if new_phase != GameState.Phase.PLAYING:
 		_hide_go_banner()
 		_last_tick_second = -1
+		_hide_event_banner() # events end with the shift (Events says so too; this is the safety net)
 	_update_round_label()
 	_apply_time(GameState.time_left, false)
 	_update_phase_ui()
+	refresh_marks()
+
+
+# --- M10: write-ups, back room, voice, events, pings --------------------------------------------------------------
+
+## Everyone sees the write-up; the worker it hit hears it and the prompt panel flinches.
+func _on_worker_written_up(peer_id: int, reason: String, _count: int) -> void:
+	var worker_name := Net.get_player_name(peer_id)
+	var text := TEXT_WRITE_UP_PLAIN % worker_name
+	if reason == Const.WRITE_UP_SKIMMING or reason == Const.WRITE_UP_LOITERING:
+		text = TEXT_WRITE_UP % [worker_name, reason]
+	show_toast(text, &"error")
+	play_sfx(&"write_up", &"error")
+	if peer_id == _local_peer_id() and is_inside_tree():
+		Juice.shake(prompt_panel)
+	refresh_marks()
+
+
+func _on_backroom_changed(_peer_id: int, _active: bool) -> void:
+	refresh_marks()
+
+
+func _on_speaking_changed(peer_id: int, speaking: bool) -> void:
+	if speaking:
+		_speaking_signal[peer_id] = true
+	else:
+		_speaking_signal.erase(peer_id)
+	_apply_speaking_mark(peer_id)
+
+
+func _poll_speaking() -> void:
+	if _player_rows.is_empty():
+		return
+	for peer_id: int in _player_rows.keys():
+		_apply_speaking_mark(peer_id)
+
+
+## A worker is "speaking" when Voice said so (signal) or says so now (poll): the signal is the fast path, the poll
+## covers a late join / a missed packet. Shown by alpha (the mark keeps its place in the row) with a tired pulse.
+func _apply_speaking_mark(peer_id: int) -> void:
+	if not _player_rows.has(peer_id):
+		return
+	var speak: Label = _player_rows[peer_id]["speak"]
+	var speaking := bool(_speaking_signal.get(peer_id, false))
+	if not speaking:
+		var voice: Node = get_node_or_null(^"/root/Voice")
+		if voice != null and voice.has_method(&"is_speaking"):
+			speaking = bool(voice.call(&"is_speaking", peer_id))
+	var shown := speak.modulate.a > 0.5
+	if speaking == shown:
+		return
+	speak.modulate.a = 1.0 if speaking else 0.0
+	if not is_inside_tree():
+		return
+	if speaking:
+		Juice.pulse(speak)
+	else:
+		Juice.stop(speak)
+
+
+func _on_event_started(kind: StringName, _params: Dictionary) -> void:
+	_event_kind = kind
+	_show_event_banner(true)
+
+
+func _on_event_ended(_kind: StringName) -> void:
+	_hide_event_banner()
+
+
+## Late join / HUD built mid-event: pick up the running event from Events without a pop.
+func _sync_event_banner() -> void:
+	var events: Node = get_node_or_null(^"/root/Events")
+	if events == null or not events.has_method(&"is_event_active"):
+		return
+	if bool(events.call(&"is_event_active")):
+		var kind: Variant = events.get(&"active_event")
+		_event_kind = StringName(str(kind)) if kind != null else &""
+		if _event_kind != &"":
+			_show_event_banner(false)
+
+
+func _show_event_banner(pop: bool) -> void:
+	event_label.text = _event_title()
+	event_hint.text = TEXT_EVENT_POWER_HINT
+	event_hint.visible = _event_kind == &"power_cut"
+	var fresh := not event_panel.visible
+	event_panel.visible = true
+	_update_event_countdown()
+	if pop and fresh and is_inside_tree():
+		Juice.pop_in(event_panel, 0.25)
+
+
+func _hide_event_banner() -> void:
+	_event_kind = &""
+	event_panel.visible = false
+
+
+func _event_title() -> String:
+	match _event_kind:
+		&"inspection":
+			return TEXT_EVENT_INSPECTION
+		&"power_cut":
+			return TEXT_EVENT_POWER_CUT
+		&"audit":
+			return TEXT_EVENT_AUDIT
+		&"rat":
+			return TEXT_EVENT_RAT
+	return String(_event_kind).to_upper().replace("_", " ")
+
+
+func _update_event_countdown() -> void:
+	var text := _event_title()
+	var events: Node = get_node_or_null(^"/root/Events")
+	if events != null and events.has_method(&"get_event_time_left"):
+		var left := float(events.call(&"get_event_time_left"))
+		if left > 0.0:
+			var total := ceili(left)
+			@warning_ignore("integer_division")
+			text += " %d:%02d" % [total / 60, total % 60]
+	if event_label.text != text:
+		event_label.text = text
+
+
+## A ping landed: one marker per worker under Game.world (their previous one goes), a sound at the point.
+func _on_ping_received(peer_id: int, position: Vector3) -> void:
+	var world: Node = Game.world
+	if world == null or not is_instance_valid(world) or not world.is_inside_tree():
+		return
+	var old: Node = _ping_markers.get(peer_id)
+	if old != null and is_instance_valid(old):
+		old.queue_free()
+	var marker := PING_MARKER_SCENE.instantiate() as PingMarker
+	world.add_child(marker)
+	marker.place(peer_id, position)
+	_ping_markers[peer_id] = marker
+	Sfx.play(&"ping", position)
 
 
 func _on_round_started(round_number: int) -> void:
@@ -538,6 +859,7 @@ func _update_phase_ui() -> void:
 			banner_tip.visible = false
 		GameState.Phase.WAITING:
 			banner_tip.visible = true
+			banner_tip.text = TEXT_BANNER_TIP % action_key_text(&"chat", "T")
 			if host:
 				banner_title.text = TEXT_WAIT_HOST_TITLE
 				banner_text.text = TEXT_WAIT_HOST % action_key_text(&"start_round", "ENTER")
@@ -601,12 +923,16 @@ func _player_label(text: String, color: Color, font_size: int) -> Label:
 func _fit_player_name(row: HBoxContainer, name_label: Label) -> void:
 	if not name_label.is_inside_tree():
 		return
+	# Marks come and go (refresh_marks): start from the whole name again, then trim if the row needs it.
+	name_label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+	name_label.custom_minimum_size.x = 0.0
 	var panel_style := players_panel.get_theme_stylebox(&"panel")
 	var used := panel_style.get_minimum_size().x if panel_style != null else 0.0
 	var separation := float(row.get_theme_constant(&"separation"))
 	for child: Node in row.get_children():
-		if child != name_label:
-			used += (child as Control).get_combined_minimum_size().x + separation
+		var control := child as Control
+		if control != name_label and control != null and control.visible:
+			used += control.get_combined_minimum_size().x + separation
 	var room := floorf(PLAYERS_MAX_WIDTH - used)
 	if name_label.get_minimum_size().x > room:
 		name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS

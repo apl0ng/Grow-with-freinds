@@ -84,14 +84,105 @@ text = "You're the host. If you leave, the floor closes for everyone."
 horizontal_alignment = 1
 autowrap_mode = 3
 
+[node name="Voice" type="PanelContainer" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="VoiceBox" type="VBoxContainer" parent="Center/Card/VBox/Voice"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="VoiceTitle" type="Label" parent="Center/Card/VBox/Voice/VoiceBox"]
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "VOICE"
+horizontal_alignment = 1
+
+[node name="MicToggle" type="CheckButton" parent="Center/Card/VBox/Voice/VoiceBox"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Microphone"
+
+[node name="PttToggle" type="CheckButton" parent="Center/Card/VBox/Voice/VoiceBox"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Push to talk (V)"
+
+[node name="VolumeRow" type="HBoxContainer" parent="Center/Card/VBox/Voice/VoiceBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="VolumeLabel" type="Label" parent="Center/Card/VBox/Voice/VoiceBox/VolumeRow"]
+layout_mode = 2
+text = "Voice volume"
+
+[node name="VolumeSlider" type="HSlider" parent="Center/Card/VBox/Voice/VoiceBox/VolumeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+focus_mode = 0
+min_value = -30.0
+max_value = 6.0
+step = 1.0
+
+[node name="VolumeValue" type="Label" parent="Center/Card/VBox/Voice/VoiceBox/VolumeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+text = "0 dB"
+horizontal_alignment = 2
+
+[node name="MeterRow" type="HBoxContainer" parent="Center/Card/VBox/Voice/VoiceBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="MeterLabel" type="Label" parent="Center/Card/VBox/Voice/VoiceBox/MeterRow"]
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "Input"
+
+[node name="InputMeter" type="ProgressBar" parent="Center/Card/VBox/Voice/VoiceBox/MeterRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+max_value = 1.0
+step = 0.0
+show_percentage = false
+
+[node name="NoMicLabel" type="Label" parent="Center/Card/VBox/Voice/VoiceBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "No microphone found."
+horizontal_alignment = 1
+
 [node name="Controls" type="PanelContainer" parent="Center/Card/VBox"]
 layout_mode = 2
 theme_type_variation = &"Card"
 
-[node name="ControlsLabel" type="Label" parent="Center/Card/VBox/Controls"]
+[node name="ControlsBox" type="VBoxContainer" parent="Center/Card/VBox/Controls"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ControlsLabel" type="Label" parent="Center/Card/VBox/Controls/ControlsBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
 text = "Controls"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ControlsLabel2" type="Label" parent="Center/Card/VBox/Controls/ControlsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "RMB throw · F shove · MMB ping · T chat · V talk"
 horizontal_alignment = 1
 autowrap_mode = 3

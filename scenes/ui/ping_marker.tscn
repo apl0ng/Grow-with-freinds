@@ -1,0 +1,48 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/ping_marker.gd" id="1_ping"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_top"]
+top_radius = 0.0
+bottom_radius = 0.12
+height = 0.16
+radial_segments = 4
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_bottom"]
+top_radius = 0.0
+bottom_radius = 0.12
+height = 0.16
+radial_segments = 4
+rings = 1
+
+[node name="PingMarker" type="Node3D"]
+script = ExtResource("1_ping")
+
+[node name="Visual" type="Node3D" parent="."]
+unique_name_in_owner = true
+
+[node name="Diamond" type="Node3D" parent="Visual"]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 0, 0, 0)
+
+[node name="Top" type="MeshInstance3D" parent="Visual/Diamond"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0)
+mesh = SubResource("CylinderMesh_top")
+
+[node name="Bottom" type="MeshInstance3D" parent="Visual/Diamond"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, -0.08, 0)
+mesh = SubResource("CylinderMesh_bottom")
+
+[node name="NameLabel" type="Label3D" parent="Visual"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0)
+pixel_size = 0.005
+billboard = 1
+no_depth_test = true
+render_priority = 10
+outline_render_priority = 9
+text = "Worker"
+font_size = 48
+outline_size = 12

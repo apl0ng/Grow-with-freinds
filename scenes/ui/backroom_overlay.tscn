@@ -1,0 +1,68 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/backroom_overlay.gd" id="1_backroom"]
+
+[node name="BackRoom" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_backroom")
+
+[node name="Dim" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"OverlayPanel"
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Column" type="VBoxContainer" parent="Center"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "BACK ROOM"
+horizontal_alignment = 1
+
+[node name="Body" type="Label" parent="Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "He's talking at you. Don't answer."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Timer" type="Label" parent="Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"TimerLabel"
+theme_override_font_sizes/font_size = 48
+text = "0:30"
+horizontal_alignment = 1
+
+[node name="Watching" type="Label" parent="Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "Watching: the floor   [A] / [D]"
+horizontal_alignment = 1

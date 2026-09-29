@@ -10,6 +10,9 @@ extends Control
 ## Enter pressed just as the shift ends cannot skip the screen (START OVER resets everyone); never while the pause
 ## menu sits on top (it keeps the keyboard; the HUD calls arm_focus() when it closes). Clients get no default focus
 ## (Space must not LEAVE the session); Tab / arrow keys focus the first button when nothing has focus.
+## M10: the "SHIFT REPORT" block (%Report, shift_report.tscn: one row per worker, verdict lines from Story) sits
+## under the shift stats and follows GameState.stats_changed / Net.players_changed while the overlay is up. The card
+## must keep fitting 1280 x 720 with four workers (review_ui / ui_m10 check it).
 
 const LOCK_SOURCE: StringName = &"round_end"
 ## Seconds before the host's default button takes the keyboard focus (see above).
@@ -46,6 +49,7 @@ var _focus_tween: Tween
 @onready var waiting_label: Label = %WaitingLabel
 @onready var primary_button: Button = %PrimaryButton
 @onready var menu_button: Button = %MenuButton
+@onready var report: ShiftReport = %Report
 
 
 func _ready() -> void:
@@ -55,7 +59,8 @@ func _ready() -> void:
 	GameState.round_ended.connect(_on_round_ended)
 	GameState.money_changed.connect(_on_money_changed)
 	GameState.sales_changed.connect(_on_sales_changed)
-	Net.players_changed.connect(_on_players_changed) # the next payment scales with the team
+	GameState.stats_changed.connect(_on_stats_changed) # M10: the shift report follows the ledger
+	Net.players_changed.connect(_on_players_changed) # the next payment scales with the team (+ report rows)
 	primary_button.pressed.connect(_on_primary_pressed)
 	menu_button.pressed.connect(_on_menu_pressed)
 	_sync_to_phase(GameState.phase)
@@ -155,6 +160,11 @@ func _on_players_changed() -> void:
 		refresh()
 
 
+func _on_stats_changed() -> void:
+	if visible:
+		report.refresh()
+
+
 ## Rebuilds every text/button from GameState (public so tests / the HUD can force it).
 func refresh() -> void:
 	var success := GameState.phase == GameState.Phase.ROUND_SUCCESS
@@ -184,6 +194,8 @@ func refresh() -> void:
 	else:
 		next_key.text = TEXT_PAID_KEY
 		next_value.text = str(maxi(round_number - 1, 0))
+
+	report.refresh()
 
 	primary_button.visible = host
 	primary_button.text = TEXT_NEXT_SHIFT if success else TEXT_START_OVER

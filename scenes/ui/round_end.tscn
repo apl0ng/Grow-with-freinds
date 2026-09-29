@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/round_end.gd" id="1_roundend"]
+[ext_resource type="PackedScene" path="res://scenes/ui/shift_report.tscn" id="2_report"]
 
 [node name="RoundEnd" type="Control"]
 visible = false
@@ -37,7 +38,7 @@ layout_mode = 2
 
 [node name="VBox" type="VBoxContainer" parent="Center/Card"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="Center/Card/VBox"]
 unique_name_in_owner = true
@@ -61,9 +62,9 @@ theme_type_variation = &"Card"
 
 [node name="Grid" type="GridContainer" parent="Center/Card/VBox/Stats"]
 layout_mode = 2
-theme_override_constants/h_separation = 32
-theme_override_constants/v_separation = 8
-columns = 2
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 4
+columns = 4
 
 [node name="RoundKey" type="Label" parent="Center/Card/VBox/Stats/Grid"]
 layout_mode = 2
@@ -137,6 +138,15 @@ size_flags_horizontal = 3
 theme_type_variation = &"HudLabel"
 text = "$0"
 horizontal_alignment = 2
+
+[node name="ReportCard" type="PanelContainer" parent="Center/Card/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Report" parent="Center/Card/VBox/ReportCard" instance=ExtResource("2_report")]
+unique_name_in_owner = true
+layout_mode = 2
 
 [node name="WaitingLabel" type="Label" parent="Center/Card/VBox"]
 unique_name_in_owner = true

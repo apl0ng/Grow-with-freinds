@@ -1,0 +1,31 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/shift_report.gd" id="1_report"]
+
+[node name="ShiftReport" type="VBoxContainer"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+theme_override_constants/separation = 6
+script = ExtResource("1_report")
+
+[node name="Title" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "SHIFT REPORT"
+horizontal_alignment = 1
+
+[node name="Grid" type="GridContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 2
+columns = 7
+
+[node name="Verdicts" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 0
