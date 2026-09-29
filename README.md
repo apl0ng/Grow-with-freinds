@@ -35,6 +35,11 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 - `python3 tools/blender/build.py [family ...] --test` builds `tools/blender/models/*.py` into `art/models/*.glb`
   and imports them. See MODELING.md for the workflow and STYLE.md for the look.
 
+## Share a build with friends
+- `.	oolsxport.ps1` exports `exportGrowWithFriends.exe` (+ a zip) with the "Windows Desktop" preset. It needs the Godot
+  4.7.2 export templates once (about 1 GB): the script offers to download them (`-DownloadTemplates` skips the question).
+  Friends unzip and run the exe; one hosts, the others join by IP (UDP port 7777 must be reachable).
+
 ## Docs
 PLAN.md (status, decisions, milestone notes) · CONTRACTS.md (system interfaces) · STYLE.md (art + copy rules) ·
 MODELING.md (Blender pipeline).
