@@ -434,8 +434,9 @@ func _on_backroom_changed(peer_id: int, active: bool) -> void:
 		return
 	if active:
 		_request_named("backroom", Net.get_player_name(peer_id), Weight.MAJOR)
-	elif GameState.phase == GameState.Phase.PLAYING:
-		# Released by the timer or the host; the shift end lets everyone out silently (paid / missed says it).
+	elif GameState.phase == GameState.Phase.PLAYING and Net.players.has(peer_id):
+		# Released by the timer or the host; the shift end lets everyone out silently (paid / missed says it), and a
+		# worker who dropped out of the session mid-stay is not told to get back to work (M11 review).
 		_request_named("backroom_release", Net.get_player_name(peer_id), Weight.MAJOR)
 
 
