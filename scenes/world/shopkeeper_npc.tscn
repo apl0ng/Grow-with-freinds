@@ -3,6 +3,9 @@
 [ext_resource type="Script" path="res://scenes/world/shopkeeper_npc.gd" id="1_npc"]
 [ext_resource type="PackedScene" path="res://art/models/boss.glb" id="2_boss"]
 [ext_resource type="Material" path="res://art/materials/toon_blob_shadow.tres" id="3_shadow"]
+[ext_resource type="Material" path="res://art/materials/toon_brown.tres" id="4_brown"]
+[ext_resource type="Material" path="res://art/materials/toon_cream.tres" id="5_cream"]
+[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="6_metal_dark"]
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_shadow"]
 top_radius = 0.62
@@ -11,11 +14,43 @@ height = 0.01
 radial_segments = 24
 rings = 1
 
+[sub_resource type="BoxMesh" id="BoxMesh_clip_board"]
+size = Vector3(0.24, 0.012, 0.32)
+
+[sub_resource type="BoxMesh" id="BoxMesh_clip_paper"]
+size = Vector3(0.21, 0.004, 0.28)
+
+[sub_resource type="BoxMesh" id="BoxMesh_clip_clip"]
+size = Vector3(0.09, 0.02, 0.03)
+
 [node name="ShopkeeperNPC" type="Node3D"]
 script = ExtResource("1_npc")
 
 [node name="Visual" parent="." instance=ExtResource("2_boss")]
 outline_width = 0.025
+
+[node name="Clipboard" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.95, -0.4)
+visible = false
+
+[node name="Visual" type="Node3D" parent="Clipboard"]
+
+[node name="Board" type="MeshInstance3D" parent="Clipboard/Visual"]
+cast_shadow = 0
+mesh = SubResource("BoxMesh_clip_board")
+material_override = ExtResource("4_brown")
+
+[node name="Paper" type="MeshInstance3D" parent="Clipboard/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.008, 0.01)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_clip_paper")
+material_override = ExtResource("5_cream")
+
+[node name="Clip" type="MeshInstance3D" parent="Clipboard/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.016, -0.14)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_clip_clip")
+material_override = ExtResource("6_metal_dark")
 
 [node name="BlobShadow" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.006, -0.05)
