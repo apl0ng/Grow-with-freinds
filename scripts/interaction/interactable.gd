@@ -12,6 +12,11 @@ extends Node3D
 ## Physical setup: put a StaticBody3D or Area3D child with collision_layer = Const.LAYER_INTERACTABLE
 ## (or LAYER_ITEM for items). The Interactor walks up from the hit collider to find this node.
 
+## Denial every server handler gives a worker who sits in the back room (M11 review): the input lock is client-side
+## and movement is client-authoritative, so a modified client can walk out; the server refuses its gameplay instead
+## (interactions here, purchases in ShopCounter, the fuse box, drops / throws in ItemManager, shoves in Player).
+const REASON_BACKROOM := "You're in the back room."
+
 ## Extra slack (metres) added to Config.balance.interact_distance for the server-side distance check.
 @export var server_range_slack: float = 2.0
 ## Default verb shown in the prompt when a subclass does not override get_prompt().
@@ -50,6 +55,9 @@ func _rpc_request_interact() -> void:
 		sender = Const.SERVER_PEER_ID
 	var player: Player = Game.get_player(sender)
 	if player == null:
+		return
+	if GameState.is_in_backroom(sender):
+		_rpc_denied.rpc_id(sender, REASON_BACKROOM)
 		return
 	var max_dist: float = Config.balance.interact_distance + server_range_slack
 	# `not <=` rather than `>`: a peer whose synced position is not finite (NaN) is never in range.

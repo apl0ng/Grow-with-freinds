@@ -36,6 +36,8 @@ const REASON_FAILED := "Can't buy that now."
 const REASON_REFUNDED := "Something broke. Cash refunded."
 const REASON_NOT_CONNECTED := "No connection."
 const REASON_PRICE_CHANGED := "Price changed. Look again."
+# M11 review: the back room buys nothing (the BackRoomSpot sits inside the counter's server range); the denial is the
+# inherited Interactable.REASON_BACKROOM.
 
 ## An open shop UI closes itself when the local player walks further than this from the counter (metres).
 ## If the shop was opened from further away than this, the UI allows a little slack instead of closing at once,
@@ -202,6 +204,8 @@ func server_buy_seed(peer_id: int, seed_id: StringName) -> Dictionary:
 	var player: Player = Game.get_player(peer_id)
 	if player == null or not is_instance_valid(player):
 		return _fail(REASON_NO_PLAYER)
+	if GameState.is_in_backroom(peer_id):
+		return _fail(REASON_BACKROOM)
 	if not _server_in_range(player):
 		return _fail(REASON_TOO_FAR)
 	var seed_def: SeedDef = Config.balance.get_seed(seed_id)
@@ -235,6 +239,8 @@ func server_buy_upgrade(peer_id: int, upgrade_id: StringName, seen_level: int = 
 	var player: Player = Game.get_player(peer_id)
 	if player == null or not is_instance_valid(player):
 		return _fail(REASON_NO_PLAYER)
+	if GameState.is_in_backroom(peer_id):
+		return _fail(REASON_BACKROOM)
 	if not _server_in_range(player):
 		return _fail(REASON_TOO_FAR)
 	var def: UpgradeDef = Config.balance.get_upgrade(upgrade_id)

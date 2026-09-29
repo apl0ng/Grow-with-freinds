@@ -130,6 +130,13 @@ func is_ui_locked() -> bool:
 func is_ui_locked_by(source: StringName) -> bool:
 	return _ui_locks.has(source)
 
+## The sources holding the UI lock right now (M11: the pause menu opens when the back room is the only one).
+func get_ui_lock_sources() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for k in _ui_locks.keys():
+		out.append(StringName(k))
+	return out
+
 ## Mouse is captured only while in the world with no UI lock; visible everywhere else.
 ## Called automatically on lock/world changes; call it after anything else touched Input.mouse_mode.
 func refresh_mouse_mode() -> void:

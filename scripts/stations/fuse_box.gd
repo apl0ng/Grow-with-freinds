@@ -133,6 +133,9 @@ func _rpc_request_reset() -> void:
 	var player: Player = Game.get_player(sender)
 	if player == null or not player.is_inside_tree():
 		return
+	if GameState.is_in_backroom(sender):
+		_rpc_denied.rpc_id(sender, REASON_BACKROOM)
+		return
 	var max_dist: float = Config.balance.interact_distance + server_range_slack
 	# `not <=` rather than `>`: a non-finite synced position is never in range.
 	if not (player.global_position.distance_to(global_position) <= max_dist):

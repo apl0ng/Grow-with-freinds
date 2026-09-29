@@ -111,6 +111,10 @@ const CHEST_HEIGHT_CROUCHED: float = 0.6
 ## aside first so the collision recovery separates the two sideways instead of stacking them.
 const COINCIDENT_DISTANCE: float = 0.03
 const COINCIDENT_NUDGE: float = 0.08
+## M11 review: after a stagger's stun ends the worker cannot be staggered again for this long (server rule, see
+## can_be_staggered()). Without it a bundle re-thrown from 1.5 m, or two shovers taking turns, kept a worker stunned
+## 100 % of the time with no counter; with it the uptime is at most stun / (stun + immunity), about a third.
+const STAGGER_IMMUNITY_SEC: float = 1.0
 
 ## LOCAL player only: draw the held item in the first-person view model so it never clips into walls or stations.
 ## false puts held items back into the world pass (the old, clipping behaviour; e.g. for before/after captures).
@@ -185,6 +189,7 @@ var _view_model_lights: Array[WeakRef] = []     # lights this player added the v
 # M10 physical (see the header). The stun clock is set by apply_stagger (owner), by the cosmetic fx RPC (every peer,
 # so remote bodies skip footsteps while stumbling) and by the server when it staggers this player.
 var _stun_until_msec: int = 0
+var _stagger_immune_until_msec: int = 0         # SERVER: until when this worker cannot be staggered again (M11)
 var _shove_ready_msec: int = 0                  # SERVER: when this worker may shove again (per-shover cooldown)
 var _stride_accum: float = 0.0                  # local: metres walked on the floor since the last step
 var _kick_tween: Tween = null                   # local camera kick
@@ -435,6 +440,11 @@ func respawn() -> void:
 func is_stunned() -> bool:
 	return Time.get_ticks_msec() < _stun_until_msec
 
+## SERVER view (M11): false while this worker is stunned and for STAGGER_IMMUNITY_SEC after; a shove or a thrown item
+## that reaches them meanwhile does nothing (the item still drops at their feet).
+func can_be_staggered() -> bool:
+	return Time.get_ticks_msec() >= _stagger_immune_until_msec
+
 ## OWNER (or an unowned body on the host): a stumble. `impulse` is added to the velocity (its horizontal part, plus
 ## a STAGGER_HOP hop), movement input is ignored for `stun_sec`, the camera gets a kick and the body bounces.
 ## Non-finite values are ignored.
@@ -471,6 +481,8 @@ static func server_stagger(target: Player, direction: Vector3, from_behind: bool
 	if not target.multiplayer.is_server():
 		push_error("Player.server_stagger called on a client")
 		return
+	if not target.can_be_staggered():
+		return # M11: still stunned, or inside the immunity window after the last stagger
 	var flat := Vector3(direction.x, 0.0, direction.z)
 	if not flat.is_finite() or flat.length_squared() < 0.000001:
 		flat = target.get_flat_forward() * -1.0 # straight at them from the front
@@ -481,8 +493,10 @@ static func server_stagger(target: Player, direction: Vector3, from_behind: bool
 		var mgr := ItemManager.find(target)
 		if mgr != null and mgr.get_held_by(target.peer_id) != null:
 			mgr.server_release_holder(target.peer_id)
-	# The server's own view of the stun (shove / throw validation, remote footsteps).
-	target._stun_until_msec = maxi(target._stun_until_msec, Time.get_ticks_msec() + int(stun * 1000.0))
+	# The server's own view of the stun (shove / throw validation, remote footsteps) and of the immunity that follows.
+	var now := Time.get_ticks_msec()
+	target._stun_until_msec = maxi(target._stun_until_msec, now + int(stun * 1000.0))
+	target._stagger_immune_until_msec = maxi(target._stagger_immune_until_msec, now + int((stun + STAGGER_IMMUNITY_SEC) * 1000.0))
 	if target.is_local():
 		target._stagger_locally(impulse, stun, by_peer, hit)
 	elif target.multiplayer.get_peers().has(target.peer_id):
@@ -522,6 +536,15 @@ func _rpc_request_shove(target_peer: int) -> void:
 	# `not <=`: a NaN position (broken sync) is never in range.
 	if not (d <= b.shove_range + 1.0):
 		return
+	if not target.can_be_staggered():
+		return # M11: the target is still stumbling / immune; the shove is not spent (no cooldown)
+	# M11: the line between the two chests must be clear on LAYER_WORLD (the client's own ray stops at walls and
+	# fences; a modified client used to shove through the grow-area fence and the booth partitions).
+	var space := get_world_3d().direct_space_state if is_inside_tree() else null
+	if space != null:
+		var query := PhysicsRayQueryParameters3D.create(get_chest_position(), target.get_chest_position(), Const.LAYER_WORLD)
+		if not space.intersect_ray(query).is_empty():
+			return
 	var now := Time.get_ticks_msec()
 	if now < _shove_ready_msec:
 		return

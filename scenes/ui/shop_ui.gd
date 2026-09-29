@@ -222,6 +222,11 @@ func _process(delta: float) -> void:
 	if player.global_position.distance_to(counter.global_position) > _close_distance:
 		close()
 		return
+	if GameState.is_in_backroom(player.peer_id):
+		# M11 review: the BackRoomSpot sits 2 m from the counter, inside the walk-away distance, so the window used to
+		# stay open over the back-room overlay (and the server now refuses the purchases anyway).
+		close()
+		return
 	_refresh_left -= delta
 	if _refresh_left <= 0.0:
 		_refresh_left = REFRESH_INTERVAL_SEC

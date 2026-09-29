@@ -96,13 +96,20 @@ func is_open() -> bool:
 	return visible
 
 
-## False while another overlay holds the UI lock (or released it during this very frame).
+## False while another overlay holds the UI lock (or released it during this very frame). The back room's own lock
+## does not count (M11 review): Escape used to be dead for the whole stay, so a worker could not leave the game.
 func can_open() -> bool:
 	if visible:
 		return false
-	if Game.is_ui_locked():
+	if Game.is_ui_locked() and not _only_backroom_locked():
 		return false
 	return Engine.get_process_frames() != _other_unlock_frame
+
+
+## True when the back room is the only thing holding the UI lock.
+static func _only_backroom_locked() -> bool:
+	var sources: Array[StringName] = Game.get_ui_lock_sources()
+	return sources.size() == 1 and sources[0] == Const.UI_LOCK_BACKROOM
 
 
 func open() -> void:

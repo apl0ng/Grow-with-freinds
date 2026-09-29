@@ -246,7 +246,12 @@ func server_release_holder(peer_id: int) -> void:
 	if item == null:
 		return
 	var player := get_player(peer_id)
-	if player != null and player.is_inside_tree():
+	if GameState.is_in_backroom(peer_id):
+		# M11 review: the back room is closed off behind the booth. An item let go of there (its worker dropped out
+		# of the session mid-stay) would be stranded for the rest of the shift, so it goes back to the floor at the
+		# worker's spawn point instead.
+		_server_place(item, _spawn_drop_spot(player), Vector3.ZERO)
+	elif player != null and player.is_inside_tree():
 		_server_place(item, compute_drop_position(player), Vector3(0.0, compute_drop_yaw(player), 0.0))
 	else:
 		# The item stopped following when the player vanished: put it on the floor below where it is.
@@ -271,8 +276,8 @@ func _rpc_request_drop() -> void:
 	var sender := multiplayer.get_remote_sender_id()
 	if sender == 0:
 		sender = Const.SERVER_PEER_ID
-	if get_held_by(sender) == null:
-		return
+	if get_held_by(sender) == null or GameState.is_in_backroom(sender):
+		return # nothing to drop, or the back room (M11: nothing is done from there; the item stays in hand)
 	server_release_holder(sender)
 
 ## Any peer: asks the server to throw whatever the local player holds (Interactor, "throw" action).
@@ -487,10 +492,13 @@ func _server_step_flight(item: Item) -> void:
 	if not hit.is_empty():
 		var target: Player = hit["player"]
 		var point: Vector3 = hit["point"]
-		var push := Vector3(item.flight_velocity.x, 0.0, item.flight_velocity.z)
-		Player.server_stagger(target, push, true, item.thrower_id, Config.balance.hit_stun_sec, true)
-		if item.thrower_id > 0:
-			GameState.server_add_stat(item.thrower_id, Const.STAT_HITS)
+		if target.can_be_staggered():
+			var push := Vector3(item.flight_velocity.x, 0.0, item.flight_velocity.z)
+			Player.server_stagger(target, push, true, item.thrower_id, Config.balance.hit_stun_sec, true)
+			if item.thrower_id > 0:
+				GameState.server_add_stat(item.thrower_id, Const.STAT_HITS)
+		# else (M11): still stumbling / immune after the last stagger: a dud. The bundle drops at their feet, no
+		# stagger, no bonk, no hit counted.
 		_server_end_flight(item, point, t1)
 		return
 	# 2. The room (walls, floor, ceiling, props) and station colliders.
@@ -683,6 +691,17 @@ func _safe_drop_spot(player: Player) -> Vector3:
 	elif world != null and world.is_inside_tree():
 		spot = world.global_position
 	return _project_to_floor(spot, null) if spot.is_finite() else Vector3.ZERO
+
+## The floor at `player`'s spawn point (the room's first spawn without a player / room): where an item goes when its
+## holder cannot drop it where they stand (the back room).
+func _spawn_drop_spot(player: Player) -> Vector3:
+	var world := get_parent() as World
+	if world != null and world.is_node_ready() and world.room != null:
+		var index := player.spawn_index if player != null else 0
+		var spot: Vector3 = world.room.get_spawn_transform(index).origin
+		if spot.is_finite():
+			return _project_to_floor(spot, null)
+	return _safe_drop_spot(null)
 
 ## Raycasts down onto static geometry (layer 1: floor, station tops) below `point`.
 ## Falls back to the player's feet height (or the point's own height without a player).
