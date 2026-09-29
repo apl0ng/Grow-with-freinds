@@ -1,27 +1,76 @@
 extends Node
-## Autoload "Sfx": procedurally synthesised placeholder sounds (no audio assets). Owned by the art agent.
+## Autoload "Sfx": procedurally synthesised sounds (no audio assets). Owned by the audio agent.
 ##
-##   Sfx.play(&"harvest", plot.global_position)   # 3D, attenuated, panned (world events)
-##   Sfx.play(&"ui_click")                          # 2D (UI, your own actions, round jingles)
+##   Sfx.play(&"harvest", plot.global_position)        # 3D, attenuated, panned (world events)
+##   Sfx.play(&"ui_click")                               # 2D (UI, your own actions, round sounds)
+##   Sfx.play(&"step", Vector3.INF, -8.0)                # 2D, 8 dB quieter than its SETTINGS row (own footsteps)
+##   var h := Sfx.play_loop(&"keys", boss_node)          # loop follows a Node3D (or a Vector3, or 2D with no target)
+##   Sfx.stop_loop(h)                                    # 0.15 s fade, then the loop player is freed
 ##
 ## Every sound is generated once into a 16-bit mono AudioStreamWAV (22.05 kHz) from the recipes below, on a
-## WorkerThreadPool task started in _ready (~0.3 s of CPU off the main thread); a sound requested before the
-## worker reached it is synthesised on the spot and cached. Playback uses small pools of players (max MAX_2D + MAX_3D voices; the oldest voice is stolen),
-## a little random pitch variation, and a per-sound retrigger guard so ten plots finishing on the same
-## frame do not stack into one deafening sound. Unknown names warn once and are ignored (never crash).
-## MOOD (nobody is happy): everything is a little duller and lower than a party game. round_win is a
-## muffled end-of-shift bell (relief, not joy), round_start a flat factory buzzer, buy/sell/ready are
-## single low dings instead of sparkly jingles.
-## Works headless (dummy audio driver). Sounds are local only: call play() from code that runs on every
-## peer (synced setters, call_local RPCs, GameState signals). See STYLE.md "Sound".
+## WorkerThreadPool task started in _ready (~0.4 s of CPU off the main thread); a sound requested before the
+## worker reached it is synthesised on the spot and cached. One-shots use small pools of players (MAX_2D + MAX_3D
+## voices; the oldest voice is stolen), a little random pitch variation, and a per-sound retrigger guard so ten
+## plots finishing on the same frame do not stack into one deafening sound. Loops (play_loop) get their own
+## players outside the pools (never stolen, at most MAX_LOOPS), process_mode ALWAYS, on the SFX bus.
+## Unknown names warn once and are ignored (never crash).
+## MOOD (nobody is happy): everything is duller and lower than a party game. round_win is a muffled end-of-shift
+## bell (relief, not joy), round_start a flat factory buzzer, buy/sell/ready single low dings. The M10 factory
+## set is concrete, steel, paper and mains hum: nothing rings bright, nothing stings.
+## Works headless (dummy audio driver). Sounds are local only: call play() from code that runs on every peer
+## (synced setters, call_local RPCs, GameState signals). See STYLE.md "Sound".
 ## Do NOT add a class_name (autoload).
+##
+## SOUNDS (name: what it is / use)
+##   buy: dull coin clink / purchase.  plant: soft thump + pop / seed planted.  water: bubbly splash / watered.
+##   harvest: snip-snip + rising pop.  sell: register drawer clunk + one tired ding.  pickup: quick rising pop.
+##   drop: low thud.  error: short uh-uh buzz / denied action.  grow: small low bloop / stage change.
+##   round_win: clunk + muffled two-tone bell going down / quota met.  round_lose: sad trombone / time's up.
+##   tick: click / last 10 s.  ui_click, ui_open, ui_close: tock, rising blip, falling blip.
+##   extras: ready (low break-room ding), refill (glugs), ui_hover (tiny tick), coin, pop, whoosh,
+##   countdown (3-2-1 beep), round_start (flat shift buzzer).
+##   M10 (friendslop pass):
+##   step: soft scuff on concrete, a little grit / one per stride (remote players 3D, the local one 2D and quieter).
+##   throw: a short heave of air + sleeve / an item leaves the hand.
+##   bonk: dull thud with a small clonk / a bundle hits a head.
+##   shove: cloth and a low grunt-like tone / a worker is pushed.
+##   ping: two dull toks, the second lower / an intercom "you" (Comms ping).
+##   chat: a paper flick / a chat line arrives.
+##   alarm: flat two-tone factory buzzer, twice / an event starts (harsh but quiet).
+##   power_down: relay click, then the mains hum sags into nothing / power cut.
+##   power_up: breaker thunk, a fluoro stutters three times, then holds / power back.
+##   keys: keys on a belt for one stride (0.5 s, seamless loop) / the Boss walking.
+##   write_up: pen scratching, then a rubber stamp / a write-up is issued.
+##   door_slam: a steel door far too heavy, lowpassed ring and frame rattle / back room.
+##   confiscate: cloth and a short falling tone / snatched out of your hands.
+##   hum: 60 Hz mains hum with harmonics, seamless 1.0 s loop / room ambience (very quiet).
+##   rat: two thin squeaks / the rat.
+##
+## dB LADDER (SETTINGS volume). art_test prints every sound's whole-buffer RMS and "loud" = 20*log10(rms) + volume
+## (dB, loudest first); the intended order, top to bottom:
+##   impacts    door_slam -1, bonk -2, plant -2, drop -3            loud ~ -19..-20  (strong, never painful: peaks 0.89, 3D max_db 3)
+##   events     alarm -13 (sustained), power_down -6, power_up -5,  loud ~ -20..-24  (room-wide, unit_size 12)
+##              round_start -8, round_win -6
+##   feedback   confiscate -5, shove -5, write_up -4, throw -8,     loud ~ -19..-26  (things done to you or by you)
+##              ping -7, buy -6, coin -6, ui_* -8, error -9
+##   texture    step -12, rat -14, chat -14, keys -10 (loop),       loud ~ -28..-32  (one per stride, per line, per squeak)
+##              ui_hover -16, tick -9
+##   ambience   hum -22                                            loud ~ -29       (60 Hz reads far quieter than its RMS;
+##                                                                                   noticed when it stops)
+## Sustained sounds (alarm, hum, buzzers) have a much higher RMS than transients at the same peak, so their rows sit
+## 4-8 dB lower than their felt level; short impacts with long tails (door_slam, write_up) read low in RMS and are
+## judged by their peak instead.
 
 const MIX_RATE := 22050
 const MAX_2D := 8
 const MAX_3D := 16
+## Loop players alive at once (play_loop refuses the ninth).
+const MAX_LOOPS := 8
 const BUS_NAME := &"SFX"
 ## A sound re-triggered sooner than this after itself is skipped (prevents stacking / phasing).
 const MIN_RETRIGGER_MSEC := 40
+## The volume a stopped loop fades to before its player is freed.
+const LOOP_FADE_FLOOR_DB := -60.0
 
 ## Every sound name, in the order they are synthesised. First 15 are the CONTRACTS.md set.
 const SOUNDS: Array[StringName] = [
@@ -29,12 +78,13 @@ const SOUNDS: Array[StringName] = [
 	&"round_win", &"round_lose", &"tick", &"ui_click", &"ui_open", &"ui_close",
 	# extras (art pass 1)
 	&"ready", &"refill", &"ui_hover", &"coin", &"pop", &"whoosh", &"countdown", &"round_start",
-	# M10 friendslop pass (lead placeholders; the audio agent refines the recipes)
+	# M10 friendslop pass (audio agent)
 	&"step", &"throw", &"bonk", &"shove", &"ping", &"chat", &"alarm", &"power_down", &"power_up", &"keys",
 	&"write_up", &"door_slam", &"confiscate", &"hum", &"rat",
 ]
 
 ## Sounds synthesised as seamless loops (loop_mode FORWARD over the whole buffer): ambience and walking keys.
+## Only these can be started with play_loop().
 const LOOPING: Array[StringName] = [&"hum", &"keys"]
 
 ## Per-sound playback settings: [volume_db, pitch_variation (+-fraction), 3D unit_size].
@@ -62,21 +112,22 @@ const SETTINGS := {
 	&"whoosh": [-8.0, 0.08, 5.0],
 	&"countdown": [-6.0, 0.0, 5.0],
 	&"round_start": [-8.0, 0.0, 10.0],
-	&"step": [-14.0, 0.12, 4.0],
+	# M10: see the dB ladder in the header.
+	&"step": [-12.0, 0.12, 4.0],
 	&"throw": [-8.0, 0.08, 5.0],
-	&"bonk": [-3.0, 0.08, 6.0],
-	&"shove": [-6.0, 0.10, 5.0],
-	&"ping": [-9.0, 0.0, 8.0],
+	&"bonk": [-2.0, 0.08, 6.0],
+	&"shove": [-5.0, 0.10, 5.0],
+	&"ping": [-7.0, 0.0, 8.0],
 	&"chat": [-14.0, 0.05, 5.0],
-	&"alarm": [-7.0, 0.0, 12.0],
-	&"power_down": [-5.0, 0.0, 12.0],
-	&"power_up": [-6.0, 0.0, 12.0],
-	&"keys": [-12.0, 0.0, 5.0],
-	&"write_up": [-6.0, 0.03, 6.0],
-	&"door_slam": [-2.0, 0.03, 10.0],
-	&"confiscate": [-6.0, 0.05, 6.0],
+	&"alarm": [-13.0, 0.0, 12.0],
+	&"power_down": [-6.0, 0.0, 12.0],
+	&"power_up": [-5.0, 0.0, 12.0],
+	&"keys": [-10.0, 0.0, 5.0],
+	&"write_up": [-4.0, 0.03, 6.0],
+	&"door_slam": [-1.0, 0.03, 10.0],
+	&"confiscate": [-5.0, 0.05, 6.0],
 	&"hum": [-22.0, 0.0, 12.0],
-	&"rat": [-10.0, 0.10, 4.0],
+	&"rat": [-14.0, 0.10, 4.0],
 }
 
 enum Wave { SINE, TRIANGLE, SQUARE, SAW, CHIP }
@@ -86,7 +137,7 @@ var volume_db: float = 0.0:
 	set(v):
 		volume_db = v
 		_apply_bus_volume()
-## Set false to silence all Sfx (e.g. automated tests, a settings toggle).
+## Set false to silence all Sfx (e.g. automated tests, a settings toggle). Running loops keep going; stop them.
 var enabled: bool = true
 
 var _streams: Dictionary = {}          # StringName -> AudioStreamWAV
@@ -95,15 +146,22 @@ var _players_3d: Array[AudioStreamPlayer3D] = []
 var _started_2d: PackedInt64Array = []
 var _started_3d: PackedInt64Array = []
 var _last_play: Dictionary = {}        # StringName -> msec
+var _last_voice: Node = null           # the player used by the most recent play() (tests)
 var _warned: Dictionary = {}
 var _bus: StringName = &"Master"
 var _rng := RandomNumberGenerator.new()
 var _mutex := Mutex.new()
 var _task_id: int = -1
 var _abort_synth: bool = false
+# Loops: handle -> {player: Node, node: Node3D or null, follows: bool, sound: StringName}. Handles start at 1,
+# never reused. A followed node that gets freed ends its loop in _process.
+var _loops: Dictionary = {}
+var _fading: Array[Node] = []          # loop players on their way out (fade tween running)
+var _next_handle: int = 1
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS   # UI sounds keep working while the tree is paused
+	set_process(false)                        # only while a loop follows a node
 	_setup_bus()
 	for i in MAX_2D:
 		var p := AudioStreamPlayer.new()
@@ -115,12 +173,7 @@ func _ready() -> void:
 	for i in MAX_3D:
 		var p3 := AudioStreamPlayer3D.new()
 		p3.name = "Voice3D_%d" % i
-		p3.bus = _bus
-		p3.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
-		p3.max_distance = 45.0
-		p3.max_db = 3.0
-		p3.panning_strength = 0.7
-		p3.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_DISABLED
+		_setup_3d(p3)
 		add_child(p3)
 		_players_3d.append(p3)
 		_started_3d.append(0)
@@ -140,6 +193,25 @@ func _exit_tree() -> void:
 	for p3 in _players_3d:
 		p3.stop()
 		p3.stream = null
+	stop_all_loops()
+
+func _process(_delta: float) -> void:
+	# Loops attached to a Node3D follow it; a freed node ends its loop.
+	var dead: Array[int] = []
+	for h: int in _loops:
+		var e: Dictionary = _loops[h]
+		if not e.follows:
+			continue
+		# Untyped on purpose: a freed instance cannot be assigned to a Node3D var, and it compares equal to null.
+		var n: Variant = e.node
+		if not is_instance_valid(n):
+			dead.append(h)
+		elif (n as Node3D).is_inside_tree():
+			(e.player as AudioStreamPlayer3D).global_position = (n as Node3D).global_position
+	for h in dead:
+		_end_loop(h, 0.0)
+	if _loops.is_empty():
+		set_process(false)
 
 ## True once every sound has been synthesised (play() works before that too).
 func is_ready() -> bool:
@@ -185,15 +257,14 @@ func _get_or_synth(sound: StringName) -> AudioStreamWAV:
 		_mutex.unlock()
 	return w
 
-## Plays a sound. No position (Vector3.INF) = 2D/non-positional; otherwise a 3D voice at that world point.
-func play(sound: StringName, position: Vector3 = Vector3.INF) -> void:
+## Plays a sound once. No position (Vector3.INF) = 2D/non-positional; otherwise a 3D voice at that world point.
+## volume_offset_db is added to the sound's SETTINGS volume (e.g. -8.0 for the local player's own footsteps).
+func play(sound: StringName, position: Vector3 = Vector3.INF, volume_offset_db: float = 0.0) -> void:
 	if not enabled or not is_inside_tree() or _players_2d.is_empty():
 		return
 	var stream := _get_or_synth(sound)
 	if stream == null:
-		if not _warned.has(sound):
-			_warned[sound] = true
-			push_warning("Sfx.play: unknown sound '%s' (see Sfx.SOUNDS / STYLE.md)" % sound)
+		_warn_once(sound, "Sfx.play: unknown sound '%s' (see Sfx.SOUNDS / STYLE.md)" % sound)
 		return
 	var now := Time.get_ticks_msec()
 	var positional := position.is_finite()
@@ -204,7 +275,7 @@ func play(sound: StringName, position: Vector3 = Vector3.INF) -> void:
 	_last_play[key] = now
 	var s: Array = SETTINGS.get(sound, [-6.0, 0.05, 6.0])
 	var pitch := 1.0 + _rng.randf_range(-s[1], s[1])
-	var vol: float = s[0]
+	var vol: float = s[0] + volume_offset_db
 	if _bus == &"Master":
 		vol += volume_db
 	if positional:
@@ -218,6 +289,7 @@ func play(sound: StringName, position: Vector3 = Vector3.INF) -> void:
 		p3.pitch_scale = pitch
 		p3.play()
 		_started_3d[i] = now
+		_last_voice = p3
 	else:
 		var j := _pick(_players_2d.size(), _started_2d, func(idx: int) -> bool: return _players_2d[idx].playing)
 		var p := _players_2d[j]
@@ -227,13 +299,123 @@ func play(sound: StringName, position: Vector3 = Vector3.INF) -> void:
 		p.pitch_scale = pitch
 		p.play()
 		_started_2d[j] = now
+		_last_voice = p
 
 ## Plays at a node's current position (convenience for Node3D stations/items).
-func play_at(sound: StringName, node: Node3D) -> void:
+func play_at(sound: StringName, node: Node3D, volume_offset_db: float = 0.0) -> void:
 	if node != null and is_instance_valid(node) and node.is_inside_tree():
-		play(sound, node.global_position)
+		play(sound, node.global_position, volume_offset_db)
 	else:
-		play(sound)
+		play(sound, Vector3.INF, volume_offset_db)
+
+# ------------------------------------------------------------------------------------------------ loops
+## Starts a looping sound (one of LOOPING). target: Vector3.INF or null = 2D; a Vector3 = fixed 3D point;
+## a Node3D = the emitter follows the node every frame while it is valid and inside the tree, and the loop stops
+## itself when the node is freed. Returns a handle > 0, or 0 when refused (unknown or non-looping sound, Sfx
+## disabled, MAX_LOOPS loops already running, freed node). Handles are never reused within a session.
+func play_loop(sound: StringName, target: Variant = Vector3.INF) -> int:
+	if not enabled or not is_inside_tree():
+		return 0
+	if not LOOPING.has(sound):
+		if SOUNDS.has(sound):
+			_warn_once(sound, "Sfx.play_loop: '%s' is not a looping sound (see Sfx.LOOPING)" % sound)
+		else:
+			_warn_once(sound, "Sfx.play_loop: unknown sound '%s' (see Sfx.SOUNDS / STYLE.md)" % sound)
+		return 0
+	if _loops.size() >= MAX_LOOPS:
+		return 0
+	var node: Node3D = null
+	var position := Vector3.INF
+	if target is Node3D:
+		node = target
+		if not is_instance_valid(node):
+			return 0
+		position = node.global_position if node.is_inside_tree() else Vector3.ZERO
+	elif target is Vector3:
+		position = target
+	elif target != null:
+		_warn_once(StringName("loop_target_" + type_string(typeof(target))),
+			"Sfx.play_loop: target must be Vector3.INF, a Vector3 or a Node3D (got %s)" % type_string(typeof(target)))
+		return 0
+	var stream := _get_or_synth(sound)
+	if stream == null:
+		return 0
+	var s: Array = SETTINGS.get(sound, [-6.0, 0.0, 6.0])
+	var vol: float = s[0]
+	if _bus == &"Master":
+		vol += volume_db
+	var pitch := 1.0 + _rng.randf_range(-s[1], s[1])
+	var handle := _next_handle
+	_next_handle += 1
+	var player: Node
+	if position.is_finite():
+		var p3 := AudioStreamPlayer3D.new()
+		p3.name = "Loop3D_%d" % handle
+		_setup_3d(p3)
+		p3.unit_size = s[2]
+		add_child(p3)
+		p3.global_position = position
+		p3.stream = stream
+		p3.volume_db = vol
+		p3.pitch_scale = pitch
+		p3.play()
+		player = p3
+	else:
+		var p := AudioStreamPlayer.new()
+		p.name = "Loop2D_%d" % handle
+		p.bus = _bus
+		p.process_mode = Node.PROCESS_MODE_ALWAYS
+		add_child(p)
+		p.stream = stream
+		p.volume_db = vol
+		p.pitch_scale = pitch
+		p.play()
+		player = p
+	_loops[handle] = {"player": player, "node": node, "follows": node != null, "sound": sound}
+	if node != null:
+		set_process(true)
+	return handle
+
+## Stops a loop: fades over fade_sec (0 = at once), then frees its player. Unknown / stopped handles: no-op.
+## The handle counts as stopped immediately (is_loop_playing false, a slot is free for play_loop).
+func stop_loop(handle: int, fade_sec: float = 0.15) -> void:
+	if _loops.has(handle):
+		_end_loop(handle, fade_sec)
+
+## Stops every loop at once (no fade).
+func stop_all_loops() -> void:
+	for h: int in _loops.keys():
+		_end_loop(h, 0.0)
+	for p in _fading:
+		if is_instance_valid(p):
+			p.queue_free()
+	_fading.clear()
+
+func is_loop_playing(handle: int) -> bool:
+	return _loops.has(handle)
+
+## Absolute volume (dB) for one running loop, replacing its SETTINGS volume. No-op for stopped handles.
+func set_loop_volume(handle: int, db: float) -> void:
+	var e: Dictionary = _loops.get(handle, {})
+	if e.is_empty():
+		return
+	var vol := db
+	if _bus == &"Master":
+		vol += volume_db
+	e.player.volume_db = vol
+
+## Running loops (fading ones no longer count).
+func get_active_loop_count() -> int:
+	return _loops.size()
+
+## The AudioStreamPlayer / AudioStreamPlayer3D behind a running loop, or null (tests, debugging).
+func get_loop_player(handle: int) -> Node:
+	var e: Dictionary = _loops.get(handle, {})
+	return e.get("player") if not e.is_empty() else null
+
+## The voice used by the most recent successful play() (tests, debugging). May be null.
+func get_last_voice() -> Node:
+	return _last_voice if _last_voice != null and is_instance_valid(_last_voice) else null
 
 func has_sound(sound: StringName) -> bool:
 	return SOUNDS.has(sound)
@@ -245,7 +427,7 @@ func get_stream(sound: StringName) -> AudioStreamWAV:
 func get_sound_names() -> Array[StringName]:
 	return SOUNDS.duplicate()
 
-## Number of voices currently playing (tests / debugging).
+## Number of one-shot voices currently playing (tests / debugging). Loops are not counted.
 func get_active_voice_count() -> int:
 	var c := 0
 	for p in _players_2d:
@@ -256,11 +438,45 @@ func get_active_voice_count() -> int:
 			c += 1
 	return c
 
+## Stops every one-shot voice and every loop.
 func stop_all() -> void:
 	for p in _players_2d:
 		p.stop()
 	for p3 in _players_3d:
 		p3.stop()
+	stop_all_loops()
+
+## Numbers about a synthesised stream (tests, loudness table): peak and rms in 0..1 of full scale, dc = mean
+## sample (offset), seconds, samples, clipped = samples at full scale. Only 16-bit mono streams are measured.
+static func measure(stream: AudioStreamWAV) -> Dictionary:
+	var out := {"peak": 0.0, "rms": 0.0, "seconds": 0.0, "dc": 0.0, "samples": 0, "clipped": 0}
+	if stream == null or stream.format != AudioStreamWAV.FORMAT_16_BITS or stream.stereo:
+		return out
+	var data := stream.data
+	var n := data.size() / 2
+	if n == 0:
+		return out
+	var peak := 0
+	var sum := 0.0
+	var sum_sq := 0.0
+	var clipped := 0
+	for i in n:
+		var s := data.decode_s16(i * 2)
+		var a := absi(s)
+		if a > peak:
+			peak = a
+		if a >= 32767:
+			clipped += 1
+		var v := s / 32767.0
+		sum += v
+		sum_sq += v * v
+	out.peak = peak / 32767.0
+	out.rms = sqrt(sum_sq / n)
+	out.dc = sum / n
+	out.seconds = float(n) / stream.mix_rate
+	out.samples = n
+	out.clipped = clipped
+	return out
 
 # ------------------------------------------------------------------------------------------ internals
 func _pick(count: int, started: PackedInt64Array, is_busy: Callable) -> int:
@@ -271,6 +487,41 @@ func _pick(count: int, started: PackedInt64Array, is_busy: Callable) -> int:
 		if started[i] < started[oldest]:
 			oldest = i
 	return oldest   # voice stealing: all busy -> restart the oldest
+
+func _setup_3d(p3: AudioStreamPlayer3D) -> void:
+	p3.bus = _bus
+	p3.process_mode = Node.PROCESS_MODE_ALWAYS
+	p3.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+	p3.max_distance = 45.0
+	p3.max_db = 3.0
+	p3.panning_strength = 0.7
+	p3.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_DISABLED
+
+func _warn_once(key: StringName, text: String) -> void:
+	if not _warned.has(key):
+		_warned[key] = true
+		push_warning(text)
+
+## Removes a loop from the table now; its player fades (or stops) and frees itself.
+func _end_loop(handle: int, fade_sec: float) -> void:
+	var e: Dictionary = _loops[handle]
+	_loops.erase(handle)
+	var maybe: Variant = e.player   # untyped: never assign a possibly freed instance to a typed var
+	if not is_instance_valid(maybe):
+		return
+	var player: Node = maybe
+	if fade_sec <= 0.0 or not player.is_inside_tree():
+		player.stop()
+		player.queue_free()
+		return
+	_fading.append(player)
+	var tw := player.create_tween()
+	tw.tween_property(player, "volume_db", LOOP_FADE_FLOOR_DB, fade_sec)
+	tw.finished.connect(func() -> void:
+		_fading.erase(player)
+		if is_instance_valid(player):
+			player.stop()
+			player.queue_free())
 
 func _setup_bus() -> void:
 	var idx := AudioServer.get_bus_index(BUS_NAME)
@@ -288,8 +539,10 @@ func _apply_bus_volume() -> void:
 		AudioServer.set_bus_volume_db(idx, volume_db)
 
 # ---------------------------------------------------------------------------------------- synthesis
-# Tiny additive synth. Each recipe mixes layers into a float buffer; _to_wav() peak-normalises it and
+# Tiny additive synth. Each recipe mixes layers into a float buffer; _to_wav() peak-normalises it (0.89) and
 # converts to 16-bit PCM. Noise uses a fixed seed per sound so every peer/run hears the same thing.
+# Cheat sheet: _noise lp 0.2 ~ 800 Hz, 0.5 ~ 2.4 kHz, 0.8 ~ 5.6 kHz one-pole cutoff; hp removes the rumble
+# below ~ hp * 3.5 kHz. _lowpass(b, k) over the whole buffer with the same scale dulls everything.
 
 func _synth(sound: StringName) -> AudioStreamWAV:
 	var rng := RandomNumberGenerator.new()
@@ -409,84 +662,146 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 		&"whoosh":
 			b = _buf(0.35)
 			_noise(b, rng, 0.0, 0.32, 0.6, 0.25, 0.03, 0.12, 2.0)
-		# --- M10 placeholders (lead). Dull, low, factory. The audio agent owns the final recipes. ---
-		&"step":   # a soft scuff on concrete
+		# --- M10 friendslop pass. Dull, low, factory. Concrete, steel, paper, mains. ---
+		&"step":   # a soft scuff on concrete: heel thump, a scuff, a little grit; pitch varies at play time
 			b = _buf(0.11)
-			_noise(b, rng, 0.0, 0.09, 0.5, 0.22, 0.03, 0.002, 7.0)
-			_tone(b, 0.0, 0.05, 140.0, 90.0, 0.35, Wave.SINE, 0.001, 6.0)
-		&"throw":  # a short heave of air
-			b = _buf(0.28)
-			_noise(b, rng, 0.0, 0.26, 0.55, 0.35, 0.05, 0.06, 2.5)
-			_tone(b, 0.0, 0.1, 220.0, 120.0, 0.2, Wave.SINE, 0.003, 4.0)
-		&"bonk":   # a bundle to the head: dull thud, no comedy sting
-			b = _buf(0.24)
-			_tone(b, 0.0, 0.2, 190.0, 55.0, 1.0, Wave.SINE, 0.001, 6.0)
-			_noise(b, rng, 0.0, 0.03, 0.5, 0.5, 0.1, 0.0005, 6.0)
+			_tone(b, 0.0, 0.06, 120.0, 68.0, 0.5, Wave.SINE, 0.002, 6.0)          # heel
+			_noise(b, rng, 0.0, 0.1, 0.6, 0.25, 0.04, 0.004, 6.0)                 # the scuff
+			_noise(b, rng, 0.01, 0.04, 0.25, 0.7, 0.3, 0.001, 8.0)                # grit
+			_noise(b, rng, 0.05, 0.05, 0.3, 0.3, 0.05, 0.003, 5.0)                # toe drags
+			_lowpass(b, 0.6)
+			_fade_out(b, 0.01)
+		&"throw":  # a short heave of air and a sleeve
+			b = _buf(0.3)
+			_noise(b, rng, 0.0, 0.28, 0.7, 0.3, 0.05, 0.07, 3.5)                  # air
+			_noise(b, rng, 0.0, 0.1, 0.3, 0.65, 0.25, 0.02, 4.0)                  # sleeve
+			_tone(b, 0.0, 0.16, 170.0, 95.0, 0.3, Wave.SINE, 0.02, 4.0)           # the heave itself
 			_lowpass(b, 0.5)
-		&"shove":  # cloth against cloth, a grunt of a low tone
-			b = _buf(0.18)
-			_noise(b, rng, 0.0, 0.12, 0.5, 0.3, 0.05, 0.003, 5.0)
-			_tone(b, 0.0, 0.12, 130.0, 85.0, 0.6, Wave.TRIANGLE, 0.004, 5.0)
-			_lowpass(b, 0.4)
-		&"ping":   # two dull toks
+			_fade_out(b, 0.03)
+		&"bonk":   # a bundle to the head: dull thud with a small clonk, no cartoon sting
+			b = _buf(0.26)
+			_tone(b, 0.0, 0.2, 170.0, 50.0, 1.0, Wave.SINE, 0.001, 7.0)           # the head
+			_noise(b, rng, 0.0, 0.03, 0.6, 0.45, 0.08, 0.0005, 6.0)               # impact
+			_tone(b, 0.0, 0.07, 640.0, 560.0, 0.35, Wave.TRIANGLE, 0.001, 8.0)    # clonk
+			_tone(b, 0.0, 0.05, 1100.0, 950.0, 0.12, Wave.SINE, 0.001, 9.0)
+			_lowpass(b, 0.45)
+			_fade_out(b, 0.02)
+		&"shove":  # cloth against cloth and a low grunt-like tone
 			b = _buf(0.22)
-			_tone(b, 0.0, 0.06, 880.0, 860.0, 0.7, Wave.SINE, 0.001, 5.0)
-			_tone(b, 0.09, 0.1, 660.0, 640.0, 0.7, Wave.SINE, 0.001, 5.0)
-			_lowpass(b, 0.55)
-		&"chat":   # a flick of paper
-			b = _buf(0.07)
-			_noise(b, rng, 0.0, 0.05, 0.35, 0.8, 0.3, 0.0005, 7.0)
-		&"alarm":  # a flat two-tone factory buzzer, twice
+			_noise(b, rng, 0.0, 0.15, 0.55, 0.35, 0.08, 0.004, 5.0)               # cloth
+			_tone(b, 0.01, 0.17, 128.0, 80.0, 0.6, Wave.SAW, 0.012, 5.0, 28.0, 0.04)   # grunt
+			_tone(b, 0.0, 0.05, 240.0, 180.0, 0.25, Wave.TRIANGLE, 0.002, 6.0)    # contact
+			_lowpass(b, 0.3)
+			_fade_out(b, 0.02)
+		&"ping":   # two dull toks, the second lower: an intercom "you"
+			b = _buf(0.3)
+			_tone(b, 0.0, 0.08, 640.0, 610.0, 0.7, Wave.SINE, 0.001, 7.0)
+			_tone(b, 0.0, 0.05, 180.0, 160.0, 0.4, Wave.SINE, 0.001, 6.0)
+			_noise(b, rng, 0.0, 0.01, 0.3, 0.6, 0.2, 0.0005, 6.0)
+			_tone(b, 0.13, 0.12, 470.0, 445.0, 0.7, Wave.SINE, 0.001, 6.0)
+			_tone(b, 0.13, 0.06, 150.0, 130.0, 0.4, Wave.SINE, 0.001, 6.0)
+			_noise(b, rng, 0.13, 0.01, 0.3, 0.6, 0.2, 0.0005, 6.0)
+			_lowpass(b, 0.4)
+			_fade_out(b, 0.02)
+		&"chat":   # a paper flick
+			b = _buf(0.09)
+			_noise(b, rng, 0.0, 0.07, 0.6, 0.55, 0.2, 0.003, 5.0)
+			_noise(b, rng, 0.012, 0.025, 0.5, 0.85, 0.45, 0.0005, 6.0)
+			_tone(b, 0.01, 0.03, 850.0, 480.0, 0.2, Wave.SINE, 0.001, 8.0)
+			_lowpass(b, 0.6)
+			_fade_out(b, 0.015)
+		&"alarm":  # a flat two-tone factory buzzer, twice; the rasp is 47 Hz FM on a soft square
 			b = _buf(1.1)
 			for i in 2:
-				_tone(b, i * 0.55, 0.24, 220.0, 220.0, 0.55, Wave.SQUARE, 0.01, 0.6)
-				_tone(b, i * 0.55 + 0.26, 0.24, 165.0, 165.0, 0.55, Wave.SQUARE, 0.01, 0.6)
-			_lowpass(b, 0.18)
-		&"power_down":  # the mains hum sagging into nothing
-			b = _buf(1.0)
-			_tone(b, 0.0, 0.95, 110.0, 28.0, 0.7, Wave.SAW, 0.01, 2.5)
-			_noise(b, rng, 0.0, 0.5, 0.2, 0.2, 0.02, 0.05, 4.0)
-			_lowpass(b, 0.15)
-		&"power_up":  # a breaker thunk and a fluoro stuttering back on
-			b = _buf(0.9)
-			_tone(b, 0.0, 0.08, 120.0, 60.0, 0.9, Wave.SINE, 0.001, 5.0)
-			_noise(b, rng, 0.0, 0.03, 0.5, 0.6, 0.1, 0.0005, 6.0)
-			for t in [0.2, 0.36, 0.5]:
-				_tone(b, t, 0.07, 100.0, 100.0, 0.35, Wave.SQUARE, 0.005, 1.0)
-			_tone(b, 0.62, 0.28, 100.0, 100.0, 0.35, Wave.SQUARE, 0.01, 0.8)
+				var t0 := i * 0.56
+				_tone(b, t0, 0.25, 220.0, 220.0, 0.55, Wave.SQUARE, 0.012, 0.5, 47.0, 0.025)
+				_tone(b, t0, 0.25, 110.0, 110.0, 0.25, Wave.SAW, 0.012, 0.5)
+				_tone(b, t0 + 0.27, 0.25, 165.0, 165.0, 0.55, Wave.SQUARE, 0.012, 0.5, 47.0, 0.025)
+				_tone(b, t0 + 0.27, 0.25, 82.5, 82.5, 0.25, Wave.SAW, 0.012, 0.5)
+				_noise(b, rng, t0, 0.52, 0.12, 0.15, 0.02, 0.02, 0.3)
 			_lowpass(b, 0.2)
-		&"keys":   # keys on a belt, half a second, loops while the Boss walks
-			b = _buf(0.5)
-			for i in 6:
-				var t := rng.randf_range(0.0, 0.42)
-				var f := rng.randf_range(2400.0, 4200.0)
-				_tone(b, t, 0.05, f, f * 0.97, rng.randf_range(0.15, 0.3), Wave.SINE, 0.0005, 5.0)
-			_noise(b, rng, 0.0, 0.5, 0.06, 0.9, 0.5, 0.05, 1.0)
-		&"write_up":  # a pen scratching, then the stamp
-			b = _buf(0.5)
-			_noise(b, rng, 0.0, 0.22, 0.3, 0.7, 0.4, 0.02, 2.0)
-			_tone(b, 0.3, 0.14, 160.0, 70.0, 0.9, Wave.SINE, 0.001, 6.0)
-			_noise(b, rng, 0.3, 0.03, 0.4, 0.5, 0.1, 0.0005, 6.0)
-		&"door_slam":  # a steel door, far too heavy
-			b = _buf(0.6)
-			_tone(b, 0.0, 0.4, 70.0, 28.0, 1.0, Wave.SINE, 0.001, 5.0)
-			_noise(b, rng, 0.0, 0.08, 0.6, 0.4, 0.05, 0.001, 5.0)
-			_tone(b, 0.02, 0.5, 720.0, 700.0, 0.12, Wave.SINE, 0.001, 6.0)
-			_lowpass(b, 0.35)
-		&"confiscate":  # snatched out of your hands
-			b = _buf(0.3)
-			_noise(b, rng, 0.0, 0.1, 0.4, 0.4, 0.08, 0.002, 4.0)
-			_tone(b, 0.05, 0.22, 520.0, 190.0, 0.6, Wave.SINE, 0.003, 4.0)
-			_lowpass(b, 0.5)
-		&"hum":    # mains hum, one second, seamless
+			_fade_out(b, 0.02)
+		&"power_down":  # a relay click, then the mains hum sags into nothing while the fans wind down
+			b = _buf(1.1)
+			_noise(b, rng, 0.0, 0.012, 0.7, 0.8, 0.3, 0.0005, 6.0)                # relay
+			_tone(b, 0.0, 0.03, 1800.0, 1200.0, 0.3, Wave.SINE, 0.0005, 8.0)
+			_tone(b, 0.02, 1.0, 60.0, 16.0, 0.7, Wave.SINE, 0.01, 3.0)            # the hum, sagging
+			_tone(b, 0.02, 0.9, 120.0, 32.0, 0.45, Wave.SINE, 0.01, 3.5)
+			_tone(b, 0.02, 0.8, 180.0, 48.0, 0.2, Wave.SINE, 0.01, 4.0)
+			_tone(b, 0.02, 0.7, 240.0, 64.0, 0.1, Wave.SINE, 0.01, 4.5)
+			_noise(b, rng, 0.03, 0.9, 0.18, 0.12, 0.01, 0.05, 4.0)                # fans
+			_lowpass(b, 0.3)
+			_fade_out(b, 0.03)
+		&"power_up":  # a breaker thunk, then a fluoro stutters three times and holds
 			b = _buf(1.0)
-			_tone(b, 0.0, 1.0, 60.0, 60.0, 0.6, Wave.SINE, 0.0, 0.0)
-			_tone(b, 0.0, 1.0, 120.0, 120.0, 0.25, Wave.SINE, 0.0, 0.0)
-			_tone(b, 0.0, 1.0, 180.0, 180.0, 0.08, Wave.SINE, 0.0, 0.0)
-		&"rat":    # two thin squeaks
-			b = _buf(0.22)
-			_tone(b, 0.0, 0.06, 3000.0, 3600.0, 0.6, Wave.SINE, 0.002, 3.0)
-			_tone(b, 0.1, 0.08, 3300.0, 2800.0, 0.5, Wave.SINE, 0.002, 3.0)
+			_tone(b, 0.0, 0.12, 110.0, 48.0, 1.0, Wave.SINE, 0.001, 6.0)          # the breaker
+			_noise(b, rng, 0.0, 0.04, 0.6, 0.5, 0.1, 0.0005, 6.0)
+			_tone(b, 0.0, 0.05, 900.0, 700.0, 0.25, Wave.TRIANGLE, 0.001, 8.0)    # the lever's clack
+			for t: float in [0.26, 0.40, 0.52]:                                    # three flickers
+				_tone(b, t, 0.06, 120.0, 120.0, 0.3, Wave.SQUARE, 0.003, 1.5)
+				_noise(b, rng, t, 0.06, 0.12, 0.6, 0.3, 0.002, 2.0)
+				_tone(b, t, 0.012, 2600.0, 2400.0, 0.12, Wave.SINE, 0.0005, 6.0)  # starter tick
+			_tone(b, 0.62, 0.38, 120.0, 120.0, 0.3, Wave.SQUARE, 0.02, 1.2)       # holds (the hum loop takes over)
+			_tone(b, 0.62, 0.38, 60.0, 60.0, 0.18, Wave.SINE, 0.02, 1.2)
+			_noise(b, rng, 0.62, 0.38, 0.08, 0.5, 0.3, 0.02, 1.5)
+			_lowpass(b, 0.3)
+			_fade_out(b, 0.06)
+		&"keys":   # keys on a belt for one stride (0.5 s): a bounce at the footfall, a smaller one mid-stride.
+			b = _buf(0.5)  # Seamless: every hit ends before 0.42 s, both ends fade to zero.
+			for t: float in [0.05, 0.075, 0.1, 0.16, 0.27, 0.3, 0.35]:
+				var tt := t + rng.randf_range(-0.008, 0.008)
+				var f := rng.randf_range(2300.0, 4300.0)
+				var a := rng.randf_range(0.2, 0.45) * (1.3 if t < 0.12 else 1.0)
+				_tone(b, tt, 0.05, f, f * 0.985, a, Wave.SINE, 0.0005, 6.0)
+				_tone(b, tt, 0.04, f * 1.47, f * 1.46, a * 0.5, Wave.SINE, 0.0005, 7.0)
+				_tone(b, tt, 0.03, f * 2.31, f * 2.3, a * 0.25, Wave.SINE, 0.0005, 8.0)
+				_noise(b, rng, tt, 0.012, 0.3, 0.8, 0.4, 0.0005, 6.0)
+			_noise(b, rng, 0.03, 0.42, 0.05, 0.2, 0.03, 0.05, 1.0)                # the belt
+			_lowpass(b, 0.7)
+			_fade_in(b, 0.03)
+			_fade_out(b, 0.05)
+		&"write_up":  # a pen scratching four strokes, then the rubber stamp comes down
+			b = _buf(0.62)
+			for s: Array in [[0.0, 0.08], [0.1, 0.06], [0.19, 0.1], [0.31, 0.05]]:
+				_noise(b, rng, s[0], s[1], 0.35, 0.45, 0.25, 0.015, 2.5)
+			_tone(b, 0.42, 0.15, 150.0, 60.0, 1.0, Wave.SINE, 0.001, 6.0)         # stamp
+			_noise(b, rng, 0.42, 0.04, 0.5, 0.5, 0.08, 0.0005, 5.0)               # the pad
+			_tone(b, 0.42, 0.05, 520.0, 300.0, 0.2, Wave.TRIANGLE, 0.001, 7.0)
+			_lowpass(b, 0.5)
+			_fade_out(b, 0.02)
+		&"door_slam":  # a steel door far too heavy: the mass, a dull ring, the frame rattling
+			b = _buf(0.7)
+			_tone(b, 0.0, 0.45, 75.0, 26.0, 1.0, Wave.SINE, 0.001, 5.0)           # the mass
+			_noise(b, rng, 0.0, 0.1, 0.7, 0.45, 0.05, 0.001, 5.0)                 # impact
+			_tone(b, 0.0, 0.5, 385.0, 380.0, 0.16, Wave.SINE, 0.001, 5.0)         # ring (inharmonic)
+			_tone(b, 0.0, 0.45, 612.0, 605.0, 0.1, Wave.SINE, 0.001, 6.0)
+			_tone(b, 0.0, 0.35, 947.0, 940.0, 0.06, Wave.SINE, 0.001, 7.0)
+			for t: float in [0.07, 0.12, 0.19]:                                    # the frame
+				_noise(b, rng, t, 0.025, 0.25, 0.4, 0.1, 0.001, 5.0)
+				_tone(b, t, 0.03, 160.0, 120.0, 0.2, Wave.TRIANGLE, 0.001, 6.0)
+			_lowpass(b, 0.3)
+			_fade_out(b, 0.03)
+		&"confiscate":  # snatched out of your hands: cloth, the snatch, a short falling tone
+			b = _buf(0.32)
+			_noise(b, rng, 0.0, 0.12, 0.55, 0.4, 0.08, 0.004, 4.0)                # cloth
+			_noise(b, rng, 0.03, 0.05, 0.3, 0.7, 0.3, 0.002, 5.0)                 # the snatch
+			_tone(b, 0.04, 0.24, 520.0, 170.0, 0.6, Wave.SINE, 0.004, 4.0)        # falling
+			_tone(b, 0.04, 0.2, 1040.0, 340.0, 0.12, Wave.SINE, 0.004, 5.0)
+			_lowpass(b, 0.45)
+			_fade_out(b, 0.02)
+		&"hum":    # 60 Hz mains with harmonics and a slow 3 Hz beat; whole cycles over 1.0 s = seamless
+			b = _buf(1.0)
+			_cycles(b, 60, 0.6, 3, 0.12)
+			_cycles(b, 120, 0.42, 3, 0.2)
+			_cycles(b, 180, 0.12, 5, 0.3)
+			_cycles(b, 240, 0.06, 5, 0.3)
+			_cycles(b, 300, 0.025)
+		&"rat":    # two thin squeaks, the second trailing down
+			b = _buf(0.26)
+			_tone(b, 0.0, 0.07, 3100.0, 3700.0, 0.6, Wave.SINE, 0.003, 3.0, 60.0, 0.02)
+			_tone(b, 0.12, 0.1, 3500.0, 2700.0, 0.5, Wave.SINE, 0.003, 3.5, 55.0, 0.02)
+			_tone(b, 0.12, 0.06, 1750.0, 1350.0, 0.1, Wave.SINE, 0.003, 4.0)
+			_fade_out(b, 0.02)
 		_:
 			b = _buf(0.1)
 			_tone(b, 0.0, 0.08, 600.0, 600.0, 0.5, Wave.SINE, 0.002, 4.0)
@@ -563,6 +878,20 @@ func _tone(b: PackedFloat32Array, start: float, dur: float, f0: float, f1: float
 		f *= f_step
 		decay_env *= d_step
 
+## Adds a sine that completes exactly `cycles` periods over the whole buffer (so a FORWARD loop over the buffer
+## is seamless), optionally amplitude-modulated by `am_cycles` whole periods at `am_depth`. No attack, no fade.
+func _cycles(b: PackedFloat32Array, cycles: int, amp: float, am_cycles: int = 0, am_depth: float = 0.0) -> void:
+	var n := b.size()
+	if n == 0 or cycles <= 0:
+		return
+	var k := TAU * cycles / n
+	var ka := TAU * am_cycles / n
+	for i in n:
+		var a := amp
+		if am_cycles > 0:
+			a *= 1.0 + am_depth * sin(ka * i)
+		b[i] += a * sin(k * i)
+
 ## Adds noise through a one-pole low-pass (lp 0..1, 1 = unfiltered) minus a slower low-pass (hp 0..1) =
 ## a cheap band-pass. Linear attack, exponential decay.
 func _noise(b: PackedFloat32Array, rng: RandomNumberGenerator, start: float, dur: float, amp: float,
@@ -598,6 +927,19 @@ func _lowpass(b: PackedFloat32Array, k: float) -> void:
 	for i in b.size():
 		y += (b[i] - y) * k
 		b[i] = y
+
+## Linear fade over the first `seconds` of the buffer (loops that must start at zero).
+func _fade_in(b: PackedFloat32Array, seconds: float) -> void:
+	var n := mini(int(seconds * MIX_RATE), b.size())
+	for i in n:
+		b[i] *= float(i) / n
+
+## Linear fade over the last `seconds` of the buffer: whatever the layers left there ends at zero (no click).
+func _fade_out(b: PackedFloat32Array, seconds: float) -> void:
+	var n := mini(int(seconds * MIX_RATE), b.size())
+	var last := b.size() - 1
+	for i in n:
+		b[last - i] *= float(i) / n
 
 func _to_wav(b: PackedFloat32Array) -> AudioStreamWAV:
 	var peak := 0.0001
