@@ -87,6 +87,8 @@ var _seen_since: Dictionary = {}     # peer_id -> [clock when anchored, anchor p
 var _last_write_up: Dictionary = {}  # peer_id -> clock of the last write-up
 var _keys_accum: float = 0.0
 var _keys_handle: int = 0            # Sfx loop handle of the walking Boss's keys (0 = silent)
+## Host: peer_id -> Room back-room slot index while the worker sits there (order-independent: the lowest free slot).
+var _backroom_slots: Dictionary = {}
 var _forced_first_used: bool = false # `--first-event` consumed (once per process)
 var _rat_squeak_left: float = 0.0
 var _rng := RandomNumberGenerator.new()
@@ -429,13 +431,14 @@ func _on_backroom_changed(peer_id: int, active: bool) -> void:
 	var w: World = Game.world
 	if w == null or not is_instance_valid(w) or w.room == null:
 		return
+	if not active:
+		_backroom_slots.erase(peer_id)
 	var player := w.get_player(peer_id)
 	if player == null or not player.is_inside_tree():
 		return
 	var xf: Transform3D
 	if active:
-		var slot := GameState.get_backroom_peers().find(peer_id)
-		xf = w.room.get_backroom_transform(maxi(slot, 0))
+		xf = w.room.get_backroom_transform(_claim_backroom_slot(peer_id))
 	else:
 		xf = w.room.get_spawn_transform(player.spawn_index)
 	_move_player(player, xf)
@@ -443,6 +446,22 @@ func _on_backroom_changed(peer_id: int, active: bool) -> void:
 		# Whatever they were carrying goes back to the floor at their spawn (ItemManager places a back-room
 		# worker's item there): the team is never down a can for the whole stay.
 		w.items.server_release_holder(peer_id)
+
+
+## Host: the slot a back-room worker sits on. The lowest slot no other back-room worker holds, kept until they leave:
+## the sorted-peer-index used before put the second worker onto the first one's marker whenever their peer id was
+## the lower of the two (peer ids are random, so a coin flip per session).
+func _claim_backroom_slot(peer_id: int) -> int:
+	if _backroom_slots.has(peer_id):
+		return int(_backroom_slots[peer_id])
+	var used: Dictionary = {}
+	for k in _backroom_slots:
+		used[int(_backroom_slots[k])] = true
+	var slot := 0
+	while used.has(slot):
+		slot += 1
+	_backroom_slots[peer_id] = slot
+	return slot
 
 
 ## Moves a player's body. Owned bodies go through Player.server_teleport (owner-authoritative movement); a body
@@ -531,6 +550,7 @@ func _on_peer_registered(peer_id: int) -> void:
 func _on_peer_left(peer_id: int) -> void:
 	_seen_since.erase(peer_id)
 	_last_write_up.erase(peer_id)
+	_backroom_slots.erase(peer_id)
 
 
 # ------------------------------------------------------------------------------------------------------
@@ -567,6 +587,7 @@ func _host_close_shift() -> void:
 	if not _is_host():
 		return
 	_next_in = -1.0
+	_backroom_slots.clear() # the shift end lets everyone out (GameState clears `backroom`)
 	if active_event != &"":
 		server_end_event()
 	if not power_on:
@@ -580,6 +601,7 @@ func _reset_local() -> void:
 	_last_kind = &""
 	_seen_since.clear()
 	_last_write_up.clear()
+	_backroom_slots.clear()
 	var was_active := active_event
 	active_event = &""
 	_params = {}

@@ -226,6 +226,11 @@ func _ready() -> void:
 	# M10: workers collide with the room AND with each other (the scene says so too; enforced here).
 	collision_layer = Const.LAYER_PLAYER
 	collision_mask = Const.LAYER_WORLD | Const.LAYER_PLAYER
+	# Only the room is a moving platform. Remote bodies are kinematic colliders that jump to their synced position in
+	# one physics tick (a back-room send / release, a reset): a worker standing on one must not inherit that jump as
+	# platform velocity (QA 10.8 saw the host carried 6-8 m across the floor); it simply drops where it stood.
+	platform_floor_layers = Const.LAYER_WORLD
+	platform_wall_layers = 0
 	# Per-instance collision shape (the scene's sub-resource is shared between all players).
 	var base_shape := collision.shape as CapsuleShape3D
 	_shape = base_shape.duplicate() as CapsuleShape3D if base_shape != null else CapsuleShape3D.new()
