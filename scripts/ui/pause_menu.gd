@@ -43,6 +43,7 @@ var _other_unlock_frame: int = -1
 @onready var controls_label_2: Label = %ControlsLabel2
 @onready var mic_toggle: CheckButton = %MicToggle
 @onready var ptt_toggle: CheckButton = %PttToggle
+@onready var sound_toggle: CheckButton = %SoundToggle
 @onready var volume_slider: HSlider = %VolumeSlider
 @onready var volume_value: Label = %VolumeValue
 @onready var input_meter: ProgressBar = %InputMeter
@@ -67,6 +68,7 @@ func _ready() -> void:
 	no_mic_label.text = TEXT_NO_MIC
 	mic_toggle.toggled.connect(_on_mic_toggled)
 	ptt_toggle.toggled.connect(_on_ptt_toggled)
+	sound_toggle.toggled.connect(_on_sound_toggled)
 	volume_slider.value_changed.connect(_on_volume_changed)
 	var voice: Node = _voice()
 	if voice != null and voice.has_signal(&"input_level_changed"):
@@ -154,6 +156,7 @@ func _on_ui_lock_changed(locked: bool) -> void:
 func sync_voice_controls() -> void:
 	var voice: Node = _voice()
 	_syncing_voice = true
+	sound_toggle.button_pressed = not Config.is_muted()
 	if voice == null:
 		mic_toggle.disabled = true
 		ptt_toggle.disabled = true
@@ -181,6 +184,15 @@ func _on_mic_toggled(pressed: bool) -> void:
 	if voice != null:
 		voice.set(&"enabled", pressed)
 	Sfx.play(&"ui_click")
+
+
+## Sound: the master mute (saved by Config; `--mute` on the command line is the unsaved version).
+func _on_sound_toggled(pressed: bool) -> void:
+	if _syncing_voice:
+		return
+	Config.set_muted(not pressed)
+	if pressed:
+		Sfx.play(&"ui_click")
 
 
 func _on_ptt_toggled(pressed: bool) -> void:

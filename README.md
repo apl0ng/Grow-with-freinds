@@ -14,7 +14,9 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   (several local windows for testing), `-Editor`, `-Fullscreen`.
 - Any OS: open the folder in Godot 4.7.x and press Play. Host to play solo; friends join with your IP.
 - Two local instances: `godot --path . -- --host --name=Alice` and `godot --path . -- --join=127.0.0.1 --name=Bob`.
-- `--fast` makes growth 20× faster and shifts 60 s; `--growth-mult=N`, `--round-sec=N` for finer control.
+- `--fast` makes growth 20× faster and shifts 60 s; `--growth-mult=N`, `--round-sec=N` for finer control. `--mute` (or
+  `-Mute` on the launcher) silences the game; the pause menu has a saved Sound toggle. `--auto-start[=sec]` starts the
+  shift by itself on the host, `--first-event=<kind>` and `--event-delay=<sec>` steer the first shift event (playtests).
 - Controls: WASD move · Shift sprint · Space jump · Ctrl/C crouch · mouse look · E / LMB interact · Q / G drop ·
   RMB / R throw · F shove · MMB / X ping · T chat · V push-to-talk · Enter starts the shift (host) · Esc pause (or
   closes the supply window). Voice, chat and ping settings live in the pause menu.

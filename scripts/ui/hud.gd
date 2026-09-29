@@ -37,8 +37,9 @@ const SPEAK_POLL_SEC: float = 0.2
 ## Ping ray: how far a ping reaches, and where it lands when the ray hits nothing.
 const PING_RAY_LENGTH: float = 30.0
 const PING_FALLBACK_DISTANCE: float = 8.0
-## Reserved width of the speaking mark, so a row does not jump when a worker talks.
-const SPEAK_MARK_WIDTH: float = 26.0
+## The speaking mark ("))") is drawn OVER the worker's colour dot (no row width of its own, so names never lose
+## room to it) at this font size; the dot pulses while the worker is heard.
+const SPEAK_MARK_FONT_SIZE: int = 11
 const TIMER_WARN_SEC: float = 30.0
 ## Last seconds that use the "countdown" blip instead of "tick" (when Sfx has it).
 const COUNTDOWN_SEC: int = 5
@@ -309,14 +310,16 @@ func refresh_players() -> void:
 		dot.border_color = _theme_color(&"font_outline_color", &"Label", Color.BLACK)
 		swatch.add_theme_stylebox_override(&"panel", dot)
 		row.add_child(swatch)
+		# Speaking mark: an overlay on the dot (a Panel is not a Container, so the label costs the row no width),
+		# shown by alpha while the worker is heard; the dot itself pulses.
+		var speak := _player_label(TEXT_SPEAKING_MARK, Toon.TEXT, SPEAK_MARK_FONT_SIZE)
+		speak.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		speak.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		speak.modulate.a = 0.0
+		swatch.add_child(speak)
+		speak.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		var name_label := _player_label(Net.get_player_name(peer_id), color, PLAYER_NAME_FONT_SIZE)
 		row.add_child(name_label)
-		# Speaking mark: always laid out (reserved width), shown by alpha while the worker is heard.
-		var speak := _player_label(TEXT_SPEAKING_MARK, color, PLAYER_NAME_FONT_SIZE)
-		speak.custom_minimum_size.x = SPEAK_MARK_WIDTH
-		speak.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		speak.modulate.a = 0.0
-		row.add_child(speak)
 		var tags: PackedStringArray = []
 		if peer_id == Const.SERVER_PEER_ID:
 			tags.append(TEXT_HOST_TAG)
@@ -535,10 +538,12 @@ func _apply_speaking_mark(peer_id: int) -> void:
 	speak.modulate.a = 1.0 if speaking else 0.0
 	if not is_inside_tree():
 		return
+	var dot := speak.get_parent() as Control # the worker's colour swatch
 	if speaking:
-		Juice.pulse(speak)
-	else:
-		Juice.stop(speak)
+		if dot != null:
+			Juice.pulse(dot)
+	elif dot != null:
+		Juice.stop(dot)
 
 
 func _on_event_started(kind: StringName, _params: Dictionary) -> void:

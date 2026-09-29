@@ -87,6 +87,7 @@ var _seen_since: Dictionary = {}     # peer_id -> [clock when anchored, anchor p
 var _last_write_up: Dictionary = {}  # peer_id -> clock of the last write-up
 var _keys_accum: float = 0.0
 var _keys_handle: int = 0            # Sfx loop handle of the walking Boss's keys (0 = silent)
+var _forced_first_used: bool = false # `--first-event` consumed (once per process)
 var _rat_squeak_left: float = 0.0
 var _rng := RandomNumberGenerator.new()
 
@@ -265,7 +266,13 @@ func tick(delta: float) -> void:
 	_next_in -= delta
 	if _next_in <= 0.0:
 		_next_in = -1.0
-		if not server_start_event(pick_kind(_last_kind)):
+		var kind := pick_kind(_last_kind)
+		# Playtests / screenshots: `--first-event=<kind>` forces the first event of the session.
+		var forced := StringName(String(Config.get_arg("first-event", "")))
+		if not _forced_first_used and forced in KINDS:
+			_forced_first_used = true
+			kind = forced
+		if not server_start_event(kind):
 			# Nothing could start (e.g. no plot for a rat): try again after a short gap.
 			_next_in = 5.0
 
@@ -529,6 +536,10 @@ func _on_peer_left(peer_id: int) -> void:
 func _on_round_started(_round_number: int) -> void:
 	if _is_host():
 		_next_in = maxf(Config.balance.event_first_delay_sec, 0.0)
+		# Playtests / screenshots: `--event-delay=<sec>` overrides the first delay of every shift.
+		var raw: Variant = Config.get_arg("event-delay", null)
+		if raw is String and String(raw).is_valid_float():
+			_next_in = maxf(float(raw), 0.0)
 		_last_kind = &""
 
 

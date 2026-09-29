@@ -27,6 +27,7 @@ param(
     [switch]$Editor,                   # open the editor instead of playing
     [switch]$Fullscreen,
     [switch]$Import,                   # force a headless resource import before playing
+    [switch]$Mute,                     # no sound (passes --mute)
     [string]$GodotPath = ""            # explicit path to Godot_v4.7.2-stable_win64.exe
 )
 
@@ -143,6 +144,7 @@ function Start-Instance([string[]]$UserArgs, [int]$Index) {
 
 $common = @()
 if ($Fast) { $common += "--fast" }
+if ($Mute) { $common += "--mute" }
 if ($Port -ne 7777) { $common += "--port=$Port" }
 
 if ($Players -gt 1) {

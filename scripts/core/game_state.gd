@@ -715,6 +715,11 @@ func _on_world_ready(world: Node) -> void:
 		world.tree_exited.connect(_on_world_exited, CONNECT_ONE_SHOT)
 	# Deferred so an explicit server_reset_game() made by Game in the same frame wins.
 	_host_init_session.call_deferred()
+	# Playtests / screenshots: `--auto-start[=sec]` makes the host start the shift by itself (default 3 s).
+	if Net.is_host and Config.has_arg("auto-start") and world != null:
+		var raw: Variant = Config.get_arg("auto-start", "3")
+		var sec := float(raw) if raw is String and String(raw).is_valid_float() else 3.0
+		world.get_tree().create_timer(maxf(sec, 0.1)).timeout.connect(request_start_round)
 
 func _on_world_exited() -> void:
 	_reset_if_world_gone.call_deferred()

@@ -116,6 +116,13 @@ size_flags_horizontal = 3
 focus_mode = 0
 text = "Push to talk (V)"
 
+[node name="SoundToggle" type="CheckButton" parent="Center/Card/VBox/Voice/VoiceBox/Toggles"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Sound"
+
 [node name="VolumeRow" type="HBoxContainer" parent="Center/Card/VBox/Voice/VoiceBox"]
 layout_mode = 2
 theme_override_constants/separation = 12
