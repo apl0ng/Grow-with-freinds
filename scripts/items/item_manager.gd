@@ -9,6 +9,20 @@ extends Node3D
 ## MultiplayerSynchronizer spawn state (applied before _ready), so late joiners always see the live state.
 ##
 ## Spawned items are never reparented. Holding = Item.holder_id (synced); the item follows the hand itself.
+##
+## M10 throw (physics agent): request_throw() -> _rpc_request_throw (server): the sender must hold an item and be
+## neither stunned nor in the back room. Origin = the holder's hand socket + THROW_ORIGIN_FORWARD along the look
+## direction (pulled back to the chest if that is inside a wall), velocity = look direction * throw_speed + up *
+## THROW_UP. server_throw_item() writes the item's synced flight values (a new serial), releases the holder and counts
+## STAT_THROWS; the "throw" sound plays on every peer from the item's flight setter. While an item flies the SERVER
+## steps its arc in _physics_process along the item's own flight clock (the same integration every peer renders):
+## per step a hit check against every other worker's chest (throw_hit_radius from the segment; the thrower cannot hit
+## themselves), a raycast on LAYER_WORLD | LAYER_INTERACTABLE, a time cap (FLIGHT_MAX_SEC) and a floor limit. The
+## flight ends by placing the item with the drop rules (a free floor spot, never inside geometry or on a station;
+## walked back along the arc when blocked) and clearing flight_serial. A PRODUCT whose flight ends inside the
+## TurnInStation's collider (or within CHUTE_MOUTH_RADIUS of its mouth) is sold as if deposited by the thrower. A hit
+## staggers the target (Player.server_stagger with hit_stun_sec; their held item drops), counts STAT_HITS and plays
+## "bonk" on every peer through the target's cosmetic stagger RPC.
 
 ## Every peer: an item entered World/Items and its synced spawn state is applied.
 signal item_added(item: Item)
@@ -34,10 +48,26 @@ const FLOOR_PROBE_DOWN: float = 3.0
 const DROP_CLEARANCE_RADIUS: float = 0.15
 ## A blocked drop spot is retried this many times, walking back towards the player's feet.
 const DROP_BACKOFF_STEPS: int = 8
+## M10 throw: a flight ends after this many seconds at the latest ...
+const FLIGHT_MAX_SEC: float = 3.0
+## ... or once the item is this far below the room floor (fell out of the world).
+const FLIGHT_FLOOR_MARGIN: float = 1.0
+## Launch point: this far from the hand socket along the look direction (clears the body).
+const THROW_ORIGIN_FORWARD: float = 0.3
+## Extra upward speed on every throw (m/s).
+const THROW_UP: float = 1.5
+## A blocked landing spot is walked back along the arc in steps of this many seconds, this many times.
+const FLIGHT_BACKOFF_SEC: float = 0.04
+const FLIGHT_BACKOFF_STEPS: int = 24
+## A product ending its flight this close to the deposit chute's mouth is a chute shot.
+const CHUTE_MOUTH_RADIUS: float = 0.6
+## Landing probes look this far below a flight point for the floor.
+const FLIGHT_FLOOR_PROBE_DOWN: float = 8.0
 
 var spawner: MultiplayerSpawner = null
 
 var _next_id: int = 1
+var _next_flight_serial: int = 0
 var _scenes: Dictionary = {}   # StringName item type -> PackedScene (loaded lazily)
 
 func _enter_tree() -> void:
@@ -52,6 +82,16 @@ func _ready() -> void:
 		push_error("ItemManager: no MultiplayerSpawner with spawn_path pointing at %s" % get_path())
 		return
 	spawner.spawn_function = _spawn_item
+
+## SERVER: steps every flying item along its arc (hits, walls, the chute, the time cap). Clients do nothing here.
+func _physics_process(_delta: float) -> void:
+	for c in get_children():
+		var item := c as Item
+		if item == null or not item.is_flying() or item.is_queued_for_deletion():
+			continue
+		if not item._is_authority:
+			return # not the server (cached per item: no multiplayer query per frame)
+		_server_step_flight(item)
 
 ## Scene path for an item type ("" if unknown).
 static func get_scene_path(item_type: StringName) -> String:
@@ -139,12 +179,58 @@ func server_give_item(item: Item, peer_id: int) -> bool:
 		return false
 	if item.holder_id == peer_id:
 		return true
-	if item.is_held():
+	if item.is_held() or item.is_flying():
 		return false
 	if get_held_by(peer_id) != null:
 		return false
 	item.holder_id = peer_id
 	return true
+
+## SERVER ONLY. Throws `item` from `origin` (world space) at `velocity` on behalf of `thrower` (peer id, 0 = nobody).
+## Releases the holder, starts the synced flight (see the header) and counts STAT_THROWS. False if the item is not
+## managed, already flying, or the numbers are not finite.
+func server_throw_item(item: Item, origin: Vector3, velocity: Vector3, thrower: int) -> bool:
+	if not multiplayer.is_server():
+		push_error("ItemManager.server_throw_item called on a client")
+		return false
+	if not _is_live(item) or item.is_flying():
+		return false
+	if not origin.is_finite() or not velocity.is_finite():
+		return false
+	_next_flight_serial += 1
+	item.thrower_id = maxi(thrower, 0)
+	item.flight_origin = _to_items_space(origin)
+	item.flight_velocity = velocity
+	item.flight_serial = _next_flight_serial # takes off: collision off, world layers, "throw" on every peer
+	item.holder_id = 0                        # released (the flight keeps it from snapping to its old rest spot)
+	if thrower > 0:
+		GameState.server_add_stat(thrower, Const.STAT_THROWS)
+	return true
+
+## Where a throw by `player` starts: the hand socket this peer sees for them (+ THROW_ORIGIN_FORWARD along the look
+## direction), pulled back towards the chest when that point sits inside a wall or a station.
+func compute_throw_origin(player: Player) -> Vector3:
+	var chest := player.global_position + Vector3.UP * DROP_CHEST_HEIGHT
+	if not chest.is_finite():
+		return _safe_drop_spot(null) + Vector3.UP * DROP_CHEST_HEIGHT
+	var socket := player.get_item_socket()
+	var origin := socket.global_position if socket != null and socket.is_inside_tree() else chest
+	origin += _look_direction(player) * THROW_ORIGIN_FORWARD
+	if not origin.is_finite():
+		return chest
+	var space := _get_space()
+	if space != null and origin.distance_squared_to(chest) > 0.0001:
+		var query := PhysicsRayQueryParameters3D.create(chest, origin, Const.LAYER_WORLD | Const.LAYER_INTERACTABLE,
+				[player.get_rid()])
+		var hit := space.intersect_ray(query)
+		if not hit.is_empty():
+			var wall: Vector3 = hit["position"]
+			origin = wall.move_toward(chest, 0.1)
+	return origin
+
+## Launch velocity of a throw by `player`: look direction * throw_speed + THROW_UP up.
+func compute_throw_velocity(player: Player) -> Vector3:
+	return _look_direction(player) * Config.balance.throw_speed + Vector3.UP * THROW_UP
 
 ## SERVER ONLY. Drops `item` at a position (World/Items space == world space; holder cleared, rotation reset).
 func server_drop_item(item: Item, position: Vector3) -> void:
@@ -188,6 +274,25 @@ func _rpc_request_drop() -> void:
 	if get_held_by(sender) == null:
 		return
 	server_release_holder(sender)
+
+## Any peer: asks the server to throw whatever the local player holds (Interactor, "throw" action).
+func request_throw() -> void:
+	_rpc_request_throw.rpc_id(Const.SERVER_PEER_ID)
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_request_throw() -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender == 0:
+		sender = Const.SERVER_PEER_ID
+	var item := get_held_by(sender)
+	var player := get_player(sender)
+	if item == null or player == null or not player.is_inside_tree():
+		return
+	if player.is_stunned() or GameState.is_in_backroom(sender):
+		return
+	server_throw_item(item, compute_throw_origin(player), compute_throw_velocity(player), sender)
 
 # --- Lookups (any peer) -----------------------------------------------------------------------------------------
 
@@ -358,7 +463,182 @@ func _server_place(item: Item, at_position: Vector3, rotation_euler: Vector3) ->
 		rotation_euler = Vector3.ZERO
 	# Rest first, then release: the release snaps the node to the new rest transform on every peer.
 	item.server_set_rest(_to_items_space(at_position), rotation_euler)
+	if item.is_flying():
+		item.flight_serial = 0 # placed by hand (a reset, a re-homed can): the flight is over
 	item.holder_id = 0
+
+# --- M10 flight (server) ----------------------------------------------------------------------------------------
+
+## One server step of a flying item: checks the arc segment since the last step against workers, the room and the
+## limits, and ends the flight when something was hit (see the header).
+func _server_step_flight(item: Item) -> void:
+	var t0 := item._flight_checked_t
+	var t1 := item.get_flight_time()
+	if t1 <= t0:
+		return
+	item._flight_checked_t = t1
+	var a := _from_items_space(item.get_flight_point(t0))
+	var b := _from_items_space(item.get_flight_point(t1))
+	if not a.is_finite() or not b.is_finite():
+		_server_end_flight(item, _from_items_space(item.flight_origin), t1)
+		return
+	# 1. A worker in the way (chest within throw_hit_radius of the segment).
+	var hit := _server_find_hit(a, b, item.thrower_id)
+	if not hit.is_empty():
+		var target: Player = hit["player"]
+		var point: Vector3 = hit["point"]
+		var push := Vector3(item.flight_velocity.x, 0.0, item.flight_velocity.z)
+		Player.server_stagger(target, push, true, item.thrower_id, Config.balance.hit_stun_sec, true)
+		if item.thrower_id > 0:
+			GameState.server_add_stat(item.thrower_id, Const.STAT_HITS)
+		_server_end_flight(item, point, t1)
+		return
+	# 2. The room (walls, floor, ceiling, props) and station colliders.
+	var space := _get_space()
+	if space != null:
+		var exclude: Array[RID] = []
+		var collider := item.get_collider()
+		if collider != null:
+			exclude.append(collider.get_rid())
+		var query := PhysicsRayQueryParameters3D.create(a, b, Const.LAYER_WORLD | Const.LAYER_INTERACTABLE, exclude)
+		query.hit_from_inside = true
+		var wall := space.intersect_ray(query)
+		if not wall.is_empty():
+			_server_end_flight(item, wall["position"], t1)
+			return
+	# 3. Flew too long, or fell out of the world.
+	if t1 >= FLIGHT_MAX_SEC or b.y < _flight_floor_limit():
+		_server_end_flight(item, b, t1)
+
+## The first OTHER worker whose chest lies within throw_hit_radius of segment a-b: {"player", "point"} or {}.
+func _server_find_hit(a: Vector3, b: Vector3, thrower: int) -> Dictionary:
+	var radius: float = Config.balance.throw_hit_radius
+	var best := {}
+	var best_s := INF
+	var ab := b - a
+	var len2 := ab.length_squared()
+	for p in _get_players():
+		if p.peer_id == thrower or not p.is_inside_tree() or GameState.is_in_backroom(p.peer_id):
+			continue
+		var chest := p.get_chest_position()
+		if not chest.is_finite():
+			continue
+		var s := 0.0 if len2 < 0.000001 else clampf((chest - a).dot(ab) / len2, 0.0, 1.0)
+		var closest := a + ab * s
+		if closest.distance_to(chest) <= radius and s < best_s:
+			best_s = s
+			best = {"player": p, "point": closest}
+	return best
+
+## Ends a flight at `point` (world space; `t_end` = arc time there): a chute shot sells a product, anything else is
+## placed on a free floor spot walked back along the arc from `point`, then flight_serial is cleared.
+func _server_end_flight(item: Item, point: Vector3, t_end: float) -> void:
+	if not _is_live(item):
+		return
+	if item.item_type == Const.ITEM_PRODUCT and point.is_finite():
+		var chute := _find_chute_at(point)
+		if chute != null and chute.server_sell_item(item, item.thrower_id):
+			return # sold and despawned
+	var rest := _find_flight_landing(item, point, t_end)
+	item.server_set_rest(_to_items_space(rest), Vector3.ZERO)
+	item.flight_serial = 0
+
+## A free floor spot for an item whose flight ended at `point`: below the point, else below earlier arc samples
+## (walking back FLIGHT_BACKOFF_SEC at a time), else below the launch point, else the safe drop spot.
+func _find_flight_landing(item: Item, point: Vector3, t_end: float) -> Vector3:
+	var bounds := _room_bounds()
+	for i in range(0, FLIGHT_BACKOFF_STEPS + 1):
+		var p := point if i == 0 else _from_items_space(item.get_flight_point(maxf(t_end - FLIGHT_BACKOFF_SEC * float(i), 0.0)))
+		if not p.is_finite():
+			continue
+		var landing := _probe_floor_below(p)
+		var spot: Vector3 = landing["position"]
+		if not _inside_bounds(spot, bounds):
+			continue
+		if _is_drop_spot_free(landing, null):
+			return spot
+	var origin := _from_items_space(item.flight_origin)
+	if origin.is_finite():
+		var below := _probe_floor_below(origin)
+		if _inside_bounds(below["position"], bounds) and _is_drop_spot_free(below, null):
+			return below["position"]
+	return _safe_drop_spot(get_player(item.thrower_id))
+
+## The TurnInStation whose collider (or mouth) contains `point`, or null.
+func _find_chute_at(point: Vector3) -> TurnInStation:
+	if not is_inside_tree():
+		return null
+	for n in get_tree().get_nodes_in_group(Const.GROUP_INTERACTABLES):
+		var chute := n as TurnInStation
+		if chute != null and chute.is_inside_tree() and chute.accepts_flight_point(point, CHUTE_MOUTH_RADIUS):
+			return chute
+	return null
+
+## Like _probe_floor() but for a point in the air: the floor (layer 1) up to FLIGHT_FLOOR_PROBE_DOWN below it. Without a
+## hit the point's own height is used and "collider" is null (an item that fell out of the world; rejected by bounds).
+func _probe_floor_below(point: Vector3) -> Dictionary:
+	var space := _get_space()
+	if space != null:
+		var from := point + Vector3.UP * 0.05
+		var to := point + Vector3.DOWN * FLIGHT_FLOOR_PROBE_DOWN
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, to, Const.LAYER_WORLD))
+		if not hit.is_empty():
+			var floor_hit: Vector3 = hit["position"]
+			return {"position": Vector3(point.x, floor_hit.y, point.z), "collider": hit.get("collider")}
+		return {"position": point, "collider": null, "no_floor": true}
+	return {"position": point, "collider": null}
+
+## The room's interior bounds (global), or an empty AABB when there is no room (minimal test trees).
+func _room_bounds() -> AABB:
+	var world := get_parent() as World
+	if world != null and world.is_node_ready() and world.room != null and world.room.has_method(&"get_bounds"):
+		return world.room.get_bounds()
+	return AABB()
+
+## True if `spot` is a plausible landing: inside the room (a little margin) when there is a room; when there is no
+## room the spot must at least rest on something (a floor probe hit).
+func _inside_bounds(spot: Vector3, bounds: AABB) -> bool:
+	if not spot.is_finite():
+		return false
+	if bounds.size == Vector3.ZERO:
+		return true
+	var inner := bounds.grow(-0.1)
+	inner.position.y = bounds.position.y - 0.5
+	inner.size.y = bounds.size.y + 1.0
+	return inner.has_point(spot)
+
+func _flight_floor_limit() -> float:
+	var bounds := _room_bounds()
+	var floor_y := bounds.position.y if bounds.size != Vector3.ZERO else 0.0
+	return floor_y - FLIGHT_FLOOR_MARGIN
+
+## Every live Player in this world (World/Players), or the players group without a world.
+func _get_players() -> Array[Player]:
+	var out: Array[Player] = []
+	var world := get_parent()
+	var players := world.get_node_or_null(^"Players") if world != null else null
+	if players != null:
+		for c in players.get_children():
+			var p := c as Player
+			if p != null and not p.is_queued_for_deletion():
+				out.append(p)
+	elif is_inside_tree():
+		for n in get_tree().get_nodes_in_group(Const.GROUP_PLAYERS):
+			var p := n as Player
+			if p != null and not p.is_queued_for_deletion():
+				out.append(p)
+	return out
+
+## Look direction of a player (camera forward; unit length; the flat forward when the camera transform is broken).
+func _look_direction(player: Player) -> Vector3:
+	var look := player.get_look_direction()
+	if not look.is_finite() or look.length_squared() < 0.0001:
+		return _flat_forward(player)
+	return look.normalized()
+
+## This node's local space -> world (identical while World/Items sit at the origin, as they do).
+func _from_items_space(local_position: Vector3) -> Vector3:
+	return to_global(local_position) if is_inside_tree() else local_position
 
 ## World position -> this node's local space (identical while World/Items sit at the origin, as they do).
 func _to_items_space(world_position: Vector3) -> Vector3:

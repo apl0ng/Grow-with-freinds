@@ -192,10 +192,12 @@ func _test_spawning() -> void:
 func _test_scenes_and_sync_configs() -> void:
 	if can == null:
 		return
+	# M10: the flight values (thrown items) are synced too, before holder_id (see the Item header for why).
+	var flight: Array = [^".:flight_origin", ^".:flight_velocity", ^".:flight_serial"]
 	var expected := {
-		can: [^".:rest_position", ^".:rest_rotation", ^".:holder_id", ^".:charges"],
-		packet: [^".:rest_position", ^".:rest_rotation", ^".:holder_id", ^".:strain_id"],
-		product: [^".:rest_position", ^".:rest_rotation", ^".:holder_id", ^".:strain_id", ^".:amount"],
+		can: [^".:rest_position", ^".:rest_rotation"] + flight + [^".:holder_id", ^".:charges"],
+		packet: [^".:rest_position", ^".:rest_rotation"] + flight + [^".:holder_id", ^".:strain_id"],
+		product: [^".:rest_position", ^".:rest_rotation"] + flight + [^".:holder_id", ^".:strain_id", ^".:amount"],
 	}
 	for item: Item in expected:
 		var sync := item.get_node_or_null(^"Sync") as MultiplayerSynchronizer
