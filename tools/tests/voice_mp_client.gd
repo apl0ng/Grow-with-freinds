@@ -32,6 +32,12 @@ func _run() -> void:
 	check(not Net.is_host and my_id != 1, "client (id %d)" % my_id)
 	await wait_until(func() -> bool: return Net.players.size() == 2, 10.0, "players dict has 2 entries")
 	await wait_until(func() -> bool: return Game.world.get_player(1) != null, 10.0, "host Player node visible")
+	if Config.has_arg("throttle-off"):
+		# Diagnostic: ENet drops unreliable packets at the sender when the RTT jitters (packet throttle).
+		var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+		if enet != null and enet.get_peer(1) != null:
+			enet.get_peer(1).throttle_configure(5000, 2, 0)
+			step("ENet packet throttle deceleration off for the host link")
 	await wait_sec(0.5)
 
 	step("talking")
@@ -46,8 +52,11 @@ func _run() -> void:
 	check(Voice.is_speaking(1) or _events.has([1, false]), "is_speaking(1) while the host talks")
 	await wait_until(func() -> bool: return _events.has([1, false]), 10.0, "speaking_changed(1, false) after silence")
 	var st: Dictionary = Voice.get_stats()
-	check(int(st["received"]) >= 30, "received %d of the host's frames" % int(st["received"]))
-	check(int(st["played"]) >= 2, "frames reached the generator (%d)" % int(st["played"]))
+	# ENet may drop unreliable packets under load (see the header); every frame must be received or accounted lost.
+	check(int(st["received"]) >= 10 and int(st["received"]) + int(st["lost"]) >= SEND_FRAMES - 10,
+		"received %d of the host's frames, %d lost on the way" % [int(st["received"]), int(st["lost"])])
+	check(int(st["played"]) >= 10, "frames reached the generator (%d, %d concealed)" % [int(st["played"]), int(st["concealed"])])
+	check(int(st["dropped"].get("not_player", 0)) == 0 and int(st["dropped"].get("reorder", 0)) == 0, "nothing dropped as not_player / reorder")
 	var out := Game.world.get_node_or_null("VoiceOut/1") as AudioStreamPlayer3D
 	check(out != null, "VoiceOut/1 exists")
 	var hp: Node3D = Game.world.get_player(1)
@@ -55,6 +64,7 @@ func _run() -> void:
 		var head: Vector3 = hp.global_position + Vector3.UP * 1.6
 		check(out.global_position.distance_to(head) < 0.3, "emitter at the host's head (%.2f m off)" % out.global_position.distance_to(head))
 	check(_events == [[1, true], [1, false]], "exactly two transitions for the host (%s)" % str(_events))
+	step("stats %s" % str(Voice.get_stats()))
 
 	step("leave")
 	Game.return_to_menu()

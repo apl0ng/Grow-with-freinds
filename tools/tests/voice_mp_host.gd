@@ -41,15 +41,24 @@ func _run() -> void:
 	if client_id == 0:
 		finish(); return
 	await wait_until(func() -> bool: return Game.world.get_player(client_id) != null, 10.0, "client Player node spawned")
+	if Config.has_arg("throttle-off"):
+		# Diagnostic: ENet drops unreliable packets at the sender when the RTT jitters (packet throttle).
+		var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+		if enet != null and enet.get_peer(client_id) != null:
+			enet.get_peer(client_id).throttle_configure(5000, 2, 0)
+			step("ENet packet throttle deceleration off for the client link")
 
 	step("client talks")
 	await wait_until(func() -> bool: return _events.has([client_id, true]), 20.0, "speaking_changed(client, true)")
 	check(Voice.is_speaking(client_id) or _events.has([client_id, false]), "is_speaking(client) while frames arrive")
 	await wait_until(func() -> bool: return _events.has([client_id, false]), 10.0, "speaking_changed(client, false) after silence")
 	var st: Dictionary = Voice.get_stats()
-	check(int(st["received"]) >= 30, "received %d of the client's frames" % int(st["received"]))
-	check(int(st["played"]) >= 2, "frames reached the generator (%d)" % int(st["played"]))
-	check(int(st["dropped"].get("not_player", 0)) == 0 and int(st["dropped"].get("too_big", 0)) == 0, "nothing dropped as not_player / too_big")
+	# ENet may drop unreliable packets under load (see the header); every frame must be received or accounted lost.
+	check(int(st["received"]) >= 10 and int(st["received"]) + int(st["lost"]) >= SEND_FRAMES - 10,
+		"received %d of the client's frames, %d lost on the way" % [int(st["received"]), int(st["lost"])])
+	check(int(st["played"]) >= 10, "frames reached the generator (%d, %d concealed)" % [int(st["played"]), int(st["concealed"])])
+	check(int(st["dropped"].get("not_player", 0)) == 0 and int(st["dropped"].get("too_big", 0)) == 0 \
+		and int(st["dropped"].get("reorder", 0)) == 0, "nothing dropped as not_player / too_big / reorder")
 	var out := Game.world.get_node_or_null("VoiceOut/%d" % client_id) as AudioStreamPlayer3D
 	check(out != null, "VoiceOut/%d exists" % client_id)
 	var cp: Node3D = Game.world.get_player(client_id)
@@ -66,6 +75,7 @@ func _run() -> void:
 
 	step("waiting for the client to leave")
 	await wait_until(func() -> bool: return Net.players.size() == 1, 30.0, "client left")
+	step("stats %s" % str(Voice.get_stats()))
 	await wait_frames(2)
 	check(not Voice.is_speaking(client_id) and Voice.get_output_node(client_id) == null, "departed client: no speaking mark, no emitter")
 	Game.return_to_menu()

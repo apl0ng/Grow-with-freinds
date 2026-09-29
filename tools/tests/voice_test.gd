@@ -199,6 +199,7 @@ func _test_receive_path() -> void:
 	await wait_sec(0.6) # over SEQ_RESYNC_MS since the last frame: any seq is accepted again
 	var recv1 := int(Voice.get_stats()["received"])
 	var reorder0 := _dropped("reorder")
+	var lost_before := int(Voice.get_stats()["lost"])
 	Voice.debug_inject_frame(1, _frame(), 65530)
 	Voice.debug_inject_frame(1, _frame(), 65531)
 	Voice.debug_inject_frame(1, _frame(), 65529)  # older
@@ -210,6 +211,21 @@ func _test_receive_path() -> void:
 	Voice.debug_inject_frame(1, _frame(), 3)
 	check(int(Voice.get_stats()["received"]) - recv1 == 6, "6 of 9 frames accepted in order (with wraparound)")
 	check(_dropped("reorder") - reorder0 == 3, "3 dropped as reorder")
+	check(int(Voice.get_stats()["lost"]) - lost_before == 4, "seq gaps counted as lost (65531 -> 65535 skips 3, 1 -> 3 skips 1)")
+
+	step("loss concealment")
+	var lost0 := int(Voice.get_stats()["lost"])
+	var conc0 := int(Voice.get_stats()["concealed"])
+	var out_queue_before := 0
+	Voice.debug_inject_frame(1, _frame(), 4)    # continues the order step (last accepted: 3)
+	Voice.debug_inject_frame(1, _frame(), 5)
+	Voice.debug_inject_frame(1, _frame(), 8)    # 6 and 7 never arrived
+	check(int(Voice.get_stats()["lost"]) - lost0 == 2 and int(Voice.get_stats()["concealed"]) - conc0 == 2, "a gap of 2 is concealed with 2 filler frames")
+	Voice.debug_inject_frame(1, _frame(), 14)   # 9..13: too long a gap to fill
+	check(int(Voice.get_stats()["lost"]) - lost0 == 7 and int(Voice.get_stats()["concealed"]) - conc0 == 2, "a gap of 5 counts as lost but is not concealed")
+	out_queue_before = int(Voice.get_stats()["played"])
+	await wait_frames(3)
+	check(int(Voice.get_stats()["played"]) > out_queue_before, "filler and real frames were played")
 
 	step("back room routes")
 	GameState.request_start_round()

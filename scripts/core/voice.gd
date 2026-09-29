@@ -21,7 +21,9 @@ extends Node
 ##             Game.world/VoiceOut/<peer>, moved to the speaker's head (Player position + 1.6 m, 1.05 m
 ##             crouched) every frame, on a runtime bus "Voice" (volume = `output_volume_db`). Inverse-distance
 ##             attenuation, unit_size = voice_range / 2, max_distance = voice_range. Jitter buffer: playback
-##             starts once two frames are queued; an underrun pads one frame of silence and re-arms.
+##             starts once two frames are queued; an underrun pads one frame of silence and re-arms. A seq
+##             gap of up to 3 frames (ENet drops unreliable packets when the RTT jitters) is concealed with
+##             fading copies of the last frame so the stream keeps time.
 ##   Back room get_route(listener_in_backroom, speaker_in_backroom): &"3d" (floor to floor), &"full" (both in
 ##             the back room: no attenuation, emitter at the listener), &"faint" (listener in the back room,
 ##             speaker on the floor: 3D at -14 dB), &"mute" (listener on the floor, speaker in the back room:
@@ -37,7 +39,7 @@ extends Node
 ##   debug_inject_frame(peer_id, frame, seq := -1)  runs the receive path as if `peer_id` had sent it
 ##                                                   (seq -1 = the next number after the last injected one)
 ##   debug_send_frame(frame)                         sends one frame through the real send path (no mic needed)
-##   get_stats() -> {sent, received, played, dropped: {reason: count}, peers}
+##   get_stats() -> {sent, received, played, lost, concealed, dropped: {reason: count}, peers}
 ##   get_output_node(peer_id) -> AudioStreamPlayer3D or null
 
 ## Every peer: `peer_id` started / stopped being heard (remote) or transmitting (local).
@@ -63,6 +65,8 @@ const OPEN_MIC_HANG_MS: int = 300
 ## Jitter buffer: frames queued before playback starts; frames kept at most (older ones are dropped).
 const JITTER_START_FRAMES: int = 2
 const JITTER_MAX_FRAMES: int = 25
+## A seq gap of up to this many frames is filled with fading copies of the last frame (packet loss concealment).
+const MAX_CONCEAL_FRAMES: int = 3
 ## The back room hears the floor at this level.
 const FAINT_DB: float = -14.0
 const MIC_BUS: StringName = &"Mic"
@@ -115,12 +119,12 @@ var _debug_seq: Dictionary = {}         # peer -> last seq used by debug_inject_
 # --- playback ---
 var _out_root: Node3D = null
 var _outputs: Dictionary = {}           # peer -> Output
-## mu-law byte -> sample, built on first use (shared by every decode).
-static var _decode_lut: PackedFloat32Array = PackedFloat32Array()
 # --- stats / settings ---
 var _stats_sent: int = 0
 var _stats_received: int = 0
 var _stats_played: int = 0
+var _stats_lost: int = 0                # frames a seq gap says never arrived
+var _stats_concealed: int = 0           # filler frames queued for them
 var _stats_dropped: Dictionary = {}
 var _loading_settings: bool = false
 var _save_warned: bool = false
@@ -173,6 +177,7 @@ class Output:
 	var playback: AudioStreamGeneratorPlayback = null
 	var capacity: int = 0                   # generator ring buffer size in frames (learnt after play())
 	var queue: Array[PackedVector2Array] = []
+	var last_frame: PackedVector2Array = PackedVector2Array()   # last decoded frame (concealment source)
 	var primed: bool = false
 	var route: StringName = &""
 	var last_pos: Vector3 = Vector3.ZERO
@@ -256,15 +261,11 @@ static func encode_mulaw(samples: PackedFloat32Array) -> PackedByteArray:
 
 ## G.711 mu-law: bytes back to samples in [-1, 1].
 static func decode_mulaw(bytes: PackedByteArray) -> PackedFloat32Array:
-	if _decode_lut.size() != 256:
-		_decode_lut.resize(256)
-		for b in 256:
-			_decode_lut[b] = _decode_mulaw_byte(b)
 	var out := PackedFloat32Array()
 	var n := bytes.size()
 	out.resize(n)
 	for i in n:
-		out[i] = _decode_lut[bytes[i]]
+		out[i] = _decode_mulaw_byte(bytes[i])
 	return out
 
 static func _decode_mulaw_byte(b: int) -> float:
@@ -307,12 +308,14 @@ func save_settings() -> Error:
 		push_warning("Voice: could not save %s (%s)" % [settings_path, error_string(err)])
 	return err
 
-## Frames sent / received / played and the frames dropped per reason on this peer.
+## Frames sent / received / played, frames lost on the way (seq gaps) and concealed, dropped per reason.
 func get_stats() -> Dictionary:
 	return {
 		"sent": _stats_sent,
 		"received": _stats_received,
 		"played": _stats_played,
+		"lost": _stats_lost,
+		"concealed": _stats_concealed,
 		"dropped": _stats_dropped.duplicate(),
 		"peers": _outputs.size(),
 	}
@@ -547,10 +550,11 @@ func _receive(sender: int, seq: int, frame: PackedByteArray, now: int) -> void:
 	if int(_rate_count[sender]) >= MAX_FRAMES_PER_SEC:
 		_drop("rate")
 		return
-	# Order: 16-bit sequence with wraparound; older or duplicate frames are ignored.
+	# Order: 16-bit sequence with wraparound; older or duplicate frames are ignored, a gap means loss.
 	seq = seq % SEQ_MODULO
 	if seq < 0:
 		seq += SEQ_MODULO
+	var gap := 0
 	if _last_seq.has(sender) and now - int(_last_heard_ms.get(sender, 0)) < SEQ_RESYNC_MS:
 		var diff := (seq - int(_last_seq[sender])) % SEQ_MODULO
 		if diff < 0:
@@ -558,12 +562,14 @@ func _receive(sender: int, seq: int, frame: PackedByteArray, now: int) -> void:
 		if diff == 0 or diff > SEQ_MODULO / 2:
 			_drop("reorder")
 			return
+		gap = diff - 1
 	_last_seq[sender] = seq
 	_last_heard_ms[sender] = now
 	_rate_count[sender] = int(_rate_count[sender]) + 1
 	_stats_received += 1
+	_stats_lost += gap
 	_refresh_speaking(sender, now)
-	_queue_playback(sender, frame)
+	_queue_playback(sender, frame, gap)
 
 func _drop(reason: String) -> void:
 	_stats_dropped[reason] = int(_stats_dropped.get(reason, 0)) + 1
@@ -618,9 +624,18 @@ func _forget_peer(peer_id: int, now: int) -> void:
 	var o: Output = _outputs.get(peer_id)
 	if o != null:
 		_outputs.erase(peer_id)
-		if is_instance_valid(o.player):
-			o.player.queue_free()
+		_release_output(o)
 	_refresh_speaking(peer_id, now)
+
+## Stops and frees an emitter, letting go of its generator playback first.
+func _release_output(o: Output) -> void:
+	o.playback = null
+	o.queue.clear()
+	if is_instance_valid(o.player) and not o.player.is_queued_for_deletion():
+		if o.player.is_inside_tree():
+			o.player.stop()
+		o.player.queue_free()
+	o.player = null
 
 ## Offline / back in the menu: everything goes.
 func _clear_peer_state() -> void:
@@ -639,9 +654,7 @@ func _clear_peer_state() -> void:
 
 func _clear_outputs() -> void:
 	for k in _outputs.keys():
-		var o: Output = _outputs[k]
-		if is_instance_valid(o.player) and not o.player.is_queued_for_deletion():
-			o.player.queue_free()
+		_release_output(_outputs[k])
 	_outputs.clear()
 	if _out_root != null and is_instance_valid(_out_root):
 		if _out_root.tree_exiting.is_connected(_on_out_root_exiting):
@@ -671,6 +684,11 @@ func _ensure_out_root() -> Node3D:
 
 ## The world is going away: its children (our emitters) go with it.
 func _on_out_root_exiting() -> void:
+	for k in _outputs.keys():
+		var o: Output = _outputs[k]
+		o.playback = null
+		o.queue.clear()
+		o.player = null
 	_outputs.clear()
 	_out_root = null
 
@@ -708,7 +726,8 @@ func _ensure_output(peer_id: int) -> Output:
 	_update_position(o)
 	return o
 
-func _queue_playback(peer_id: int, frame: PackedByteArray) -> void:
+## Decodes `frame` into the peer's jitter queue; `gap` frames before it never arrived and are concealed.
+func _queue_playback(peer_id: int, frame: PackedByteArray, gap: int = 0) -> void:
 	var o := _ensure_output(peer_id)
 	if o == null:
 		_drop("no_world")
@@ -719,14 +738,26 @@ func _queue_playback(peer_id: int, frame: PackedByteArray) -> void:
 	if route == ROUTE_MUTE:
 		o.queue.clear()
 		o.primed = false
+		o.last_frame = PackedVector2Array()
 		_drop("mute")
 		return
+	if gap > 0 and gap <= MAX_CONCEAL_FRAMES and o.last_frame.size() == FRAME_SAMPLES:
+		var level := 0.5
+		for g in gap:
+			var fill := PackedVector2Array()
+			fill.resize(FRAME_SAMPLES)
+			for i in FRAME_SAMPLES:
+				fill[i] = o.last_frame[i] * level
+			o.queue.append(fill)
+			_stats_concealed += 1
+			level *= 0.5
 	var mono := decode_mulaw(frame)
 	var stereo := PackedVector2Array()
 	stereo.resize(mono.size())
 	for i in mono.size():
 		stereo[i] = Vector2(mono[i], mono[i])
 	o.queue.append(stereo)
+	o.last_frame = stereo if stereo.size() == FRAME_SAMPLES else PackedVector2Array()
 	while o.queue.size() > JITTER_MAX_FRAMES:
 		o.queue.pop_front()
 		_drop("queue_full")
