@@ -439,6 +439,10 @@ func _on_backroom_changed(peer_id: int, active: bool) -> void:
 	else:
 		xf = w.room.get_spawn_transform(player.spawn_index)
 	_move_player(player, xf)
+	if active and w.items != null:
+		# Whatever they were carrying goes back to the floor at their spawn (ItemManager places a back-room
+		# worker's item there): the team is never down a can for the whole stay.
+		w.items.server_release_holder(peer_id)
 
 
 ## Moves a player's body. Owned bodies go through Player.server_teleport (owner-authoritative movement); a body

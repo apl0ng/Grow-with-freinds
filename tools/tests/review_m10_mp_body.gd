@@ -145,7 +145,7 @@ func _host_main() -> void:
 	check(can.holder_id == 0, "pick-up refused (holder %d)" % can.holder_id)
 	check(GameState.money == money and GameState.round_sales == sales and items_of(Const.ITEM_SEED_PACKET).is_empty(), "no purchase, no sale")
 	check(not Events.is_power_on() and Events.is_event_active(Events.EVENT_POWER_CUT), "fuse-box reset refused: still dark")
-	check(held.holder_id == _rogue and not held.is_flying(), "drop and throw refused: the can stays in the rogue's hands")
+	check(held.holder_id == 0 and not held.is_flying(), "drop and throw refused; the can it carried was left at its spawn on entry (holder %d)" % held.holder_id)
 	check(_host_staggers.is_empty() and GameState.get_stat(1, Const.STAT_SHOVES) + GameState.get_stat(_rogue, Const.STAT_SHOVES) == shoves0, "shove refused")
 	var denials := 0
 	for t in r.get("toasts", []):
@@ -156,7 +156,7 @@ func _host_main() -> void:
 	GameState.server_release_from_backroom(_rogue)
 	await wait_frames(2)
 	r = await run_cmd(_rogue, "pickup", {"can": String(can.name)}, 20.0)
-	check(can.holder_id == 0 and held.holder_id == _rogue and bool(r.get("hands_full_seen", false)), "released: the same pick-up answers on its merits ('Hands full.')")
+	check(can.holder_id == _rogue and held.holder_id == 0 and not bool(r.get("hands_full_seen", false)), "released: the same pick-up answers on its merits (picked up: the hands were emptied on entry)")
 	_end()
 
 

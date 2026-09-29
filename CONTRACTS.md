@@ -473,3 +473,15 @@ A hosting peer broadcasts `{"gwf": 1, "name", "port", "players", "max"}` every s
 127.0.0.1 for local windows). The main menu listens while it is open (`%LanCaption` "Floors open nearby" /
 "No floors open nearby.", `%LanList`: select fills the IP + port, activate joins). Beacons are size-, type- and
 range-checked, names sanitized, the list capped at 32 entries. Suite: lan (+51).
+
+## M11 review outcomes (merged)
+- **Back room is server-enforced:** every gameplay request from a back-room worker is refused with
+  `Interactable.REASON_BACKROOM` ("You're in the back room."): interactions (pick-ups, planting, watering, harvesting,
+  deposits), shop purchases, the fuse-box reset, drop, throw, shove. Chat and pings stay allowed; the pause menu opens
+  over the back room (`Game.get_ui_lock_sources()`); the supply window closes itself. On entry the host drops whatever
+  the worker holds at their SPAWN point (`ItemManager.server_release_holder` places a back-room worker's item there), so
+  the team is never down a can; a departed back-room worker's item goes there too.
+- **Stagger immunity:** `Player.STAGGER_IMMUNITY_SEC` (1.0 s after a stun); `can_be_staggered()`; a hit on an immune
+  worker is a dud (the item lands, no stagger, no STAT_HITS), a refused shove does not spend the cooldown.
+- **Shove line of sight:** a LAYER_WORLD ray between the two chests on the server (no shoves through fences).
+- Suites: review_m10 (+48), review_m10_mp (random port).
