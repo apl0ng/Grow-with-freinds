@@ -67,8 +67,8 @@ const RAT_SQUEAK_MIN := 2.5
 const RAT_SQUEAK_MAX := 6.0
 const RAT_SCENE_PATH := "res://scenes/world/props/rat.tscn"
 const RAT_NODE_NAME := "Rat"
-## Where the rat comes from and flees to: a gap at the foot of the south wall, by the roller door (global).
-const RAT_GAP := Vector3(-7.4, 0.0, 7.2)
+## Where the rat comes from and flees to: a gap at the foot of the east wall, under the cot by the grow area (global).
+const RAT_GAP := Vector3(9.6, 0.0, 6.6)
 
 ## The running event (&"" when none). Synced.
 var active_event: StringName = &""

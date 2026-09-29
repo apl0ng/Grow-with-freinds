@@ -65,6 +65,9 @@ func _host() -> void:
 	await wait_frames(2)
 	check(not Events.is_event_active() and _ended.back()[0] == Events.EVENT_INSPECTION, "host: inspection ended")
 	print("EVENTS_INSPECTION_DONE")
+	# Both clients leave at the same moment: SceneMultiplayer may still flush a packet to a peer ENet has already
+	# reset ("Unable to send packet on channel 0", no game code on the stack; see qa_mp_robust_body.gd).
+	allow_error("Unable to send packet on channel 0", 2, true)
 	await wait_until(func() -> bool: return Net.players.size() <= 1, STEP_TIMEOUT, "both clients left")
 	Game.return_to_menu()
 	await wait_until(func() -> bool: return GameState.phase == GameState.Phase.MENU, 5.0, "host: MENU")
@@ -95,8 +98,12 @@ func _client_a() -> void:
 	while not Events.is_power_on() and attempts < 6:
 		attempts += 1
 		fuse.request_reset()
-		await wait_until_quiet(func() -> bool: return Events.is_power_on(), 2.5)
+		var t0 := Time.get_ticks_msec()
+		while not Events.is_power_on() and Time.get_ticks_msec() - t0 < 2500:
+			await get_tree().process_frame
 	check(Events.is_power_on(), "A: the reset request ended the cut on the host (attempts %d)" % attempts)
+	# power_changed(true) and event_ended travel as two reliable packets: the second may land a poll later.
+	await wait_until(func() -> bool: return not Events.is_event_active(), 3.0, "A: the event is over here too")
 	check(_ended.size() >= 1 and _ended.back()[0] == Events.EVENT_POWER_CUT, "A: event_ended(power_cut)")
 	check(_power.size() >= 2 and _power.back()[0] == true, "A: power_changed(true)")
 	check(Game.world.room.is_power_on() and not fuse.is_tripped(), "A: Room power on, breaker live")

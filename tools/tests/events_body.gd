@@ -85,9 +85,55 @@ func _run() -> void:
 	await _test_backroom()
 	await _test_power_cut(b)
 	await _test_audit(b)
+	await _test_rat(b)
 	await _test_shift_end()
 	await _test_menu_reset()
 	finish()
+
+
+# --- rat (stretch) --------------------------------------------------------------------------------------------------
+
+func _test_rat(b: BalanceConfig) -> void:
+	step("rat")
+	if not Events.RAT_ENABLED:
+		check(not Events.server_start_event(Events.EVENT_RAT), "rat disabled: refused")
+		return
+	# A fresh seedling half-way through its stage, so the drain is visible; any other growing plot is cleared.
+	for i in range(1, 7):
+		var p := _room.get_station("GrowPlot%d" % i) as GrowPlot
+		if p != null and p.is_growing():
+			p.server_reset()
+	var plot2 := _room.get_station("GrowPlot2") as GrowPlot
+	check(plot2.server_plant(b.seeds[0].id) and plot2.server_water(1.0), "GrowPlot2 grows")
+	plot2.stage_progress = 0.5
+	_started.clear()
+	_ended.clear()
+	check(Events.server_start_event(Events.EVENT_RAT), "rat starts")
+	var params: Dictionary = _started.back()[1] if not _started.is_empty() else {}
+	check(int(params.get("plot", 0)) == 2 and params.get("from", null) is Vector3, "params {plot: 2, from: Vector3} (%s)" % [params])
+	var rat := _room.get_node_or_null(^"Rat") as Rat
+	check(rat != null and rat.is_running() and rat.is_in_group(Const.GROUP_NPCS), "a Rat prop runs from the wall gap (a plain child of the Room)")
+	if rat == null:
+		Events.server_end_event()
+		return
+	var from: Vector3 = params.get("from", Vector3.ZERO)
+	check(rat.global_position.distance_to(from) < 0.2, "he starts at the gap")
+	await wait_until(func() -> bool: return rat.is_eating(), 12.0, "he reaches the tray and eats")
+	check(rat.global_position.distance_to(plot2.global_position) < 1.2, "eating next to GrowPlot2 (%.2f m)" % rat.global_position.distance_to(plot2.global_position))
+	var progress0 := plot2.stage_progress
+	Events.tick(2.0)
+	check(plot2.stage_progress < progress0 - 0.08, "he eats stage progress (%.2f -> %.2f)" % [progress0, plot2.stage_progress])
+	check(Events.is_event_active(Events.EVENT_RAT), "still eating: event runs")
+	var w2 := _world.get_player(2)
+	_put(w2, rat.global_position + Vector3(0.6, 0.0, 0.0))
+	Events.tick(0.1)
+	await wait_frames(2)
+	check(not Events.is_event_active() and _ended.size() == 1 and _ended[0][0] == Events.EVENT_RAT, "a worker within 1.5 m scares him off: event_ended(rat)")
+	check(not is_instance_valid(rat) or rat.is_fleeing() or rat.is_queued_for_deletion(), "he flees")
+	await wait_until(func() -> bool: return _room.get_node_or_null(^"Rat") == null, 10.0, "he is gone again")
+	_put(w2, _room.get_spawn_transform(w2.spawn_index).origin)
+	_started.clear()
+	_ended.clear()
 
 
 # --- scheduler ------------------------------------------------------------------------------------------------------
