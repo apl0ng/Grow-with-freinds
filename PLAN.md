@@ -240,8 +240,8 @@ Decisions:
 ## M11 QA sweep + shipping (in progress, 2026-09-29)
 | ID | Task | Owner | Status |
 |---|---|---|---|
-| 11.1 | Adversarial review of every M10 request path (hostile inputs, back-room cheating, griefing limits, churn during events, copy tone) + regression suite review_m10 | review | in progress |
-| 11.2 | Four-player stress of M10 (same-frame throws, chute shots, shove chains, inspection with churn, back room, power cut, voice/chat floods, retry, a full shift with the scheduler on) qa_m10_4p | qa | in progress |
+| 11.1 | Adversarial review of every M10 request path (hostile inputs, back-room cheating, griefing limits, churn during events, copy tone) + regression suite review_m10 | review | done (6 bugs fixed: back-room server rule, shop/Escape in the back room, stranded items, stagger immunity, shove LOS) |
+| 11.2 | Four-player stress of M10 (same-frame throws, chute shots, shove chains, inspection with churn, back room, power cut, voice/chat floods, retry, a full shift with the scheduler on) qa_m10_4p | qa | done (506 checks; 2 bugs fixed: back-room slots, workers as moving platforms) |
 | 11.3 | Shareable Windows build: export_presets.cfg ("Windows Desktop", embedded PCK) + tools/export.ps1 (installs the Windows export templates on request, exports, zips) | lead | done (templates not downloaded yet: the user's call, ~1 GB) |
 | 11.4 | `--mute` / `-Mute` / saved Sound toggle; playtest switches `--auto-start`, `--first-event`, `--event-delay` | lead | done |
 | 11.5 | LAN discovery: Lan autoload (UDP beacon on 7778 while hosting) + "Floors open nearby" in the menu; lan suite | lead | done |

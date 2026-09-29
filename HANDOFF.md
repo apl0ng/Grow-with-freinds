@@ -4,6 +4,10 @@
 You are the lead developer on this Godot 4.7.2 project. The user wants the game launched and played on their PC,
 and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of 2026-09-29.
 
+0. State (2026-09-29, evening): M10 integrated, M11 QA sweep merged (review_m10 + review_m10_mp + qa_m10_4p suites), LAN
+   discovery, mute, the Windows export preset and the playtest switches are in. 47 suites in tools/test_all.sh, all
+   green on this PC except the skipped X11 mouse suite. Next candidates: PLAN.md "M11" and "Things the user may ask
+   for next".
 1. On this PC the repo is cloned at `C:\Users\ap_lo\OneDrive\Desktop\Grow With Freinds` (branch
    `claude/quota-farming-game-lead-hcy18f`; the `C:\Games` path from the cloud session never existed here). `git pull`
    first. Nothing from M10 has been pushed yet (the user decides). Godot 4.7.2 is already extracted at
@@ -58,6 +62,9 @@ socket; the local player's held item renders in a view-model layer (render layer
 - Tests are Node "bodies" launched via `godot --headless --path . -s res://tools/tests/run_test.gd -- --body=...`.
 
 ## Known limitations at handoff
+- Relay amplification: a rogue peer's voice frames and chat lines are relayed by the server to every peer before game
+  code drops them (receiver-side limits only). The export templates (about 1 GB) are not installed yet: `toolsxport.ps1`
+  asks before downloading.
 - Held item receives no world shadows (camera-layer view model).
 - The microphone path was never heard by a human here (headless cannot capture); the receive path is tested.
 - The booth door's collider is always solid; the Boss has no collision, workers cannot follow him into the booth.

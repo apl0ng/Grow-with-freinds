@@ -485,3 +485,6 @@ range-checked, names sanitized, the list capped at 32 entries. Suite: lan (+51).
   worker is a dud (the item lands, no stagger, no STAT_HITS), a refused shove does not spend the cooldown.
 - **Shove line of sight:** a LAYER_WORLD ray between the two chests on the server (no shoves through fences).
 - Suites: review_m10 (+48), review_m10_mp (random port).
+- **QA outcomes (qa_m10_4p, +52):** back-room slots are claimed by the lowest free index on the host
+  (`Events._claim_backroom_slot`), never by the sorted-peer position; `Player._ready` sets `platform_floor_layers =
+  LAYER_WORLD` and `platform_wall_layers = 0`, so a worker standing on another is not flung when that one teleports.
