@@ -2,17 +2,26 @@
 """Build Blender-authored models: tools/blender/models/*.py -> art/models/*.glb -> Godot import.
 Owner: pipeline agent. Workflow + conventions: MODELING.md.
 
-  python3 tools/blender/build.py                     # every model script
+  python3 tools/blender/build.py                     # every model script (Linux: the bpy Python module)
   python3 tools/blender/build.py oil_drum lamps      # only these scripts (file stems in models/)
+  blender --background --python tools/blender/build.py -- oil_drum --test   # Windows / no bpy module
   options:
     --preview [--preview-dir DIR]   also render a Cycles turntable strip per model (~1.5 s each;
                                     default dir: $TMPDIR/gwf_previews)
     --no-import                     skip the Godot import pass (Blender side only)
     --test                          run the headless model suite (tools/tests/models_test.gd) afterwards
-    --shots DIR                     render the built models in-game (Toonify, toon lighting) under xvfb:
+    --shots DIR                     render the built models in-game (Toonify, toon lighting) under xvfb
+                                    (without xvfb: a small real window, briefly):
                                     DIR/<first>_sheet_1.png (close-ups) + DIR/<first>_eye.png (player view)
+    --out DIR                       write the .glb files to DIR instead of art/models and skip the manifest,
+                                    .import and Godot steps (compatibility checks on another Blender version)
+    --blender                       run under blender.exe even if the bpy module is importable
     --verbose                       show exporter / Godot output
     --list                          list the model scripts and exit
+
+Without an importable bpy module (or with --blender / a BLENDER env var) build.py re-runs itself under
+`blender.exe --background --python build.py -- <args>` (BLENDER, then the default install folders, then
+PATH) and forwards the exit code. See MODELING.md "Windows / Blender 5.2".
 
 Idempotent: a .glb / .glb.import is only rewritten when its bytes change, so Godot only reimports what
 changed and git sees no churn. Exit code 0 = every model exported, imported and passed its checks.
@@ -22,14 +31,21 @@ import sys
 
 sys.dont_write_bytecode = True  # no __pycache__ in the repo (gwf + model scripts are imported)
 
-import fcntl  # noqa: E402
+import glob  # noqa: E402
 import importlib.util  # noqa: E402
 import json  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
+import shutil  # noqa: E402
 import subprocess  # noqa: E402
 import time  # noqa: E402
 import traceback  # noqa: E402
+
+try:
+    import fcntl  # Unix
+except ImportError:  # Windows
+    fcntl = None
+    import msvcrt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -37,6 +53,76 @@ MODELS_SRC = os.path.join(HERE, "models")
 MODELS_DIR = os.path.join(REPO, "art", "models")
 TOONIFY = "res://scripts/art/toonify.gd"
 GODOT = os.environ.get("GODOT", "godot")
+# Where blender.exe may live when there is no bpy module (after $BLENDER and PATH).
+BLENDER_CANDIDATES = [
+    r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe",
+    r"C:\Program Files\Blender Foundation\Blender *\blender.exe",
+    "/Applications/Blender.app/Contents/MacOS/Blender",
+    "/usr/bin/blender", "/snap/bin/blender",
+]
+
+
+def in_blender_app():
+    """True when this file runs inside blender.exe (--background --python build.py), not as plain Python."""
+    return os.path.basename(sys.argv[0]).lower().startswith("blender")
+
+
+def own_argv():
+    """Our arguments: everything after '--' inside Blender (its own args come first), else sys.argv[1:]."""
+    if in_blender_app():
+        return sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    return sys.argv[1:]
+
+
+def find_blender():
+    """blender executable: $BLENDER, then the usual install folders (newest first), then PATH."""
+    env = os.environ.get("BLENDER")
+    if env and os.path.exists(env):
+        return env
+    for pat in BLENDER_CANDIDATES:
+        hits = sorted(glob.glob(pat), reverse=True) if "*" in pat else ([pat] if os.path.exists(pat) else [])
+        if hits:
+            return hits[0]
+    return shutil.which("blender") or shutil.which("blender.exe")
+
+
+def reexec_under_blender(argv):
+    """Run this script under blender.exe with the same arguments; returns its exit code."""
+    blender = find_blender()
+    if not blender:
+        print("build.py: no bpy module and no blender executable found (set BLENDER=/path/to/blender.exe)")
+        return 2
+    cmd = [blender, "--background", "--python", os.path.abspath(__file__), "--"] + [a for a in argv if a != "--blender"]
+    try:
+        return subprocess.run(cmd).returncode
+    except OSError as e:
+        print("build.py: could not run %s: %s" % (blender, e))
+        return 2
+
+
+def lock_file(f):
+    """Exclusive lock (flock on Unix, msvcrt byte-range lock on Windows; waits until it is free)."""
+    if fcntl:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        return
+    while True:
+        try:
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)  # up to ~10 s per attempt
+            return
+        except OSError:
+            time.sleep(0.5)
+
+
+def unlock_file(f):
+    if fcntl:
+        fcntl.flock(f, fcntl.LOCK_UN)
+        return
+    try:
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+    except OSError:
+        pass
 
 # Godot import params every art/models/*.glb gets (written into its .glb.import BEFORE the import pass,
 # so imports are deterministic whoever runs them). Values are Godot variant text.
@@ -222,10 +308,13 @@ def main(argv):
     verbose = "--verbose" in flags
     preview_dir = None
     shots_dir = None
+    out_dir = None
     for i, a in enumerate(argv):
-        if a in ("--preview-dir", "--shots") and i + 1 < len(argv):
+        if a in ("--preview-dir", "--shots", "--out") and i + 1 < len(argv):
             if a == "--shots":
                 shots_dir = os.path.abspath(argv[i + 1])
+            elif a == "--out":
+                out_dir = os.path.abspath(argv[i + 1])
             else:
                 preview_dir = os.path.abspath(argv[i + 1])
             args = [x for x in args if x != argv[i + 1]]
@@ -233,11 +322,17 @@ def main(argv):
             preview_dir = os.path.abspath(a.split("=", 1)[1])
         elif a.startswith("--shots="):
             shots_dir = os.path.abspath(a.split("=", 1)[1])
-    known = {"--preview", "--no-import", "--test", "--verbose", "--list", "--preview-dir", "--shots"}
+        elif a.startswith("--out="):
+            out_dir = os.path.abspath(a.split("=", 1)[1])
+    known = {"--preview", "--no-import", "--test", "--verbose", "--list", "--preview-dir", "--shots", "--out",
+             "--blender"}
     for f in flags:
         if f.split("=")[0] not in known:
             print("unknown option %s\n%s" % (f, __doc__))
             return 2
+    if out_dir:  # Blender side only, into another folder: nothing in art/models or .godot is touched
+        flags = [f for f in flags if f not in ("--test",)] + ["--no-import"]
+        shots_dir = None
 
     scripts = sorted(f[:-3] for f in os.listdir(MODELS_SRC) if f.endswith(".py") and not f.startswith("_"))
     if "--list" in flags:
@@ -258,6 +353,11 @@ def main(argv):
     gwf.OPTIONS["verbose"] = verbose
     if preview_dir:
         gwf.OPTIONS["preview_dir"] = preview_dir
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+        gwf.MODELS_DIR = out_dir
+        print("== output -> %s (no manifest / import)" % out_dir)
+    print("== blender %s (%s)" % (gwf.bpy.app.version_string, "blender.exe" if in_blender_app() else "bpy module"))
 
     script_fail = {}
     owner = {}
@@ -281,7 +381,8 @@ def main(argv):
         print("   %.2f s" % (time.time() - t0))
     t_blender = time.time() - t_start
 
-    update_manifest(gwf.EXPORTS, owner)
+    if not out_dir:
+        update_manifest(gwf.EXPORTS, owner)
 
     # Import: settings, forced re-imports, the Godot pass and its verification all happen under one lock, so
     # concurrent build.py runs (several modelers) never interleave on this project.
@@ -290,11 +391,15 @@ def main(argv):
     reimport_fail = {}
     forced = []
     t_import = 0.0
-    os.makedirs(os.path.join(REPO, ".godot"), exist_ok=True)
-    lock = open(os.path.join(REPO, ".godot", "gwf_import.lock"), "w")
     t0 = time.time()
-    fcntl.flock(lock, fcntl.LOCK_EX)
+    lock = None
+    if not out_dir:
+        os.makedirs(os.path.join(REPO, ".godot"), exist_ok=True)
+        lock = open(os.path.join(REPO, ".godot", "gwf_import.lock"), "w")
+        lock_file(lock)
     try:
+        if out_dir:
+            raise StopIteration  # nothing to import from a --out build
         # Import params: every model built now, plus any .glb whose .import misses our defaults. Every model
         # whose settings get (re)written is force re-imported (its cached import is dropped): a concurrent
         # Godot may already have imported it with default settings (no Toonify root script).
@@ -332,9 +437,12 @@ def main(argv):
                         reimport_fail[name] = "imported without the Toonify root script (re-import failed)"
             except (OSError, subprocess.TimeoutExpired) as e:
                 godot_errors.append("godot --import failed: %s" % e)
+    except StopIteration:
+        pass
     finally:
-        fcntl.flock(lock, fcntl.LOCK_UN)
-        lock.close()
+        if lock is not None:
+            unlock_file(lock)
+            lock.close()
     t_import = time.time() - t0
 
     # Table
@@ -391,10 +499,14 @@ def main(argv):
     built_ok = [r["name"] for r in gwf.EXPORTS if not r["problems"]]
     if shots_dir and built_ok and "--no-import" not in flags:
         print("== in-game shots -> %s" % shots_dir)
-        cmd = ["xvfb-run", "-a", "-s", "-screen 0 1280x720x24", GODOT, "--path", REPO, "--rendering-driver",
-               "opengl3", "--rendering-method", "gl_compatibility", "--resolution", "960x540", "-s",
-               "res://tools/tests/models_preview.gd", "--", "--out=" + shots_dir, "--models=" + ",".join(built_ok),
-               "--layout=sheet,eye", "--cols=4", "--cell=420x420", "--size=1600x900", "--prefix=" + built_ok[0]]
+        if shutil.which("xvfb-run"):
+            cmd = ["xvfb-run", "-a", "-s", "-screen 0 1280x720x24", GODOT, "--path", REPO, "--rendering-driver",
+                   "opengl3", "--rendering-method", "gl_compatibility", "--resolution", "960x540"]
+        else:  # no virtual display (Windows): a small real window in a screen corner for a few seconds
+            cmd = [GODOT, "--path", REPO, "--position", "1500,900", "--resolution", "640x360"]
+        cmd += ["-s", "res://tools/tests/models_preview.gd", "--", "--out=" + shots_dir,
+                "--models=" + ",".join(built_ok), "--layout=sheet,eye", "--cols=4", "--cell=420x420",
+                "--size=1600x900", "--prefix=" + built_ok[0]]
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             for line in (proc.stdout + proc.stderr).splitlines():
@@ -415,7 +527,18 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    code = main(sys.argv[1:])
+    argv = own_argv()
+    code = None
+    if not in_blender_app():
+        if "--blender" in argv or os.environ.get("BLENDER"):
+            code = reexec_under_blender(argv)
+        else:
+            try:
+                import bpy  # noqa: F401  (the Python module: Linux cloud sessions)
+            except ImportError:
+                code = reexec_under_blender(argv)
+    if code is None:
+        code = main(argv)
     # bpy 4.2 (as a Python module) segfaults during interpreter teardown after any glTF export, AFTER every
     # file is written. Leave without the teardown so the exit code stays meaningful (0 = all good).
     sys.stdout.flush()

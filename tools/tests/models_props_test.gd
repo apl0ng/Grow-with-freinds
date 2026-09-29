@@ -6,9 +6,13 @@ extends SceneTree
 ## address exist with pivots/rest rotations as the scripts expect, and the scripts still animate them
 ## (camera pan + LED blink, clock hands, drip + puddle, sign stretching, lamp swing). In the room: the drums and
 ## crates get varied paint (tint_variety.gd) and every model surface is toon-converted.
+## M10 (modeling agent): the fuse_box, backroom_door, clipboard and rat GLBs on their own (their scenes belong to
+## the events agent): root, size, budget, the rigged node (Lever / Door / Tail: a direct child, rest rotation
+## identity, pivot where the scripts expect it) and that rotating it moves the part the right way.
 
 const PROPS := "res://scenes/world/props/"
 const ROOM_SCENE := "res://scenes/world/room.tscn"
+const MODELS_DIR := "res://art/models/"
 ## scene -> [model glb, model node path ("Visual" = instanced as Visual)]
 const MODELS := {
 	"oil_drum": ["oil_drum", "Visual/Model"],
@@ -61,6 +65,7 @@ func _run() -> void:
 	await _check_drip(holder)
 	_check_sign_board(holder)
 	await _check_pendant(holder)
+	await _check_m10_models(holder)
 	await _check_room()
 	holder.queue_free()
 	await process_frame
@@ -283,6 +288,131 @@ func _check_pendant(holder: Node3D) -> void:
 	var shade := _bounds(lamp.get_node(^"Visual/Lamp"), lamp)
 	_check(shade.end.y <= 0.01 and shade.position.y < -2.5, "pendant_lamp: hangs from the mount (y %.2f..%.2f)" % [shade.position.y, shade.end.y])
 	lamp.queue_free()
+
+
+# ------------------------------------------------------------------------------------------ M10 models
+static func _tris(node: Node) -> int:
+	var tris := 0
+	for mi in _model_meshes(node):
+		if mi.mesh == null:
+			continue
+		for s in mi.mesh.get_surface_count():
+			var arrays := mi.mesh.surface_get_arrays(s)
+			var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			tris += (idx.size() if idx.size() > 0 else verts.size()) / 3
+	return tris
+
+
+## Mean z (in `space`) of every vertex drawn with the material `mat_name` (which way a part faces).
+static func _surface_mean_z(node: Node, space: Node, mat_name: String) -> float:
+	var sum := 0.0
+	var n := 0
+	for mi in _model_meshes(node):
+		if mi.mesh == null:
+			continue
+		for s in mi.mesh.get_surface_count():
+			if Toonify.material_name(mi.mesh.surface_get_material(s)) != mat_name:
+				continue
+			var t := _rel(mi, space)
+			for v in (mi.mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+				sum += (t * v).z
+				n += 1
+	return sum / maxf(n, 1.0)
+
+
+## Loads art/models/<name>.glb under `holder`; checks the Toonify root, the size range (W x H x D) and the budget.
+func _m10_load(name: String, holder: Node3D, lo: Vector3, hi: Vector3, budget: int) -> Node3D:
+	var tag := name + ": "
+	var ps := load(MODELS_DIR + name + ".glb") as PackedScene
+	if not _check(ps != null and ps.can_instantiate(), tag + "art/models/%s.glb loads" % name):
+		return null
+	var n := ps.instantiate() as Node3D
+	holder.add_child(n)
+	await process_frame
+	_check(n is Toonify, tag + "root is a Toonify node")
+	var b := _bounds(n, n)
+	_check(b.size.x >= lo.x and b.size.x <= hi.x and b.size.y >= lo.y and b.size.y <= hi.y and b.size.z >= lo.z
+			and b.size.z <= hi.z, tag + "size %s within %s..%s" % [b.size, lo, hi])
+	var tris := _tris(n)
+	_check(tris <= budget, tag + "within the %d tri budget (%d)" % [budget, tris])
+	return n
+
+
+## The rigged node: a direct child of the root, rest rotation identity, pivot (node origin) at `pivot`.
+func _m10_rig(root: Node3D, part: String, pivot: Vector3) -> Node3D:
+	var tag := String(root.scene_file_path.get_file().get_basename()) + ": "
+	var n := root.get_node_or_null(NodePath(part)) as Node3D
+	if not _check(n != null, tag + "has the rigged node %s (a direct child of the root)" % part):
+		return null
+	_check(n.rotation.is_zero_approx(), tag + "%s rest rotation is identity (got %s)" % [part, n.rotation])
+	_check(n.position.distance_to(pivot) < 0.015, tag + "%s pivots at %s (got %s)" % [part, pivot, n.position])
+	_check(n.scale.is_equal_approx(Vector3.ONE), tag + "%s has no node scale" % part)
+	return n
+
+
+func _check_m10_models(holder: Node3D) -> void:
+	# fuse_box (wall mount, front +Z): the Lever pivots on its axle and points up at rest; rotation.x = 130 deg
+	# throws it down and out of the wall (tripped).
+	var fb := await _m10_load("fuse_box", holder, Vector3(0.4, 0.7, 0.22), Vector3(0.65, 0.95, 0.4), 3000)
+	if fb != null:
+		var b := _bounds(fb, fb)
+		_check(absf(b.position.z) < 0.01, "fuse_box: back on the wall plane (z %.3f)" % b.position.z)
+		_check(b.position.y > -0.08 and b.end.y > 0.75, "fuse_box: cabinet stands up from its origin (y %.2f..%.2f)" % [b.position.y, b.end.y])
+		var lever := _m10_rig(fb, "Lever", Vector3(0.175, 0.34, 0.225))
+		if lever != null:
+			var lb := _bounds(lever, fb)
+			_check(lb.end.y > lever.position.y + 0.15 and lb.position.y > lever.position.y - 0.06,
+					"fuse_box: the Lever points up from its axle at rest (%s)" % lb)
+			lever.rotation.x = deg_to_rad(130.0)
+			var lb2 := _bounds(lever, fb)
+			_check(lb2.position.y < lever.position.y - 0.1 and lb2.end.z > 0.4,
+					"fuse_box: Lever.rotation.x = 130 deg throws the handle down and out of the wall (%s)" % lb2)
+		fb.queue_free()
+	# backroom_door (wall mount, floor-level origin): the frame stays, the Door leaf swings about its hinge edge;
+	# rotation.y = 80 deg swings it through the wall plane (into the back room, away from the viewer).
+	var bd := await _m10_load("backroom_door", holder, Vector3(1.0, 2.1, 0.12), Vector3(1.2, 2.3, 0.22), 3000)
+	if bd != null:
+		var b := _bounds(bd, bd)
+		_check(absf(b.position.z) < 0.01 and absf(b.position.y) < 0.01, "backroom_door: back on the wall, feet on the floor (%s)" % b)
+		_check(bd.get_node_or_null(^"Frame") is MeshInstance3D and bd.get_node_or_null(^"Backing") is MeshInstance3D,
+				"backroom_door: Frame + Backing meshes exist (static)")
+		var door := _m10_rig(bd, "Door", Vector3(-0.46, 0.0, 0.07))
+		if door != null:
+			var db := _bounds(door, bd)
+			_check(db.size.x > 0.85 and db.size.y > 2.0 and absf(db.position.x + 0.46) < 0.03,
+					"backroom_door: the leaf hangs from the hinge edge at rest (%s)" % db)
+			door.rotation.y = deg_to_rad(80.0)
+			var db2 := _bounds(door, bd)
+			_check(db2.position.z < -0.5 and db2.size.x < 0.4,
+					"backroom_door: Door.rotation.y = 80 deg swings the leaf through the wall plane (%s)" % db2)
+		bd.queue_free()
+	# clipboard (item, front -Z): stands on its bottom edge, the sheets (cream) face -Z, one mesh, no rig.
+	var cb := await _m10_load("clipboard", holder, Vector3(0.2, 0.3, 0.03), Vector3(0.3, 0.4, 0.1), 1500)
+	if cb != null:
+		var b := _bounds(cb, cb)
+		_check(absf(b.position.y) < 0.01, "clipboard: stands on y = 0 (%.3f)" % b.position.y)
+		var paper := _surface_mean_z(cb, cb, "toon_cream")
+		var board := _surface_mean_z(cb, cb, "board")
+		_check(paper < board - 0.003, "clipboard: the sheets face -Z (paper z %.3f, board z %.3f)" % [paper, board])
+		_check(_model_meshes(cb).size() == 1, "clipboard: one mesh (%d)" % _model_meshes(cb).size())
+		cb.queue_free()
+	# rat (character, front -Z): nose at -Z, low and long; the Tail pivots at the rump (+Z) and swishes on y.
+	var rat := await _m10_load("rat", holder, Vector3(0.08, 0.05, 0.3), Vector3(0.16, 0.12, 0.4), 2000)
+	if rat != null:
+		var b := _bounds(rat, rat)
+		_check(absf(b.position.y) < 0.01, "rat: stands on y = 0 (%.3f)" % b.position.y)
+		_check(b.position.z < -0.15 and b.end.z > 0.1, "rat: nose towards -Z, tail towards +Z (z %.2f..%.2f)" % [b.position.z, b.end.z])
+		_check(rat.get_node_or_null(^"Body") is MeshInstance3D, "rat: Body mesh exists")
+		var tail := _m10_rig(rat, "Tail", Vector3(0.0, 0.046, 0.06))
+		if tail != null:
+			var tb := _bounds(tail, rat)
+			_check(tb.end.z > tail.position.z + 0.1 and tb.position.y < 0.02, "rat: the Tail trails behind and drags on the floor (%s)" % tb)
+			tail.rotation.y = deg_to_rad(40.0)
+			var tb2 := _bounds(tail, rat)
+			_check(tb2.size.x > 0.06, "rat: Tail.rotation.y swishes the tail sideways (%s)" % tb2)
+		rat.queue_free()
+	await process_frame
 
 
 # ------------------------------------------------------------------------------------------ in the room
