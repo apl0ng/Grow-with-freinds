@@ -19,7 +19,8 @@ extends Node
 ##             (16-bit seq with wraparound; a peer silent for over a second resyncs on its next frame).
 ##   Playback  Per remote peer one AudioStreamPlayer3D + AudioStreamGenerator (16 kHz, 0.15 s) under
 ##             Game.world/VoiceOut/<peer>, moved to the speaker's head (Player position + 1.6 m, 1.05 m
-##             crouched) every frame, on a runtime bus "Voice" (volume = `output_volume_db`). Inverse-distance
+##             crouched) every frame (last known spot once the Player is gone; frames that arrive before it
+##             ever spawned here are dropped), on a runtime bus "Voice" (volume = `output_volume_db`). Inverse-distance
 ##             attenuation, unit_size = voice_range / 2, max_distance = voice_range. Jitter buffer: playback
 ##             starts once two frames are queued; an underrun pads one frame of silence and re-arms. A seq
 ##             gap of up to 3 frames (ENet drops unreliable packets when the RTT jitters) is concealed with
@@ -740,6 +741,10 @@ func _queue_playback(peer_id: int, frame: PackedByteArray, gap: int = 0) -> void
 		o.primed = false
 		o.last_frame = PackedVector2Array()
 		_drop("mute")
+		return
+	_update_position(o)
+	if not o.has_pos:
+		_drop("no_position") # the speaker's Player has not spawned here yet: nowhere to put the voice
 		return
 	if gap > 0 and gap <= MAX_CONCEAL_FRAMES and o.last_frame.size() == FRAME_SAMPLES:
 		var level := 0.5
