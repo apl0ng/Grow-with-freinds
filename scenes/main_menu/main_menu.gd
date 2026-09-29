@@ -39,6 +39,9 @@ const TEXT_NO_IP := "Enter the host's IP first."
 const TEXT_LAN_CAPTION := "Floors open nearby"
 const TEXT_LAN_NONE := "No floors open nearby."
 const TEXT_LAN_ITEM := "%s's floor · %d/%d · %s:%d"
+## Shown under the list so a host can read their own address out to friends the broadcast does not reach.
+const TEXT_MY_ADDRESS := "Your address for friends: %s · port %d"
+const TEXT_MY_ADDRESS_NONE := "No network address found."
 
 var _time: float = 0.0
 var _busy: bool = false
@@ -62,6 +65,7 @@ func _ready() -> void:
 	lan_list.item_activated.connect(_on_lan_activated)
 	Lan.games_changed.connect(_refresh_lan)
 	Lan.listen() # a bind error just leaves the list empty (another menu on this PC holds the port)
+	port_spin.value_changed.connect(func(_v: float) -> void: _refresh_my_address())
 	_refresh_lan()
 	set_status("")
 	if not Game.cli_auto_start_used and (Config.has_arg("host") or Config.has_arg("join")):
@@ -99,6 +103,32 @@ func _refresh_lan() -> void:
 			lan_list.select(idx)
 	lan_list.visible = not games.is_empty()
 	lan_caption.text = TEXT_LAN_CAPTION if not games.is_empty() else TEXT_LAN_NONE
+	_refresh_my_address()
+
+
+## "Your address for friends: 192.168.1.20 · port 7777": the first private IPv4 of this machine (else any IPv4).
+func _refresh_my_address() -> void:
+	var address_label: Label = get_node_or_null("%AddressLabel")
+	if address_label == null:
+		return
+	var best := ""
+	for a in IP.get_local_addresses():
+		var s := String(a)
+		if not s.is_valid_ip_address() or s.contains(":") or s.begins_with("127.") or s.begins_with("169.254."):
+			continue
+		var private := s.begins_with("192.168.") or s.begins_with("10.") or (s.begins_with("172.") and int(s.split(".")[1]) >= 16 and int(s.split(".")[1]) <= 31)
+		if best == "" or (private and not _is_private_ip(best)):
+			best = s
+	address_label.text = TEXT_MY_ADDRESS % [best, int(port_spin.value)] if best != "" else TEXT_MY_ADDRESS_NONE
+
+
+static func _is_private_ip(s: String) -> bool:
+	if s.begins_with("192.168.") or s.begins_with("10."):
+		return true
+	if s.begins_with("172."):
+		var second := int(s.split(".")[1])
+		return second >= 16 and second <= 31
+	return false
 
 func _on_lan_selected(index: int) -> void:
 	var meta: Variant = lan_list.get_item_metadata(index)
