@@ -32,7 +32,7 @@ code=$?
 passes=$(grep -c "^  ok   -" "$LOGS/phys_net.log"); fails=$(grep -c "^  FAIL -" "$LOGS/phys_net.log"); errs=$(count_errors "$LOGS/phys_net.log")
 printf '  %-8s exit=%-3s %3d passed %3d failed %2d errors\n' net "$code" "$passes" "$fails" "$errs"
 grep "^  FAIL -" "$LOGS/phys_net.log" | sed 's/^/      /'
-grep -A3 -E "SCRIPT ERROR|^ERROR:" "$LOGS/phys_net.log" | head -20 | sed 's/^/      /'
+[[ $errs -ne 0 ]] && grep -A3 -E "SCRIPT ERROR|^ERROR:" "$LOGS/phys_net.log" | head -20 | sed 's/^/      /'
 if [[ $code -ne 0 || $fails -ne 0 || $errs -ne 0 || $passes -eq 0 ]]; then overall=1; fi
 
 echo "== physics_mp (port $PORT, logs $LOGS)"
@@ -71,7 +71,7 @@ for entry in "${PIDS[@]}"; do
   errs=$(count_errors "$log")
   printf '  %-8s exit=%-3s %3d passed %3d failed %2d errors   %s\n' "$name" "$code" "$passes" "$fails" "$errs" "${result:-NO RESULT LINE}"
   grep "^  FAIL -" "$log" | sed 's/^/      /'
-  grep -A3 -E "SCRIPT ERROR|^ERROR:" "$log" | head -20 | sed 's/^/      /'
+  [[ $errs -ne 0 ]] && grep -A3 -E "SCRIPT ERROR|^ERROR:" "$log" | head -20 | sed 's/^/      /'
   if [[ $code -ne 0 || $fails -ne 0 || $errs -ne 0 || -z "$result" ]]; then overall=1; fi
 done
 [[ ${#PIDS[@]} -lt 3 ]] && { echo "  only ${#PIDS[@]}/3 processes were launched"; overall=1; }
