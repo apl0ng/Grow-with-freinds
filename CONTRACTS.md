@@ -459,3 +459,17 @@ Additions and deviations reported by the agents and merged as is; the stub surfa
   edge sits on the placeholder hinge; `Model/Door` swings +80 degrees; `Backing` hidden). Built on this PC with
   Blender 5.2 through `blender.exe --background --python tools/blender/build.py -- <family>`; never run a full
   unnamed build here (MODELING.md "Windows / Blender 5.2").
+
+## Lan (lead, M11) — scripts/core/lan.gd
+```gdscript
+signal games_changed
+const DISCOVERY_PORT := 7778; const BEACON_SEC := 1.0; const EXPIRE_SEC := 3.5
+func listen() -> Error; func stop_listening() -> void; func is_listening() -> bool
+func get_games() -> Array[Dictionary]      # [{"ip", "port", "name", "players", "max", "seen"}], newest first
+func debug_inject_beacon(ip: String, payload) -> bool   # tests: the receive path
+var last_beacon: Dictionary                # tests: what the host sent last
+```
+A hosting peer broadcasts `{"gwf": 1, "name", "port", "players", "max"}` every second to 255.255.255.255:7778 (and to
+127.0.0.1 for local windows). The main menu listens while it is open (`%LanCaption` "Floors open nearby" /
+"No floors open nearby.", `%LanList`: select fills the IP + port, activate joins). Beacons are size-, type- and
+range-checked, names sanitized, the list capped at 32 entries. Suite: lan (+51).

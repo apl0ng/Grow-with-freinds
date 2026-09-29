@@ -12,7 +12,8 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 - Windows: double-click `launch.cmd` (or `.\launch.ps1` in PowerShell). It finds Godot 4.7.2 or offers to download
   it into `tools\godot\`. Options: `-HostGame`, `-Join <ip>`, `-Name <name>`, `-Port`, `-Fast`, `-Players 2..4`
   (several local windows for testing), `-Editor`, `-Fullscreen`.
-- Any OS: open the folder in Godot 4.7.x and press Play. Host to play solo; friends join with your IP.
+- Any OS: open the folder in Godot 4.7.x and press Play. Host to play solo; friends join with your IP, or pick your
+  floor from "Floors open nearby" when they are on the same network (UDP broadcast on port 7778).
 - Two local instances: `godot --path . -- --host --name=Alice` and `godot --path . -- --join=127.0.0.1 --name=Bob`.
 - `--fast` makes growth 20× faster and shifts 60 s; `--growth-mult=N`, `--round-sec=N` for finer control. `--mute` (or
   `-Mute` on the launcher) silences the game; the pause menu has a saved Sound toggle. `--auto-start[=sec]` starts the

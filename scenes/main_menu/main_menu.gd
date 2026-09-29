@@ -32,6 +32,13 @@ const TEXT_NO_IP := "Enter the host's IP first."
 @onready var join_button: Button = %JoinButton
 @onready var quit_button: Button = %QuitButton
 @onready var status_label: Label = %StatusLabel
+## M11: floors open on the local network (Lan autoload). Selecting one fills the address; activating joins it.
+@onready var lan_caption: Label = %LanCaption
+@onready var lan_list: ItemList = %LanList
+
+const TEXT_LAN_CAPTION := "Floors open nearby"
+const TEXT_LAN_NONE := "No floors open nearby."
+const TEXT_LAN_ITEM := "%s's floor · %d/%d · %s:%d"
 
 var _time: float = 0.0
 var _busy: bool = false
@@ -51,6 +58,11 @@ func _ready() -> void:
 	join_button.pressed.connect(_on_join_pressed)
 	quit_button.pressed.connect(_on_quit_pressed)
 	ip_edit.text_submitted.connect(_on_ip_submitted)
+	lan_list.item_selected.connect(_on_lan_selected)
+	lan_list.item_activated.connect(_on_lan_activated)
+	Lan.games_changed.connect(_refresh_lan)
+	Lan.listen() # a bind error just leaves the list empty (another menu on this PC holds the port)
+	_refresh_lan()
 	set_status("")
 	if not Game.cli_auto_start_used and (Config.has_arg("host") or Config.has_arg("join")):
 		Game.cli_auto_start_used = true
@@ -62,6 +74,45 @@ func _process(delta: float) -> void:
 	_time += delta
 	title_label.pivot_offset = title_label.size * 0.5
 	title_label.rotation = TITLE_TILT + sin(_time * TITLE_SWAY_SPEED) * TITLE_SWAY
+
+func _exit_tree() -> void:
+	if Lan.games_changed.is_connected(_refresh_lan):
+		Lan.games_changed.disconnect(_refresh_lan)
+	Lan.stop_listening()
+
+# --- LAN list ---------------------------------------------------------------------------------------------------
+
+## Rebuilds the "Floors open nearby" list from Lan.get_games() (the caption reads "No floors open nearby." alone
+## when there is nothing; the list itself hides).
+func _refresh_lan() -> void:
+	var games: Array[Dictionary] = Lan.get_games()
+	var selected_key := ""
+	if lan_list.is_anything_selected():
+		var meta: Variant = lan_list.get_item_metadata(lan_list.get_selected_items()[0])
+		if meta is Dictionary:
+			selected_key = "%s:%d" % [meta.get("ip", ""), int(meta.get("port", 0))]
+	lan_list.clear()
+	for g in games:
+		var idx := lan_list.add_item(TEXT_LAN_ITEM % [g["name"], int(g["players"]), int(g["max"]), g["ip"], int(g["port"])])
+		lan_list.set_item_metadata(idx, {"ip": g["ip"], "port": int(g["port"])})
+		if "%s:%d" % [g["ip"], int(g["port"])] == selected_key:
+			lan_list.select(idx)
+	lan_list.visible = not games.is_empty()
+	lan_caption.text = TEXT_LAN_CAPTION if not games.is_empty() else TEXT_LAN_NONE
+
+func _on_lan_selected(index: int) -> void:
+	var meta: Variant = lan_list.get_item_metadata(index)
+	if not meta is Dictionary:
+		return
+	ip_edit.text = String(meta.get("ip", ""))
+	var port := int(meta.get("port", 0))
+	if port >= MIN_PORT and port <= MAX_PORT:
+		port_spin.value = port
+	Sfx.play(&"ui_click")
+
+func _on_lan_activated(index: int) -> void:
+	_on_lan_selected(index)
+	_begin_join(true)
 
 # --- Public (used by Game) ------------------------------------------------------------------------------------
 
