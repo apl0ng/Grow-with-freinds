@@ -13,6 +13,8 @@ extends "res://tools/tests/qa_net_base.gd"
 ##   S4  the back-room cheat over the wire: the host sends the rogue to the back room, the rogue walks back onto the
 ##       floor (owner-authoritative movement) and sends the REAL requests (pick-up, buy, fuse reset, drop, throw,
 ##       shove): every one refused with "You're in the back room.", nothing changes; released, the pick-up works
+##   S0  (on the way in) the rogue joins DURING an inspection: the Boss is already out walking on the joiner, resumed
+##       mid-route with the host's remaining seconds, not restarted from the booth
 ## Every engine/script error fails the run unless announced (qa_base.gd).
 
 const REASON_BACKROOM_TEXT := "You're in the back room."
@@ -50,6 +52,9 @@ func _host_main() -> void:
 		finish(); return
 	if not await wait_until(func() -> bool: return Game.local_player != null and items_of(Const.ITEM_WATERING_CAN).size() == 2, 10.0, "host world ready"):
 		finish(); return
+	# S0: the shift and an inspection are already running when the rogue joins (late-join sync of a walking Boss).
+	GameState.request_start_round()
+	check(GameState.is_playing() and Events.server_start_event(Events.EVENT_INSPECTION), "shift running, inspection started before the join")
 	var args := PackedStringArray(["--headless", "--path", ProjectSettings.globalize_path("res://"),
 			"-s", "res://tools/tests/run_test.gd", "--", "--body=res://tools/tests/review_m10_mp_body.gd",
 			"--role=rogue", "--port=%d" % port, "--timeout=110"])
@@ -66,8 +71,15 @@ func _host_main() -> void:
 	me.staggered.connect(func(by: int) -> void: _host_staggers.append(by))
 	Comms.chat_received.connect(func(p: int, t: String) -> void: _chat_lines.append([p, t]))
 	Comms.ping_received.connect(func(p: int, pos: Vector3) -> void: _pings.append([p, pos]))
-	GameState.request_start_round()
-	check(GameState.is_playing(), "shift running")
+	step("S0: the rogue joined during the inspection")
+	var r := await run_cmd(_rogue, "late_join_report")
+	check(bool(r.get("active", false)) and bool(r.get("walking", false)), "rogue: inspection active on join, the Boss walks there too")
+	check(float(r.get("progress", 0.0)) > 0.02 and float(r.get("progress", 0.0)) < 0.9, "rogue: the walk resumed mid-route (progress %.2f), not from the booth" % float(r.get("progress", 0.0)))
+	check(float(r.get("left", 99.0)) < Config.balance.inspection_sec - 1.0 and float(r.get("left", 0.0)) > 0.0, "rogue: the host's remaining seconds came with the event (%.1f s)" % float(r.get("left", 0.0)))
+	check(bool(r.get("seconds_ok", false)), "rogue: params carry the full seconds + speed")
+	Events.server_end_event()
+	await wait_frames(2)
+	check(GameState.is_playing() and not Events.is_event_active(), "shift running, inspection over")
 	me.velocity = Vector3.ZERO
 	me.global_position = Vector3(0.0, 0.02, 0.0)
 	me.rotation = Vector3.ZERO
@@ -77,7 +89,7 @@ func _host_main() -> void:
 	step("S1: spoofed owner / cosmetic RPCs on the host's own Player node")
 	_host_staggers.clear()
 	var shoves0 := GameState.get_stat(1, Const.STAT_SHOVES)
-	var r := await run_cmd(_rogue, "spoof_player_rpcs")
+	r = await run_cmd(_rogue, "spoof_player_rpcs")
 	check(bool(r.get("sent", false)), "rogue sent _rpc_stagger_fx / _rpc_staggered / _rpc_request_shove on World/Players/1")
 	await wait_frames(2)
 	check(_host_staggers.is_empty(), "no staggered() on the host's node from a non-owner's fx broadcast %s" % [_host_staggers])
@@ -181,6 +193,13 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 	var me: Player = Game.local_player
 	var t := toasts.size()
 	match action:
+		"late_join_report":
+			var counter := Game.world.room.get_station("ShopCounter")
+			var boss := counter.get_node_or_null(^"ShopkeeperAnchor/Shopkeeper") as ShopkeeperNPC if counter != null else null
+			var params := Events.get_event_params()
+			ack(seq, {"active": Events.is_event_active(Events.EVENT_INSPECTION), "walking": boss != null and boss.is_walking(),
+					"progress": boss.get_walk_progress() if boss != null else -1.0, "left": Events.get_event_time_left(),
+					"seconds_ok": is_equal_approx(float(params.get("seconds", 0.0)), Config.balance.inspection_sec) and params.has("speed")})
 		"spoof_player_rpcs":
 			var host_node: Player = Game.world.get_player(1)
 			var sent := host_node != null

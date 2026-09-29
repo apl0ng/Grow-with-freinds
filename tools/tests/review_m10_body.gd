@@ -24,6 +24,7 @@ extends "res://tools/tests/qa_base.gd"
 ##       event and from the back room: no freed-instance access, no stuck UI lock, no leaked Rat / SpectatorCamera /
 ##       VoiceOut / PingMarker nodes, no orphans.
 ##   R10 copy audit of every new user-facing string (no "!", no cheer).  R11 performance smells (bounded costs).
+##   R12 the back room in the last second of a shift: released at the shift end, the lock handed to the end screen.
 ## Every engine/script error fails the run unless announced (qa_base.gd).
 
 const BOB := 2
@@ -59,6 +60,7 @@ func _run() -> void:
 	await _r9_churn()
 	_r10_copy_audit()
 	await _r11_perf()
+	await _r12_backroom_at_shift_end()
 	step("leave")
 	Game.return_to_menu()
 	await wait_frames(4)
@@ -704,6 +706,21 @@ func _r9_churn() -> void:
 		_check_clean("left during %s" % kind)
 	if not await _host():
 		return
+
+
+# =================================================================================================== R12
+
+func _r12_backroom_at_shift_end() -> void:
+	step("R12: sent to the back room in the last second of the shift")
+	GameState.time_left = 0.8
+	check(GameState.server_send_to_backroom(1, 30.0), "sent with 0.8 s left")
+	await wait_frames(2)
+	check(GameState.is_in_backroom(1) and GameState.get_backroom_time_left(1) <= 0.8 and hud.back_room.is_open(), "the stay is clamped to the shift (%.2f s left), overlay up" % GameState.get_backroom_time_left(1))
+	await wait_until(func() -> bool: return GameState.is_round_over(), 3.0, "the shift ended")
+	await wait_frames(2)
+	check(not GameState.is_in_backroom(1) and not hud.back_room.is_open() and hud.back_room.get_spectator_camera() == null, "released at the shift end, overlay and camera gone")
+	check(not Game.is_ui_locked_by(Const.UI_LOCK_BACKROOM) and Game.is_ui_locked_by(&"round_end") and hud.round_end.is_open(), "the back-room lock is gone; the end screen holds its own")
+	check(me.camera.current, "the worker's own camera is current again")
 
 
 # =================================================================================================== R10
