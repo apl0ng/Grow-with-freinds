@@ -44,8 +44,8 @@ extends CharacterBody3D
 ##     input until the stun passes (is_stunned()), kicks the camera (roll +-CAMERA_KICK_ROLL_DEG, a pitch nudge) and
 ##     bounces the body. The server never moves a player itself: server_shove() sends _rpc_staggered to the target's
 ##     owner (any_peer + "sender is the server" check, because players have owner authority). The owner then broadcasts
-##     the cosmetic _rpc_stagger_fx (any_peer, call_local; accepted from the server or the node's owner only), which
-##     plays "shove" / "bonk", bounces the body and emits `staggered(by_peer)` on EVERY peer.
+##     the cosmetic _rpc_stagger_fx (any_peer, call_local, reliable; accepted from the server or the node's owner
+##     only), which plays "shove" / "bonk", bounces the body and emits `staggered(by_peer)` on EVERY peer.
 ##   * Shove: request_shove(target_peer) -> _rpc_request_shove on the server (sender must own this node): validates
 ##     back room, stun, range (shove_range + 1 m slack, NaN-safe), per-shover cooldown; from behind (target facing .
 ##     push direction > 0.5) the target's held item is released first.
@@ -107,6 +107,10 @@ const WALK_ANIM_MIN_SPEED: float = 0.4
 ## Chest height above the feet (m), standing / crouched: where thrown items hit and where the Boss looks.
 const CHEST_HEIGHT_STANDING: float = 1.0
 const CHEST_HEIGHT_CROUCHED: float = 0.6
+## Another body closer than this (horizontally) counts as sitting on the same spot; the local body steps this far
+## aside first so the collision recovery separates the two sideways instead of stacking them.
+const COINCIDENT_DISTANCE: float = 0.03
+const COINCIDENT_NUDGE: float = 0.08
 
 ## LOCAL player only: draw the held item in the first-person view model so it never clips into walls or stations.
 ## false puts held items back into the world pass (the old, clipping behaviour; e.g. for before/after captures).
@@ -543,8 +547,9 @@ func _stagger_locally(impulse: Vector3, stun_sec: float, by_peer: int, hit: bool
 	_rpc_stagger_fx.rpc(by_peer, stun_sec, hit)
 
 ## Cosmetic, every peer: the sound at the body, a bounce, the `staggered` signal. Only the server or this node's
-## owner may trigger it.
-@rpc("any_peer", "call_local", "unreliable")
+## owner may trigger it. Reliable on purpose (one small packet per stagger): a lost one would mean no bonk, no
+## `staggered` for faces / HUD marks and a remote body that keeps taking footsteps while it stumbles.
+@rpc("any_peer", "call_local", "reliable")
 func _rpc_stagger_fx(by_peer: int, stun_sec: float, hit: bool) -> void:
 	var sender := multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != Const.SERVER_PEER_ID and sender != peer_id:
@@ -654,6 +659,7 @@ func _physics_process(delta: float) -> void:
 	var horizontal := Vector2(velocity.x, velocity.z).move_toward(Vector2(target.x, target.z), accel * delta)
 	velocity.x = horizontal.x
 	velocity.z = horizontal.y
+	_unstick_from_coincident_bodies()
 	var before := global_position
 	move_and_slide()
 	_update_local_footsteps(global_position - before, can_move)
@@ -703,6 +709,24 @@ func _get_spawn_transform() -> Transform3D:
 		var parent_3d := get_parent() as Node3D
 		return parent_3d.global_transform.affine_inverse() * xf if parent_3d != null else xf
 	return Transform3D(Basis.IDENTITY, Vector3(0.0, 1.0, 0.0))
+
+## Two capsules on exactly the same spot (a teleport onto another worker: the same back-room marker, a reset) have no
+## horizontal separating axis, so the physics recovery would stack them vertically. A deterministic sideways nudge
+## (direction from the peer id, so two peers pick different sides) turns that into an ordinary horizontal push.
+func _unstick_from_coincident_bodies() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	for c in parent.get_children():
+		var other := c as Player
+		if other == null or other == self or other.is_queued_for_deletion():
+			continue
+		var d := other.global_position - global_position
+		if not d.is_finite() or absf(d.y) > CROUCH_HEIGHT or Vector2(d.x, d.z).length_squared() > COINCIDENT_DISTANCE * COINCIDENT_DISTANCE:
+			continue
+		var angle := float(peer_id) * 2.399963 # golden angle: consecutive peers step off in different directions
+		global_position += Vector3(cos(angle), 0.0, sin(angle)) * COINCIDENT_NUDGE
+		return
 
 func _can_stand_up() -> bool:
 	if not is_inside_tree():
@@ -758,6 +782,8 @@ func _animate_body(delta: float) -> void:
 		_walk_phase = fmod(_walk_phase + delta * (6.0 + _visual_speed * 1.6), TAU)
 	else:
 		_walk_phase = move_toward(_walk_phase, 0.0 if _walk_phase < PI else TAU, delta * 8.0)
+		if _walk_phase >= TAU:
+			_walk_phase = 0.0 # at rest again (TAU and 0 are the same pose; keeps the step counter honest)
 	_update_remote_footsteps(prev_phase)
 	var amount := clampf(_visual_speed / Config.balance.walk_speed, 0.0, 1.0)
 	visual.position.y = absf(sin(_walk_phase)) * 0.08 * amount
