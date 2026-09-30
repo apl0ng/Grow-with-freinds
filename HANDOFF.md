@@ -4,20 +4,22 @@
 You are the lead developer on this Godot 4.7.2 project. The user wants the game launched and played on their PC,
 and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of 2026-09-29.
 
-0. State (2026-09-29, evening): M10 integrated, M11 QA sweep merged (review_m10 + review_m10_mp + qa_m10_4p suites), LAN
-   discovery, mute, the Windows export preset and the playtest switches are in. 47 suites in tools/test_all.sh, all
-   green on this PC except the skipped X11 mouse suite. Next candidates: PLAN.md "M11" and "Things the user may ask
+0. State (2026-09-29, night): M10 integrated, M11 merged: QA sweep (review_m10 + review_m10_mp + qa_m10_4p suites), LAN
+   discovery, mute, the Windows export preset, the playtest switches, the Windows Firewall rule (WindowsFirewall
+   autoload), the launch.ps1 rewrite and launch.sh. 49 suites in tools/test_all.sh, all green on this PC except the
+   skipped X11 mouse suite (last full run 2026-09-29, about 9 minutes). Next candidates: PLAN.md "M11" and "Things the user may ask
    for next".
 1. On this PC the repo is cloned at `C:\Users\ap_lo\OneDrive\Desktop\Grow With Freinds` (branch
    `claude/quota-farming-game-lead-hcy18f`; the `C:\Games` path from the cloud session never existed here). `git pull`
-   first. Nothing from M10 has been pushed yet (the user decides). Godot 4.7.2 is already extracted at
+   first. Everything through M11 is pushed to origin (the user asked for pushes). Godot 4.7.2 is already extracted at
    `%USERPROFILE%\Downloads\Godot_v4.7.2-stable_win64.exe\` (a folder); the launcher finds it there.
 2. Run `.\launch.cmd` (or `.\launch.ps1`) from that folder. It imports resources on the first run, then opens the main
    menu. Tell the user to press Host, then Enter in the room. `.\launch.ps1 -Players 2 -Fast` opens two local windows
    (host + client) for co-op testing; `-Import` forces a re-import after pulling new models.
-3. `launch.ps1` was fixed on this PC (2026-09-23): first-run `--import`, real-file Godot lookup, correct `-Players` names.
+3. `launch.ps1` was rewritten 2026-09-29 (parameter sets, `-Mute`, `-Firewall`, `-NoDownload`, first-run `--import`);
+   `launch.sh` is the Linux / macOS / Git Bash equivalent (`--host`, `--join ip[:port]`, `--players N`, `--mute`).
 4. Tests on Windows: Git Bash, `export GODOT="/c/Users/ap_lo/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe"`,
-   then `tools/test_all.sh` (45 suites, about 7 minutes; the X11 mouse suite is skipped) or `--only a,b`. NEVER run
+   then `tools/test_all.sh` (49 suites, about 9 minutes; the X11 mouse suite is skipped) or `--only a,b`. NEVER run
    Godot without `--headless` from a script (it opens the game on the user's screen). In PowerShell never name a
    function parameter `$args`.
 5. Models on this PC: Blender 5.2 through `"/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background
@@ -55,7 +57,7 @@ everything else is server-validated. Spawned nodes are never reparented. Held it
 socket; the local player's held item renders in a view-model layer (render layer 10) so it never clips walls.
 
 ## Testing
-- `tools/test_all.sh`: 45 suites, all green on this PC at the M10 integration. Includes multi-process ENet tests, a
+- `tools/test_all.sh`: 49 suites, all green on this PC after M11 (2026-09-29). Includes multi-process ENet tests, a
   4-player stress test, review regression suites, and the M10 suites (discipline, voice_test/voice_mp, physics/
   physics_mp, ui_m10/ui_m10_mp, events/events_mp).
 - `tools/check.sh` loads every resource; `tools/smoke.sh` runs a solo loop and a host+client pair.
@@ -63,11 +65,12 @@ socket; the local player's held item renders in a view-model layer (render layer
 
 ## Known limitations at handoff
 - Windows Firewall rule creation (WindowsFirewall autoload) was verified headless (parsers, read-only netsh) and by code
-  review only; the UAC path needs a human: `.aunch.ps1 -Firewall -HostGame`, accept the prompt, then
+  review only; the UAC path needs a human: `.\launch.ps1 -Firewall -HostGame`, accept the prompt, then
   `netsh advfirewall firewall show rule name="Grow With Friends Multiplayer UDP 7777"` shows it.
 - Relay amplification: a rogue peer's voice frames and chat lines are relayed by the server to every peer before game
-  code drops them (receiver-side limits only). The export templates (about 1 GB) are not installed yet: `toolsxport.ps1`
-  asks before downloading.
+  code drops them (receiver-side limits only): Godot's relay runs before game code, and `server_relay` stays on because
+  the owner-authority movement sync needs it (CONTRACTS, Voice). The export templates (about 1 GB) are not installed
+  yet: `toolsxport.ps1` asks before downloading.
 - Held item receives no world shadows (camera-layer view model).
 - The microphone path was never heard by a human here (headless cannot capture); the receive path is tested.
 - The booth door's collider is always solid; the Boss has no collision, workers cannot follow him into the booth.
@@ -75,6 +78,6 @@ socket; the local player's held item renders in a view-model layer (render layer
 - No host migration; movement trusted to clients.
 
 ## Things the user may ask for next (not started)
-- QA sweep (PLAN 10.8): 4-player cases for throws / shoves / inspection / back room.
 - A real playtest by ear: voice levels, the sound ladder in sfx.gd (audio agent's risk list in the M10 report).
-- Export presets (Windows build), a proper font, controller support, host migration.
+- Installing the export templates and cutting the first shareable zip (`tools\export.ps1`), a proper font, controller
+  support, host migration.
