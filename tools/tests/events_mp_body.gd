@@ -82,7 +82,8 @@ func _client_a() -> void:
 	if Game.local_player == null:
 		return
 	check(Events.is_power_on() and not Events.is_event_active(), "A: joined with the power on, no event")
-	await wait_until(func() -> bool: return not Events.is_power_on(), STEP_TIMEOUT, "A: power_changed(false) arrived")
+	# power_changed(false) and event_started are two reliable packets: the second may land a poll later.
+	await wait_until(func() -> bool: return not Events.is_power_on() and Events.is_event_active(Events.EVENT_POWER_CUT), STEP_TIMEOUT, "A: power_changed(false) + event_started arrived")
 	check(Events.is_event_active(Events.EVENT_POWER_CUT), "A: power cut active")
 	check(_started.size() >= 1 and _started.back()[0] == Events.EVENT_POWER_CUT and _started.back()[1].has("max_seconds"), "A: event_started(power_cut, {max_seconds})")
 	check(_power.size() >= 1 and _power.back()[0] == false, "A: power_changed(false)")
@@ -125,6 +126,8 @@ func _client_b() -> void:
 	check(not Game.world.room.is_power_on(), "B: Room power off")
 	check(_started.size() >= 1 and _started.back()[0] == Events.EVENT_POWER_CUT, "B: event_started(power_cut) emitted from the late-join sync")
 	await wait_until(func() -> bool: return Events.is_power_on(), STEP_TIMEOUT, "B: power back after A's reset")
+	# As for A: power_changed(true) and event_ended are two reliable packets; the second may land a poll later.
+	await wait_until(func() -> bool: return not Events.is_event_active(), 3.0, "B: the event is over here too")
 	check(not Events.is_event_active() and _ended.size() >= 1 and _ended.back()[0] == Events.EVENT_POWER_CUT, "B: event_ended(power_cut)")
 	await _inspection_checks("B")
 	await _leave("B")

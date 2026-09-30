@@ -348,7 +348,10 @@ func is_mic_available() -> bool; func get_speaking_peers() -> Array[int]
 Capture: `AudioStreamMicrophone` on a muted `Mic` bus + `AudioEffectCapture`; 20 ms frames, 16 kHz mono, mu-law
 8-bit (320 bytes). Transport: `@rpc("any_peer", "call_remote", "unreliable")` `_rpc_voice(seq: int, frame:
 PackedByteArray)` sent with `rpc()` (server relay). Receivers drop frames larger than 400 bytes, more than 60 per
-second per peer, or from peers not in `Net.players`. Playback: one `AudioStreamPlayer3D` + `AudioStreamGenerator`
+second per peer, or from peers not in `Net.players`. Known limit: Godot's server relay forwards a client's
+`rpc()` before any receiver-side check runs, so a flooding client still costs the host its upload times the other peers;
+`server_relay` stays on because the owner-authority `MultiplayerSynchronizer` movement depends on it.
+Playback: one `AudioStreamPlayer3D` + `AudioStreamGenerator`
 per remote peer under `Game.world` ("VoiceOut/<peer>"), moved to the speaker's head each frame, unit_size about
 `voice_range / 2`, max_distance `voice_range`. Back room: see the header of voice.gd. `push_to_talk` action = hold to
 send; open mic = energy gate. Headless: no capture, receive path still works (tests feed synthetic frames).
