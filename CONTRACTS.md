@@ -374,7 +374,8 @@ LAYER_WORLD from his eyes to the worker's chest, 1.0 m up when standing, 0.6 m c
 `Events.is_power_on()`), ends when a worker holds E for `fuse_reset_sec` at `Stations/FuseBox` (`FuseBox`
 station, `scripts/stations/fuse_box.gd`, `is_tripped()`, progress synced for the prompt) or after
 `power_cut_max_sec`. **Audit:** `GameState.server_raise_quota(fraction)` (lead) once, instant. **Rat (stretch):**
-a `Rat` NPC runs from a wall gap to a growing plot and eats stage progress until a worker comes within 1.5 m.
+a `Rat` NPC runs from a wall gap to a growing plot and eats stage progress until a worker comes within 1.5 m. A late joiner
+sees him where he is by now (part-way along the run, or eating at the tray), like the Boss's resumed walk.
 Story (ui agent) owns every line of copy for these; Events only emits signals (plus `worker_written_up` from GameState).
 
 ## Comms (ui agent) — scripts/core/comms.gd

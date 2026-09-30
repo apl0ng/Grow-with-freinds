@@ -487,7 +487,7 @@ func _rpc_event_started(kind: StringName, params: Dictionary, seconds: float) ->
 		EVENT_INSPECTION:
 			_start_inspection_visuals(params, seconds)
 		EVENT_RAT:
-			_spawn_rat(params)
+			_spawn_rat(params, seconds)
 	Sfx.play(&"alarm")
 	event_started.emit(kind, params)
 
@@ -672,13 +672,15 @@ func _start_inspection_visuals(params: Dictionary, seconds_left: float) -> void:
 	boss.walk_route(room.get_inspection_route(), speed, elapsed)
 
 
-## Every peer: the rat prop, a plain child of the Room (not a spawned node).
-func _spawn_rat(params: Dictionary) -> void:
+## Every peer: the rat prop, a plain child of the Room (not a spawned node). A late joiner replays the event with
+## the seconds left: he is placed where he already is by now (part-way along his run, or at the tray), not at the gap.
+func _spawn_rat(params: Dictionary, seconds_left: float = RAT_MAX_SEC) -> void:
 	var room := _room()
 	if room == null:
 		return
 	var old := _rat()
 	if old != null:
+		old.name = RAT_NODE_NAME + "_gone"
 		old.queue_free()
 	var scene := load(RAT_SCENE_PATH) as PackedScene
 	if scene == null:
@@ -690,10 +692,23 @@ func _spawn_rat(params: Dictionary) -> void:
 	room.add_child(rat)
 	var from: Vector3 = params.get("from", RAT_GAP)
 	rat.global_position = from
-	var plot := room.get_station("GrowPlot%d" % int(params.get("plot", 0))) as Node3D
-	if plot != null and rat.has_method(&"run_to"):
-		rat.call(&"run_to", plot.global_position + plot.global_basis.z.normalized() * 0.55)
 	_rat_squeak_left = 0.6
+	var plot := room.get_station("GrowPlot%d" % int(params.get("plot", 0))) as Node3D
+	if plot == null or not rat.has_method(&"run_to"):
+		return
+	var target: Vector3 = plot.global_position + plot.global_basis.z.normalized() * 0.55
+	rat.call(&"run_to", target)
+	var elapsed := RAT_MAX_SEC - seconds_left
+	if elapsed <= 0.0:
+		return
+	# Resume: he left the gap `elapsed` seconds ago at run_speed. Arriving exactly at the target makes him eat next frame.
+	var run := Vector3(target.x - from.x, 0.0, target.z - from.z)
+	var speed_v: Variant = rat.get(&"run_speed")
+	var speed := float(speed_v) if speed_v != null else 2.6
+	var t := clampf(elapsed / maxf(run.length() / maxf(speed, 0.01), 0.001), 0.0, 1.0)
+	rat.global_position = Vector3(lerpf(from.x, target.x, t), from.y, lerpf(from.z, target.z, t))
+	if run.length_squared() > 0.0001:
+		rat.global_rotation.y = atan2(-run.x, -run.z)
 
 
 func _room() -> Room:

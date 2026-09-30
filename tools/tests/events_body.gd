@@ -132,6 +132,20 @@ func _test_rat(b: BalanceConfig) -> void:
 	check(not is_instance_valid(rat) or rat.is_fleeing() or rat.is_queued_for_deletion(), "he flees")
 	await wait_until(func() -> bool: return _room.get_node_or_null(^"Rat") == null, 10.0, "he is gone again")
 	_put(w2, _room.get_spawn_transform(w2.spawn_index).origin)
+	# A late joiner replays the event with the seconds left: he must be where he is by now, not rerun from the gap.
+	var target := plot2.global_position + plot2.global_basis.z.normalized() * 0.55
+	var run_len := Vector2(target.x - from.x, target.z - from.z).length()
+	Events._rpc_event_started(Events.EVENT_RAT, {"plot": 2, "from": from}, Events.RAT_MAX_SEC - 1.0)
+	var late := _room.get_node_or_null(^"Rat") as Rat
+	var d_from := late.global_position.distance_to(from) if late != null else -1.0
+	check(late != null and late.is_running() and absf(d_from - minf(late.run_speed, run_len)) < 0.3, "late-join replay 1 s in: part-way along his run (%.2f m from the gap, run %.2f m)" % [d_from, run_len])
+	Events._rpc_event_started(Events.EVENT_RAT, {"plot": 2, "from": from}, Events.RAT_MAX_SEC - 20.0)
+	late = _room.get_node_or_null(^"Rat") as Rat
+	check(late != null and late.global_position.distance_to(target) < 0.1, "replay 20 s in: already at the tray (the old prop is gone: %s)" % [_room.get_node_or_null(^"Rat_gone") == null or _room.get_node_or_null(^"Rat_gone").is_queued_for_deletion()])
+	await wait_frames(2)
+	check(late != null and is_instance_valid(late) and late.is_eating() and _room.get_node_or_null(^"Rat_gone") == null, "and eating next frame; the replaced prop was freed")
+	Events.server_end_event()
+	await wait_until(func() -> bool: return _room.get_node_or_null(^"Rat") == null, 10.0, "cleared after the replay")
 	_started.clear()
 	_ended.clear()
 
