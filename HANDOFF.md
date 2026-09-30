@@ -70,7 +70,7 @@ socket; the local player's held item renders in a view-model layer (render layer
 - Relay amplification: a rogue peer's voice frames and chat lines are relayed by the server to every peer before game
   code drops them (receiver-side limits only): Godot's relay runs before game code, and `server_relay` stays on because
   the owner-authority movement sync needs it (CONTRACTS, Voice). The export templates (about 1 GB) are not installed
-  yet: `toolsxport.ps1` asks before downloading.
+  yet: `tools\export.ps1` asks before downloading.
 - Held item receives no world shadows (camera-layer view model).
 - The microphone path was never heard by a human here (headless cannot capture); the receive path is tested.
 - The booth door's collider is always solid; the Boss has no collision, workers cannot follow him into the booth.

@@ -244,7 +244,8 @@ Decisions:
 | 11.2 | Four-player stress of M10 (same-frame throws, chute shots, shove chains, inspection with churn, back room, power cut, voice/chat floods, retry, a full shift with the scheduler on) qa_m10_4p | qa | done (506 checks; 2 bugs fixed: back-room slots, workers as moving platforms) |
 | 11.3 | Shareable Windows build: export_presets.cfg ("Windows Desktop", embedded PCK) + tools/export.ps1 (installs the Windows export templates on request, exports, zips) | lead | done (templates not downloaded yet: the user's call, ~1 GB) |
 | 11.4 | `--mute` / `-Mute` / saved Sound toggle; playtest switches `--auto-start`, `--first-event`, `--event-delay` | lead | done |
-$1| 11.6 | Windows Firewall permission for hosting: WindowsFirewall autoload (read-only netsh check, one UAC prompt through a PowerShell helper, retry button, `--firewall` / `--no-firewall`); firewall suite | lead | done (the UAC path needs a human: `.\launch.ps1 -Firewall -HostGame`) |
+| 11.5 | LAN discovery: Lan autoload (UDP beacon on 7778 while hosting) + "Floors open nearby" in the menu; lan suite | lead | done |
+| 11.6 | Windows Firewall permission for hosting: WindowsFirewall autoload (read-only netsh check, one UAC prompt through a PowerShell helper, retry button, `--firewall` / `--no-firewall`); firewall suite | lead | done (the UAC path needs a human: `.\launch.ps1 -Firewall -HostGame`) |
 | 11.7 | Launchers: launch.ps1 rewrite (parameter sets, `-Mute`, `-NoDownload`, ASCII output), Linux / macOS `launch.sh`, `.gitattributes` keeping `*.sh` LF | lead | done |
 | 11.8 | Graceful test shutdown (Voice.shutdown + Sfx.stop_all before quit) against the exit-139 crash after PASS; full run 2026-09-29: 49 suites, about 7,900 checks, no crash | lead | done (watch for a recurrence) |
 | 11.9 | Late joiner's rat resumes from the seconds left instead of rerunning from the gap; events_mp waits for both reliable packets (power / event) before asserting | lead | done |
