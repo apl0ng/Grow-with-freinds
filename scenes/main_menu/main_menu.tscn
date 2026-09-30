@@ -201,6 +201,13 @@ theme_type_variation = &"ErrorLabel"
 horizontal_alignment = 1
 autowrap_mode = 3
 
+[node name="FirewallButton" type="Button" parent="Center/Column/Card/Form"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"SmallButton"
+text = "Allow UDP 7777 through Windows Firewall"
+
 [node name="HowTo" type="PanelContainer" parent="Center/Column"]
 custom_minimum_size = Vector2(600, 0)
 layout_mode = 2

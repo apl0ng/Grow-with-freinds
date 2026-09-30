@@ -638,6 +638,13 @@ func _release_output(o: Output) -> void:
 		o.player.queue_free()
 	o.player = null
 
+## Releases every audio object this autoload owns (mic capture, generator playbacks, emitters) so the process can
+## quit cleanly: tests call it right before get_tree().quit() (a generator playback still referenced at engine
+## shutdown has crashed the exit now and then). Safe to call any time; capture resumes on the next _process.
+func shutdown() -> void:
+	_stop_capture()
+	_clear_peer_state()
+
 ## Offline / back in the menu: everything goes.
 func _clear_peer_state() -> void:
 	var now := Time.get_ticks_msec()

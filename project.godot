@@ -30,6 +30,7 @@ Voice="*res://scripts/core/voice.gd"
 Events="*res://scripts/core/events.gd"
 Comms="*res://scripts/core/comms.gd"
 Lan="*res://scripts/core/lan.gd"
+WindowsFirewall="*res://scripts/core/windows_firewall.gd"
 
 [audio]
 

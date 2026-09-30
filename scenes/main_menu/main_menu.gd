@@ -42,6 +42,12 @@ const TEXT_LAN_ITEM := "%s's floor · %d/%d · %s:%d"
 ## Shown under the list so a host can read their own address out to friends the broadcast does not reach.
 const TEXT_MY_ADDRESS := "Your address for friends: %s · port %d"
 const TEXT_MY_ADDRESS_NONE := "No network address found."
+## Windows Firewall (M11): status texts and the retry button.
+const TEXT_FIREWALL_CHECK := "Checking Windows Firewall…"
+const TEXT_FIREWALL_OK := "Windows Firewall allows UDP port %d."
+const TEXT_FIREWALL_BUTTON := "Allow UDP %d through Windows Firewall"
+
+@onready var firewall_button: Button = %FirewallButton
 
 var _time: float = 0.0
 var _busy: bool = false
@@ -63,6 +69,8 @@ func _ready() -> void:
 	ip_edit.text_submitted.connect(_on_ip_submitted)
 	lan_list.item_selected.connect(_on_lan_selected)
 	lan_list.item_activated.connect(_on_lan_activated)
+	firewall_button.pressed.connect(_on_firewall_pressed)
+	_refresh_firewall_button()
 	Lan.games_changed.connect(_refresh_lan)
 	Lan.listen() # a bind error just leaves the list empty (another menu on this PC holds the port)
 	port_spin.value_changed.connect(func(_v: float) -> void: _refresh_my_address())
@@ -181,7 +189,60 @@ func _begin_host(remember: bool) -> void:
 	_set_busy(true)
 	_show_status(TEXT_HOSTING % port, &"info")
 	# Deferred: Game frees this menu while starting, never do that inside the button's own signal.
-	_do_host.call_deferred(_player_name(), port)
+	_host_after_firewall.call_deferred(_player_name(), port)
+
+# --- Windows Firewall (M11) -------------------------------------------------------------------------------------
+
+## Host: on Windows (exported builds, or dev runs with --firewall) make sure the inbound UDP rule for the game port
+## exists first (one UAC prompt at most; see scripts/core/windows_firewall.gd). A decline or a failure never stops
+## hosting: the player is told friends may not get in, here and as a toast once the room is up, and the retry
+## button appears under the status line.
+func _host_after_firewall(player_name: String, port: int) -> void:
+	var fw: Node = WindowsFirewall
+	if fw.is_check_enabled():
+		_show_status(TEXT_FIREWALL_CHECK, &"info")
+		var result: Dictionary = await fw.ensure_multiplayer_firewall_access(port)
+		if not is_inside_tree():
+			return
+		_apply_firewall_result(result, true)
+	_do_host(player_name, port)
+
+func _apply_firewall_result(result: Dictionary, hosting_next: bool) -> void:
+	var status: StringName = result.get("status", &"")
+	var message := String(result.get("message", ""))
+	var port := int(result.get("port", 7777))
+	match status:
+		WindowsFirewall.STATUS_CREATED:
+			_show_status(TEXT_FIREWALL_OK % port, &"success")
+			if hosting_next:
+				Game.world_ready.connect(func(_w: Node) -> void: Game.toast(TEXT_FIREWALL_OK % port, &"info"), CONNECT_ONE_SHOT)
+		WindowsFirewall.STATUS_DECLINED, WindowsFirewall.STATUS_FAILED:
+			_show_status(message, &"error")
+			if hosting_next:
+				Game.world_ready.connect(func(_w: Node) -> void: Game.toast(message, &"error"), CONNECT_ONE_SHOT)
+	_refresh_firewall_button()
+
+## The retry button shows only when a Windows Firewall request was declined or failed in this session.
+func _refresh_firewall_button() -> void:
+	var fw: Node = WindowsFirewall
+	var last: Dictionary = fw.last_result
+	var status: StringName = last.get("status", &"")
+	firewall_button.visible = fw.is_check_enabled() and (status == WindowsFirewall.STATUS_DECLINED or status == WindowsFirewall.STATUS_FAILED)
+	firewall_button.text = TEXT_FIREWALL_BUTTON % int(port_spin.value)
+
+func _on_firewall_pressed() -> void:
+	if _busy:
+		return
+	Sfx.play(&"ui_click")
+	_set_busy(true)
+	_show_status(TEXT_FIREWALL_CHECK, &"info")
+	var result: Dictionary = await WindowsFirewall.request_again(int(port_spin.value))
+	if not is_inside_tree():
+		return
+	_set_busy(false)
+	_apply_firewall_result(result, false)
+	if result.get("status", &"") == WindowsFirewall.STATUS_EXISTS:
+		_show_status(TEXT_FIREWALL_OK % int(result.get("port", 7777)), &"success")
 
 func _begin_join(remember: bool) -> void:
 	if _busy:

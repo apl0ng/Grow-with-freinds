@@ -27,6 +27,9 @@
     Game port (default 7777). Friends over the internet need it forwarded (UDP).
 .PARAMETER Fullscreen
     Borderless fullscreen (single window only).
+.PARAMETER Firewall
+    Run the Windows Firewall check when hosting (one UAC prompt to allow UDP 7777) even in this dev run; exported
+    builds do it by themselves.
 .PARAMETER Editor
     Open the Godot editor on the project instead of playing.
 .PARAMETER Import
@@ -56,6 +59,7 @@ param(
     [Parameter(ParameterSetName = 'Play')] [string] $Name = '',
     [Parameter(ParameterSetName = 'Play')] [ValidateRange(1024, 65535)] [int] $Port = 7777,
     [Parameter(ParameterSetName = 'Play')] [switch] $Fullscreen,
+    [Parameter(ParameterSetName = 'Play')] [switch] $Firewall,
     [Parameter(ParameterSetName = 'Editor')] [switch] $Editor,
     [switch] $Import,
     [string] $GodotPath = '',
@@ -198,6 +202,7 @@ if ($Import -or -not (Test-Path $script:ImportedDir)) { Invoke-ResourceImport -G
 $common = @()
 if ($Fast) { $common += '--fast' }
 if ($Mute) { $common += '--mute' }
+if ($Firewall) { $common += '--firewall' }   # run the Windows Firewall check on Host even in this dev (editor-binary) run
 if ($Port -ne 7777) { $common += "--port=$Port" }
 
 if ($Players -gt 1) {

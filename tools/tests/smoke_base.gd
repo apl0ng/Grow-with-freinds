@@ -78,4 +78,17 @@ func finish() -> void:
 		return
 	_finished = true
 	print("[%s] %d passed, %d failed -> %s" % [_label, _passes, _fails, "PASS" if _fails == 0 else "FAIL"])
-	get_tree().quit(0 if _fails == 0 else 1)
+	quit_gracefully(0 if _fails == 0 else 1)
+
+## Lets go of the audio objects (voice emitters, one-shot voices) and gives the engine a few frames before quitting:
+## a generator playback still referenced at shutdown has segfaulted the exit now and then (exit 139 after a PASS).
+func quit_gracefully(code: int) -> void:
+	var voice := get_node_or_null(^"/root/Voice")
+	if voice != null and voice.has_method(&"shutdown"):
+		voice.call(&"shutdown")
+	var sfx := get_node_or_null(^"/root/Sfx")
+	if sfx != null and sfx.has_method(&"stop_all"):
+		sfx.call(&"stop_all")
+	for i in 4:
+		await get_tree().process_frame
+	get_tree().quit(code)

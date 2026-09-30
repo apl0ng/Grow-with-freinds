@@ -488,3 +488,24 @@ range-checked, names sanitized, the list capped at 32 entries. Suite: lan (+51).
 - **QA outcomes (qa_m10_4p, +52):** back-room slots are claimed by the lowest free index on the host
   (`Events._claim_backroom_slot`), never by the sorted-peer position; `Player._ready` sets `platform_floor_layers =
   LAYER_WORLD` and `platform_wall_layers = 0`, so a worker standing on another is not flung when that one teleports.
+
+## WindowsFirewall (lead, M11) — scripts/core/windows_firewall.gd
+```gdscript
+signal firewall_result(result: Dictionary)   # {"status": skipped|exists|created|declined|failed, "message", "port"}
+func is_windows() -> bool; func is_check_enabled() -> bool; func get_skip_reason() -> String
+func get_rule_name(port) -> String           # "Grow With Friends Multiplayer UDP <port>"
+func get_program_path() -> String            # OS.get_executable_path() (the exported .exe; the editor binary in dev runs)
+func check_rule(port) -> Dictionary          # read-only netsh query: {"exists", "healthy", "details", "raw"}
+func ensure_multiplayer_firewall_access(port := 7777, force := false) -> Dictionary   # coroutine, at most one UAC prompt
+func request_again(port := 7777) -> Dictionary                                        # the menu's retry
+static func parse_rule_output(text, port, program) -> Dictionary; static func classify_result_text(text) -> String
+static func build_helper_script() -> String
+```
+Transport is ENet = UDP only: one inbound rule, `dir=in action=allow protocol=UDP localport=<port> program=<exe>
+profile=any enable=yes`, created or repaired by a PowerShell helper written to `user://` that runs netsh through
+`Start-Process -Verb RunAs` (the normal UAC prompt); the game itself never runs elevated, the firewall is never
+disabled, no port range, no TCP. Called from the main menu's Host path only (never at launch, never when joining).
+Skipped on non-Windows, headless, `--no-firewall`, and in dev runs (editor binary) unless `--firewall` (launcher
+`-Firewall`). A decline or failure never blocks hosting: status line + toast + the menu's retry button; no prompt is
+repeated until the player presses it. LAN discovery's inbound UDP 7778 (joining side) is not covered on purpose.
+Suite: firewall (+53).

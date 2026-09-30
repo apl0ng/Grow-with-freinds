@@ -36,6 +36,13 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 - `python3 tools/blender/build.py [family ...] --test` builds `tools/blender/models/*.py` into `art/models/*.glb`
   and imports them. See MODELING.md for the workflow and STYLE.md for the look.
 
+## Windows Firewall
+- When you press Host on Windows, the exported game (or a dev run with `.aunch.ps1 -Firewall`) checks for an
+  inbound rule "Grow With Friends Multiplayer UDP 7777" and, if it is missing, asks once for administrator permission
+  (the normal Windows prompt) to add just that rule, scoped to the game executable. Declining it never stops hosting: you
+  are told friends may not get in, and the menu offers a retry. Nothing else in the firewall is touched. `--no-firewall`
+  skips the check. Friends over the internet still need UDP 7777 forwarded on your router (not automated).
+
 ## Share a build with friends
 - `.	oolsxport.ps1` exports `exportGrowWithFriends.exe` (+ a zip) with the "Windows Desktop" preset. It needs the Godot
   4.7.2 export templates once (about 1 GB): the script offers to download them (`-DownloadTemplates` skips the question).

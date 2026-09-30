@@ -123,7 +123,7 @@ func _finish_with(code: int) -> void:
 	print("RESULT: %s [%s] %d passed, %d failed" % ["PASS" if ok else "FAIL", _label, _passes, _fails])
 	if Net.is_online():
 		Net.leave()
-	get_tree().quit(code if code > 0 else (0 if ok else 1))
+	quit_gracefully(code if code > 0 else (0 if ok else 1))
 
 # --- State helpers ---------------------------------------------------------------------------------------------
 
