@@ -1,0 +1,2 @@
+# Shell scripts stay LF on every checkout (bash rejects CR, and launch.sh must run on Linux).
+*.sh text eol=lf
