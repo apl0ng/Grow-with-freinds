@@ -11,12 +11,12 @@
 .EXAMPLE
     .\tools\export.ps1                      # export (asks to download the templates when missing)
     .\tools\export.ps1 -DownloadTemplates   # download the templates without asking, then export
-    .\tools\export.ps1 -Debug               # a debug build (console window, verbose errors)
+    .\tools\export.ps1 -DebugBuild          # a debug build (console window, verbose errors)
 #>
 [CmdletBinding()]
 param(
     [switch]$DownloadTemplates,
-    [switch]$Debug,
+    [switch]$DebugBuild,
     [string]$GodotPath = ""
 )
 
@@ -89,7 +89,7 @@ $godot = Find-Godot
 Write-Host "Using Godot: $godot"
 Install-Templates
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-$mode = if ($Debug) { "--export-debug" } else { "--export-release" }
+$mode = if ($DebugBuild) { "--export-debug" } else { "--export-release" }
 Write-Host "Exporting ($mode) to $OutExe ..."
 $p = Start-Process -FilePath $godot -ArgumentList @("--headless", "--path", "`"$ProjectDir`"", $mode, "`"$Preset`"", "`"$OutExe`"") -WorkingDirectory $ProjectDir -Wait -PassThru -WindowStyle Hidden
 if ($p.ExitCode -ne 0 -or -not (Test-Exe $OutExe)) { throw "Export failed (exit $($p.ExitCode)). Run it without -WindowStyle Hidden in the script, or export from the editor, to see the message." }

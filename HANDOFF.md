@@ -64,9 +64,9 @@ socket; the local player's held item renders in a view-model layer (render layer
 - Tests are Node "bodies" launched via `godot --headless --path . -s res://tools/tests/run_test.gd -- --body=...`.
 
 ## Known limitations at handoff
-- Windows Firewall rule creation (WindowsFirewall autoload) was verified headless (parsers, read-only netsh) and by code
-  review only; the UAC path needs a human: `.\launch.ps1 -Firewall -HostGame`, accept the prompt, then
-  `netsh advfirewall firewall show rule name="Grow With Friends Multiplayer UDP 7777"` shows it.
+- Windows Firewall rule creation (WindowsFirewall autoload): the UAC path was verified on this PC 2026-09-29 with
+  `.\launch.ps1 -Firewall -HostGame` (rule "Grow With Friends Multiplayer UDP 7777", UDP 7777 in, all profiles, program = the Godot
+  editor exe). The exported exe gets its own repair prompt the first time it hosts (different program path).
 - Relay amplification: a rogue peer's voice frames and chat lines are relayed by the server to every peer before game
   code drops them (receiver-side limits only): Godot's relay runs before game code, and `server_relay` stays on because
   the owner-authority movement sync needs it (CONTRACTS, Voice). The export templates (about 1 GB) are not installed
