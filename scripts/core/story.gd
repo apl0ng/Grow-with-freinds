@@ -147,6 +147,7 @@ func _ready() -> void:
 			events.connect(&"event_ended", _on_event_ended)
 		if events.has_signal(&"power_changed"):
 			events.connect(&"power_changed", _on_power_changed)
+	_connect_hostile_signals() # --- M12 hostile --- (lines + handlers live in the region at the end of this file)
 
 
 func _process(delta: float) -> void:
@@ -569,3 +570,92 @@ static func _find_descendant(root: Node, with_bark: bool) -> Node:
 					return node
 		queue.append_array(node.get_children())
 	return null
+
+
+# --- M12 hostile --------------------------------------------------------------------------------------------------
+## The hostile plant (hostile agent). Hostiles only emits signals (on every peer, from its call_local RPCs); every line
+## is here, flat, in the house tone:
+##   hostile_spawned   "Something came out of GrowPlot 3."   MAJOR     (the tray nearest the spawn point)
+##   hostile_eating    "It is eating GrowPlot 2."            PROGRESS
+##   hostile_ate       "GrowPlot 2 is gone."                 PROGRESS
+##   hostile_bit       "It bit Dale."                        PROGRESS  ("%s" = the worker's name)
+##   hostile_died      "It stopped moving."                  MAJOR
+## The keys are merged into `lines` at startup so the copy audit and line() see them like any other line.
+
+const HOSTILE_LINES: Dictionary = {
+	"hostile_spawned": "Something came out of %s.",
+	"hostile_eating": "It is eating %s.",
+	"hostile_ate": "%s is gone.",
+	"hostile_bit": "It bit %s.",
+	"hostile_died": "It stopped moving.",
+}
+## A spawn within this distance of a tray's centre is "out of" that tray.
+const HOSTILE_PLOT_RANGE := 1.5
+const HOSTILE_PLOT_NAME := "GrowPlot %d"
+const HOSTILE_PLOT_FALLBACK := "the trays"
+
+
+func _connect_hostile_signals() -> void:
+	for k in HOSTILE_LINES:
+		if not lines.has(k):
+			lines[k] = HOSTILE_LINES[k]
+	var hostiles: Node = get_node_or_null(^"/root/Hostiles")
+	if hostiles == null:
+		hostiles = Hostiles
+	if hostiles == null:
+		return
+	if hostiles.has_signal(&"hostile_spawned"):
+		hostiles.connect(&"hostile_spawned", _on_hostile_spawned)
+	if hostiles.has_signal(&"hostile_eating"):
+		hostiles.connect(&"hostile_eating", _on_hostile_eating)
+	if hostiles.has_signal(&"hostile_ate"):
+		hostiles.connect(&"hostile_ate", _on_hostile_ate)
+	if hostiles.has_signal(&"hostile_bit"):
+		hostiles.connect(&"hostile_bit", _on_hostile_bit)
+	if hostiles.has_signal(&"hostile_died"):
+		hostiles.connect(&"hostile_died", _on_hostile_died)
+
+
+func _on_hostile_spawned(_id: int, _strain_id: StringName, position: Vector3) -> void:
+	if not _in_session():
+		return
+	var idx := _hostile_plot_index_near(position)
+	_request_named("hostile_spawned", HOSTILE_PLOT_NAME % idx if idx > 0 else HOSTILE_PLOT_FALLBACK, Weight.MAJOR)
+
+
+func _on_hostile_eating(_id: int, plot_index: int) -> void:
+	if _in_session() and plot_index > 0:
+		_request_named("hostile_eating", HOSTILE_PLOT_NAME % plot_index, Weight.PROGRESS)
+
+
+func _on_hostile_ate(_id: int, plot_index: int) -> void:
+	if _in_session() and plot_index > 0:
+		_request_named("hostile_ate", HOSTILE_PLOT_NAME % plot_index, Weight.PROGRESS)
+
+
+func _on_hostile_bit(_id: int, peer_id: int) -> void:
+	if _in_session():
+		_request_named("hostile_bit", Net.get_player_name(peer_id), Weight.PROGRESS)
+
+
+func _on_hostile_died(_id: int, _by_peer: int) -> void:
+	if _in_session():
+		_request("hostile_died", Weight.MAJOR)
+
+
+## The GrowPlot index (1..6) whose tray is within HOSTILE_PLOT_RANGE of `position`, 0 when none.
+func _hostile_plot_index_near(position: Vector3) -> int:
+	var room := _get_room()
+	if room == null or not room.has_method(&"get_station"):
+		return 0
+	var best := 0
+	var best_d := HOSTILE_PLOT_RANGE
+	for i in range(1, 7):
+		var plot := room.call(&"get_station", "GrowPlot%d" % i) as Node3D
+		if plot == null or not plot.is_inside_tree():
+			continue
+		var d := Vector2(plot.global_position.x - position.x, plot.global_position.z - position.z).length()
+		if d <= best_d:
+			best_d = d
+			best = i
+	return best

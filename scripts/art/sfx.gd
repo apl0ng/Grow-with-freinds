@@ -816,6 +816,42 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_tone(b, 0.12, 0.1, 3500.0, 2700.0, 0.5, Wave.SINE, 0.003, 3.5, 55.0, 0.02)
 			_tone(b, 0.12, 0.06, 1750.0, 1350.0, 0.1, Wave.SINE, 0.003, 4.0)
 			_fade_out(b, 0.02)
+		# --- M12 hostile --- (placeholder recipes for the hostile plant; the audio pass refines them)
+		&"hostile_rise":  # roots tearing out of the soil: a low rumble, three creaks, a wet pop at the end
+			b = _buf(0.9)
+			_noise(b, rng, 0.0, 0.6, 0.5, 0.15, 0.02, 0.05, 3.0)                  # soil
+			for t: float in [0.1, 0.3, 0.5]:                                       # roots creaking
+				_tone(b, t, 0.14, 190.0, 120.0, 0.35, Wave.TRIANGLE, 0.004, 5.0, 28.0, 0.08)
+			_tone(b, 0.58, 0.16, 140.0, 55.0, 0.8, Wave.SINE, 0.002, 5.0)         # the pop
+			_noise(b, rng, 0.58, 0.05, 0.3, 0.4, 0.1, 0.001, 6.0)
+			_lowpass(b, 0.35)
+			_fade_out(b, 0.03)
+		&"hostile_bite":  # a wet snap: the clack of the mouth and a dull thud, no sting
+			b = _buf(0.3)
+			_noise(b, rng, 0.0, 0.03, 0.6, 0.8, 0.3, 0.0005, 7.0)                # snap
+			_tone(b, 0.0, 0.04, 900.0, 480.0, 0.3, Wave.TRIANGLE, 0.001, 6.0)     # clack
+			_tone(b, 0.02, 0.2, 150.0, 60.0, 0.9, Wave.SINE, 0.002, 5.0)          # thud
+			_noise(b, rng, 0.03, 0.12, 0.2, 0.3, 0.05, 0.004, 4.0)                # wet
+			_lowpass(b, 0.5)
+			_fade_out(b, 0.02)
+		&"hostile_eat":   # chewing: two soft chomps per 0.6 s loop, decayed to silence before the join
+			b = _buf(0.6)
+			for t: float in [0.0, 0.3]:
+				_noise(b, rng, t, 0.1, 0.45, 0.35, 0.1, 0.004, 5.0)
+				_tone(b, t, 0.11, 115.0, 70.0, 0.6, Wave.SINE, 0.003, 5.0)
+				_noise(b, rng, t + 0.09, 0.07, 0.2, 0.25, 0.04, 0.004, 4.0)
+			_lowpass(b, 0.4)
+			_fade_in(b, 0.004)
+			_fade_out(b, 0.04)
+		&"hostile_die":   # a wheeze going down, then a dry crackle as it folds
+			b = _buf(0.8)
+			_noise(b, rng, 0.0, 0.45, 0.45, 0.3, 0.05, 0.02, 3.5)                 # the wheeze
+			_tone(b, 0.0, 0.5, 260.0, 90.0, 0.5, Wave.TRIANGLE, 0.01, 4.0, 9.0, 0.05)
+			for t: float in [0.48, 0.55, 0.61, 0.7]:                               # dry crackle
+				_noise(b, rng, t, 0.02, 0.35, 0.7, 0.3, 0.0005, 7.0)
+			_tone(b, 0.5, 0.25, 90.0, 40.0, 0.5, Wave.SINE, 0.004, 5.0)           # it folds
+			_lowpass(b, 0.45)
+			_fade_out(b, 0.03)
 		_:
 			b = _buf(0.1)
 			_tone(b, 0.0, 0.08, 600.0, 600.0, 0.5, Wave.SINE, 0.002, 4.0)
