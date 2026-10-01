@@ -14,6 +14,7 @@ const GROUP_INTERACTABLES: StringName = &"interactables"
 const GROUP_ITEMS: StringName = &"items"
 const GROUP_GROW_PLOTS: StringName = &"grow_plots"
 const GROUP_NPCS: StringName = &"npcs"            # M10: the Boss, the rat (things that walk the floor)
+const GROUP_HOSTILES: StringName = &"hostiles"    # M12: hostile plants (children of World/Hostiles; also in GROUP_NPCS)
 
 # --- Item types (Item.item_type) ---
 const ITEM_WATERING_CAN: StringName = &"watering_can"

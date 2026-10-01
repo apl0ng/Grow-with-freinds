@@ -29,8 +29,6 @@ signal hostile_died(id: int, by_peer: int)
 ## Every peer (addition): hostile `id` started eating GrowPlot `plot_index` (Story: "It is eating GrowPlot 2.").
 signal hostile_eating(id: int, plot_index: int)
 
-## Local until the lead adds Const.GROUP_HOSTILES.
-const GROUP_HOSTILES: StringName = &"hostiles"
 const SCENE_PATH := "res://scenes/npcs/hostile_plant.tscn"
 const CONTAINER_PATH := ^"Hostiles"
 const NODE_PREFIX := "Hostile"

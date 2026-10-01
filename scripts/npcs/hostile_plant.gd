@@ -21,7 +21,7 @@ extends Node3D
 ## 0.025) and delete the placeholder meshes; _apply_tint() recolours any Toonify under Visual with the graded strain
 ## colour (TINT* parts) and any MeshInstance3D tagged `metadata/strain_tint = true`. `Visual/Bulb` and
 ## `Visual/Bulb/Mouth` are optional: name those parts in the model to keep the nod and the chomp.
-## Groups: GROUP_HOSTILES ("hostiles") + Const.GROUP_NPCS.
+## Groups: Const.GROUP_HOSTILES ("hostiles") + Const.GROUP_NPCS.
 
 ## HOST only: the state changed (Hostiles broadcasts it reliably).
 signal state_changed(state: int)
@@ -34,8 +34,6 @@ signal died(by_peer: int)
 
 enum State { ROOT, ROAM, EAT, CHASE, BITE, BURNING, DEAD }
 
-## Local until the lead adds Const.GROUP_HOSTILES.
-const GROUP_HOSTILES: StringName = &"hostiles"
 const STATE_NAMES: Array[String] = ["Rooting", "Roaming", "Eating", "Chasing", "Biting", "Burning", "Dead"]
 ## Seconds it stands where its tray was before it moves.
 const ROOT_SEC := 2.0
@@ -116,7 +114,7 @@ var _shape: CollisionShape3D
 
 
 func _enter_tree() -> void:
-	add_to_group(GROUP_HOSTILES)
+	add_to_group(Const.GROUP_HOSTILES)
 	add_to_group(Const.GROUP_NPCS)
 
 
@@ -478,7 +476,7 @@ func _probe_excludes() -> Array[RID]:
 	var out: Array[RID] = []
 	if _body != null:
 		out.append(_body.get_rid())
-	for n in get_tree().get_nodes_in_group(GROUP_HOSTILES):
+	for n in get_tree().get_nodes_in_group(Const.GROUP_HOSTILES):
 		if n == self:
 			continue
 		var body := n.get_node_or_null(^"Body") as CollisionObject3D

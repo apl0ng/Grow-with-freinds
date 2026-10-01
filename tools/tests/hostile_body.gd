@@ -115,7 +115,7 @@ func _test_mutation(b: BalanceConfig) -> void:
 	if h == null:
 		return
 	check(h.id == int(_spawned[0][0]) and h.strain_id == _strain.id, "id + strain on the node")
-	check(h.is_in_group(&"hostiles") and h.is_in_group(Const.GROUP_NPCS), "groups hostiles + npcs")
+	check(h.is_in_group(Const.GROUP_HOSTILES) and h.is_in_group(Const.GROUP_NPCS), "groups hostiles + npcs")
 	check(h.get_parent() == _world.get_node(^"Hostiles"), "a plain child of World/Hostiles")
 	check(h.state == HostilePlant.State.ROOT and h.get_state_name() == "Rooting", "it roots first")
 	var body := h.get_node_or_null(^"Body") as StaticBody3D

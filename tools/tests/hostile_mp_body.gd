@@ -113,7 +113,7 @@ func _client_a() -> void:
 		return
 	var h := Hostiles.get_hostiles()[0] as HostilePlant
 	check(h != null and h.id > 0 and h.strain_id == Config.balance.seeds[0].id, "A: HostilePlant %d, strain %s" % [h.id, h.strain_id])
-	check(h.get_parent() == Game.world.get_node(^"Hostiles") and h.is_in_group(&"hostiles") and h.is_in_group(Const.GROUP_NPCS), "A: under World/Hostiles, in the groups")
+	check(h.get_parent() == Game.world.get_node(^"Hostiles") and h.is_in_group(Const.GROUP_HOSTILES) and h.is_in_group(Const.GROUP_NPCS), "A: under World/Hostiles, in the groups")
 	check(_spawned.size() == 1 and _spawned[0][0] == h.id and _spawned[0][1] == h.strain_id, "A: hostile_spawned here %s" % [_spawned])
 	check(h.get_node_or_null(^"Visual") != null, "A: Visual child")
 	var p0 := h.global_position
