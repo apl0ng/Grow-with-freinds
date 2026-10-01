@@ -62,6 +62,9 @@ func _ready() -> void:
 	set_process(false)
 	set_process_input(false)
 	_build_cards()
+	_seed_grid.sort_children.connect(_queue_fit)
+	_upgrade_grid.sort_children.connect(_queue_fit)
+	get_viewport().size_changed.connect(_queue_fit)
 	_close_button.pressed.connect(close)
 	_seeds_tab.pressed.connect(show_tab.bind(TAB_SEEDS))
 	_upgrades_tab.pressed.connect(show_tab.bind(TAB_UPGRADES))
@@ -100,6 +103,7 @@ func open(p_counter: ShopCounter, p_player: Player) -> void:
 	_last_money = GameState.money
 	_update_money_label(GameState.money)
 	show_tab(_tab, false)
+	_queue_fit()
 	_refresh()
 	_set_lock(true)
 	set_process(true)
@@ -108,6 +112,61 @@ func open(p_counter: ShopCounter, p_player: Player) -> void:
 	Juice.pop_in(_panel)
 	_focus_default.call_deferred()
 	opened.emit()
+
+
+# --- M12 strains ---
+## The scene's scroll area floor (px): one row of cards plus a little of the next.
+const SCROLL_MIN_HEIGHT := 340.0
+## What the panel needs besides the scroll area (header, tabs, footer, separations, padding), roughly, in px.
+const PANEL_CHROME_HEIGHT := 300.0
+
+var _fit_queued := false
+
+## Re-measures once the containers have sorted (the cards' wrapped labels only know their height after their width is
+## set; measured too early they report a few lines each) and whenever the window changes size. Deferred, so a sort
+## never re-enters itself; a fit that changes the scroll area queues another sort, and the sequence settles once the
+## cards stop changing height.
+func _queue_fit() -> void:
+	if _fit_queued:
+		return
+	_fit_queued = true
+	_fit_scroll.call_deferred()
+
+
+## The seed page's content height once its cards were laid out (the tallest page: six cards in two rows). Measured
+## only while the SEEDS grid is visible: a hidden grid's cards are never sized, so their wrapped labels report
+## nonsense heights. Both tabs use it, so the window keeps one size when switching.
+var _rows_height := 0.0
+
+## Six strains = two rows of seed cards. The scroll area grows to show every row when the window is tall enough, so
+## the second row is not hidden behind a scroll bar on a normal screen; on a short window it keeps the scene's floor
+## and scrolls (follow_focus keeps the keyboard path working).
+func _fit_scroll() -> void:
+	_fit_queued = false
+	if not is_inside_tree():
+		return
+	if _seed_grid.visible and _seed_grid.get_child_count() > 0:
+		var pages := _scroll.get_child(0) as MarginContainer if _scroll.get_child_count() > 0 else null
+		var margins := 0.0
+		if pages != null:
+			margins = float(pages.get_theme_constant(&"margin_top") + pages.get_theme_constant(&"margin_bottom"))
+		var rows := ceili(float(_seed_grid.get_child_count()) / float(maxi(_seed_grid.columns, 1)))
+		var card_h := 0.0
+		for c in _seed_grid.get_children():
+			if c is Control and (c as Control).visible:
+				card_h = maxf(card_h, (c as Control).get_combined_minimum_size().y)
+		var sep := float(_seed_grid.get_theme_constant(&"v_separation"))
+		_rows_height = rows * card_h + (rows - 1) * sep + margins
+	var room := get_viewport().get_visible_rect().size.y - PANEL_CHROME_HEIGHT
+	var height := maxf(SCROLL_MIN_HEIGHT, minf(maxf(_rows_height, SCROLL_MIN_HEIGHT), room))
+	if absf(height - _scroll.custom_minimum_size.y) > 0.5:
+		_scroll.custom_minimum_size.y = height
+
+
+## The height the scroll area was given for the current cards (tests).
+func get_scroll_height() -> float:
+	return _scroll.custom_minimum_size.y
+# --- end M12 strains ---
 
 
 ## Hides the window and releases the UI lock. `play_sound` = false for silent teardown.

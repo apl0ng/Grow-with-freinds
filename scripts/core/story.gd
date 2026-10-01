@@ -94,6 +94,11 @@ var blurbs: Dictionary = {
 	"budget": "Cheap. Fast. Pays almost nothing.",
 	"purple": "Slower. Pays better.",
 	"golden": "Slow. Bigger yield. Don't mess it up.",
+	# --- M12 strains ---
+	"nightshift": "Pays the best. Some of them get up and walk.",
+	"creeper": "Cheap. Quick. It twitches. Keep your distance.",
+	"brick": "Slow. Heavy yield. Some of them walk off with it.",
+	# --- end M12 strains ---
 	"fertilizer": "They grow faster. Don't ask what's in it.",
 	"big_can": "Bigger cans. Fewer trips to the tank.",
 	"sweet_talk": "He takes a smaller cut of every deposit.",

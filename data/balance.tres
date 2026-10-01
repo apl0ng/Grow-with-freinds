@@ -11,6 +11,7 @@ id = &"budget"
 display_name = "Budget Bud"
 description = "Cheap. Grows fast. Pays little."
 color = Color(0.55, 0.85, 0.35, 1)
+mutation_chance = 0.0
 
 [sub_resource type="Resource" id="Resource_icusp"]
 resource_name = "Purple Haze"
@@ -22,6 +23,7 @@ cost = 45
 grow_time_multiplier = 1.3
 sale_value_per_unit = 130
 color = Color(0.7, 0.45, 0.9, 1)
+mutation_chance = 0.05
 
 [sub_resource type="Resource" id="Resource_2bvcb"]
 resource_name = "Golden Kush"
@@ -34,6 +36,44 @@ grow_time_multiplier = 1.6
 yield_amount = 2
 sale_value_per_unit = 120
 color = Color(1, 0.8, 0.25, 1)
+mutation_chance = 0.1
+
+[sub_resource type="Resource" id="Resource_m12ns"]
+resource_name = "Night Shift"
+script = ExtResource("2_75r0e")
+id = &"nightshift"
+display_name = "Night Shift"
+description = "Dark. Pays the most. One in three gets up and leaves the tray."
+cost = 70
+grow_time_multiplier = 1.2
+sale_value_per_unit = 170
+color = Color(0.36, 0.2, 0.56, 1)
+mutation_chance = 0.35
+
+[sub_resource type="Resource" id="Resource_m12cr"]
+resource_name = "Creeper"
+script = ExtResource("2_75r0e")
+id = &"creeper"
+display_name = "Creeper"
+description = "Cheap. Quick. It twitches. Some of them walk."
+cost = 30
+grow_time_multiplier = 0.8
+sale_value_per_unit = 70
+color = Color(0.2, 0.72, 0.64, 1)
+mutation_chance = 0.12
+
+[sub_resource type="Resource" id="Resource_m12br"]
+resource_name = "Floor Brick"
+script = ExtResource("2_75r0e")
+id = &"brick"
+display_name = "Floor Brick"
+description = "Slow. Heavy. Three units a plant. One in five walks off with them."
+cost = 120
+grow_time_multiplier = 2.0
+yield_amount = 3
+sale_value_per_unit = 110
+color = Color(0.72, 0.36, 0.2, 1)
+mutation_chance = 0.2
 
 [sub_resource type="Resource" id="Resource_htc7v"]
 resource_name = "Cheap Fertilizer"
@@ -68,5 +108,5 @@ effect_per_level = 0.1
 
 [resource]
 script = ExtResource("1_e7bv1")
-seeds = Array[ExtResource("2_75r0e")]([SubResource("Resource_j68rn"), SubResource("Resource_icusp"), SubResource("Resource_2bvcb")])
+seeds = Array[ExtResource("2_75r0e")]([SubResource("Resource_j68rn"), SubResource("Resource_icusp"), SubResource("Resource_2bvcb"), SubResource("Resource_m12ns"), SubResource("Resource_m12cr"), SubResource("Resource_m12br")])
 upgrades = Array[ExtResource("3_njojm")]([SubResource("Resource_htc7v"), SubResource("Resource_4r1k0"), SubResource("Resource_h2r3a")])

@@ -6,9 +6,13 @@ extends SceneTree
 func _init() -> void:
 	var b := BalanceConfig.new()
 	b.seeds = [
-		_seed(&"budget", "Budget Bud", "Cheap. Grows fast. Pays little.", 20, 1.0, 1, 60, Color(0.55, 0.85, 0.35)),
-		_seed(&"purple", "Purple Haze", "Slower. Pays better. The Boss prefers it.", 45, 1.3, 1, 130, Color(0.7, 0.45, 0.9)),
-		_seed(&"golden", "Golden Kush", "Long grow. Double yield. He counts these.", 90, 1.6, 2, 120, Color(1.0, 0.8, 0.25)),
+		_seed(&"budget", "Budget Bud", "Cheap. Grows fast. Pays little.", 20, 1.0, 1, 60, Color(0.55, 0.85, 0.35), 0.0),
+		_seed(&"purple", "Purple Haze", "Slower. Pays better. The Boss prefers it.", 45, 1.3, 1, 130, Color(0.7, 0.45, 0.9), 0.05),
+		_seed(&"golden", "Golden Kush", "Long grow. Double yield. He counts these.", 90, 1.6, 2, 120, Color(1.0, 0.8, 0.25), 0.1),
+		# M12 strains: the mutation chance is rolled once when the plant becomes READY (CONTRACTS "M12").
+		_seed(&"nightshift", "Night Shift", "Dark. Pays the most. One in three gets up and leaves the tray.", 70, 1.2, 1, 170, Color(0.36, 0.2, 0.56), 0.35),
+		_seed(&"creeper", "Creeper", "Cheap. Quick. It twitches. Some of them walk.", 30, 0.8, 1, 70, Color(0.2, 0.72, 0.64), 0.12),
+		_seed(&"brick", "Floor Brick", "Slow. Heavy. Three units a plant. One in five walks off with them.", 120, 2.0, 3, 110, Color(0.72, 0.36, 0.2), 0.2),
 	]
 	b.upgrades = [
 		_upgrade(&"fertilizer", "Cheap Fertilizer", "Plants grow 25% faster per level. Don't ask what's in it.", 150, 1.6, 3, Const.EFFECT_GROWTH_SPEED, 0.25),
@@ -19,7 +23,8 @@ func _init() -> void:
 	print("balance.tres saved: ", error_string(err))
 	quit(0 if err == OK else 1)
 
-func _seed(id: StringName, name: String, desc: String, cost: int, mult: float, yield_amount: int, value: int, color: Color) -> SeedDef:
+func _seed(id: StringName, name: String, desc: String, cost: int, mult: float, yield_amount: int, value: int, color: Color,
+		mutation: float = 0.0) -> SeedDef:
 	var s := SeedDef.new()
 	s.id = id
 	s.display_name = name
@@ -29,6 +34,7 @@ func _seed(id: StringName, name: String, desc: String, cost: int, mult: float, y
 	s.yield_amount = yield_amount
 	s.sale_value_per_unit = value
 	s.color = color
+	s.mutation_chance = mutation
 	s.resource_name = name
 	return s
 

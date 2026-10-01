@@ -255,6 +255,27 @@
   ],
   "tris": 4780
  },
+ "emergency_cabinet": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_red",
+   "toon_void",
+   "toon_metal_dark",
+   "toon_caution",
+   "toon_cream",
+   "toon_rust",
+   "toon_glass"
+  ],
+  "mount": "wall",
+  "script": "tools/blender/models/trouble.py",
+  "size": [
+   0.486,
+   0.65,
+   0.199
+  ],
+  "tris": 2436
+ },
  "fence_gate": {
   "front": "+z",
   "kind": "prop",
@@ -307,6 +328,27 @@
    0.369
   ],
   "tris": 2172
+ },
+ "flamethrower": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "toon_dark",
+   "toon_metal_dark",
+   "toon_metal",
+   "toon_void",
+   "toon_red",
+   "toon_cream",
+   "toon_orange"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/trouble.py",
+  "size": [
+   0.154,
+   0.25,
+   0.655
+  ],
+  "tris": 2396
  },
  "floor_slab": {
   "front": "+z",
@@ -490,6 +532,29 @@
    1.62
   ],
   "tris": 2254
+ },
+ "hostile_plant": {
+  "front": "-z",
+  "kind": "character",
+  "materials": [
+   "TINT_bud",
+   "TINT_bud_dark",
+   "root",
+   "toon_void",
+   "toon_cream",
+   "toon_eye_black",
+   "toon_eyelid",
+   "toon_leaf_dry",
+   "toon_soil"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/trouble.py",
+  "size": [
+   0.921,
+   1.089,
+   0.841
+  ],
+  "tris": 5886
  },
  "leaky_pipe": {
   "front": "+z",
