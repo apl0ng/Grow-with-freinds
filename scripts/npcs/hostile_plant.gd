@@ -109,6 +109,8 @@ var _eat_loop: int = 0
 var _visual: Node3D
 var _bulb: Node3D
 var _mouth: Node3D
+## The modelled jaw (art/models/hostile_plant.glb: Visual/Jaw, rest rotation identity; -35 degrees on X drops it open).
+var _jaw: Node3D
 var _body: CollisionObject3D
 var _shape: CollisionShape3D
 
@@ -123,6 +125,7 @@ func _ready() -> void:
 	_visual = get_node_or_null(^"Visual") as Node3D
 	_bulb = get_node_or_null(^"Visual/Bulb") as Node3D
 	_mouth = get_node_or_null(^"Visual/Bulb/Mouth") as Node3D
+	_jaw = get_node_or_null(^"Visual/Jaw") as Node3D
 	_body = get_node_or_null(^"Body") as CollisionObject3D
 	_shape = get_node_or_null(^"Body/Shape") as CollisionShape3D
 	_apply_tint()
@@ -603,3 +606,5 @@ func _animate() -> void:
 		_bulb.rotation = Vector3(nod, 0.0, 0.0)
 	if _mouth != null:
 		_mouth.scale = Vector3(1.0, lerpf(0.35, 1.0, mouth_open), 1.0)
+	if _jaw != null:
+		_jaw.rotation = Vector3(deg_to_rad(-35.0) * mouth_open, 0.0, 0.0)
