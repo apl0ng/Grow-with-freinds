@@ -157,7 +157,7 @@ func _test_eat(b: BalanceConfig) -> void:
 	check(h.global_position.distance_to(tray) > 0.9, "it moves (%.2f m from the tray)" % h.global_position.distance_to(tray))
 	Hostiles.tick(1.0)
 	check(h.state == HostilePlant.State.EAT, "it reached the tray and eats (%s)" % h.get_state_name())
-	check(h.global_position.distance_to(plot2.global_position) < 1.2, "next to GrowPlot2 (%.2f m)" % h.global_position.distance_to(plot2.global_position))
+	check(h.global_position.distance_to(plot2.global_position) < HostilePlant.EAT_DISTANCE + 0.3, "next to GrowPlot2 (%.2f m)" % h.global_position.distance_to(plot2.global_position))
 	check(_eating.size() == 1 and _eating[0] == [h.id, 2], "hostile_eating(id, 2) %s" % [_eating])
 	check(h.get_target_index() == 2, "get_target_index() = the tray")
 	var progress0 := plot2.stage_progress

@@ -38,11 +38,11 @@ const STATE_NAMES: Array[String] = ["Rooting", "Roaming", "Eating", "Chasing", "
 ## Seconds it stands where its tray was before it moves.
 const ROOT_SEC := 2.0
 ## A worker this close gets bitten.
-const BITE_RANGE := 1.0
+const BITE_RANGE := 1.7   # the plant is 2x (about 1.8 m wide): it bites from further out
 ## It stops a little short of the bite range so the collider does not shove the worker around.
-const CHASE_STOP := 0.8
+const CHASE_STOP := 1.3
 ## Standing distance from a plot centre while eating (just outside the 1.3 m tray).
-const EAT_DISTANCE := 0.95
+const EAT_DISTANCE := 1.3
 const ARRIVE := 0.08
 ## Bites in a row before it loses interest and goes back to the trays.
 const BITES_BEFORE_CALM := 2
@@ -66,8 +66,8 @@ const SYNC_SMOOTHING := 12.0
 const SNAP_DISTANCE := 3.0
 const TURN_RATE := 10.0
 ## Obstacle probe (host): a ray on LAYER_WORLD at this height, this far past the step; trays and hostiles excluded.
-const PROBE_HEIGHT := 0.4
-const PROBE_MARGIN := 0.35
+const PROBE_HEIGHT := 0.8
+const PROBE_MARGIN := 0.7
 const TINT_META: StringName = &"strain_tint"
 
 ## Set by Hostiles (every peer) before the node enters the tree.
@@ -125,7 +125,7 @@ func _ready() -> void:
 	_visual = get_node_or_null(^"Visual") as Node3D
 	_bulb = get_node_or_null(^"Visual/Bulb") as Node3D
 	_mouth = get_node_or_null(^"Visual/Bulb/Mouth") as Node3D
-	_jaw = get_node_or_null(^"Visual/Jaw") as Node3D
+	_jaw = get_node_or_null(^"Visual/Model/Jaw") as Node3D
 	_body = get_node_or_null(^"Body") as CollisionObject3D
 	_shape = get_node_or_null(^"Body/Shape") as CollisionShape3D
 	_apply_tint()

@@ -39,6 +39,7 @@ func _place_trouble_props(room: Node3D) -> void:
 	room.add_child(hostile)
 	hostile.position = Vector3(-9.0, 0.0, -1.4)
 	hostile.look_at(Vector3(-6.6, 0.0, -3.4), Vector3.UP)
+	hostile.scale = Vector3(2.0, 2.0, 2.0)   # the gameplay scene scales the model 2x
 	if hostile is Toonify:
 		(hostile as Toonify).tint = Toon.grade(Color(0.36, 0.2, 0.56))
 	var flamer := (load("res://art/models/flamethrower.glb") as PackedScene).instantiate() as Node3D

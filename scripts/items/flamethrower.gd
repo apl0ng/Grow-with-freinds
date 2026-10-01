@@ -36,7 +36,7 @@ const IGNITE_COOLDOWN_SEC: float = 10.0
 ## Height above a plot's origin where the plant is tested against the cone.
 const PLANT_POINT_HEIGHT: float = 0.8
 ## Height above a hostile's origin where it is tested against the cone.
-const HOSTILE_POINT_HEIGHT: float = 0.5
+const HOSTILE_POINT_HEIGHT: float = 1.0   # mid-body of the 2x plant
 const STATUS_EMPTY := "empty"
 const EMPTY_COLOR := Color("ff5a5f")
 
