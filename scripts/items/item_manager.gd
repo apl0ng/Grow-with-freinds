@@ -101,6 +101,8 @@ static func get_scene_path(item_type: StringName) -> String:
 		return "res://scenes/items/seed_packet.tscn"
 	if item_type == Const.ITEM_PRODUCT:
 		return "res://scenes/items/product.tscn"
+	if item_type == &"flamethrower": # M12 flame agent (Const.ITEM_FLAMETHROWER once the lead adds it): {"fuel": float}
+		return "res://scenes/items/flamethrower.tscn"
 	return ""
 
 ## The ItemManager for `from`'s world: the nearest ancestor with an "Items" ItemManager child, else

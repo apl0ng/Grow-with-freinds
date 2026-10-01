@@ -542,5 +542,121 @@ static func get_packet_strain(item: Item) -> StringName:
 
 ## SERVER. The flamethrower held the cone on this plot long enough: the crop is lost (plot reset, scorched soil for a
 ## while). Returns true when something burnt. `by_peer` is the shooter (stats / write-ups).
-func server_scorch(_by_peer: int) -> bool:
-	return false
+## Flame agent: the shooter gets Const.STAT_SCORCHED, and Const.WRITE_UP_ARSON unless a hostile plant stands within
+## ARSON_HOSTILE_RADIUS of the plot (Hostiles.nearest_to). The cosmetic (_rpc_scorched: ash on the soil for
+## SCORCH_SOIL_SEC, "scorch", the Story line) lands on every peer. A READY crop steps through FLOWERING for one
+## network frame before the reset, because READY -> EMPTY is the harvest transition (snip + a burst in the strain
+## colour) on every peer and a burnt crop must not sound harvested.
+func server_scorch(by_peer: int) -> bool:
+	if not _check_server(&"server_scorch"):
+		return false
+	if stage == Stage.EMPTY or _scorch_pending:
+		return false
+	var arson := true
+	var nearest: Node3D = Hostiles.nearest_to(global_position)
+	if nearest != null and is_instance_valid(nearest) and nearest.is_inside_tree():
+		arson = not (nearest.global_position.distance_to(global_position) <= ARSON_HOSTILE_RADIUS)
+	# Stat and write-up first (the write-up's MAJOR Story line goes out before the PROGRESS "burnt" line, which then
+	# waits its turn in Story's queue), then the cosmetic, then the crop.
+	if by_peer > 0:
+		GameState.server_add_stat(by_peer, Const.STAT_SCORCHED)
+		if arson:
+			GameState.server_write_up(by_peer, Const.WRITE_UP_ARSON)
+	_rpc_scorched.rpc(by_peer)
+	if stage == Stage.READY:
+		_scorch_pending = true
+		stage_progress = 0.0
+		stage = Stage.FLOWERING
+		get_tree().process_frame.connect(_finish_scorch, CONNECT_ONE_SHOT)
+	else:
+		server_reset()
+	return true
+
+
+# --- M12 flame (flame agent): scorched soil ------------------------------------------------------------------------
+
+## Every peer: the crop burnt (the scorch cosmetic landed). `by_peer` = the shooter (0 = unknown).
+signal scorched(by_peer: int)
+
+## How long the soil stays black after a scorch (every peer).
+const SCORCH_SOIL_SEC: float = 20.0
+## Ash colour on the soil (near-black, a touch of the palette's ink).
+const SCORCH_COLOR := Color("23202a")
+const SCORCH_ASH_COUNT: int = 10
+## No hostile plant within this many metres of the plot = arson.
+const ARSON_HOSTILE_RADIUS: float = 4.0
+
+var _ash: Node3D = null
+var _scorched_until_msec: int = -1
+var _scorch_pending: bool = false
+
+
+## True while the soil shows the scorch (SCORCH_SOIL_SEC after the last one), any peer.
+func is_scorched() -> bool:
+	return _scorched_until_msec >= 0 and Time.get_ticks_msec() < _scorched_until_msec
+
+
+## "GrowPlot 2" for the node "GrowPlot2" (Story lines).
+func get_scorch_label() -> String:
+	var n := String(name)
+	var stem := n.rstrip("0123456789")
+	if stem.length() == n.length() or stem.is_empty():
+		return n
+	return "%s %s" % [stem, n.substr(stem.length())]
+
+
+func _finish_scorch() -> void:
+	_scorch_pending = false
+	if is_inside_tree() and is_server_peer(self):
+		server_reset()
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_scorched(by_peer: int) -> void:
+	if not is_inside_tree():
+		return
+	_scorched_until_msec = Time.get_ticks_msec() + int(SCORCH_SOIL_SEC * 1000.0)
+	_show_ash()
+	Sfx.play(&"scorch", global_position + Vector3.UP * 0.6)
+	juice_fx(&"puff", _soil_top() + Vector3.UP * 0.3, Juice.GLOOM, SCORCH_ASH_COUNT)
+	var story: Node = Story
+	if story != null and story.has_method(&"flame_plot_burnt"):
+		story.call(&"flame_plot_burnt", get_scorch_label())
+	scorched.emit(by_peer)
+
+
+## A layer of ash over the soil bed and the mound (built once, shown for SCORCH_SOIL_SEC). It sits on top of the soil
+## meshes so the water tint underneath can keep doing its own thing.
+func _show_ash() -> void:
+	if _ash == null:
+		var mat := Toon.material(SCORCH_COLOR, Toon.Finish.MATTE)
+		_ash = Node3D.new()
+		_ash.name = "Ash"
+		var bed := MeshInstance3D.new()
+		var bed_mesh := BoxMesh.new()
+		bed_mesh.size = Vector3(1.31, 0.02, 1.31)
+		bed_mesh.material = mat
+		bed.mesh = bed_mesh
+		bed.position = Vector3(0.0, 0.455, 0.0)
+		_ash.add_child(bed)
+		var mound := MeshInstance3D.new()
+		var mound_mesh := SphereMesh.new()
+		mound_mesh.radius = 0.615
+		mound_mesh.height = 0.215
+		mound_mesh.radial_segments = 24
+		mound_mesh.rings = 8
+		mound_mesh.material = mat
+		mound.mesh = mound_mesh
+		mound.position = Vector3(0.0, 0.412, 0.0)
+		_ash.add_child(mound)
+		var visual := get_node_or_null(^"Visual")
+		(visual if visual != null else self).add_child(_ash)
+	_ash.visible = true
+	Juice.pop_in(_ash, 0.3)
+	get_tree().create_timer(SCORCH_SOIL_SEC).timeout.connect(_on_ash_timeout)
+
+
+func _on_ash_timeout() -> void:
+	if is_scorched() or _ash == null or not is_inside_tree():
+		return # scorched again meanwhile: that timer hides it
+	Juice.pop_out(_ash, 0.4)

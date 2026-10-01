@@ -569,3 +569,43 @@ static func _find_descendant(root: Node, with_bark: bool) -> Node:
 					return node
 		queue.append_array(node.get_children())
 	return null
+
+
+# --- M12 flame (flame agent): the emergency cabinet and the flamethrower ----------------------------------------
+# Lines are requested from every-peer cosmetic code (the cabinet's glass-break RPC, GrowPlot's scorch RPC, Player's
+# ignite RPC), so each peer shows its own copy without any Story RPC. All three are PROGRESS: the write-up that
+# usually follows them (misuse / arson, MAJOR) takes the Boss's mouth first and these come out of the queue after it.
+
+## Copy for the cabinet / flamethrower; installed into `lines` when Story is built (the initializer below runs after
+## `lines`), so Story.line("glass_broke") works like any other key. The lead may fold them into the dict at merge.
+const FLAME_LINES: Dictionary = {
+	"glass_broke": "Glass broke.",
+	"on_fire": "%s is on fire.",
+	"plot_burnt": "%s burnt.",
+}
+var _flame_lines_installed: bool = _install_flame_lines()
+
+
+func _install_flame_lines() -> bool:
+	for key in FLAME_LINES:
+		if not lines.has(key):
+			lines[key] = FLAME_LINES[key]
+	return true
+
+
+## Every peer, from EmergencyCabinet._rpc_glass_break: "Glass broke."
+func flame_glass_broke() -> void:
+	if _in_session():
+		_request("glass_broke", Weight.PROGRESS)
+
+
+## Every peer, from Player._rpc_ignited: "Dale is on fire."
+func flame_worker_ignited(peer_id: int) -> void:
+	if _in_session():
+		_request_named("on_fire", Net.get_player_name(peer_id), Weight.PROGRESS)
+
+
+## Every peer, from GrowPlot._rpc_scorched: "GrowPlot 2 burnt." (`plot_label` = GrowPlot.get_scorch_label()).
+func flame_plot_burnt(plot_label: String) -> void:
+	if _in_session():
+		_request_named("plot_burnt", plot_label, Weight.PROGRESS)
