@@ -249,3 +249,16 @@ Decisions:
 | 11.7 | Launchers: launch.ps1 rewrite (parameter sets, `-Mute`, `-NoDownload`, ASCII output), Linux / macOS `launch.sh`, `.gitattributes` keeping `*.sh` LF | lead | done |
 | 11.8 | Graceful test shutdown (Voice.shutdown + Sfx.stop_all before quit) against the exit-139 crash after PASS; full run 2026-09-29: 49 suites, about 7,900 checks, no crash | lead | done (watch for a recurrence) |
 | 11.9 | Late joiner's rat resumes from the seconds left instead of rerunning from the gap; events_mp waits for both reliable packets (power / event) before asserting | lead | done |
+
+## M12 Strains, the hostile plant, the emergency flamethrower, more disruptions (in progress, 2026-10-01)
+Asked for by the user on 2026-10-01: "ways to disrupt the gameplay loop, more strains, a chance to grow an angry plant
+that attacks players and eats the plants, a break-in-case-of-emergency flamethrower". Contracts: CONTRACTS.md "M12".
+Rationale: FRIENDSLOP.md section 7.
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 12.0 | Prep: Const stats / write-ups, BalanceConfig M12 groups, SeedDef.mutation_chance, `use_item` on LMB, Hostiles autoload stub, World/Hostiles, GrowPlot.server_scorch stub, Sfx names | lead | done |
+| 12.1 | Three strains (Night Shift, Creeper, Floor Brick) with mutation chances, blurbs, counter/HUD fit; models hostile_plant / emergency_cabinet / flamethrower; strains suite | strains | in progress |
+| 12.2 | Hostile plant: mutation roll + twitch on READY plants, Hostiles autoload (server behaviour, 10 Hz sync, late-join replay), HostilePlant node, eat / chase / bite / burn / die, Story lines; hostile + hostile_mp suites | hostile | in progress |
+| 12.3 | Emergency cabinet (deposit, restock, misuse write-up) + flamethrower item (use_item, fuel, cone: burns hostiles, scorches crops, ignites workers, arson write-ups); flame + flame_mp suites | flame | in progress |
+| 12.4 | Events: head count, water main off, supply shortage; weights; Well pressure, ShopCounter shortage; Story lines; disrupt + disrupt_mp suites | disrupt | in progress |
+| 12.5 | Integration: merge, hook the models, test_all registration + ports, README controls (LMB = use item), CONTRACTS "M12 as delivered", a four-player playtest | lead | pending |

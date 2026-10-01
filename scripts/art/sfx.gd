@@ -81,11 +81,14 @@ const SOUNDS: Array[StringName] = [
 	# M10 friendslop pass (audio agent)
 	&"step", &"throw", &"bonk", &"shove", &"ping", &"chat", &"alarm", &"power_down", &"power_up", &"keys",
 	&"write_up", &"door_slam", &"confiscate", &"hum", &"rat",
+	# M12 (lead placeholders: hostile plant, flamethrower, disruptions; the audio pass refines them)
+	&"hostile_rise", &"hostile_bite", &"hostile_eat", &"hostile_die", &"flame", &"ignite", &"glass_break", &"scorch",
+	&"headcount", &"water_off", &"shortage",
 ]
 
 ## Sounds synthesised as seamless loops (loop_mode FORWARD over the whole buffer): ambience and walking keys.
 ## Only these can be started with play_loop().
-const LOOPING: Array[StringName] = [&"hum", &"keys"]
+const LOOPING: Array[StringName] = [&"hum", &"keys", &"hostile_eat", &"flame"]
 
 ## Per-sound playback settings: [volume_db, pitch_variation (+-fraction), 3D unit_size].
 const SETTINGS := {
@@ -128,6 +131,17 @@ const SETTINGS := {
 	&"confiscate": [-5.0, 0.05, 6.0],
 	&"hum": [-22.0, 0.0, 12.0],
 	&"rat": [-14.0, 0.10, 4.0],
+	&"hostile_rise": [-6.0, 0.05, 7.0],
+	&"hostile_bite": [-4.0, 0.08, 6.0],
+	&"hostile_eat": [-16.0, 0.0, 5.0],
+	&"hostile_die": [-5.0, 0.05, 8.0],
+	&"flame": [-9.0, 0.0, 7.0],
+	&"ignite": [-6.0, 0.06, 6.0],
+	&"glass_break": [-3.0, 0.04, 9.0],
+	&"scorch": [-8.0, 0.08, 6.0],
+	&"headcount": [-10.0, 0.0, 12.0],
+	&"water_off": [-8.0, 0.0, 12.0],
+	&"shortage": [-10.0, 0.0, 12.0],
 }
 
 enum Wave { SINE, TRIANGLE, SQUARE, SAW, CHIP }

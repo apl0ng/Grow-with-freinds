@@ -513,3 +513,94 @@ Skipped on non-Windows, headless, `--no-firewall`, and in dev runs (editor binar
 `-Firewall`). A decline or failure never blocks hosting: status line + toast + the menu's retry button; no prompt is
 repeated until the player presses it. LAN discovery's inbound UDP 7778 (joining side) is not covered on purpose.
 Suite: firewall (+53).
+
+## M12 — more strains, the hostile plant, the emergency flamethrower, more disruptions (lead prep, 2026-10-01)
+Four agents in worktrees `.claude/worktrees/<agent>` on `m12/<agent>`: **strains** (data + models), **hostile**,
+**flame**, **disrupt**. Shared files stay lead-only: project.godot, CONTRACTS.md, PLAN.md, tools/test_all.sh, const.gd,
+balance_config.gd, seed_def.gd, world.tscn, sfx.gd (names + placeholder recipes are in; an agent may ADD a recipe branch
+for its own sounds inside a `# --- M12 <agent> ---` block). Files two agents touch (grow_plot.gd, story.gd, room.tscn,
+player.gd) are edited only inside clearly delimited `# --- M12 <agent> ---` regions or the stubs named below; the lead
+merges. Test ports: strains +54, hostile +55 / hostile_mp +56, flame +57 / flame_mp +58, disrupt +59 / disrupt_mp +60.
+
+### Prep already in place (lead)
+- `Const`: `STAT_BITTEN`, `STAT_SCORCHED`, `STAT_BURNS`; `WRITE_UP_ARSON`, `WRITE_UP_MISUSE`, `WRITE_UP_ABSENT`.
+  Agents add their own: `ITEM_FLAMETHROWER = &"flamethrower"` (flame), `GROUP_HOSTILES = &"hostiles"` (hostile) — tell
+  the lead; until merged keep them as local consts in your files.
+- `BalanceConfig` groups "Hostile plant (M12)", "Emergency cabinet (M12)", "Disruptions (M12)": `mutation_warning_sec`
+  6, `hostile_speed` 2.2, `hostile_sense_range` 5, `hostile_bite_stun_sec` 1, `hostile_bite_cooldown_sec` 1.5,
+  `hostile_eat_per_sec` 0.08, `hostile_burn_sec` 3, `hostile_max` 2; `cabinet_deposit` 40, `cabinet_restock_sec` 90,
+  `flamethrower_fuel_sec` 8, `flamethrower_range` 3.5, `flamethrower_half_angle_deg` 25, `scorch_sec` 0.5;
+  `headcount_sec` 15, `headcount_radius` 2.5, `water_off_sec` 30, `shortage_sec` 45.
+- `SeedDef.mutation_chance` (0..1, default 0).
+- Input: `use_item` = left mouse button (hold). `interact` is E only now (LMB used to double for it).
+- Autoload `Hostiles` (scripts/core/hostiles.gd) after Events: a stub with the agreed API (below).
+- `World/Hostiles` (Node3D) container in world.tscn; `GrowPlot.server_scorch(by_peer) -> bool` stub.
+- Sfx names (default blip recipes until refined): `hostile_rise`, `hostile_bite`, `hostile_eat` (loop), `hostile_die`,
+  `flame` (loop), `ignite`, `glass_break`, `scorch`, `headcount`, `water_off`, `shortage`.
+
+### Strains (strains agent) — data/balance.tres, Story blurbs, models
+Three new `SeedDef`s with `mutation_chance`: `nightshift` "Night Shift" (cost 70, grow 1.2, value 170, mutation 0.35,
+dark violet), `creeper` "Creeper" (cost 30, grow 0.8, value 70, mutation 0.12, teal), `brick` "Floor Brick" (cost 120,
+grow 2.0, yield 3, value 110, mutation 0.2, rust). Existing: budget 0, purple 0.05, golden 0.1. Descriptions in the
+house tone (STYLE.md: no cheer, no "!"). The shop lists `Config.balance.seeds` dynamically; check the counter layout and
+the HUD still fit six strains. Models (MODELING.md recipe, Blender 5.2 on this PC): `hostile_plant.glb` (a gnarled
+uprooted bud on root legs, a mouth; origin at the feet, faces -Z, about 1.1 m tall; `Visual` content is swapped in by the
+lead), `emergency_cabinet.glb` (red wall box 0.45 x 0.6 x 0.2 m with a glass pane and a plate; origin at the back
+centre, mounts on a wall), `flamethrower.glb` (tank + hose + nozzle, about 0.6 m long, origin at the grip, nozzle -Z).
+Test suite `strains` (+54): ids unique, every strain plantable / harvestable / sellable, mutation in [0,1], models load.
+
+### Hostile plant (hostile agent) — scripts/core/hostiles.gd, scripts/npcs/hostile_plant.gd + scenes/npcs/hostile_plant.tscn, grow_plot.gd (mutation region), story.gd (its region)
+Mutation (GrowPlot, server): when a plant becomes READY roll `seed.mutation_chance` once; if it turns, synced
+`turning: bool` + `turn_left: float` count down `mutation_warning_sec` (the plant visibly twitches on every peer, HUD
+status "Moving"), then `server_reset()` (crop lost) and `Hostiles.server_spawn(strain_id, plot.global_position)`.
+Hostiles (autoload, API in the stub): `server_spawn(strain_id, position) -> id`, `server_despawn_all()`,
+`server_apply_fire(id, seconds, by_peer)`, `get_hostiles()`, `get_hostile(id)`, `count()`, `is_any_alive()`,
+`nearest_to(position)`; signals `hostile_spawned(id, strain_id, position)`, `hostile_bit(id, peer_id)`,
+`hostile_ate(id, plot_index)`, `hostile_died(id, by_peer)`. Nodes: class `HostilePlant` (Node3D with a StaticBody3D
+collider on Const.LAYER_WORLD so workers cannot walk through it, group `hostiles` + Const.GROUP_NPCS), plain children of
+`World/Hostiles` on every peer, created by a reliable spawn RPC and removed by a reliable despawn RPC; the host sends
+position / yaw / state at about 10 Hz (unreliable), clients interpolate; `Net.peer_registered` replays the list to a
+late joiner (like Events). Behaviour (host): ROOT 2 s at the plot (`hostile_rise`), then ROAM to the nearest growing
+plot and EAT it (`hostile_eat_per_sec` off `stage_progress`; at 0 the crop is lost: `plot.server_reset()`,
+`hostile_ate`); CHASE the nearest worker within `hostile_sense_range` who is not in the back room; BITE within 1.0 m:
+`player.server_shove(player, away, false, Config.balance.hostile_bite_stun_sec, true)` + `items.server_release_holder
+(peer)` + `STAT_BITTEN`, then `hostile_bite_cooldown_sec`; after two bites it goes back to eating. BURNING: total flame
+seconds >= `hostile_burn_sec` -> DEAD (`hostile_die`, ash puff, node removed after 1.5 s, `STAT_BURNS` for the shooter).
+`GameState.game_reset` / round end -> `server_despawn_all()`. Tint = the strain colour. Story lines in its region
+("Something came out of GrowPlot 3.", "It bit Dale.", "It is eating GrowPlot 2.", "It stopped moving."). Suites
+`hostile` (+55, solo: mutation roll with a forced chance, spawn, eat, bite, fire, despawn, late-join replay by direct
+RPC) and `hostile_mp` (+56: a client sees the node, the bite stun and the death).
+
+### Emergency cabinet + flamethrower (flame agent) — scripts/stations/emergency_cabinet.gd + scene, scripts/items/flamethrower.gd + scenes/items/flamethrower.tscn, item_manager.gd (scene map), player.gd (`server_ignite` region + use_item), grow_plot.gd (`server_scorch` + scorched soil), story.gd (its region)
+Cabinet: `Interactable` named "EmergencyCabinet" under Room/Stations on a wall near the fuse box (one node added to
+room.tscn; placeholder box with a glass pane under `Visual`). Synced `broken: bool`, `restock_left: float`. Prompt
+"Break glass" / "Restocking (42 s)" / "Cash short" / "Hands full". `_server_interact`: `GameState.server_try_spend(
+cabinet_deposit, peer, "Emergency equipment deposit")` must succeed; then `items.server_spawn_item(&"flamethrower",
+{"fuel": flamethrower_fuel_sec}, pos, peer)` straight into the hands, `broken = true`, restock countdown (host), cosmetic
+`glass_break` RPC; if `not Hostiles.is_any_alive()`: `GameState.server_write_up(peer, Const.WRITE_UP_MISUSE)`.
+Flamethrower (`Item`, type `flamethrower`, props `fuel: float`, `firing: bool`): the holder holds `use_item` ->
+`request_fire(on)` -> `@rpc("any_peer", "call_local", "reliable") _rpc_request_fire(on)` validated on the server
+(sender is the holder, fuel > 0, not in the back room, shift PLAYING) -> `firing` synced through props -> flame VFX
+(a cone of GPUParticles3D or stretched toon meshes from the nozzle) + `flame` loop on every peer. Server, every physics
+tick while firing: fuel -= delta (0 -> firing stops, label "Flamethrower (empty)"); cone test from the nozzle along the
+holder's `get_look_direction()` (reach `flamethrower_range`, half-angle `flamethrower_half_angle_deg`): hostiles ->
+`Hostiles.server_apply_fire(id, delta, shooter)`; GrowPlots with a plant -> after `scorch_sec` of exposure
+`plot.server_scorch(shooter)` (crop lost, soil black for 20 s, `scorch`, `STAT_SCORCHED`; `WRITE_UP_ARSON` when no
+hostile is within 4 m of that plot); workers -> `player.server_ignite(shooter)` once per victim per 10 s (stagger away
+from the shooter with `hit_stun_sec`, held item released, 2 s flame cosmetic `ignite`, `WRITE_UP_ARSON` for the shooter).
+An empty flamethrower can still be carried and thrown. Suites `flame` (+57) and `flame_mp` (+58: a client breaks the
+glass, fires, the server drains fuel and scorches; the deposit and write-ups land). Burning a real hostile is tested
+after the merge (the stub's `server_apply_fire` is a no-op): assert the call count through a test double if you want it.
+
+### Disruptions (disrupt agent) — events.gd, story.gd (its region), room.tscn (one Marker3D), well.gd, shop_counter.gd
+Three new event kinds with `Events.KINDS` / `WEIGHTS` rebalanced (inspection 30, power_cut 20, audit 10, rat 10,
+headcount 15, water_off 10, shortage 5): **headcount** (`headcount_sec`): the Boss walks to `Room.get_headcount_spot()`
+(a `HeadcountSpot` Marker3D added to room.tscn by the agent, in front of the counter); when the timer ends every worker
+further than `headcount_radius` from the spot who is not in the back room gets `WRITE_UP_ABSENT`; params `{seconds,
+spot}`. **water_off** (`water_off_sec`): `Well.server_set_pressure(false)` (synced; prompt "No pressure", refills
+refused), back on at the end; params `{seconds}`. **shortage** (`shortage_sec`): `ShopCounter.server_set_shortage(
+strain_id)` (synced; that strain's prompt "Out of stock", purchases refused) for the most-planted strain of the shift
+(`GameState.stats`), cleared at the end; params `{seconds, strain}`. Late joiners get the running event through the
+existing replay; HUD banner copy and Story lines in the house tone ("Head count. The line. Now.", "Water main is off.",
+"No more Night Shift this shift."). Suites `disrupt` (+59) and `disrupt_mp` (+60: a late joiner sees the shortage and
+the well state).

@@ -14,3 +14,5 @@ extends Resource
 @export var sale_value_per_unit: int = 60
 ## Tint used for the seed packet, plant buds and product visuals.
 @export var color: Color = Color(0.4, 0.8, 0.3)
+## M12: chance (0..1) that this strain turns hostile when it becomes ready (rolled once per plant).
+@export_range(0.0, 1.0) var mutation_chance: float = 0.0

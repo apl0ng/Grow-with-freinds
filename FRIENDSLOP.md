@@ -81,3 +81,22 @@ thunk, a door that slams.
 - Somebody lands a bundle in the chute from the gate and nobody says "nice".
 - A worker in the back room narrates the others' mistakes to the other back-room worker.
 - The shift report names the least useful worker and the argument starts.
+
+## 7. M12: things that go wrong on purpose
+The loop (buy, plant, water, harvest, sell) is only fun while something keeps breaking it. M10 added the Boss, the
+power cut, the audit and the rat. M12 adds three kinds of trouble, each one a decision for the group rather than a
+damage number:
+- **Strains with a temper.** Three new seeds pay better and grow stranger. Each strain has a `mutation_chance`: a ready
+  plant may twitch for six seconds and then uproot itself. The pay-off is real, so somebody will plant Night Shift
+  anyway. That is the point.
+- **The hostile plant.** It leaves the plot it came from, eats the nearest growing plot, and bites whoever comes close
+  (a stagger, the item knocked out of your hands). Nothing you own stops it except fire, so the group has to choose
+  between saving the crops and keeping its distance. It never kills anyone: nobody is happy, nobody is dead.
+- **Break glass.** A red cabinet on the wall holds one flamethrower. Breaking the glass costs a deposit, and breaking
+  it when nothing is on the floor is a write-up ("misuse of emergency equipment"). The flamethrower also burns crops
+  and workers, and that is a write-up too ("arson"). Fuel runs out in eight seconds; the cabinet restocks in ninety.
+- **Interruptions.** Head count (everyone to the line in fifteen seconds or a write-up), water main off (the well has
+  no pressure, plants dry), supply shortage (the strain you planted most is out of stock). None of them hurt; all of
+  them cost time you do not have.
+Tone guard still applies: the plant does not roar, the flamethrower does not whoosh heroically, the Boss does not
+thank you for putting the fire out. He notes the deposit.

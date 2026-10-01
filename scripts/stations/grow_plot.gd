@@ -536,3 +536,11 @@ static func get_packet_strain(item: Item) -> StringName:
 		return &""
 	var v: Variant = item.get(&"strain_id")
 	return StringName(v) if v != null else &""
+
+
+# --- M12 stubs (lead): the flame agent fills server_scorch; the hostile agent adds the mutation roll ---------------
+
+## SERVER. The flamethrower held the cone on this plot long enough: the crop is lost (plot reset, scorched soil for a
+## while). Returns true when something burnt. `by_peer` is the shooter (stats / write-ups).
+func server_scorch(_by_peer: int) -> bool:
+	return false

@@ -93,6 +93,41 @@ extends Resource
 ## Push-to-talk by default; false = open mic with an energy gate.
 @export var voice_push_to_talk: bool = true
 
+@export_group("Hostile plant (M12)")
+## Seconds a ready plant twitches ("GrowPlot 3 is moving") before it uproots into a hostile plant.
+@export var mutation_warning_sec: float = 6.0
+## Hostile plant: walk speed (m/s), how far it senses a worker (m), bite stun (s) and per-bite cooldown (s).
+@export var hostile_speed: float = 2.2
+@export var hostile_sense_range: float = 5.0
+@export var hostile_bite_stun_sec: float = 1.0
+@export var hostile_bite_cooldown_sec: float = 1.5
+## Stage progress a hostile plant eats from a growing plot per second.
+@export var hostile_eat_per_sec: float = 0.08
+## Seconds of flame that kill a hostile plant.
+@export var hostile_burn_sec: float = 3.0
+## At most this many hostile plants on the floor at once.
+@export var hostile_max: int = 2
+
+@export_group("Emergency cabinet (M12)")
+## Cash taken as the equipment deposit when the glass is broken.
+@export var cabinet_deposit: int = 40
+## Seconds until the cabinet holds a new flamethrower after the glass was broken.
+@export var cabinet_restock_sec: float = 90.0
+## Flamethrower: seconds of fuel, reach (m), half-angle of the cone (degrees), seconds of flame that scorch a crop.
+@export var flamethrower_fuel_sec: float = 8.0
+@export var flamethrower_range: float = 3.5
+@export var flamethrower_half_angle_deg: float = 25.0
+@export var scorch_sec: float = 0.5
+
+@export_group("Disruptions (M12)")
+## Head count: seconds to reach the line and how close (m) counts as present.
+@export var headcount_sec: float = 15.0
+@export var headcount_radius: float = 2.5
+## Water main off: seconds the well has no pressure.
+@export var water_off_sec: float = 30.0
+## Supply shortage: seconds one strain is out of stock at the counter.
+@export var shortage_sec: float = 45.0
+
 @export_group("Networking")
 @export var default_port: int = 7777
 @export var max_players: int = 4

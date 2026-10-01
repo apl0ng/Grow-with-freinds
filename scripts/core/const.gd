@@ -36,11 +36,17 @@ const STAT_THROWS: StringName = &"throws"
 const STAT_HITS: StringName = &"hits"             # thrown items that hit a worker
 const STAT_SHOVES: StringName = &"shoves"
 const STAT_PINGS: StringName = &"pings"
+const STAT_BITTEN: StringName = &"bitten"         # M12: bites taken from a hostile plant
+const STAT_SCORCHED: StringName = &"scorched"     # M12: crops this worker burnt with the flamethrower
+const STAT_BURNS: StringName = &"burns"           # M12: hostile plants this worker burnt down
 
 # --- M10: write-up reasons (GameState.server_write_up) ---
 const WRITE_UP_SKIMMING: String = "skimming"     # carrying product in the Boss's sight
 const WRITE_UP_LOITERING: String = "loitering"   # standing still in the Boss's sight
 const WRITE_UP_OTHER: String = "other"
+const WRITE_UP_ARSON: String = "arson"           # M12: burnt a crop or a worker with no hostile plant near
+const WRITE_UP_MISUSE: String = "misuse"         # M12: broke the emergency cabinet with nothing on the floor
+const WRITE_UP_ABSENT: String = "absent"         # M12: missed the head count
 
 # --- M10: UI lock source used while a worker sits in the back room (Game.set_ui_lock) ---
 const UI_LOCK_BACKROOM: StringName = &"backroom"
