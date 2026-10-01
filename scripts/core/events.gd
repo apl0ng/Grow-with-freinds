@@ -8,9 +8,9 @@ extends Node
 ##   headless suite keeps its deterministic shifts. Tests that want events pass `--events`.
 ##
 ## Scheduler (host): the first event event_first_delay_sec into a shift, then a gap in [event_gap_min_sec,
-## event_gap_max_sec] after the previous one ended; one at a time; weighted pick (inspection 45 / power cut 30 /
-## audit 15 / rat 10) that never repeats the previous kind. `tick(delta)` drives it (public, so tests can advance
-## time without waiting); `_process` feeds it real time on the host.
+## event_gap_max_sec] after the previous one ended; one at a time; weighted pick (inspection 30 / power cut 20 /
+## audit 10 / rat 10 / head count 15 / water off 10 / shortage 5) that never repeats the previous kind. `tick(delta)`
+## drives it (public, so tests can advance time without waiting); `_process` feeds it real time on the host.
 ##
 ## Kinds:
 ##   inspection  the Boss (ShopkeeperNPC) walks Room.get_inspection_route() for inspection_sec, deterministic on
@@ -25,12 +25,26 @@ extends Node
 ##   audit       GameState.server_raise_quota(audit_raise_fraction) once; the event stays up AUDIT_BANNER_SEC.
 ##   rat         a Rat prop (scenes/world/props/rat.tscn) runs from a wall gap to a growing plot and eats its stage
 ##               progress (host, RAT_EAT_PER_SEC) until a worker comes within RAT_SCARE_RANGE or RAT_MAX_SEC passes.
+## M12 (disrupt agent), the interruptions:
+##   headcount   the Boss walks Room.get_headcount_route() to the line (Room.get_headcount_spot(), a Marker3D in
+##               front of the pay window) and stands there (ShopkeeperNPC.walk_to) for headcount_sec; when the timer
+##               ends the HOST writes up every worker on the floor further than headcount_radius from the spot (flat
+##               distance; the back room is excused) with WRITE_UP_ABSENT (worker_spotted fires too), then he walks
+##               back. Deterministic on every peer from the broadcast start, like the inspection.
+##   water_off   Well.server_set_pressure(false) on the host (the Well syncs it and replays it to late joiners):
+##               prompt "No pressure", refills refused on both sides; back on when the event ends or is force-ended.
+##   shortage    ShopCounter.server_set_shortage(strain) on the host (synced + replayed likewise): that strain's card
+##               reads OUT OF STOCK and server_buy_seed refuses it; cleared at the end. The strain is the one planted
+##               most this shift (GrowPlot has no signal, so the host tick watches the plots turn from EMPTY), the
+##               most expensive strain when nothing was planted yet.
 ## Back room: on GameState.backroom_changed the host moves the body (Player.server_teleport) to the room's
 ## BackRoomSpot and back to its spawn on release (the input lock + overlay are the ui agent's).
 ## Copy: none here (Story owns every line); this file only emits signals and plays placeholder sounds.
 
 ## Every peer: an event began. params: inspection {"seconds", "speed"}, power_cut {"max_seconds"},
-## audit {"raise"}, rat {"plot": int (GrowPlot index 1..6), "from": Vector3 (wall gap, global)}.
+## audit {"raise"}, rat {"plot": int (GrowPlot index 1..6), "from": Vector3 (wall gap, global)},
+## headcount {"seconds", "spot": Vector3 (the line, global), "speed"}, water_off {"seconds"},
+## shortage {"seconds", "strain": StringName}.
 signal event_started(kind: StringName, params: Dictionary)
 ## Every peer: the active event is over (timer, fixed, or the shift ended).
 signal event_ended(kind: StringName)
@@ -44,9 +58,14 @@ const EVENT_INSPECTION: StringName = &"inspection"
 const EVENT_POWER_CUT: StringName = &"power_cut"
 const EVENT_AUDIT: StringName = &"audit"
 const EVENT_RAT: StringName = &"rat"
-const KINDS: Array[StringName] = [EVENT_INSPECTION, EVENT_POWER_CUT, EVENT_AUDIT, EVENT_RAT]
-## Scheduler weights (percent). The rat only enters the pick while RAT_ENABLED.
-const WEIGHTS: Dictionary = {EVENT_INSPECTION: 45, EVENT_POWER_CUT: 30, EVENT_AUDIT: 15, EVENT_RAT: 10}
+## M12 (disrupt agent): the head count, the water main, the supply shortage.
+const EVENT_HEADCOUNT: StringName = &"headcount"
+const EVENT_WATER_OFF: StringName = &"water_off"
+const EVENT_SHORTAGE: StringName = &"shortage"
+const KINDS: Array[StringName] = [EVENT_INSPECTION, EVENT_POWER_CUT, EVENT_AUDIT, EVENT_RAT, EVENT_HEADCOUNT, EVENT_WATER_OFF, EVENT_SHORTAGE]
+## Scheduler weights (percent, sum 100). The rat only enters the pick while RAT_ENABLED.
+const WEIGHTS: Dictionary = {EVENT_INSPECTION: 30, EVENT_POWER_CUT: 20, EVENT_AUDIT: 10, EVENT_RAT: 10,
+		EVENT_HEADCOUNT: 15, EVENT_WATER_OFF: 10, EVENT_SHORTAGE: 5}
 const RAT_ENABLED := true
 
 const SIGHT_INTERVAL := 0.5
@@ -69,6 +88,9 @@ const RAT_SCENE_PATH := "res://scenes/world/props/rat.tscn"
 const RAT_NODE_NAME := "Rat"
 ## Where the rat comes from and flees to: a gap at the foot of the east wall, under the cot by the grow area (global).
 const RAT_GAP := Vector3(9.6, 0.0, 6.6)
+## M12 disrupt: the Boss must reach the head-count line by this fraction of the event (the walk speed is raised
+## above BOSS_WALK_SPEED when the route would take longer).
+const HEADCOUNT_ARRIVE_FRACTION := 0.5
 
 ## The running event (&"" when none). Synced.
 var active_event: StringName = &""
@@ -92,6 +114,10 @@ var _backroom_slots: Dictionary = {}
 var _forced_first_used: bool = false # `--first-event` consumed (once per process)
 var _rat_squeak_left: float = 0.0
 var _rng := RandomNumberGenerator.new()
+## Host (M12 disrupt): plantings this shift by strain and each plot's last seen strain (&"" = empty). GrowPlot has
+## no planted signal, so tick() watches the plots turn from EMPTY; the shortage picks the most-planted strain.
+var _planted: Dictionary = {}       # strain_id -> plantings this shift
+var _plot_strains: Dictionary = {}  # GrowPlot index 1..6 -> StringName
 
 
 func _ready() -> void:
@@ -204,14 +230,42 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 			seconds = RAT_MAX_SEC
 			p["plot"] = plot_index
 			p["from"] = RAT_GAP
+		EVENT_HEADCOUNT:
+			var room := _room()
+			if room == null:
+				return false
+			seconds = maxf(b.headcount_sec, 1.0)
+			p["seconds"] = seconds
+			p["spot"] = room.get_headcount_spot()
+			p["speed"] = _headcount_speed_for(seconds)
+		EVENT_WATER_OFF:
+			if _well() == null:
+				return false
+			seconds = maxf(b.water_off_sec, 1.0)
+			p["seconds"] = seconds
+		EVENT_SHORTAGE:
+			if _counter() == null:
+				return false
+			_track_plantings()
+			var strain := pick_shortage_strain()
+			if strain == &"":
+				return false
+			seconds = maxf(b.shortage_sec, 1.0)
+			p["seconds"] = seconds
+			p["strain"] = strain
 	_last_kind = kind
 	_clock = 0.0
 	_sight_accum = 0.0
 	_seen_since.clear()
 	_last_write_up.clear()
 	_next_in = -1.0
+	# The station state goes out before the event packet (same reliable channel, so it lands first).
 	if kind == EVENT_POWER_CUT:
 		_rpc_power.rpc(false)
+	elif kind == EVENT_WATER_OFF:
+		_well().server_set_pressure(false)
+	elif kind == EVENT_SHORTAGE:
+		_counter().server_set_shortage(StringName(p["strain"]))
 	_rpc_event_started.rpc(kind, p, seconds)
 	if kind == EVENT_AUDIT:
 		# After the banner went out: raising the quota can end the shift at once (sales already cover it),
@@ -227,6 +281,7 @@ func server_end_event() -> void:
 	var kind := active_event
 	if not power_on:
 		_rpc_power.rpc(true)
+	_server_clear_disruption(kind)
 	_rpc_event_ended.rpc(kind)
 	var b: BalanceConfig = Config.balance
 	_next_in = _rng.randf_range(minf(b.event_gap_min_sec, b.event_gap_max_sec), maxf(b.event_gap_min_sec, b.event_gap_max_sec))
@@ -251,6 +306,7 @@ func request_event(kind: StringName) -> void:
 func tick(delta: float) -> void:
 	if not _is_host() or delta <= 0.0:
 		return
+	_track_plantings()
 	if active_event != &"":
 		_time_left = maxf(_time_left - delta, 0.0)
 		match active_event:
@@ -258,6 +314,11 @@ func tick(delta: float) -> void:
 				_tick_inspection(delta)
 			EVENT_RAT:
 				_tick_rat(delta)
+			EVENT_HEADCOUNT:
+				_clock += delta
+				if _time_left <= 0.0:
+					server_headcount()
+					server_end_event()
 			_:
 				_clock += delta
 				if _time_left <= 0.0:
@@ -488,7 +549,9 @@ func _rpc_event_started(kind: StringName, params: Dictionary, seconds: float) ->
 			_start_inspection_visuals(params, seconds)
 		EVENT_RAT:
 			_spawn_rat(params, seconds)
-	Sfx.play(&"alarm")
+		EVENT_HEADCOUNT:
+			_start_headcount_visuals(params, seconds)
+	_play_start_sound(kind)
 	event_started.emit(kind, params)
 
 
@@ -496,6 +559,7 @@ func _rpc_event_started(kind: StringName, params: Dictionary, seconds: float) ->
 func _rpc_event_ended(kind: StringName) -> void:
 	if active_event == &"":
 		return
+	var p := _params
 	active_event = &""
 	_time_left = 0.0
 	_params = {}
@@ -511,6 +575,8 @@ func _rpc_event_ended(kind: StringName) -> void:
 			var rat := _rat()
 			if rat != null and rat.has_method(&"flee"):
 				rat.call(&"flee")
+		EVENT_HEADCOUNT:
+			_end_headcount_visuals(p)
 	event_ended.emit(kind)
 
 
@@ -565,6 +631,10 @@ func _on_round_started(_round_number: int) -> void:
 		if raw is String and String(raw).is_valid_float():
 			_next_in = maxf(float(raw), 0.0)
 		_last_kind = &""
+		# M12 disrupt: plantings count per shift; plants that persist from the last shift are the baseline.
+		_planted.clear()
+		_plot_strains.clear()
+		_track_plantings(false)
 
 
 func _on_round_ended(_success: bool, _round_number: int) -> void:
@@ -592,6 +662,7 @@ func _host_close_shift() -> void:
 		server_end_event()
 	if not power_on:
 		_rpc_power.rpc(true)
+	_server_restore_stations()  # M12 disrupt: the water main on, nothing out of stock, whatever turned them
 	_next_in = -1.0
 
 
@@ -611,6 +682,12 @@ func _reset_local() -> void:
 		var rat := _rat()
 		if rat != null:
 			rat.queue_free()
+	elif was_active == EVENT_HEADCOUNT:
+		var boss := _boss()
+		if boss != null:
+			boss.return_home()
+	_planted.clear()
+	_plot_strains.clear()
 	if not power_on:
 		power_on = true
 		if room != null:
@@ -625,20 +702,17 @@ func _reset_local() -> void:
 # ------------------------------------------------------------------------------------------------------
 
 func _local_tick(delta: float) -> void:
-	if active_event == EVENT_INSPECTION:
-		var boss := _boss()
-		var room := _room()
-		if boss == null or room == null:
-			return
-		if boss.is_walking():
-			_set_keys_loop(true, boss)
-			room.set_backroom_door_open(boss.global_position.distance_to(room.get_backroom_door_position()) < DOOR_RANGE)
-		else:
-			_set_keys_loop(false, null)
-			if room.is_backroom_door_open():
-				room.set_backroom_door_open(false)
+	# The keys loop and the booth door follow the Boss on any walk: the inspection, the head count (M12 disrupt) and
+	# his way back from the line after it. He only ever walks for an event.
+	var boss := _boss()
+	var room := _room()
+	if boss != null and room != null and boss.is_walking():
+		_set_keys_loop(true, boss)
+		room.set_backroom_door_open(boss.global_position.distance_to(room.get_backroom_door_position()) < DOOR_RANGE)
 	else:
 		_set_keys_loop(false, null)
+		if room != null and room.is_backroom_door_open():
+			room.set_backroom_door_open(false)
 	if active_event == EVENT_RAT:
 		var rat := _rat()
 		if rat == null:
@@ -741,3 +815,179 @@ func _rat() -> Node3D:
 	if rat != null and rat.is_queued_for_deletion():
 		return null
 	return rat
+
+
+# ------------------------------------------------------------------------------------------------------
+# M12 disrupt: the head count, the water main, the supply shortage
+# ------------------------------------------------------------------------------------------------------
+
+## SERVER ONLY. The count at the end of a head count: every worker with a body on the floor (the back room is
+## excused) further than headcount_radius from the line (flat distance; a non-finite position counts as absent)
+## gets WRITE_UP_ABSENT, and worker_spotted(peer, absent) fires on every peer. Returns the peers written up.
+## Public for tests (normally called by tick() when the timer runs out).
+func server_headcount() -> Array[int]:
+	var out: Array[int] = []
+	if not _is_host() or active_event != EVENT_HEADCOUNT:
+		return out
+	var w: World = Game.world
+	if w == null or not is_instance_valid(w):
+		return out
+	var spot: Vector3 = _params.get("spot", _room().get_headcount_spot() if _room() != null else Vector3.ZERO)
+	var radius := maxf(Config.balance.headcount_radius, 0.0)
+	for player in w.get_players():
+		var pid: int = player.peer_id
+		if GameState.is_in_backroom(pid) or not player.is_inside_tree():
+			continue
+		var p: Vector3 = player.global_position
+		var flat := Vector2(p.x - spot.x, p.z - spot.z).length()
+		if not (flat <= radius):
+			GameState.server_write_up(pid, Const.WRITE_UP_ABSENT)
+			_rpc_spotted.rpc(pid, Const.WRITE_UP_ABSENT)
+			out.append(pid)
+	return out
+
+
+## The strain a shortage hits: the one planted most this shift (ties go to the dearer one), the most expensive
+## strain when nothing was planted yet; &"" without seeds. Reads the host's planting count (see _track_plantings).
+func pick_shortage_strain() -> StringName:
+	var best: SeedDef = null
+	var best_count := 0
+	for s in Config.balance.seeds:
+		if s == null:
+			continue
+		var n := int(_planted.get(s.id, 0))
+		if best == null or n > best_count or (n == best_count and s.cost > best.cost):
+			best = s
+			best_count = n
+	return best.id if best != null else &""
+
+
+## Host: plantings this shift by strain (a copy; empty off the host). Tests read it.
+func get_planted_counts() -> Dictionary:
+	return _planted.duplicate()
+
+
+## Walk speed so the Boss reaches the line by HEADCOUNT_ARRIVE_FRACTION of the event.
+func _headcount_speed_for(seconds: float) -> float:
+	var room := _room()
+	var boss := _boss()
+	if room == null or boss == null:
+		return BOSS_WALK_SPEED
+	var points := room.get_headcount_route()
+	# get_route_length() measures home -> points -> home; the way there is that minus the last leg back.
+	var there: float = boss.get_route_length(points) - points[points.size() - 1].distance_to(boss.global_position)
+	return maxf(BOSS_WALK_SPEED, maxf(there, 0.0) / maxf(seconds * HEADCOUNT_ARRIVE_FRACTION, 1.0))
+
+
+## The route every peer walks the Boss along: the room's way to the line, its last point replaced by the broadcast
+## spot (so every peer agrees on it even if a room differs).
+func _headcount_route(params: Dictionary) -> PackedVector3Array:
+	var room := _room()
+	if room == null:
+		return PackedVector3Array()
+	var points := room.get_headcount_route()
+	var spot: Variant = params.get("spot", null)
+	if spot is Vector3 and not points.is_empty():
+		points[points.size() - 1] = spot
+	return points
+
+
+## Every peer: the Boss sets off for the line (or resumes part-way, for a late joiner) and stands there facing the room.
+func _start_headcount_visuals(params: Dictionary, seconds_left: float) -> void:
+	var room := _room()
+	var boss := _boss()
+	if room == null or boss == null:
+		return
+	var total := float(params.get("seconds", seconds_left))
+	var elapsed := maxf(total - seconds_left, 0.0)
+	var speed := float(params.get("speed", BOSS_WALK_SPEED))
+	var points := _headcount_route(params)
+	if points.is_empty():
+		return
+	boss.walk_to(points, speed, elapsed, room.global_position)
+
+
+## Every peer: the count is over. From the line he walks back the way he came (the full home -> line -> home route
+## resumed at the line); cut short before he got there, he just goes home.
+func _end_headcount_visuals(params: Dictionary) -> void:
+	var boss := _boss()
+	if boss == null:
+		return
+	var points := _headcount_route(params)
+	if boss.is_at_post() and not points.is_empty():
+		var speed := float(params.get("speed", BOSS_WALK_SPEED))
+		var there := boss.get_walk_length()
+		boss.walk_route(points, speed, there / maxf(speed, 0.05))
+	else:
+		boss.return_home()
+
+
+## Host: the ending event's station state goes back to normal.
+func _server_clear_disruption(kind: StringName) -> void:
+	match kind:
+		EVENT_WATER_OFF:
+			var well := _well()
+			if well != null:
+				well.server_set_pressure(true)
+		EVENT_SHORTAGE:
+			var counter := _counter()
+			if counter != null:
+				counter.server_set_shortage(&"")
+
+
+## Host: the water main on and nothing out of stock, whatever turned them (shift end, reset). No-ops when so.
+func _server_restore_stations() -> void:
+	var well := _well()
+	if well != null and not well.has_pressure():
+		well.server_set_pressure(true)
+	var counter := _counter()
+	if counter != null and counter.get_shortage_strain() != &"":
+		counter.server_set_shortage(&"")
+
+
+## Host: a plot that was EMPTY last time and holds a strain now was planted (counted unless `count` is false:
+## the shift-start baseline). Cheap (six plots), run from tick().
+func _track_plantings(count: bool = true) -> void:
+	var room := _room()
+	if room == null:
+		return
+	for i in range(1, 7):
+		var plot := room.get_station("GrowPlot%d" % i) as GrowPlot
+		if plot == null:
+			continue
+		var now: StringName = plot.strain_id if plot.stage != GrowPlot.Stage.EMPTY else &""
+		var before: StringName = _plot_strains.get(i, &"")
+		if count and now != &"" and before == &"":
+			_planted[now] = int(_planted.get(now, 0)) + 1
+		_plot_strains[i] = now
+
+
+## Every peer: the event's own sound (the registered M12 names for the interruptions, the alarm for the rest).
+func _play_start_sound(kind: StringName) -> void:
+	match kind:
+		EVENT_HEADCOUNT:
+			Sfx.play(&"headcount")
+		EVENT_WATER_OFF:
+			var well := _well()
+			if well != null and well.is_inside_tree():
+				Sfx.play(&"water_off", well.global_position + Vector3.UP * 1.0)
+			else:
+				Sfx.play(&"water_off")
+		EVENT_SHORTAGE:
+			var counter := _counter()
+			if counter != null and counter.is_inside_tree():
+				Sfx.play(&"shortage", counter.global_position + Vector3.UP * 1.2)
+			else:
+				Sfx.play(&"shortage")
+		_:
+			Sfx.play(&"alarm")
+
+
+func _well() -> Well:
+	var room := _room()
+	return room.get_station("Well") as Well if room != null else null
+
+
+func _counter() -> ShopCounter:
+	var room := _room()
+	return room.get_station("ShopCounter") as ShopCounter if room != null else null

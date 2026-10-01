@@ -58,6 +58,8 @@ var _seed_materials: Dictionary = {}   # StringName seed id -> StandardMaterial3
 
 func _ready() -> void:
 	_decorate_from_balance()
+	# M12 disrupt: a late joiner gets a running shortage (host only; the signal fires on the server).
+	Net.peer_registered.connect(_on_peer_registered)
 
 
 func _exit_tree() -> void:
@@ -71,6 +73,8 @@ func _exit_tree() -> void:
 # --- Interactable overrides ---------------------------------------------------------------------------------------
 
 func get_prompt(_player: Player) -> String:
+	if shortage_strain != &"":
+		return "Buy supplies · %s out of stock" % get_shortage_strain_name()
 	return "Buy supplies"
 
 
@@ -211,6 +215,8 @@ func server_buy_seed(peer_id: int, seed_id: StringName) -> Dictionary:
 	var seed_def: SeedDef = Config.balance.get_seed(seed_id)
 	if seed_def == null:
 		return _fail(REASON_UNKNOWN_SEED)
+	if seed_def.id == shortage_strain:
+		return _fail(REASON_OUT_OF_STOCK)
 	if player.get_held_item() != null:
 		return _fail(REASON_HANDS_FULL)
 	var items := _get_item_manager()
@@ -382,3 +388,76 @@ func _get_seed_material(seed_def: SeedDef) -> StandardMaterial3D:
 	mat.albedo_color = seed_def.color
 	_seed_materials[seed_def.id] = mat
 	return mat
+
+
+# --- M12 disrupt: the supply shortage ----------------------------------------------------------------------------
+# Events' shortage puts one strain out of stock on the host (server_set_shortage(strain)); the state is synced by a
+# reliable call_local RPC on this node (the same path on every peer), replayed to late joiners on registration, and
+# cleared (&"") when the event ends, is force-ended, or the game resets. While short: the counter prompt names the
+# strain, its card reads OUT OF STOCK, and server_buy_seed refuses it with REASON_OUT_OF_STOCK.
+
+## Every peer: the strain out of stock changed (&"" = everything is in).
+signal shortage_changed(strain_id: StringName)
+
+const REASON_OUT_OF_STOCK := "Out of stock."
+
+## The strain out of stock (&"" = none). Synced.
+var shortage_strain: StringName = &""
+
+
+func is_short(strain_id: StringName) -> bool:
+	return strain_id != &"" and strain_id == shortage_strain
+
+
+func get_shortage_strain() -> StringName:
+	return shortage_strain
+
+
+## Display name of the strain out of stock ("" when none).
+func get_shortage_strain_name() -> String:
+	if shortage_strain == &"":
+		return ""
+	var def: SeedDef = Config.balance.get_seed(shortage_strain)
+	return def.display_name if def != null else String(shortage_strain).capitalize()
+
+
+## SERVER ONLY. Puts `strain_id` out of stock on every peer (&"" clears; no-op when unchanged; a warning off the host).
+func server_set_shortage(strain_id: StringName) -> void:
+	if not _is_server():
+		push_warning("ShopCounter.server_set_shortage called on a client")
+		return
+	if strain_id == shortage_strain:
+		return
+	_rpc_set_shortage.rpc(strain_id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_set_shortage(strain_id: StringName) -> void:
+	if strain_id == shortage_strain:
+		return
+	shortage_strain = strain_id
+	_apply_shortage_visual()
+	shortage_changed.emit(strain_id)
+
+
+## Host: a late joiner gets a running shortage.
+func _on_peer_registered(peer_id: int) -> void:
+	if not _is_server() or shortage_strain == &"":
+		return
+	_rpc_set_shortage.rpc_id(peer_id, shortage_strain)
+
+
+## The short strain's jar on the counter stands empty (its Fill mesh hidden) while the shortage runs.
+func _apply_shortage_visual() -> void:
+	if _jars == null:
+		return
+	var seeds: Array[SeedDef] = Config.balance.seeds
+	var i := 0
+	for jar in _jars.get_children():
+		var jar3d := jar as Node3D
+		if jar3d == null:
+			continue
+		var fill := jar3d.get_node_or_null(^"Fill") as MeshInstance3D
+		if fill != null and i < seeds.size():
+			fill.visible = seeds[i].id != shortage_strain
+		i += 1

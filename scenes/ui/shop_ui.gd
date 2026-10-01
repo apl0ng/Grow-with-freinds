@@ -268,8 +268,10 @@ static func _card_key(kind: StringName, id: StringName) -> String:
 func _refresh() -> void:
 	var money := GameState.money
 	var hands_full := _local_hands_full()
+	# M12 disrupt: the counter's shortage greys that strain's card (OUT OF STOCK); cards refresh on the UI's own timer.
+	var short := counter.get_shortage_strain() if counter != null and is_instance_valid(counter) else &""
 	for card: ShopCard in _cards.values():
-		card.refresh(money, hands_full)
+		card.refresh(money, hands_full, card.kind == ShopCounter.KIND_SEED and short != &"" and card.item_id == short)
 
 
 func _process(delta: float) -> void:

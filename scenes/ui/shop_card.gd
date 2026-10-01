@@ -78,9 +78,10 @@ func setup_upgrade(def: UpgradeDef) -> void:
 
 
 ## Re-reads the live numbers. `money` = team wallet, `hands_full` = the local player holds something.
-func refresh(money: int, hands_full: bool) -> void:
+## `out_of_stock` (M12 disrupt): the counter's shortage hit this seed; the card reads OUT OF STOCK and cannot buy.
+func refresh(money: int, hands_full: bool, out_of_stock: bool = false) -> void:
 	if kind == KIND_SEED and seed_def != null:
-		_refresh_seed(money, hands_full)
+		_refresh_seed(money, hands_full, out_of_stock)
 	elif kind == KIND_UPGRADE and upgrade_def != null:
 		_refresh_upgrade(money)
 
@@ -100,7 +101,7 @@ func get_stats_text() -> String:
 	return "\n".join(parts)
 
 
-func _refresh_seed(money: int, hands_full: bool) -> void:
+func _refresh_seed(money: int, hands_full: bool, out_of_stock: bool = false) -> void:
 	var grow_mult := maxf(GameState.get_growth_speed_multiplier(), 0.01)
 	var grow_sec := Config.balance.total_grow_time(seed_def) / grow_mult
 	_stat1.text = "Grows in ~%d s" % roundi(grow_sec)
@@ -115,13 +116,16 @@ func _refresh_seed(money: int, hands_full: bool) -> void:
 	_stat3.text = "Margin %s$%d" % ["+" if profit >= 0 else "-", absi(profit)]
 	_stat3.theme_type_variation = &"SuccessLabel" if profit >= 0 else &"ErrorLabel"
 	var affordable := money >= seed_def.cost
-	if hands_full:
+	if out_of_stock:
+		_buy.text = "OUT OF STOCK"
+		_buy.tooltip_text = "Out of stock this shift."
+	elif hands_full:
 		_buy.text = "HANDS FULL"
 		_buy.tooltip_text = "Put down what you're carrying first."
 	else:
 		_buy.text = "BUY  $%d" % seed_def.cost
 		_buy.tooltip_text = "" if affordable else "Not enough cash."
-	_buy.disabled = hands_full or not affordable
+	_buy.disabled = out_of_stock or hands_full or not affordable
 
 
 func _refresh_upgrade(money: int) -> void:

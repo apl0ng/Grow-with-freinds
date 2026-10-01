@@ -153,6 +153,7 @@ func _ready() -> void:
 		if events.has_signal(&"power_changed"):
 			events.connect(&"power_changed", _on_power_changed)
 	_connect_hostile_signals() # --- M12 hostile --- (lines + handlers live in the region at the end of this file)
+	_disrupt_setup()  # M12 disrupt: its lines + event hooks (region at the end of the file)
 
 
 func _process(delta: float) -> void:
@@ -432,6 +433,8 @@ func _on_worker_written_up(peer_id: int, reason: String, count: int) -> void:
 		key = "skimming"
 	elif reason == Const.WRITE_UP_LOITERING:
 		key = "loitering"
+	elif reason == Const.WRITE_UP_ABSENT:  # M12 disrupt: missed the head count
+		key = "absent"
 	_request_named(key, Net.get_player_name(peer_id), Weight.MAJOR)
 
 
@@ -704,3 +707,69 @@ func flame_worker_ignited(peer_id: int) -> void:
 func flame_plot_burnt(plot_label: String) -> void:
 	if _in_session():
 		_request_named("plot_burnt", plot_label, Weight.PROGRESS)
+
+
+# --- M12 disrupt: the head count, the water main, the supply shortage ---------------------------------------------
+# Lines and hooks for the three M12 interruptions (Events emits; Story owns the copy). _ready() calls _disrupt_setup();
+# _on_worker_written_up maps the reason WRITE_UP_ABSENT to the "absent" line. Everything else lives here.
+
+## Copy for the interruptions, merged into `lines` at start-up ("%s" = the worker's name / the strain's name).
+const DISRUPT_LINES: Dictionary = {
+	"headcount": "Head count. The line. Now.",
+	"headcount_end": "Counted. Back to work.",
+	"absent": "Not on the line, %s.",
+	"water_off": "Water main is off.",
+	"water_back": "Water's back. Still not drinkable.",
+	"shortage": "No more %s this shift.",
+	"shortage_end": "%s is back in. Same price.",
+}
+
+## The strain a running shortage hit (display name), kept for the line when it ends.
+var _disrupt_shortage_name: String = ""
+
+
+func _disrupt_setup() -> void:
+	lines.merge(DISRUPT_LINES)
+	var events: Node = get_node_or_null(^"/root/Events")
+	if events == null:
+		return
+	if events.has_signal(&"event_started"):
+		events.connect(&"event_started", _disrupt_on_event_started)
+	if events.has_signal(&"event_ended"):
+		events.connect(&"event_ended", _disrupt_on_event_ended)
+
+
+func _disrupt_on_event_started(kind: StringName, params: Dictionary) -> void:
+	if not _in_session():
+		return
+	match kind:
+		&"headcount":
+			_request("headcount", Weight.MAJOR)
+		&"water_off":
+			_request("water_off", Weight.PROGRESS)
+		&"shortage":
+			_disrupt_shortage_name = _disrupt_strain_name(params.get("strain", ""))
+			_request_named("shortage", _disrupt_shortage_name, Weight.PROGRESS)
+
+
+func _disrupt_on_event_ended(kind: StringName) -> void:
+	if not _in_session():
+		return
+	match kind:
+		&"headcount":
+			_request("headcount_end", Weight.PROGRESS)
+		&"water_off":
+			_request("water_back", Weight.PROGRESS)
+		&"shortage":
+			var who := _disrupt_shortage_name if _disrupt_shortage_name != "" else "Stock"
+			_disrupt_shortage_name = ""
+			_request_named("shortage_end", who, Weight.PROGRESS)
+
+
+## A strain's display name ("Night Shift"); an unknown id made readable.
+func _disrupt_strain_name(strain: Variant) -> String:
+	var id := StringName(str(strain))
+	if id == &"":
+		return "Stock"
+	var def: SeedDef = Config.balance.get_seed(id)
+	return def.display_name if def != null else String(id).capitalize()

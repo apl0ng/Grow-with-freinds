@@ -117,6 +117,13 @@ var _home_local: Transform3D
 var _has_home: bool = false
 var _home_tween: Tween
 var _pose_tween: Tween
+# --- M12 disrupt: walk_to() posts ---
+## walk_to(): stop at the route's last point and stay there (carry pose kept) instead of walking back home.
+var _hold_at_end: bool = false
+## True while he stands at a walk_to() post (arrived, not walking, not yet sent home).
+var _at_post: bool = false
+## Global point he turns to on arriving at the post (INF = keep the last leg's direction).
+var _post_face: Vector3 = Vector3.INF
 
 
 func _enter_tree() -> void:
@@ -268,6 +275,9 @@ func walk_route(points: PackedVector3Array, speed: float = 1.6, start_offset_sec
 	if not is_inside_tree() or points.is_empty():
 		return
 	_kill(_home_tween)
+	_hold_at_end = false
+	_at_post = false
+	_post_face = Vector3.INF
 	if not _has_home:
 		_home_local = transform
 		_has_home = true
@@ -293,8 +303,11 @@ func walk_route(points: PackedVector3Array, speed: float = 1.6, start_offset_sec
 func return_home() -> void:
 	if not _has_home:
 		return
-	var was_walking := _walking
+	var was_walking := _walking or _at_post
 	_walking = false
+	_hold_at_end = false
+	_at_post = false
+	_post_face = Vector3.INF
 	_set_walk_pose(false)
 	_kill(_home_tween)
 	if not is_inside_tree():
@@ -344,6 +357,50 @@ func get_route_length(points: PackedVector3Array) -> float:
 	return total + points[points.size() - 1].distance_to(home)
 
 
+# --- M12 disrupt: a post on the floor (head count) ------------------------------------------------------
+
+## Walks home -> `points` (global floor positions) at `speed` and STAYS at the last point, clipboard in hand, until
+## return_home() or another walk. Deterministic like walk_route(): `start_offset_sec` resumes a late joiner, and past
+## the route's length he is placed at the post at once. `face` is a global point he turns to on arrival (INF keeps
+## the direction of the last leg). Ignored when not in the tree or with no points.
+func walk_to(points: PackedVector3Array, speed: float = 1.6, start_offset_sec: float = 0.0, face: Vector3 = Vector3.INF) -> void:
+	if not is_inside_tree() or points.is_empty():
+		return
+	walk_route(points, speed, 0.0)  # home -> points -> home; the way back is trimmed off below
+	if not _walking:
+		return
+	_route.resize(_route.size() - 1)
+	_cum.resize(_cum.size() - 1)
+	_walk_len = _cum[_cum.size() - 1]
+	_hold_at_end = true
+	_post_face = face
+	_walk_t = maxf(start_offset_sec, 0.0)
+	_update_walk(0.0)
+
+
+## True while he stands at a walk_to() post (arrived, not walking, not yet sent home).
+func is_at_post() -> bool:
+	return _at_post
+
+
+## Length in metres of the current (or last) walk: home -> points -> home for walk_route(), home -> post for walk_to().
+func get_walk_length() -> float:
+	return _walk_len
+
+
+## Arrived at the post: feet still (no bob), carry pose kept, turned to the face point.
+func _arrive_at_post() -> void:
+	_at_post = true
+	if _visual != null:
+		_visual.position.y = 0.0
+	if _post_face.is_finite():
+		var dir := _post_face - global_position
+		dir.y = 0.0
+		if dir.length_squared() > 0.000001:
+			global_rotation.y = atan2(-dir.x, -dir.z)
+	_follow_hand()
+
+
 func _home_global_position() -> Vector3:
 	var local := _home_local if _has_home else transform
 	var parent_3d := get_parent() as Node3D
@@ -358,7 +415,10 @@ func _update_walk(delta: float) -> void:
 	if d >= _walk_len or _route.size() < 2:
 		_walking = false
 		global_position = _route[_route.size() - 1] if not _route.is_empty() else global_position
-		return_home()
+		if _hold_at_end:
+			_arrive_at_post()
+		else:
+			return_home()
 		return
 	var i := 0
 	while i < _cum.size() - 2 and _cum[i + 1] <= d:

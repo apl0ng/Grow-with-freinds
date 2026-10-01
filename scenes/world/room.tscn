@@ -863,6 +863,9 @@ shape = SubResource("BoxShape3D_door_leaf")
 [node name="BackRoomSpot" type="Marker3D" parent="Decor"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.2, -6.7)
 
+[node name="HeadcountSpot" type="Marker3D" parent="Decor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3.2)
+
 [node name="InspectionRoute" type="Node3D" parent="Decor"]
 
 [node name="P1" type="Marker3D" parent="Decor/InspectionRoute"]
