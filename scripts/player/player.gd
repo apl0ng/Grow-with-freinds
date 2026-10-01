@@ -1029,3 +1029,102 @@ func _unshare_lights_with_view_model() -> void:
 func _on_tree_node_added(node: Node) -> void:
 	if node is Light3D and not _view_model_closing:
 		_share_light(node as Light3D)
+
+# --- M12 flame (flame agent): set on fire by the flamethrower -----------------------------------------------------
+
+## Every peer, after the flamethrower's cone reached this worker (cosmetic RPC). by_peer = the shooter.
+signal ignited(by_peer: int)
+
+## How long the flame cosmetic burns on the body (seconds).
+const IGNITE_FX_SEC: float = 2.0
+## Flame colours (dull orange to tomato to the grey everything drifts towards; nothing bright).
+const IGNITE_COLORS: Array[Color] = [Color("ce8d52"), Color("ce6469"), Color("8d93a0")]
+
+## SERVER ONLY. The flamethrower set this worker on fire on behalf of `by_peer` (the shooter, 0 = nobody): the held
+## item drops, they stumble away from the shooter for hit_stun_sec (Player.server_stagger; the owner does the actual
+## stumble), every peer sees IGNITE_FX_SEC of flame on the body and hears "ignite" (_rpc_ignited), and the shooter is
+## written up for arson. A worker in the back room is left alone. Nobody dies of it.
+func server_ignite(by_peer: int) -> void:
+	if not multiplayer.is_server():
+		push_error("Player.server_ignite called on a client")
+		return
+	if not is_inside_tree() or is_queued_for_deletion() or GameState.is_in_backroom(peer_id):
+		return
+	var shooter: Player = Game.get_player(by_peer) if by_peer > 0 else null
+	var away := Vector3.ZERO
+	if shooter != null and is_instance_valid(shooter) and shooter.is_inside_tree():
+		away = global_position - shooter.global_position
+	away.y = 0.0
+	if not away.is_finite() or away.length_squared() < 0.000001:
+		away = get_flat_forward() * -1.0
+	var mgr := ItemManager.find(self)
+	if mgr != null and mgr.get_held_by(peer_id) != null:
+		mgr.server_release_holder(peer_id)
+	Player.server_stagger(self, away.normalized(), false, by_peer, Config.balance.hit_stun_sec, false)
+	# The write-up (MAJOR Story line) first, so the PROGRESS "on fire" line waits in Story's queue behind it.
+	if by_peer > 0:
+		GameState.server_write_up(by_peer, Const.WRITE_UP_ARSON)
+	_rpc_ignited.rpc(by_peer)
+
+## Cosmetic, every peer (only the server may send it: players have owner authority, so any_peer + a sender check):
+## "ignite", IGNITE_FX_SEC of flame on a remote body (the local worker sees their own stumble instead: the body is
+## hidden from its camera), the Story line, the `ignited` signal.
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_ignited(by_peer: int) -> void:
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != Const.SERVER_PEER_ID:
+		return
+	if not is_inside_tree():
+		return
+	if is_local():
+		Sfx.play(&"ignite")
+	else:
+		Sfx.play(&"ignite", get_chest_position())
+		_show_ignite_fx()
+	var story: Node = Story
+	if story != null and story.has_method(&"flame_worker_ignited"):
+		story.call(&"flame_worker_ignited", peer_id)
+	ignited.emit(by_peer)
+
+## Flame particles around the body for IGNITE_FX_SEC (local cosmetic; a plain child of $Visual, no sync, no RPCs).
+func _show_ignite_fx() -> void:
+	var parent: Node3D = visual if visual != null else self
+	var fx := CPUParticles3D.new()
+	fx.name = "IgniteFx"
+	fx.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	fx.amount = 28
+	fx.lifetime = 0.6
+	fx.randomness = 0.4
+	fx.local_coords = false
+	fx.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	fx.emission_sphere_radius = 0.35
+	fx.direction = Vector3.UP
+	fx.spread = 30.0
+	fx.gravity = Vector3(0.0, 1.5, 0.0)
+	fx.initial_velocity_min = 0.6
+	fx.initial_velocity_max = 1.4
+	fx.scale_amount_min = 0.6
+	fx.scale_amount_max = 1.2
+	var ramp := Gradient.new()
+	ramp.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	ramp.colors = PackedColorArray([IGNITE_COLORS[0], IGNITE_COLORS[1], Color(IGNITE_COLORS[2], 0.0)])
+	fx.color_ramp = ramp
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.vertex_color_use_as_albedo = true
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.06
+	mesh.height = 0.12
+	mesh.radial_segments = 8
+	mesh.rings = 4
+	mesh.material = mat
+	fx.mesh = mesh
+	fx.position = Vector3(0.0, CHEST_HEIGHT_STANDING, 0.0)
+	fx.emitting = true
+	parent.add_child(fx)
+	var tw := fx.create_tween()
+	tw.tween_interval(IGNITE_FX_SEC)
+	tw.tween_callback(func() -> void: fx.emitting = false)
+	tw.tween_interval(fx.lifetime + 0.1)
+	tw.tween_callback(fx.queue_free)

@@ -20,6 +20,7 @@ const GROUP_HOSTILES: StringName = &"hostiles"    # M12: hostile plants (childre
 const ITEM_WATERING_CAN: StringName = &"watering_can"
 const ITEM_SEED_PACKET: StringName = &"seed_packet"
 const ITEM_PRODUCT: StringName = &"product"
+const ITEM_FLAMETHROWER: StringName = &"flamethrower"   # M12: the emergency cabinet's weapon, props {"fuel": float, "firing": bool}
 
 # --- Upgrade effect keys (UpgradeDef.effect_key) ---
 const EFFECT_GROWTH_SPEED: StringName = &"growth_speed"   # multiplier bonus: growth rate *= 1 + total
