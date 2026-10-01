@@ -22,7 +22,7 @@ const VIEWS := {
 	"overview_sw": [Vector3(-9.2, 4.3, 6.2), Vector3(1.5, 0.0, -1.5)],
 	"overview_ne": [Vector3(9.2, 4.3, -6.1), Vector3(-1.5, 0.0, 1.5)],
 	# M12: the emergency cabinet on the west wall, with a hostile plant and a flamethrower (GLBs) placed for the shot
-	"trouble_west": [Vector3(-6.0, 1.6, -0.2), Vector3(-9.9, 1.1, -2.3)],
+	"trouble_west": [Vector3(-6.6, 1.5, -3.4), Vector3(-9.7, 1.0, -2.4)],
 }
 
 var _out := "user://world_preview"
@@ -37,14 +37,14 @@ func _initialize() -> void:
 func _place_trouble_props(room: Node3D) -> void:
 	var hostile := (load("res://art/models/hostile_plant.glb") as PackedScene).instantiate() as Node3D
 	room.add_child(hostile)
-	hostile.position = Vector3(-8.0, 0.0, -1.0)
-	hostile.rotation.y = deg_to_rad(125.0)
+	hostile.position = Vector3(-9.0, 0.0, -1.4)
+	hostile.look_at(Vector3(-6.6, 0.0, -3.4), Vector3.UP)
 	if hostile is Toonify:
 		(hostile as Toonify).tint = Toon.grade(Color(0.36, 0.2, 0.56))
 	var flamer := (load("res://art/models/flamethrower.glb") as PackedScene).instantiate() as Node3D
 	room.add_child(flamer)
-	flamer.position = Vector3(-8.6, 0.08, -2.3)
-	flamer.rotation.y = deg_to_rad(60.0)
+	flamer.position = Vector3(-8.6, 0.08, -3.1)
+	flamer.rotation.y = deg_to_rad(35.0)
 
 
 func _run() -> void:
