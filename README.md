@@ -20,13 +20,16 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 - `--fast` makes growth 20× faster and shifts 60 s; `--growth-mult=N`, `--round-sec=N` for finer control. `--mute` (or
   `-Mute` on the launcher) silences the game; the pause menu has a saved Sound toggle. `--auto-start[=sec]` starts the
   shift by itself on the host, `--first-event=<kind>` and `--event-delay=<sec>` steer the first shift event (playtests).
-- Controls: WASD move · Shift sprint · Space jump · Ctrl/C crouch · mouse look · E / LMB interact · Q / G drop ·
+- Controls: WASD move · Shift sprint · Space jump · Ctrl/C crouch · mouse look · E interact · LMB use the held item (hold: the flamethrower) · Q / G drop ·
   RMB / R throw · F shove · MMB / X ping · T chat · V push-to-talk · Enter starts the shift (host) · Esc pause (or
   closes the supply window). Voice, chat and ping settings live in the pause menu.
 - Friendslop pass (M10, see FRIENDSLOP.md): proximity voice chat, throwing and shoving, worker collision, random shift
   events (the Boss walks the floor and writes up skimmers and loiterers, power cuts with a fuse box, audits, a rat),
   three write-ups send a worker to the back room (spectating), a shift report with verdicts. `--no-events` disables
   the events; headless runs need `--events` to enable them.
+- Trouble (M12, FRIENDSLOP.md section 7): six strains (Night Shift, Creeper and Floor Brick pay more and have a
+  mutation chance), a ready plant can twitch and uproot into a hostile plant that eats growing trays and bites workers
+  (a stagger, the item knocked loose); only fire kills it. Stats: bitten, scorched, burns.
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows
