@@ -165,7 +165,7 @@ func get_status_text() -> String:
 		Stage.EMPTY:
 			return "Empty"
 		Stage.READY:
-			return "Ready"
+			return "Moving" if turning else "Ready" # --- M12 hostile --- (the twitch before it uproots)
 	var text := "%s %d%%" % [get_stage_name(), int(get_growth_fraction() * 100.0)]
 	if is_dry():
 		text += ", dry"
@@ -184,7 +184,8 @@ func get_prompt(player: Player) -> String:
 			return "Empty tray"
 		Stage.READY:
 			var s := get_seed()
-			return "Harvest %s x%d" % [get_strain_name(), s.yield_amount if s != null else 1]
+			var harvest := "Harvest %s x%d" % [get_strain_name(), s.yield_amount if s != null else 1]
+			return harvest + " · Moving" if turning else harvest # --- M12 hostile --- (harvest it now or step back)
 	if item_is(held, Const.ITEM_WATERING_CAN):
 		return "Water plant (%s)" % _water_status()
 	return "%s · %s" % [get_strain_name(), get_status_text()]
@@ -544,3 +545,96 @@ static func get_packet_strain(item: Item) -> StringName:
 ## while). Returns true when something burnt. `by_peer` is the shooter (stats / write-ups).
 func server_scorch(_by_peer: int) -> bool:
 	return false
+
+
+# --- M12 hostile --------------------------------------------------------------------------------------------------
+## Mutation (hostile agent, CONTRACTS.md "M12"). A READY plant of a strain with SeedDef.mutation_chance may turn: the
+## host rolls once per READY (Hostiles polls the plots and calls server_roll_mutation), then the synced `turning` /
+## `turn_left` count Config.balance.mutation_warning_sec down (server_tick_mutation, driven by Hostiles.tick while
+## PLAYING). On every peer the `turning` setter starts a jitter tween on %Plant (the plant visibly twitches) and the
+## status / prompt read "Moving". At zero the crop is lost (server_reset) and Hostiles.server_spawn(strain_id,
+## global_position) puts the hostile plant on the floor. Harvesting a turning plant still works: the stage leaves
+## READY, Hostiles clears `turning` on its next tick and the twitch stops everywhere.
+## Sync: `turning` ON_CHANGE (reliable) and `turn_left` ALWAYS, in grow_plot.tscn's replication config (4 and 5).
+
+## Seconds between jerks and how far the plant jerks (degrees) while turning.
+const TWITCH_INTERVAL := 0.11
+const TWITCH_DEG := 7.0
+
+## Synced (server authority). True while a READY plant twitches before it uproots.
+var turning: bool = false:
+	set(value):
+		if value == turning:
+			return
+		turning = value
+		if is_node_ready():
+			_update_twitch()
+## Synced (server authority). Seconds left of the twitch (the host counts down, clients only show it).
+var turn_left: float = 0.0:
+	set(value):
+		turn_left = maxf(value, 0.0) if is_finite(value) else 0.0
+
+var _twitch_tween: Tween = null
+
+
+## True while the READY plant twitches (about to uproot).
+func is_turning() -> bool:
+	return turning and stage == Stage.READY
+
+
+## SERVER. Rolls the strain's mutation_chance once for the READY plant. True when it turns: `turning` is set and the
+## warning countdown armed. False for a non-READY plot, a plant already turning, or a roll that came up safe.
+func server_roll_mutation() -> bool:
+	if not _check_server(&"server_roll_mutation"):
+		return false
+	if stage != Stage.READY or turning:
+		return false
+	var s := get_seed()
+	var chance := clampf(s.mutation_chance, 0.0, 1.0) if s != null else 0.0
+	if chance <= 0.0 or randf() >= chance:
+		return false
+	turn_left = maxf(Config.balance.mutation_warning_sec, 0.0)
+	turning = true
+	return true
+
+
+## SERVER. Counts the twitch down by `delta`; at zero the crop is lost (server_reset) and the hostile plant spawns
+## where the tray is. Returns true when it uprooted. A plant that left READY meanwhile just stops turning.
+func server_tick_mutation(delta: float) -> bool:
+	if not _check_server(&"server_tick_mutation"):
+		return false
+	if not turning or delta <= 0.0:
+		return false
+	if stage != Stage.READY:
+		turning = false
+		return false
+	turn_left -= delta
+	if turn_left > 0.0:
+		return false
+	var strain := strain_id
+	var where := global_position
+	turning = false
+	server_reset()
+	Hostiles.server_spawn(strain, where)
+	return true
+
+
+## Every peer: the jitter tween runs exactly while the plant turns (and is READY); otherwise the plant stands still.
+func _update_twitch() -> void:
+	if is_turning() and is_inside_tree():
+		if _twitch_tween == null or not _twitch_tween.is_valid():
+			_twitch_tween = create_tween().set_loops()
+			_twitch_tween.tween_callback(_twitch_step).set_delay(TWITCH_INTERVAL)
+		return
+	if _twitch_tween != null and _twitch_tween.is_valid():
+		_twitch_tween.kill()
+	_twitch_tween = null
+	_plant.rotation = Vector3.ZERO
+
+
+func _twitch_step() -> void:
+	if not is_turning():
+		_update_twitch()
+		return
+	var a := deg_to_rad(TWITCH_DEG)
+	_plant.rotation = Vector3(randf_range(-a, a), randf_range(-a * 0.5, a * 0.5), randf_range(-a, a))
