@@ -816,6 +816,37 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_tone(b, 0.12, 0.1, 3500.0, 2700.0, 0.5, Wave.SINE, 0.003, 3.5, 55.0, 0.02)
 			_tone(b, 0.12, 0.06, 1750.0, 1350.0, 0.1, Wave.SINE, 0.003, 4.0)
 			_fade_out(b, 0.02)
+		# --- M12 disrupt: the head count, the water main, the supply shortage (dull, low; nobody cheers) -------
+		&"headcount":  # two dry pen clicks on the clipboard, then one flat low note held a moment: line up
+			b = _buf(0.9)
+			_noise(b, rng, 0.0, 0.02, 0.5, 0.8, 0.3, 0.0005, 7.0)
+			_tone(b, 0.0, 0.03, 2400.0, 1800.0, 0.25, Wave.SINE, 0.0005, 8.0)
+			_noise(b, rng, 0.16, 0.02, 0.5, 0.8, 0.3, 0.0005, 7.0)
+			_tone(b, 0.16, 0.03, 2400.0, 1800.0, 0.25, Wave.SINE, 0.0005, 8.0)
+			_tone(b, 0.4, 0.45, 196.0, 196.0, 0.4, Wave.SQUARE, 0.02, 1.5)
+			_tone(b, 0.4, 0.45, 98.0, 98.0, 0.2, Wave.SAW, 0.02, 1.5)
+			_lowpass(b, 0.3)
+			_fade_out(b, 0.03)
+		&"water_off":  # a valve squealing shut, two knocks down the pipe, the trickle dying
+			b = _buf(1.2)
+			_tone(b, 0.0, 0.35, 900.0, 1400.0, 0.3, Wave.SAW, 0.02, 2.0, 30.0, 0.03)
+			_noise(b, rng, 0.0, 0.35, 0.2, 0.5, 0.2, 0.02, 2.0)
+			_noise(b, rng, 0.45, 0.03, 0.7, 0.4, 0.05, 0.001, 6.0)
+			_tone(b, 0.45, 0.12, 140.0, 90.0, 0.5, Wave.SINE, 0.001, 5.0)
+			_noise(b, rng, 0.68, 0.03, 0.6, 0.4, 0.05, 0.001, 6.0)
+			_tone(b, 0.68, 0.12, 120.0, 80.0, 0.45, Wave.SINE, 0.001, 5.0)
+			_noise(b, rng, 0.8, 0.4, 0.25, 0.3, 0.1, 0.01, 2.5)
+			_lowpass(b, 0.35)
+			_fade_out(b, 0.05)
+		&"shortage":  # a rubber stamp coming down on the order, then two notes stepping down: no
+			b = _buf(0.7)
+			_noise(b, rng, 0.0, 0.04, 0.8, 0.6, 0.1, 0.001, 5.0)
+			_tone(b, 0.0, 0.1, 160.0, 110.0, 0.6, Wave.SINE, 0.001, 4.0)
+			_tone(b, 0.22, 0.18, 330.0, 330.0, 0.4, Wave.SQUARE, 0.01, 2.5)
+			_tone(b, 0.42, 0.26, 247.0, 247.0, 0.4, Wave.SQUARE, 0.01, 2.5)
+			_lowpass(b, 0.3)
+			_fade_out(b, 0.03)
+		# --- end M12 disrupt --------------------------------------------------------------------------------
 		_:
 			b = _buf(0.1)
 			_tone(b, 0.0, 0.08, 600.0, 600.0, 0.5, Wave.SINE, 0.002, 4.0)

@@ -30,6 +30,8 @@ func _ready() -> void:
 		_on_world_ready.call_deferred(Game.world)
 	# Full game reset (RETRY after a game over): every can back to the well, full (ItemManager leaves cans to us).
 	GameState.game_reset.connect(_on_game_reset)
+	# M12 disrupt: a late joiner gets the water main's state (host only; the signal fires on the server).
+	Net.peer_registered.connect(_on_peer_registered)
 
 func get_can_spots() -> Array[Marker3D]:
 	var out: Array[Marker3D] = []
@@ -42,17 +44,23 @@ func get_can_spots() -> Array[Marker3D]:
 # Interactable overrides (pure)
 
 func get_prompt(player: Player) -> String:
+	if not pressure_on:
+		return PROMPT_NO_PRESSURE
 	var held := GrowPlot.get_held_item_of(player)
 	if GrowPlot.item_is(held, Const.ITEM_WATERING_CAN):
 		return "Fill can (%d/%d)" % [GrowPlot.get_can_charges(held), GrowPlot.get_can_capacity(held)]
 	return "Fill can"
 
 func can_interact(player: Player) -> bool:
+	if not pressure_on:
+		return false
 	var held := GrowPlot.get_held_item_of(player)
 	return GrowPlot.item_is(held, Const.ITEM_WATERING_CAN) \
 		and GrowPlot.get_can_charges(held) < GrowPlot.get_can_capacity(held)
 
 func get_denied_reason(player: Player) -> String:
+	if not pressure_on:
+		return PROMPT_NO_PRESSURE
 	var held := GrowPlot.get_held_item_of(player)
 	if not GrowPlot.item_is(held, Const.ITEM_WATERING_CAN):
 		return "Needs a can."
@@ -71,7 +79,7 @@ func server_fill_can(item: Item) -> bool:
 	if is_inside_tree() and not GrowPlot.is_server_peer(self):
 		push_error("Well.server_fill_can called on a client")
 		return false
-	if not GrowPlot.item_is(item, Const.ITEM_WATERING_CAN):
+	if not pressure_on or not GrowPlot.item_is(item, Const.ITEM_WATERING_CAN):
 		return false
 	var capacity := GrowPlot.get_can_capacity(item)
 	if GrowPlot.get_can_charges(item) >= capacity:
@@ -129,6 +137,8 @@ func _on_world_ready(world: World) -> void:
 func _on_game_reset() -> void:
 	if not Net.is_host or not GrowPlot.is_server_peer(self):
 		return
+	# M12 disrupt: the water main is back on after a reset whatever turned it off.
+	server_set_pressure(true)
 	# Let any other reset handlers (e.g. despawning loose items) run first, then restore the cans.
 	_can_reset_frames = CAN_RESET_DELAY_FRAMES
 	set_process(true)
@@ -147,3 +157,50 @@ func _rpc_fill_fx() -> void:
 	Sfx.play(&"water", _water.global_position)
 	GrowPlot.juice_fx(&"splash", _water.global_position + Vector3.UP * 0.15, WATER_BURST_COLOR, 14)
 	Juice.bounce(_bucket, 0.3)
+
+# --- M12 disrupt: the water main --------------------------------------------------------------------------
+# Events' water_off turns the pressure off on the host (server_set_pressure(false)); the state is synced by a
+# reliable call_local RPC on this node (the same path on every peer), replayed to late joiners on registration,
+# and back on when the event ends, is force-ended, or the game resets. While off: prompt "No pressure", refills
+# refused on the client prediction and the server (can_interact + server_fill_can).
+
+## Every peer: the water main went off / came back.
+signal pressure_changed(on: bool)
+
+## Prompt (and denial) while the main is off.
+const PROMPT_NO_PRESSURE := "No pressure"
+
+## False while the water main is off (synced).
+var pressure_on: bool = true
+
+
+func has_pressure() -> bool:
+	return pressure_on
+
+
+## SERVER ONLY. Turns the water main on / off on every peer (no-op when unchanged; a warning off the host).
+func server_set_pressure(on: bool) -> void:
+	if not is_inside_tree() or not multiplayer.is_server():
+		push_warning("Well.server_set_pressure called on a client")
+		return
+	if on == pressure_on:
+		return
+	_rpc_set_pressure.rpc(on)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_set_pressure(on: bool) -> void:
+	if on == pressure_on:
+		return
+	pressure_on = on
+	# The tank drains visibly: the water disc is gone while the main is off.
+	if _water != null:
+		_water.visible = on
+	pressure_changed.emit(on)
+
+
+## Host: a late joiner gets the current state when it is not the default.
+func _on_peer_registered(peer_id: int) -> void:
+	if not is_inside_tree() or not multiplayer.is_server() or pressure_on:
+		return
+	_rpc_set_pressure.rpc_id(peer_id, false)

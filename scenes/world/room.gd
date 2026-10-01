@@ -306,6 +306,52 @@ func is_backroom_door_open() -> bool:
 	return _door_open
 
 
+# --- M12 disrupt: head count -------------------------------------------------------------------------
+
+## The line the Boss counts heads from (Decor/HeadcountSpot, a Marker3D on the floor in front of the pay window).
+const HEADCOUNT_SPOT_PATH := ^"Decor/HeadcountSpot"
+## Fallback when the marker is missing: this far in front of the ShopCounter's origin (its front is +Z).
+const HEADCOUNT_FALLBACK_DISTANCE := 1.8
+## The Boss's way to the line follows the inspection route up to its first point within this distance of the spot.
+const HEADCOUNT_ROUTE_JOIN_DISTANCE := 3.0
+
+
+## Global floor position of the head-count line, or a spot in front of the counter when the marker is missing.
+func get_headcount_spot() -> Vector3:
+	var floor_y := _to_global(Transform3D.IDENTITY).origin.y
+	var spot := get_node_or_null(HEADCOUNT_SPOT_PATH) as Marker3D
+	if spot != null:
+		var t := _to_global(_room_transform_of(spot))
+		return Vector3(t.origin.x, floor_y, t.origin.z)
+	var p := get_station_access_point("ShopCounter", HEADCOUNT_FALLBACK_DISTANCE)
+	return p if p.is_finite() else Vector3(0.0, floor_y, 0.0)
+
+
+## The Boss's walk from the booth to the line: the inspection route up to its first point within
+## HEADCOUNT_ROUTE_JOIN_DISTANCE of the spot (the nearest point when none is), then the spot. He leaves through
+## the booth door like an inspection instead of walking through the counter. Just the spot without a route.
+func get_headcount_route() -> PackedVector3Array:
+	var spot := get_headcount_spot()
+	var route := get_inspection_route()
+	var out := PackedVector3Array()
+	var join := -1
+	var nearest := -1
+	var best := INF
+	for i in route.size():
+		var d := route[i].distance_to(spot)
+		if d < best:
+			best = d
+			nearest = i
+		if join < 0 and d <= HEADCOUNT_ROUTE_JOIN_DISTANCE:
+			join = i
+	if join < 0:
+		join = nearest
+	for i in range(join + 1):
+		out.append(route[i])
+	out.append(spot)
+	return out
+
+
 # --- M10: mains power (power cut) ----------------------------------------------------------------------
 
 ## Mains on/off (cosmetic, every peer on its own from Events.power_changed; idempotent). Off: every Light3D under

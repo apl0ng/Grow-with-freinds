@@ -85,6 +85,13 @@ const TEXT_EVENT_POWER_CUT := "POWER CUT"
 const TEXT_EVENT_POWER_HINT := "Find the breaker."
 const TEXT_EVENT_AUDIT := "AUDIT"
 const TEXT_EVENT_RAT := "RAT"
+# M12 disrupt: the three interruptions (title + the hint line under it; "%s" = the strain).
+const TEXT_EVENT_HEADCOUNT := "HEAD COUNT"
+const TEXT_EVENT_HEADCOUNT_HINT := "The line. In front of the window."
+const TEXT_EVENT_WATER_OFF := "WATER OFF"
+const TEXT_EVENT_WATER_OFF_HINT := "No pressure at the tank."
+const TEXT_EVENT_SHORTAGE := "SHORTAGE"
+const TEXT_EVENT_SHORTAGE_HINT := "%s is out of stock."
 
 @onready var root_control: Control = %Root
 @onready var stats: Control = %Stats
@@ -125,6 +132,8 @@ var _speaking_signal: Dictionary = {}
 var _speak_poll_accum: float = 0.0
 ## M10: the running event's kind (&"" = none) for the banner.
 var _event_kind: StringName = &""
+## M12 disrupt: the running event's params (the shortage names its strain in the hint).
+var _event_params: Dictionary = {}
 ## M10: peer_id -> PingMarker (a new ping replaces the worker's previous marker).
 var _ping_markers: Dictionary = {}
 
@@ -546,8 +555,9 @@ func _apply_speaking_mark(peer_id: int) -> void:
 		Juice.stop(dot)
 
 
-func _on_event_started(kind: StringName, _params: Dictionary) -> void:
+func _on_event_started(kind: StringName, params: Dictionary) -> void:
 	_event_kind = kind
+	_event_params = params
 	_show_event_banner(true)
 
 
@@ -563,14 +573,16 @@ func _sync_event_banner() -> void:
 	if bool(events.call(&"is_event_active")):
 		var kind: Variant = events.get(&"active_event")
 		_event_kind = StringName(str(kind)) if kind != null else &""
+		_event_params = events.call(&"get_event_params") if events.has_method(&"get_event_params") else {}
 		if _event_kind != &"":
 			_show_event_banner(false)
 
 
 func _show_event_banner(pop: bool) -> void:
 	event_label.text = _event_title()
-	event_hint.text = TEXT_EVENT_POWER_HINT
-	event_hint.visible = _event_kind == &"power_cut"
+	var hint := _event_hint()
+	event_hint.text = hint
+	event_hint.visible = hint != ""
 	var fresh := not event_panel.visible
 	event_panel.visible = true
 	_update_event_countdown()
@@ -580,6 +592,7 @@ func _show_event_banner(pop: bool) -> void:
 
 func _hide_event_banner() -> void:
 	_event_kind = &""
+	_event_params = {}
 	event_panel.visible = false
 
 
@@ -593,7 +606,33 @@ func _event_title() -> String:
 			return TEXT_EVENT_AUDIT
 		&"rat":
 			return TEXT_EVENT_RAT
+		&"headcount":
+			return TEXT_EVENT_HEADCOUNT
+		&"water_off":
+			return TEXT_EVENT_WATER_OFF
+		&"shortage":
+			return TEXT_EVENT_SHORTAGE
 	return String(_event_kind).to_upper().replace("_", " ")
+
+
+# --- M12 disrupt: the line under the event title ---------------------------------------------------------------
+
+## The hint under the banner title ("" = none): the breaker for a power cut, the line for a head count, the tank
+## for the water main, the strain for a shortage (its display name from balance; the raw id made readable otherwise).
+func _event_hint() -> String:
+	match _event_kind:
+		&"power_cut":
+			return TEXT_EVENT_POWER_HINT
+		&"headcount":
+			return TEXT_EVENT_HEADCOUNT_HINT
+		&"water_off":
+			return TEXT_EVENT_WATER_OFF_HINT
+		&"shortage":
+			var strain := StringName(str(_event_params.get("strain", "")))
+			var def: SeedDef = Config.balance.get_seed(strain) if strain != &"" else null
+			var who := def.display_name if def != null else (String(strain).capitalize() if strain != &"" else "Stock")
+			return TEXT_EVENT_SHORTAGE_HINT % who
+	return ""
 
 
 func _update_event_countdown() -> void:
