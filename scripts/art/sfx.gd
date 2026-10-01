@@ -883,6 +883,37 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_lowpass(b, 0.3)
 			_fade_out(b, 0.03)
 		# --- end M12 disrupt --------------------------------------------------------------------------------
+		# --- M12 lead: the flamethrower and its consequences (dull and physical, nothing heroic) ------------------
+		&"flame":  # the loop while the trigger is held: a muffled roar with a slow rumble under it
+			b = _buf(0.8)
+			_noise(b, rng, 0.0, 0.8, 0.55, 0.18, 0.015, 0.0, 0.0)
+			_tone(b, 0.0, 0.8, 48.0, 48.0, 0.3, Wave.SINE, 0.0, 0.0, 7.0, 0.08)
+			_tone(b, 0.0, 0.8, 95.0, 95.0, 0.12, Wave.TRIANGLE, 0.0, 0.0, 11.0, 0.05)
+			_lowpass(b, 0.4)
+		&"ignite":  # a worker catches: a soft whoomp, then a short crackle
+			b = _buf(0.6)
+			_noise(b, rng, 0.0, 0.35, 0.9, 0.12, 0.0, 0.015, 6.0)
+			_tone(b, 0.0, 0.4, 140.0, 45.0, 0.6, Wave.SINE, 0.004, 5.0)
+			_noise(b, rng, 0.1, 0.5, 0.3, 0.3, 0.05, 0.02, 4.0)
+			_lowpass(b, 0.5)
+			_fade_out(b, 0.05)
+		&"glass_break":  # the cabinet pane: one crack, then shards on the floor
+			b = _buf(0.7)
+			_noise(b, rng, 0.0, 0.025, 1.0, 0.95, 0.4, 0.0003, 12.0)
+			var shard_hz := [4200.0, 3300.0, 5100.0, 2800.0, 4600.0, 3700.0, 5600.0]
+			for i in shard_hz.size():
+				var f: float = shard_hz[i]
+				_tone(b, 0.03 + i * 0.045, 0.12, f, f * 0.97, 0.22, Wave.SINE, 0.0008, 9.0)
+			_noise(b, rng, 0.03, 0.45, 0.3, 0.9, 0.55, 0.004, 7.0)
+			_fade_out(b, 0.04)
+		&"scorch":  # a crop goes: a hiss, a few crackles, a low sag
+			b = _buf(0.8)
+			_noise(b, rng, 0.0, 0.7, 0.5, 0.55, 0.25, 0.02, 3.5)
+			for t in [0.08, 0.19, 0.27, 0.41, 0.52]:
+				_noise(b, rng, t, 0.012, 0.7, 0.9, 0.5, 0.0005, 25.0)
+			_tone(b, 0.0, 0.5, 110.0, 60.0, 0.2, Wave.SINE, 0.01, 4.0)
+			_lowpass(b, 0.55)
+			_fade_out(b, 0.05)
 		_:
 			b = _buf(0.1)
 			_tone(b, 0.0, 0.08, 600.0, 600.0, 0.5, Wave.SINE, 0.002, 4.0)

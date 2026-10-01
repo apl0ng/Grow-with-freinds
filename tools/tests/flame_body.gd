@@ -27,6 +27,7 @@ var _glass: Array = []        # by_peer per glass_broken
 var _restocks: int = 0
 var _ignites: Array = []      # [victim, by_peer]
 var _scorches: Array = []     # [plot name, by_peer]
+var _died: Array = []         # [hostile id, by_peer]
 
 
 func _run() -> void:
@@ -55,6 +56,7 @@ func _run() -> void:
 	check(not cabinet.broken and cabinet.restock_left == 0, "stocked at the start")
 	cabinet.glass_broken.connect(func(by: int) -> void: _glass.append(by))
 	cabinet.restocked.connect(func() -> void: _restocks += 1)
+	Hostiles.hostile_died.connect(func(id: int, by: int) -> void: _died.append([id, by]))
 	check(Story.line("glass_broke") == "Glass broke." and Story.line("on_fire") == "%s is on fire." and Story.line("plot_burnt") == "%s burnt.",
 			"Story knows the flame lines")
 
@@ -254,6 +256,45 @@ func _run() -> void:
 	check(ft2 != null and ft2 != ft and ft2.fuel == b.flamethrower_fuel_sec, "a fresh one in my hands")
 	toasts.clear()
 	check(not cabinet.server_break(me) and toast_seen("Restocking ("), "refused while broken: '%s'" % [toasts])
+
+	step("the flamethrower burns a live hostile plant; breaking the glass while one lives is not misuse")
+	await wait_until(func() -> bool: return not cabinet.broken, b.cabinet_restock_sec + 2.0, "restocked once more")
+	GameState.server_add_money(b.cabinet_deposit * 3)
+	items.server_drop_item(ft2, me.global_position + Vector3(1.0, 0.0, 0.0))
+	await wait_frames(2)
+	check(items.get_held_by(1) == null and ft2.holder_id == 0, "my hands are empty (the second flamethrower lies on the floor)")
+	_place(bob, Vector3(6.0, 0.0, -5.5), 0.0)
+	_place(chloe, Vector3(-6.0, 0.0, -5.5), 0.0)
+	var hid := Hostiles.server_spawn(&"nightshift", Vector3(-3.0, 0.0, -0.5))
+	var hostile := Hostiles.get_hostile(hid) as HostilePlant
+	check(hid > 0 and hostile != null and Hostiles.is_any_alive(), "a hostile plant stands on the floor (id %d)" % hid)
+	_write_ups.clear()
+	_stand_at(cabinet)
+	await wait_physics(2)
+	check(cabinet.server_break(me), "I break the glass while it lives")
+	await wait_frames(2)
+	var ft3 := items.get_held_by(1) as Flamethrower
+	check(ft3 != null and ft3.fuel == b.flamethrower_fuel_sec, "a third flamethrower in my hands")
+	check(not _write_ups.has([1, Const.WRITE_UP_MISUSE]), "no misuse write-up: something is on the floor %s" % [_write_ups])
+	_place(me, Vector3(-3.0, 0.0, 2.5), 0.0, -0.08) # 3 m from it, facing -Z, a touch down
+	await wait_physics(2)
+	check(Flamethrower.point_in_cone(ft3.get_cone_origin(), me.get_look_direction(), hostile.global_position + Vector3.UP * Flamethrower.HOSTILE_POINT_HEIGHT, b.flamethrower_range, b.flamethrower_half_angle_deg), "its body is in the cone")
+	var burns0 := GameState.get_stat(1, Const.STAT_BURNS)
+	_died.clear()
+	var t_fire := Time.get_ticks_msec()
+	check(ft3.server_request_fire(1, true), "I fire at it")
+	await wait_until(func() -> bool: return hostile.state == HostilePlant.State.BURNING, 1.5, "it burns")
+	await wait_until(func() -> bool: return hostile.is_dead(), b.hostile_burn_sec + 2.0, "dead after about hostile_burn_sec of flame")
+	var burn_took := (Time.get_ticks_msec() - t_fire) / 1000.0
+	check(burn_took >= b.hostile_burn_sec * 0.8 and burn_took <= b.hostile_burn_sec + 1.5, "took %.2f s (hostile_burn_sec %.1f)" % [burn_took, b.hostile_burn_sec])
+	check(_died == [[hid, 1]], "hostile_died(id, me) %s" % [_died])
+	check(GameState.get_stat(1, Const.STAT_BURNS) == burns0 + 1, "STAT_BURNS +1 for me")
+	check(ft3.server_request_fire(1, false), "stop")
+	await wait_until(func() -> bool: return Hostiles.get_hostile(hid) == null, 4.0, "the ash is cleared")
+	check(not Hostiles.is_any_alive() and Hostiles.count() == 0, "the floor is clear again")
+	items.server_despawn_item(ft3)
+	await wait_frames(2)
+	check(items.server_give_item(ft2, 1) and items.get_held_by(1) == ft2, "the second flamethrower is back in my hands")
 
 	step("no firing between shifts; a reset restocks and clears the floor")
 	GameState.time_left = 0.0
