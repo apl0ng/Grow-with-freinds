@@ -21,6 +21,8 @@ const VIEWS := {
 	"ceiling_hole": [Vector3(-1.2, 1.6, 1.2), Vector3(-3.5, 5.6, 3.2)],
 	"overview_sw": [Vector3(-9.2, 4.3, 6.2), Vector3(1.5, 0.0, -1.5)],
 	"overview_ne": [Vector3(9.2, 4.3, -6.1), Vector3(-1.5, 0.0, 1.5)],
+	# M12: the emergency cabinet on the west wall, with a hostile plant and a flamethrower (GLBs) placed for the shot
+	"trouble_west": [Vector3(-6.0, 1.6, -0.2), Vector3(-9.9, 1.1, -2.3)],
 }
 
 var _out := "user://world_preview"
@@ -28,6 +30,21 @@ var _out := "user://world_preview"
 
 func _initialize() -> void:
 	_run.call_deferred()
+
+
+## M12 preview props: the hostile plant GLB (tinted Night Shift violet) and the flamethrower GLB on the floor near the
+## cabinet. Plain GLB instances, not the gameplay scenes (those need a World and the host).
+func _place_trouble_props(room: Node3D) -> void:
+	var hostile := (load("res://art/models/hostile_plant.glb") as PackedScene).instantiate() as Node3D
+	room.add_child(hostile)
+	hostile.position = Vector3(-8.0, 0.0, -1.0)
+	hostile.rotation.y = deg_to_rad(125.0)
+	if hostile is Toonify:
+		(hostile as Toonify).tint = Toon.grade(Color(0.36, 0.2, 0.56))
+	var flamer := (load("res://art/models/flamethrower.glb") as PackedScene).instantiate() as Node3D
+	room.add_child(flamer)
+	flamer.position = Vector3(-8.6, 0.08, -2.3)
+	flamer.rotation.y = deg_to_rad(60.0)
 
 
 func _run() -> void:
@@ -48,6 +65,8 @@ func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(_out)
 	var room := (load(ROOM_SCENE) as PackedScene).instantiate() as Node3D
 	root.add_child(room)
+	if "trouble_west" in shots:
+		_place_trouble_props(room)
 	var sun := room.get_node_or_null("Sun") as DirectionalLight3D
 	if sun != null and not shadows:
 		sun.shadow_enabled = false
