@@ -47,7 +47,8 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 
 ## Share a build with friends
 - `.\tools\export.ps1` exports `export\GrowWithFriends.exe` (+ a zip) with the "Windows Desktop" preset. It needs the Godot
-  4.7.2 export templates once (about 1 GB): the script offers to download them (`-DownloadTemplates` skips the question).
+  4.7.2 export templates once (about 1 GB): the script offers to download them (resumable, so a dropped connection just needs a re-run; `-DownloadTemplates` skips
+  the question).
   Friends unzip and run the exe; one hosts, the others join by IP (UDP port 7777 must be reachable).
 
 ## Docs

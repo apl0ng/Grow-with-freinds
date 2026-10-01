@@ -48,6 +48,36 @@ function Find-Godot {
     throw "Godot $Version not found. Run .\launch.ps1 once (it downloads Godot), set GODOT=<exe>, or pass -GodotPath."
 }
 
+function Test-TemplatesArchive([string]$Path, [string[]]$Needed) {
+    <# True when $Path is a readable zip holding every needed Windows template (a partial download is not). #>
+    if (-not (Test-Exe $Path)) { return $false }
+    # A partial download has no end-of-central-directory record in its last 64 KB; ZipFile.OpenRead would otherwise
+    # scan the whole file backwards for it (about a minute per 500 MB), so look for the signature first.
+    try {
+        $fs = [System.IO.File]::OpenRead($Path)
+        try {
+            $tail = [math]::Min($fs.Length, 65557)
+            $fs.Seek(-$tail, [System.IO.SeekOrigin]::End) | Out-Null
+            $buf = New-Object byte[] $tail
+            $read = $fs.Read($buf, 0, $tail)
+            $found = $false
+            for ($i = $read - 4; $i -ge 0; $i--) {
+                if ($buf[$i] -eq 0x50 -and $buf[$i + 1] -eq 0x4b -and $buf[$i + 2] -eq 0x05 -and $buf[$i + 3] -eq 0x06) { $found = $true; break }
+            }
+            if (-not $found) { return $false }
+        } finally { $fs.Dispose() }
+    } catch { return $false }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    try {
+        $archive = [System.IO.Compression.ZipFile]::OpenRead($Path)
+        try {
+            $leaves = @($archive.Entries | ForEach-Object { Split-Path $_.FullName -Leaf })
+            foreach ($n in $Needed) { if ($leaves -notcontains $n) { return $false } }
+            return $true
+        } finally { $archive.Dispose() }
+    } catch { return $false }
+}
+
 function Install-Templates {
     $needed = @("windows_release_x86_64.exe", "windows_debug_x86_64.exe", "windows_release_x86_64_console.exe", "windows_debug_x86_64_console.exe")
     $missing = $needed | Where-Object { -not (Test-Exe (Join-Path $TemplatesDir $_)) }
@@ -64,14 +94,27 @@ function Install-Templates {
     $tmp = Join-Path $env:TEMP "godot_templates_$Version"
     New-Item -ItemType Directory -Force -Path $tmp | Out-Null
     $tpz = Join-Path $tmp "templates.tpz"
-    Write-Host "Downloading $url ..."
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri $url -OutFile $tpz -UseBasicParsing
-    $zip = Join-Path $tmp "templates.zip"
-    Copy-Item $tpz $zip -Force
+    if (Test-TemplatesArchive $tpz $needed) {
+        Write-Host "Using the archive already downloaded: $tpz"
+    } else {
+        Write-Host "Downloading $url (about 1.2 GB; a partial file in $tmp is resumed) ..."
+        $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+        if ($curl) {
+            # curl.exe ships with Windows 10+: resumable (--continue-at -), retries on dropped connections, follows the redirect.
+            & $curl.Source --location --fail --retry 8 --retry-delay 5 --retry-all-errors --continue-at - --output $tpz $url
+            if ($LASTEXITCODE -ne 0) { throw "Download failed (curl exit $LASTEXITCODE). Re-run to resume; the partial file stays in $tmp." }
+        } else {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $url -OutFile $tpz -UseBasicParsing
+        }
+        if (-not (Test-TemplatesArchive $tpz $needed)) {
+            Remove-Item $tpz -Force -ErrorAction SilentlyContinue
+            throw "The downloaded file is not a complete templates archive; it was deleted. Re-run to download again."
+        }
+    }
     Write-Host "Extracting the Windows templates ..."
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($tpz)
     try {
         New-Item -ItemType Directory -Force -Path $TemplatesDir | Out-Null
         foreach ($entry in $archive.Entries) {
