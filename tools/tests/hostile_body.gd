@@ -94,6 +94,7 @@ func _test_mutation(b: BalanceConfig) -> void:
 	check(plot1.turning and plot1.is_turning(), "chance 1: the ready plant turns")
 	check(absf(plot1.turn_left - b.mutation_warning_sec) < 0.2, "turn_left starts at mutation_warning_sec (%.2f)" % plot1.turn_left)
 	check(plot1.get_status_text() == "Moving", "status reads Moving")
+	check(Story.get_pending_text() == "GrowPlot 1 is moving." or Story.bark_log.has("GrowPlot 1 is moving."), "Story warns the floor: 'GrowPlot 1 is moving.' (pending '%s')" % Story.get_pending_text())
 	var prompt := plot1.get_prompt(Game.local_player)
 	check(prompt.begins_with("Harvest") and prompt.contains("Moving") and plot1.can_interact(Game.local_player), "prompt: harvest still allowed, says Moving (%s)" % prompt)
 	var plant := plot1.get_node(^"%Plant") as Node3D

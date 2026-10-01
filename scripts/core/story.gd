@@ -591,6 +591,7 @@ static func _find_descendant(root: Node, with_bark: bool) -> Node:
 ## The keys are merged into `lines` at startup so the copy audit and line() see them like any other line.
 
 const HOSTILE_LINES: Dictionary = {
+	"plot_turning": "%s is moving.",
 	"hostile_spawned": "Something came out of %s.",
 	"hostile_eating": "It is eating %s.",
 	"hostile_ate": "%s is gone.",
@@ -602,6 +603,11 @@ const HOSTILE_PLOT_RANGE := 1.5
 const HOSTILE_PLOT_NAME := "GrowPlot %d"
 const HOSTILE_PLOT_FALLBACK := "the trays"
 
+
+## Every peer, from GrowPlot's `turning` setter: "GrowPlot 3 is moving." (MAJOR: six seconds to harvest it or step back).
+func hostile_plot_turning(plot_label: String) -> void:
+	if _in_session():
+		_request_named("plot_turning", plot_label, Weight.MAJOR)
 
 func _connect_hostile_signals() -> void:
 	for k in HOSTILE_LINES:

@@ -685,6 +685,11 @@ var turning: bool = false:
 		turning = value
 		if is_node_ready():
 			_update_twitch()
+			if value and is_inside_tree():
+				# Every peer (the setter runs from the sync too): the floor gets six seconds of warning.
+				var story: Node = get_node_or_null(^"/root/Story")
+				if story != null and story.has_method(&"hostile_plot_turning"):
+					story.call(&"hostile_plot_turning", get_scorch_label())
 ## Synced (server authority). Seconds left of the twitch (the host counts down, clients only show it).
 var turn_left: float = 0.0:
 	set(value):

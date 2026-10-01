@@ -644,6 +644,8 @@ Deviations from the brief worth knowing:
   `FLAME_LINES`; disrupt: `DISRUPT_LINES` + the "absent" write-up line); `_ready` calls `_connect_hostile_signals()`
   and `_disrupt_setup()`. **Sfx**: recipe blocks for the hostile and disrupt sounds; `flame`, `ignite`, `glass_break`,
   `scorch` still use the default blip (audio pass pending).
-Known gaps: the flamethrower burning a live hostile is covered only indirectly (flame suite ran against the stub; the
-merged code path is exercised by a lead playtest, not a suite); `hold_offset` of the modelled flamethrower was not
-tuned by eye; `Room.STATION_NAMES` does not list "EmergencyCabinet" (resolved by path).
+Follow-ups the same day: the hostile plant is 2x (the GLB sits scaled under `Visual/Model`; collider, shadow, bite
+reach 1.7 m, stop 1.3 m, eating distance 1.3 m, wall probe and the flame aim height 1 m follow); the flame suite burns a
+live hostile and checks that breaking the glass with one alive is not misuse; `flame`, `ignite`, `glass_break` and
+`scorch` have real recipes. Known gaps: `hold_offset` of the modelled flamethrower was not tuned by eye;
+`Room.STATION_NAMES` does not list "EmergencyCabinet" (resolved by path).
