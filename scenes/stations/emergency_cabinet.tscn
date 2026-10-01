@@ -1,6 +1,8 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/stations/emergency_cabinet.gd" id="1_cabinet"]
+[ext_resource type="PackedScene" path="res://art/models/emergency_cabinet.glb" id="9_model"]
+[ext_resource type="PackedScene" path="res://art/models/flamethrower.glb" id="9_stock_model"]
 [ext_resource type="Material" path="res://art/materials/toon_red.tres" id="2_red"]
 [ext_resource type="Material" path="res://art/materials/toon_glass.tres" id="3_glass"]
 [ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="4_metal_dark"]
@@ -53,46 +55,12 @@ properties/1/replication_mode = 2
 [node name="EmergencyCabinet" type="Node3D"]
 script = ExtResource("1_cabinet")
 
-[node name="Visual" type="Node3D" parent="."]
+[node name="Visual" parent="." instance=ExtResource("9_model")]
+outline_width = 0.02
 
-[node name="Body" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.1)
-mesh = SubResource("BoxMesh_body")
-
-[node name="Inner" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0.125)
-mesh = SubResource("BoxMesh_inner")
-
-[node name="Stock" type="Node3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0.12)
-
-[node name="Tank" type="MeshInstance3D" parent="Visual/Stock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.02, 0)
-mesh = SubResource("CylinderMesh_tank")
-
-[node name="Barrel" type="MeshInstance3D" parent="Visual/Stock"]
-transform = Transform3D(0.965926, -0.258819, 0, 0.258819, 0.965926, 0, 0, 0, 1, 0.07, -0.02, 0)
-mesh = SubResource("CylinderMesh_barrel")
-
-[node name="Glass" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0.206)
-mesh = SubResource("BoxMesh_glass")
-
-[node name="Plate" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.245, 0.206)
-mesh = SubResource("BoxMesh_plate")
-
-[node name="PlateLabel" type="Label3D" parent="Visual/Plate"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.006)
-cast_shadow = 0
-pixel_size = 0.0007
-double_sided = false
-modulate = Color(0.18, 0.16, 0.24, 1)
-text = "EMERGENCY ONLY
-DEPOSIT DUE"
-font_size = 34
-outline_size = 0
-line_spacing = -8.0
+[node name="StockModel" parent="Visual/Stock" instance=ExtResource("9_stock_model")]
+transform = Transform3D(0.55, 0, 0, 0, 0, 0.55, 0, -0.55, 0, 0, 0, 0)
+outline_width = 0.012
 
 [node name="Collider" type="StaticBody3D" parent="."]
 collision_layer = 4

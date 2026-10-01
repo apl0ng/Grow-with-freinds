@@ -604,3 +604,46 @@ strain_id)` (synced; that strain's prompt "Out of stock", purchases refused) for
 existing replay; HUD banner copy and Story lines in the house tone ("Head count. The line. Now.", "Water main is off.",
 "No more Night Shift this shift."). Suites `disrupt` (+59) and `disrupt_mp` (+60: a late joiner sees the shortage and
 the well state).
+
+### M12 as delivered (integration notes, lead, 2026-10-01)
+All four branches merged (strains e8ecc25, hostile 202b039, flame c53e388, disrupt 30660bf); suites `strains` (+54),
+`hostile` (+55), `hostile_mp` (+56), `flame` (+57), `flame_mp` (+58), `disrupt` (+59), `disrupt_mp` (+60) registered.
+Lead additions after the merges: `Const.GROUP_HOSTILES`, `Const.ITEM_FLAMETHROWER` (the agents' local consts removed),
+the three GLBs hooked into their scenes (hostile_plant.tscn: the GLB is `Visual`, `Visual/Jaw` opens on a bite;
+emergency_cabinet.tscn: the GLB is `Visual` with a 0.55-scale flamethrower standing under `Visual/Stock`;
+flamethrower.tscn: the GLB under `Visual/Model`, `Visual` lifted 0.08 m so a dropped one rests on the floor, `Nozzle` at
+the model tip z -0.34). The flamethrower's cone reads each hostile's `id` (the hostile branch named it `id`, not
+`hostile_id`).
+Deviations from the brief worth knowing:
+- **Hostiles** adds `hostile_eating(id, plot_index)`, `tick(delta)` (public host step, sub-stepped at 30 Hz),
+  `get_replay_entries()` / `_rpc_replay(entries)` (idempotent late-join payload). Poses travel unreliably at 10 Hz,
+  state changes reliably. The mutation watch lives in Hostiles.tick: it polls GrowPlots and calls
+  `GrowPlot.server_roll_mutation()` once per READY and `server_tick_mutation(delta)` while turning. After two bites
+  the plant is calm for 5 s; it only bites a worker whose stagger immunity has lapsed; burning halves its speed; the
+  dead node stays 1.5 s. Hostiles never bite back-room workers and never walk through walls (a 0.4 m probe, no
+  pathfinding).
+- **GrowPlot**: `turning` / `turn_left` synced (replication entries 4 and 5), `is_turning()`, status and prompt say
+  "Moving"; harvesting a turning plant is allowed. `server_scorch` steps a READY crop through FLOWERING for one frame
+  so a burnt crop does not play the harvest snip; ash is a runtime `Visual/Ash` overlay for 20 s; `scorched(by_peer)`
+  signal, `is_scorched()`, `get_scorch_label()`.
+- **EmergencyCabinet**: `restock_left` is synced in whole seconds (one packet a second); `server_break(player)`,
+  `server_restock()`, `glass_broken(by_peer)` / `restocked` signals; a game reset restocks at once and despawns
+  every flamethrower. **Flamethrower**: `server_request_fire(sender, on) -> bool` is the public validation; the item
+  itself polls `use_item` while the local player holds it (player.gd untouched apart from the `server_ignite` region);
+  the cone origin is the holder's camera (synced yaw / pitch), a LAYER_WORLD line check must be clear; fuel is written
+  in 0.1 s steps. **Player.server_ignite** skips back-room workers; `_rpc_ignited` is any_peer with a server-sender
+  check (players have owner authority).
+- **Disruptions**: headcount params carry `speed` too; `Events.server_headcount() -> Array[int]`,
+  `pick_shortage_strain()`, `get_planted_counts()` (the host counts plantings per strain by watching the plots; stats
+  have no per-strain key). `ShopkeeperNPC.walk_to(points, speed, start_offset_sec, face)` / `is_at_post()` /
+  `get_walk_length()` were added so the Boss can stand at the line; `Room.get_headcount_spot()` /
+  `get_headcount_route()`; `Well.server_set_pressure(on)` + `pressure_changed`; `ShopCounter.server_set_shortage(id)`
+  + `shortage_changed`, the OUT OF STOCK card in the supply window; HUD banner titles HEAD COUNT / WATER OFF /
+  SHORTAGE. A force-ended head count writes nobody up. The keys loop and the booth door now follow the Boss on any walk.
+- **Story**: each agent's lines live in a `# --- M12 <agent> ---` region (hostile: `HOSTILE_LINES`; flame:
+  `FLAME_LINES`; disrupt: `DISRUPT_LINES` + the "absent" write-up line); `_ready` calls `_connect_hostile_signals()`
+  and `_disrupt_setup()`. **Sfx**: recipe blocks for the hostile and disrupt sounds; `flame`, `ignite`, `glass_break`,
+  `scorch` still use the default blip (audio pass pending).
+Known gaps: the flamethrower burning a live hostile is covered only indirectly (flame suite ran against the stub; the
+merged code path is exercised by a lead playtest, not a suite); `hold_offset` of the modelled flamethrower was not
+tuned by eye; `Room.STATION_NAMES` does not list "EmergencyCabinet" (resolved by path).

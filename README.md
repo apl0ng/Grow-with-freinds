@@ -24,12 +24,16 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   RMB / R throw · F shove · MMB / X ping · T chat · V push-to-talk · Enter starts the shift (host) · Esc pause (or
   closes the supply window). Voice, chat and ping settings live in the pause menu.
 - Friendslop pass (M10, see FRIENDSLOP.md): proximity voice chat, throwing and shoving, worker collision, random shift
-  events (the Boss walks the floor and writes up skimmers and loiterers, power cuts with a fuse box, audits, a rat),
+  events (the Boss walks the floor and writes up skimmers and loiterers, power cuts with a fuse box, audits, a rat;
+  M12: head counts, the water main going off, supply shortages of the strain you planted most),
   three write-ups send a worker to the back room (spectating), a shift report with verdicts. `--no-events` disables
   the events; headless runs need `--events` to enable them.
 - Trouble (M12, FRIENDSLOP.md section 7): six strains (Night Shift, Creeper and Floor Brick pay more and have a
   mutation chance), a ready plant can twitch and uproot into a hostile plant that eats growing trays and bites workers
-  (a stagger, the item knocked loose); only fire kills it. Stats: bitten, scorched, burns.
+  (a stagger, the item knocked loose); only fire kills it. A red cabinet on the wall by the fuse box holds one
+  flamethrower: break the glass (E; a cash deposit, and a write-up for misuse when nothing is on the floor), hold LMB to
+  fire (eight seconds of fuel; burnt crops and co-workers are arson, another write-up); it restocks after ninety
+  seconds. Stats: bitten, scorched, burns.
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows

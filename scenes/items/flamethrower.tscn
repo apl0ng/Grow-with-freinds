@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/items/flamethrower.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://art/models/flamethrower.glb" id="9_model"]
 [ext_resource type="Material" path="res://art/materials/toon_red.tres" id="2_red"]
 [ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="3_metal_dark"]
 [ext_resource type="Material" path="res://art/materials/toon_metal.tres" id="4_metal"]
@@ -90,25 +91,13 @@ hold_offset = Vector3(0.07, -0.16, -0.1)
 hold_rotation_degrees = Vector3(0, -4, 0)
 
 [node name="Visual" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0)
 
-[node name="Grip" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.07, 0)
-mesh = SubResource("BoxMesh_grip")
-
-[node name="Tank" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.1, 0.1)
-mesh = SubResource("CylinderMesh_tank")
-
-[node name="Barrel" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.14, -0.24)
-mesh = SubResource("CylinderMesh_barrel")
-
-[node name="Hose" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 0.94, -0.34, 0, 0.34, 0.94, 0.06, 0.03, 0.17)
-mesh = SubResource("CylinderMesh_hose")
+[node name="Model" parent="Visual" instance=ExtResource("9_model")]
+outline_width = 0.012
 
 [node name="Nozzle" type="Node3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.14, -0.43)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.34)
 
 [node name="Flame" type="CPUParticles3D" parent="Visual/Nozzle"]
 cast_shadow = 0
