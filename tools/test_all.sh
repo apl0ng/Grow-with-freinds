@@ -37,7 +37,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
   review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline lan firewall voice_test voice_mp physics physics_mp ui_m10 ui_m10_mp events events_mp hostile hostile_mp strains flame flame_mp disrupt disrupt_mp
   review_m10 review_m10_mp review_m12 review_m12_mp qa_m10_4p qa_m12_4p lobby lobby_mp mayhem mayhem_mp loop loop_mp level alley alley_mp
-  replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp economy polish
+  replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp economy polish variety variety_mp
   qa_mouse_x11)
 
 ONLY=""
@@ -56,7 +56,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 91 92 95 96; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 95 96; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -327,7 +327,7 @@ rm -rf "$LOGDIR/alleymp"; mkdir -p "$LOGDIR/alleymp"
 run_suite alley_mp        260 "$LOGDIR/alleymp/*.log" env ALLEY_MP_PORT=$((BASE + 82)) ALLEY_MP_LOGS="$LOGDIR/alleymp" tools/tests/alley_mp.sh
 # M15 replay: shift conditions, the market, unlocks, chips / card / briefing (solo host + fake workers, --replay) on +83;
 # the same body with --no-replay (all of it inert); host + client + late joiner on +84.
-run_suite replay          200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/replay_body.gd --port=$((BASE + 83)) --replay --timeout=180
+run_suite replay          200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/replay_body.gd --port=$((BASE + 83)) --replay --run=B5VP --timeout=180
 run_suite replay_off      120 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/replay_body.gd --port=$((BASE + 83)) --no-replay
 rm -rf "$LOGDIR/replaymp"; mkdir -p "$LOGDIR/replaymp"
 run_suite replay_mp       240 "$LOGDIR/replaymp/*.log" env REPLAY_MP_PORT=$((BASE + 84)) REPLAY_MP_LOGS="$LOGDIR/replaymp" tools/tests/replay_mp.sh
@@ -337,7 +337,7 @@ rm -rf "$LOGDIR/mayhem2mp"; mkdir -p "$LOGDIR/mayhem2mp"
 run_suite mayhem2_mp      260 "$LOGDIR/mayhem2mp/*.log" env MAYHEM2_MP_PORT=$((BASE + 78)) MAYHEM2_MP_LOGS="$LOGDIR/mayhem2mp" tools/tests/mayhem2_mp.sh
 # M15 career: the shift's job and the career file on a solo host with one fake worker (+85); host + Alpha + the late
 # joiner Bravo, each with its own temp career file (+86). Neither touches the real user://career.cfg.
-run_suite career          240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/career_body.gd --port=$((BASE + 85)) --replay --career-file=user://career_test_$((BASE + 85)).cfg --round-sec=900 --timeout=200
+run_suite career          240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/career_body.gd --port=$((BASE + 85)) --replay --run=B5VP --career-file=user://career_test_$((BASE + 85)).cfg --round-sec=900 --timeout=200
 rm -rf "$LOGDIR/careermp"; mkdir -p "$LOGDIR/careermp"
 run_suite career_mp       260 "$LOGDIR/careermp/*.log" env CAREER_MP_PORT=$((BASE + 86)) CAREER_MP_LOGS="$LOGDIR/careermp" tools/tests/career_mp.sh
 # M15 economy: the shift model (tools/tests/econ_sim.gd) against the shipped numbers: the payment table, the four
@@ -345,7 +345,13 @@ run_suite career_mp       260 "$LOGDIR/careermp/*.log" env CAREER_MP_PORT=$((BAS
 run_suite economy         300 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/economy_body.gd --port=$((BASE + 79))
 # M16 polish: three more jobs (variety / keep / raid), the cap on walking plants, the uproot sound, the empty
 # flamethrower's wait (solo host + one fake worker, --replay --events, its own temp career file) on +91.
-run_suite polish          200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/polish_body.gd --port=$((BASE + 91)) --replay --events --career-file=user://polish_test_$((BASE + 91)).cfg --round-sec=900 --timeout=150
+run_suite polish          200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/polish_body.gd --port=$((BASE + 91)) --replay --run=B5VP --events --career-file=user://polish_test_$((BASE + 91)).cfg --round-sec=900 --timeout=150
+# M16 variety: run codes, seeded dice, cover layouts proven from the geometry, the menu's run row, the board's run line
+# (solo host, lobby + replay + events) on +89; host + client + late joiner on +90. Every other suite that runs with
+# --replay passes --run=B5VP: layout 0 (today's cover) and one fixed card.
+run_suite variety         260 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/variety_body.gd --port=$((BASE + 89)) --replay --lobby --events --run=7K2M --round-sec=900 --timeout=220
+rm -rf "$LOGDIR/varietymp"; mkdir -p "$LOGDIR/varietymp"
+run_suite variety_mp      260 "$LOGDIR/varietymp/*.log" env VARIETY_MP_PORT=$((BASE + 90)) VARIETY_MP_LOGS="$LOGDIR/varietymp" tools/tests/variety_mp.sh
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120

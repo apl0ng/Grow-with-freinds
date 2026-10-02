@@ -41,7 +41,7 @@ PIDS=()
 launch() { # name args...
   local name=$1; shift
   timeout 190 "$GODOT" --headless --path . -s res://tools/tests/run_test.gd -- \
-    --body=res://tools/tests/replay_mp_body.gd --port="$PORT" --replay --round-sec=900 "$@" >"$LOGS/replay_mp_$name.log" 2>&1 &
+    --body=res://tools/tests/replay_mp_body.gd --port="$PORT" --replay --run=B5VP --round-sec=900 "$@" >"$LOGS/replay_mp_$name.log" 2>&1 &
   PIDS+=("$!:$name")
 }
 wait_for_line() { # file pattern seconds
