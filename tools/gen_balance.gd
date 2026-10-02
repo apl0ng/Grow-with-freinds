@@ -10,7 +10,7 @@ func _init() -> void:
 		_seed(&"purple", "Purple Haze", "Slower. Pays better. The Boss prefers it.", 45, 1.3, 1, 130, Color(0.7, 0.45, 0.9), 0.05),
 		_seed(&"golden", "Golden Kush", "Long grow. Double yield. He counts these.", 90, 1.6, 2, 120, Color(1.0, 0.8, 0.25), 0.1),
 		# M12 strains: the mutation chance is rolled once when the plant becomes READY (CONTRACTS "M12").
-		_seed(&"nightshift", "Night Shift", "Dark. Pays the most. One in three gets up and leaves the tray.", 70, 1.2, 1, 170, Color(0.36, 0.2, 0.56), 0.35),
+		_seed(&"nightshift", "Night Shift", "Dark. Pays the most. One in three gets up and leaves the tray.", 70, 1.2, 1, 210, Color(0.36, 0.2, 0.56), 0.35),
 		_seed(&"creeper", "Creeper", "Cheap. Quick. It twitches. Some of them walk.", 30, 0.8, 1, 70, Color(0.2, 0.72, 0.64), 0.12),
 		_seed(&"brick", "Floor Brick", "Slow. Heavy. Three units a plant. One in five walks off with them.", 120, 2.0, 3, 110, Color(0.72, 0.36, 0.2), 0.2),
 	]

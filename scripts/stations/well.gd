@@ -168,7 +168,7 @@ func _rpc_fill_fx() -> void:
 signal pressure_changed(on: bool)
 
 ## Prompt (and denial) while the main is off.
-const PROMPT_NO_PRESSURE := "No pressure"
+const PROMPT_NO_PRESSURE := "No pressure."
 
 ## False while the water main is off (synced).
 var pressure_on: bool = true

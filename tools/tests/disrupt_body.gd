@@ -227,7 +227,7 @@ func _test_water_off(b: BalanceConfig) -> void:
 	var p: Dictionary = _started.back()[1] if not _started.is_empty() else {}
 	check(is_equal_approx(float(p.get("seconds", 0.0)), b.water_off_sec) and p.size() == 1, "params {seconds: water_off_sec} (%s)" % [p])
 	check(not _well.has_pressure() and not _well.pressure_on, "Well.pressure_on is false (synced setter)")
-	check(_well.get_prompt(me) == "No pressure" and not _well.can_interact(me) and _well.get_denied_reason(me) == "No pressure", "prompt 'No pressure', the refill is refused")
+	check(_well.get_prompt(me) == "No pressure." and not _well.can_interact(me) and _well.get_denied_reason(me) == "No pressure.", "prompt 'No pressure', the refill is refused")
 	check(not _well.server_fill_can(can) and int(can.get(&"charges")) == 1, "server_fill_can refuses: the can stays at 1")
 	check(water != null and not water.visible, "the tank's water is gone")
 	stand_near(_well, 1.3)

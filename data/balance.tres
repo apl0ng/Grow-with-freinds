@@ -46,7 +46,7 @@ display_name = "Night Shift"
 description = "Dark. Pays the most. One in three gets up and leaves the tray."
 cost = 70
 grow_time_multiplier = 1.2
-sale_value_per_unit = 170
+sale_value_per_unit = 210
 color = Color(0.36, 0.2, 0.56, 1)
 mutation_chance = 0.35
 
