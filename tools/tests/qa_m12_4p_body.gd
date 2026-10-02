@@ -15,15 +15,18 @@ extends "res://tools/tests/qa_m10_4p_base.gd"
 ## Scenarios (host side, asserted with ok/FAIL lines):
 ##   (1) mutation under load: six trays of a strain forced to mutation_chance 1.0 turn READY in one tick; every peer
 ##       sees the twitch and the six "... is moving." lines; a client harvests one in time; Bravo joins again
-##       mid-warning and sees the twitch; hostile_max holds and the trays that found the floor full keep their crop
+##       mid-warning and sees the twitch; hostile_max holds and the trays that found the floor full wait (still
+##       moving, still harvestable) and come out one by one as slots free
 ##   (2) the chase: the plant bites Alpha, then Bravo (stun on the victim's own process, the can out of their hands
-##       on every peer, STAT_BITTEN); Alpha is sent to the back room mid-chase (never bitten there, not even with the
-##       plant against the booth wall); Charlie joins mid-chase and sees the plant; Bravo disconnects while targeted
+##       on every peer, STAT_BITTEN); no bite through the fence and the chase is given up there; Alpha is sent to the
+##       back room mid-chase (never bitten there, not even with the plant against the booth wall); Charlie joins
+##       mid-chase and sees the plant; Bravo disconnects while targeted
 ##   (3) fire: Alpha breaks the glass (deposit, no write-up with a plant alive), burns the plant down (hostile_died,
 ##       STAT_BURNS), the tray behind it scorches, Bravo and Charlie walk into the cone (ignited once each), the third
-##       arson sends Alpha to the back room while firing; the cabinet restocks, Bravo takes one (misuse), throws it
-##       while it fires, fires again and drops out of the session; both fire at once, Charlie joins mid-fire, both
-##       tanks run dry; a trigger on an empty tank is refused
+##       arson sends Alpha to the back room while firing and the Boss keeps his flamethrower (gone on every peer); the
+##       cabinet restocks, Bravo takes one (misuse), throws it while it fires, fires again and drops out of the
+##       session; Alpha takes another; both fire at once, Charlie joins mid-fire, both tanks run dry; a trigger on an
+##       empty tank is refused
 ##   (4) events on top: a head count with a plant on the Boss's route, water off while a tray dries and the plant eats
 ##       another, forged M12 requests from a client, a shortage, a power cut (the plant eats in the dark), an
 ##       inspection (a worker behind the plant is not seen; a worker pinned by a bite is not written up for loitering
@@ -256,10 +259,19 @@ func _m12_log() -> Dictionary:
 		"eating": _h_eating.duplicate(true), "died": _h_died.duplicate(true), "barks": _barks.duplicate(),
 		"turn_seen": turn, "twitch_seen": twitch, "ignited": _ignited.duplicate(true), "glass": _glass.duplicate(true),
 		"restocked": _restocked, "scorches": _scorches.duplicate(true), "fire_ev": _fire_ev.duplicate(true),
-		"fuel_log": _fuel_log.duplicate(true), "purchases": _purchases.duplicate(true),
+		"fuel_log": _fuel_log.duplicate(true), "purchases": _purchases.duplicate(true), "flame_toasts": _toasts_with("flamethrower"),
 		"pressure_ev": _pressure_ev.duplicate(true), "shortage_ev": _shortage_ev.duplicate(true),
 		"written": _written.duplicate(true), "ev_started": kinds_started, "ev_ended": kinds_ended,
 	}
+
+
+## Every toast this peer showed so far whose text contains `substring`.
+func _toasts_with(substring: String) -> Array:
+	var out: Array = []
+	for t in toasts:
+		if String(t[0]).contains(substring):
+			out.append(String(t[0]))
+	return out
 
 
 func _clear_m12_log() -> void:
@@ -677,14 +689,21 @@ func _case_fire() -> void:
 	await wait_until(func() -> bool: return _rows(_ignited, _ids["c"], _ids["a"]) >= 1, 6.0, "host: Charlie ignited by Alpha")
 	await wait_until(func() -> bool: return GameState.is_in_backroom(_ids["a"]), 3.0, "third strike: Alpha in the back room")
 	check(GameState.get_write_ups(_ids["a"]) == 0 and _count_written(_ids["a"], Const.WRITE_UP_ARSON) == 3, "three arson write-ups, strikes cleared")
-	await wait_until(func() -> bool: return not ft.firing and ft.holder_id == 0, 3.0, "host: firing stopped, the flamethrower dropped")
+	# The rule (M13 review): the Boss keeps the flamethrower of a worker he sends to the back room. It is gone on
+	# every peer, not waiting at the worker's spawn with its fuel.
+	var ft_name := String(ft.name)
+	await wait_until(func() -> bool: return item_named(ft_name) == null and items_of(FLAME).is_empty(), 3.0, "host: the flame is out and the flamethrower is gone (the Boss keeps it)")
+	var kept_toast := Events.TOAST_FLAMETHROWER_KEPT % NAMES["a"]
+	var kept_line := Story.line("confiscated")
+	check(toast_seen(kept_toast) and _barks.has(kept_line), "host: '%s' and the Boss says '%s'" % [kept_toast, kept_line])
 	var spawn_a := room.get_spawn_transform(_player("a").spawn_index).origin
-	check(Vector2(ft.rest_position.x - spawn_a.x, ft.rest_position.z - spawn_a.z).length() < 1.5, "it lies at Alpha's spawn point, not in the back room (%s)" % ft.rest_position)
-	check(ft.fuel > 0.0 and ft.fuel < 20.0, "%.1f s of fuel left in it" % ft.fuel)
 	r = await run_cmd(_ids["a"], "fire", {"on": false})
 	await wait_sec(0.4)
 	logs = await _logs(_all)
-	var ft_name := String(ft.name)
+	var gone := await _reports_cmd(_all, "late_flame", {"count": 0})
+	for k in _all:
+		check((gone[k].get("flames", ["?"]) as Array).is_empty() and (gone[k].get("fx", {"?": true}) as Dictionary).is_empty(), "%s: no flamethrower left on his peer" % NAMES[k])
+		check(_has_toast(logs[k].get("flame_toasts", []), kept_toast) and (logs[k].get("barks", []) as Array).has(kept_line), "%s: the toast and the Boss's line" % NAMES[k])
 	for k in _all:
 		var lg: Dictionary = logs[k]
 		check(_rows(lg.get("died", []), h_id, _ids["a"]) == 1 and (lg.get("died", []) as Array).size() == 1, "%s: hostile_died(id, Alpha) once" % NAMES[k])
@@ -695,7 +714,7 @@ func _case_fire() -> void:
 		for e in (lg.get("fire_ev", []) as Array):
 			if String(e[0]) == ft_name:
 				fire.append(bool(e[1]))
-		check(fire == [true, false], "%s: firing went on, then off %s" % [NAMES[k], fire])
+		check(not fire.is_empty() and fire[0] == true, "%s: saw the flame go on (it went out with the flamethrower) %s" % [NAMES[k], fire])
 		var arson := 0
 		var counts: Array = []
 		for e in (lg.get("written", []) as Array):
@@ -775,11 +794,17 @@ func _case_fire() -> void:
 	r = await run_cmd(_ids["b"], "pickup", {"item": String(ft2.name)})
 	check(bool(r.get("ok", false)) and ft2.holder_id == _ids["b"] and not ft2.firing, "the new Bravo picks it up; it stays off")
 
-	step("Alpha is let out and picks his up; both fire at once, Charlie joins mid-fire, both tanks run dry")
+	step("Alpha is let out and needs the cabinet again (misuse); both fire at once, Charlie joins mid-fire, both tanks run dry")
 	GameState.server_release_from_backroom(_ids["a"])
 	await wait_until(func() -> bool: return not _at_a_backroom_slot(_player("a")) and _player("a").global_position.distance_to(spawn_a) < 1.0, 5.0, "Alpha back at his spawn")
-	r = await run_cmd(_ids["a"], "pickup", {"item": ft_name})
-	check(bool(r.get("ok", false)) and ft.holder_id == _ids["a"], "Alpha holds his flamethrower again")
+	check(items_of(FLAME).size() == 1 and item_named(ft_name) == null, "nothing waits for him there: Bravo's is the only flamethrower")
+	cabinet.server_restock() # the ninety seconds, skipped
+	await wait_frames(2)
+	r = await run_cmd(_ids["a"], "break_glass", {}, 25.0)
+	ft = items.get_held_by(_ids["a"]) as Flamethrower
+	if not check(bool(r.get("ok", false)) and ft != null and ft != ft2, "Alpha holds a new flamethrower"):
+		return
+	check(_count_written(_ids["a"], Const.WRITE_UP_MISUSE) == 1 and GameState.get_write_ups(_ids["a"]) == 1, "nothing on the floor: misuse, strike 1 for Alpha")
 	var s1 := cmd(_ids["a"], "goto", {"pos": PARK["a"], "look": Vector3(-3.0, 0.05, 2.0)})
 	var s2 := cmd(_ids["b"], "goto", {"pos": PARK["b"], "look": Vector3(-3.0, 0.05, 3.5)})
 	var s3 := cmd(_ids["c"], "goto", {"pos": PARK["c"]})
@@ -1505,6 +1530,17 @@ func _reports(keys: Array) -> Dictionary:
 	var seqs := {}
 	for k in keys:
 		seqs[k] = cmd(_ids[k], "report")
+	var out := {}
+	for k in keys:
+		out[k] = await await_ack(seqs[k])
+	return out
+
+
+## One command to every listed client at once; their answers by key.
+func _reports_cmd(keys: Array, action: String, args: Dictionary = {}) -> Dictionary:
+	var seqs := {}
+	for k in keys:
+		seqs[k] = cmd(_ids[k], action, args)
 	var out := {}
 	for k in keys:
 		out[k] = await await_ack(seqs[k])
