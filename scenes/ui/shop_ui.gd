@@ -111,6 +111,7 @@ func open(p_counter: ShopCounter, p_player: Player) -> void:
 	Sfx.play(&"ui_open")
 	Juice.pop_in(_panel)
 	_focus_default.call_deferred()
+	_begin_settle()  # M15 lead: the window opens at the top row
 	opened.emit()
 
 
@@ -167,6 +168,46 @@ func _fit_scroll() -> void:
 	var hint := get_node_or_null(^"Root/Panel/VBox/Footer/Hint") as Label
 	if hint != null:
 		hint.text = HINT_SCROLL if _rows_height > height + 1.0 else HINT_DEFAULT
+	if _settling:
+		_settle_scroll.call_deferred()
+
+
+# --- M15 lead: the window opens at the top row ------------------------------------------------------------------
+# The first focus is taken before the cards know their height, and follow_focus scrolls for that layout: the window
+# then opened half a row down, with the first row's names cut off. For a moment after opening, every fit puts the
+# scroll area back at the top and then only as far down as the focused control needs.
+
+## How long after opening the fits still re-anchor the scroll (seconds): the layout settles in a few frames, and a
+## worker who turns the wheel after that keeps the place.
+const SETTLE_SEC := 0.3
+
+var _settling := false
+var _settle_tween: Tween
+
+
+func _begin_settle() -> void:
+	_settling = true
+	if _settle_tween != null and _settle_tween.is_valid():
+		_settle_tween.kill()
+	if not is_inside_tree():
+		return
+	_settle_tween = create_tween()
+	_settle_tween.tween_interval(SETTLE_SEC)
+	_settle_tween.tween_callback(_end_settle)
+
+
+func _end_settle() -> void:
+	_settle_scroll()
+	_settling = false
+
+
+func _settle_scroll() -> void:
+	if not _open or not _settling or not is_inside_tree():
+		return
+	_scroll.scroll_vertical = 0
+	var focused := get_viewport().gui_get_focus_owner()
+	if focused != null and _scroll.is_ancestor_of(focused):
+		_scroll.ensure_control_visible(focused)
 
 
 ## The height the scroll area was given for the current cards (tests).

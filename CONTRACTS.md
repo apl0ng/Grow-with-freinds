@@ -964,3 +964,79 @@ fills).
 - The pause menu gets a "Record" page listing the career lines; `Career.get_summary_lines()` is also what the alley
   board shows under the last shift (the alley agent reads it through `has_method` guards).
 - Suites `career` (+85) and `career_mp` (+86), both with `--replay`.
+
+### M15 as delivered (integration notes, lead, 2026-10-02)
+Five branches merged (alley, replay, mayhem2, career, economy). What differs from the plan above, and what a later
+change has to know:
+
+**Switches.** `Config.replay_enabled` (true in a windowed run, false under `--headless`; `--replay` / `--no-replay`)
+gates the conditions, the market, the unlocks, the rolled job, the title RPC and the Record card. With it off the game
+is the plain deterministic one the older suites pin. `GameState.server_set_contract` works either way (tests).
+
+**Shift conditions (replay).** Thirteen, in `ShiftConditions` (`scripts/core/shift_conditions.gd`): dry air, twitchy
+batch, a buyer for one strain (`ShiftConditions.make_id(ID_BUYER, strain)`), seed clearance, inspection week, bad
+wiring, short clock, mandatory overtime, slick floor, thin walls, heat wave, quiet night, cured order. One per shift
+from shift 2, two from shift 5, rolled when the game enters WAITING for that shift (so the alley board has them
+before the ride), synced in the state dictionary under `"replay"` (late joiners get it with the state).
+`GameState.get_conditions()`, `condition_value(key, default)`, `server_set_conditions(ids)`, `conditions_changed`,
+`get_shift_briefing()`. HUD chips: `World/HUD/Root/Stats/QuotaColumn/ConditionChips`. The shift report ends with
+"Conditions: ...".
+
+**Market (replay).** A factor per strain on a 5% grid inside `1 - market_swing .. 1 + market_swing`, at least one
+strain on sale at par or better. `market_swing` is **0.15** (lead, from the economy model: the window between "makes
+shift 6 without racks" and "with racks" is about 10%, so 0.25 made that target luck of the day). The supply card
+shows the day's deposit value with an arrow. `GameState.get_market_multiplier(strain)`, `server_set_market(dict)`.
+
+**Unlocks (replay).** `SeedDef.unlock_round`: Budget Bud, Purple Haze, Creeper 1; Golden Kush 2; Night Shift 3; Floor
+Brick 4. A locked card's button reads "FROM SHIFT N". Event gaps shrink 8% a shift (floor at half).
+
+**Events (mayhem2).** Twelve kinds; weights inspection 22, power_cut 13, audit 7, rat 7, headcount 10, water_off 6,
+shortage 5, leak 7, driveby 7, raid 6, sprinklers 5, collection 5; a condition can scale a kind's weight
+(`Events.get_weight(kind)`).
+- Raid: `raid_warning_sec` 20 of sirens, then four looks 1.5 s apart from `Room.get_raid_points()` (roller door,
+  dock passage, middle of the main room, door again). A bundle within 16 m with a clear world-layer line is taken; a
+  worker holding one is written up (`Const.WRITE_UP_RAID`). **The grow hall is out of sight by rule**
+  (`Room.is_in_hall`), because the middle eye has a clear line through the pen gate. Lights: `Room/RaidLights`
+  (beams `RAID_BEAM_ENERGY` 15, angle 46, hues from `Events.raid_light_color(Toon.TOMATO / Toon.SKY)`: the palette
+  colours themselves read as a pink smudge).
+- Sprinklers: every tray filled, `Events.is_floor_wet()` for the event plus `sprinkler_wet_sec`. The slip judge is
+  one predicate now: a puddle, the sprinklers (`is_wet_at`) or the slick floor condition (`is_floor_slick_at`).
+- Collector: `scenes/npcs/collector.tscn` on the dock, "Hold E · Pay $40" (`Events.request_pay_collector()`; the
+  request RPC is on the Events autoload, not on his node). Unpaid: the dearest bundle by
+  `TurnInStation.get_sale_value`, else the most advanced tray (`GrowPlot.LOSS_COLLECTED`).
+
+**The job (career).** Nine in `Contracts` (`scripts/core/contracts.gd`): cured, strain, hall, early, clean, cash,
+burn, leak, driveby. One per shift, never the same kind twice in a row; an event job whose event has not come by
+half time is swapped for one that needs nothing. `GameState.contract` is NOT in the state dictionary: its own RPC
+`_rpc_contract`, sent to late joiners on `Net.peer_registered`. Paid `contract_reward` ($60) on the spot; `clean`
+and `cash` are judged at the end and need the payment made. HUD line:
+`.../QuotaPanel/VBox/CareerBox/JobLine`; report line `%Report/JobLine`; the alley board's NEXT column ends with it
+(`AlleyBoard.get_job_line()`, lead).
+
+**Career (career).** Autoload `Career`, file `user://career.cfg` (plain INI, own tolerant parser, written through
+`.tmp` + rename), never synced. `--career-file=<path>` for tests and capture tools; without it a run under
+`--headless` or started with `-s <script>` keeps the record in memory only, so no tool can touch the real file.
+The title (ladder by best shift: New hire, Floor hand, Tray hand, Lead hand, Shift lead, The Boss's problem) is the
+one thing sent: `Net._rpc_set_title`, accepted only when it is exactly a ladder string, at most 16 changes a peer.
+Shown on a line under the worker's row and on the Record card beside the ON BREAK card (`%Record`).
+
+**Economy (economy + lead).** `tools/tests/econ_sim.gd` is the model (assumptions in its header); the `economy`
+suite pins its targets. Shipped: `quota_per_extra_player` 0.1 (ten trays saturate at three workers), `cure_sec` 45
+(at 20 s hanging everything was always right), Purple Haze $140, Golden Kush $125 a unit. **Payment due: 350, x1.82
++ 688 a shift** (solo 350 / 1325 / 2535 / 4174 / 6592 / 10429; four workers x1.3). The economy branch shipped 500,
+x1.75 + 450; the lead put shift 1 back to 350 because the model has an average worker alone at $384 there, and
+shift 2 is where the conditions, the market and the first unlock start. Shifts 2 to 6 are within 4% of the
+branch's curve and its shift 6 targets hold (three or four careful workers need favors and the racks).
+
+**HUD layout (lead).** The payment column grew, so the centre banner (`%Banner`) follows its bottom edge
+(`HUD.get_banner_top()`), never higher than 146.
+
+**Suites and ports.** alley +81 / alley_mp +82, replay +83 (also run as `replay_off` with `--no-replay`) /
+replay_mp +84, mayhem2 +77 / mayhem2_mp +78, career +85 / career_mp +86, economy +79 (pure).
+`tools/tests/m15_shots_body.gd` is the capture tool (windowed, `--career-file` pointing at a seeded temp file).
+
+**Known gaps.** `twitchy` doubles Night Shift's mutation chance to 0.70 (untuned). The mid-run is slack for a full
+crew (average four deposit about $8,900 against $3,296 in shift 3): only a per-shift payment table could follow the
+capacity jump at shift 3. The siren, sprinkler and collector sounds pass `art_test` but nobody has heard them.
+Three more job ideas from the career branch are not built (one bundle each of three strains; lose no plant; a raid
+that takes nothing).

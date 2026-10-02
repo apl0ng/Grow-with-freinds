@@ -41,12 +41,33 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   back of the van (a short count, a fade, and everyone is on the loading dock); the host's Enter leaves without the
   stragglers. Between shifts everyone is back in the alley. Use --no-lobby for the old start on the floor.
 - A bigger floor (M14): a grow hall to the east (four more trays, ten in all, and two drying racks) and a loading dock
-  to the south with crates for cover. Hang a bundle on a rack for twenty seconds and it sells cured for 40% more.
+  to the south with crates for cover. Hang a bundle on a rack for forty-five seconds and it sells cured for 40% more.
   Each strain has a trait: Purple Haze is thirsty, Golden Kush is counted (losing one is a fine), Night Shift grows
   during a power cut, Creeper can leave a seedling behind, Floor Brick is heavy to carry.
 - Two more things go wrong on a shift (M14): the tank springs a leak (hold E on it to patch it before it runs dry,
   and do not sprint through the puddle), and a rival crew pulls up outside and shoots the floor up for six seconds
   (get down or get behind a crate; trays in the way lose growth and the Boss bills the floor for the glass).
+- No two shifts alike (M15): from the second shift on, the board in the alley posts what is different today before
+  anyone gets in the van. One condition a shift, two from shift five: dry air, a twitchy batch, a buyer for one
+  strain, seed clearance, inspection week, bad wiring, a short clock, overtime, a slick floor, thin walls, a heat
+  wave, a quiet night, an order for cured. Every strain's deposit value also moves up to 15% either way each shift
+  (the supply card shows it). Strains open up by shift: Golden Kush at two, Night Shift at three, Floor Brick at four.
+- A job a shift (M15): one optional job from the Boss on top of the payment (three cured bundles, no write-ups, burn
+  one that walks, patch a leak inside ten seconds). $60 to cash on hand when it is met. It is on the board, under the
+  payment bar and in the shift report.
+- Your record (M15): shifts worked, best shift, total deposited, jobs done, plants burnt, times bitten, shot and sent
+  to the back room, kept in a file on your own PC. The alley board and the pause menu show it; a job title that
+  follows your best shift sits under your name for everyone to see.
+- Three more things go wrong (M15): a raid (twenty seconds of sirens, then they look in from the roller door, the
+  dock passage and the middle of the floor; every bundle in sight is taken and whoever holds one is written up, so
+  sell it, get it behind a crate stack or carry it into the grow hall), the sprinklers (every tray filled to the
+  top, the whole floor slippery while they run and for ten seconds after), and the collector (a man on the dock
+  wants $40: hold E on him to pay out of cash on hand, or he takes the dearest bundle on the floor, and with no
+  bundle the plant that is furthest along).
+- The alley has a ball, a hoop with a counter, and the board (last shift, next shift, your record).
+- The payment due (M15): $350 for the first shift, then it climbs fast ($1,325, $2,535, $4,174, $6,592, $10,429 for
+  one worker; 10% more for each extra worker). The sixth shift needs favors and cured bundles. `--no-replay` turns
+  the conditions, the market, the unlocks and the jobs off.
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows

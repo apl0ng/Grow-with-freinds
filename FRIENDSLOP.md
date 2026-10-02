@@ -125,7 +125,7 @@ distance between the steps of the loop, so people split up, lose sight of each o
 - next: a roof hatch and a basement stash; parked: a second floor (too much level for the head count).
 
 ### 8.3 A loop with one more decision (now)
-- **Drying racks.** A harvested bundle sells as it is, or hangs on a rack for twenty seconds and sells cured for forty
+- **Drying racks.** A harvested bundle sells as it is, or hangs on a rack for forty-five seconds (twenty until M15) and sells cured for forty
   per cent more. A hanging bundle can be taken, shot, eaten or burnt. Sell wet now or leave it and hope.
 - next: the scale lies some shifts (the chute pays ten per cent less until someone hits it); a hand truck that carries
   three bundles and steers badly; watering from a hose that reaches one room only.
@@ -170,7 +170,7 @@ people can start again and not know how it will go. Four things do that here; ea
   gets in the van: dry air, a twitchy batch, a buyer for one strain, clearance at the window, inspection week, bad
   wiring, a short clock, overtime, a slick floor, thin walls. One per shift, two from shift five. The plan is made in
   the alley and the plan is different every time.
-- **A market.** Every strain's deposit value moves up to a quarter either way each shift. The best strain yesterday
+- **A market.** Every strain's deposit value moves up to 15% either way each shift. The best strain yesterday
   is not the best strain today, and the supply card says so.
 - **More that can go wrong.** A raid (hide or sell every bundle before they look in), the sprinklers (everything
   watered, the whole floor slippery), the collector (pay him at the dock or he takes the dearest thing). Twelve event
@@ -179,9 +179,9 @@ people can start again and not know how it will go. Four things do that here; ea
 ### 9.2 A run that builds (now)
 - Strains open up by shift: the plain ones first, Golden Kush at two, Night Shift at three, Floor Brick at four. A run
   has a beginning that is simple and a late game that is not.
-- The payment due is retuned for ten trays and cured bundles, from a model of the loop rather than by feel: a careful
-  solo player makes the first shift, four who split up make the third, nobody makes the sixth without favors and the
-  racks.
+- The payment due is retuned for ten trays and cured bundles, from a model of the loop rather than by feel: an average
+  player alone makes the first shift and misses the second, four who split up make the third, nobody makes the sixth
+  without favors and the racks.
 
 ### 9.3 Something to chase (now)
 - **Contracts.** One optional job a shift from the Boss: three cured bundles, no write-ups, burn the plant, nobody
