@@ -647,5 +647,9 @@ Deviations from the brief worth knowing:
 Follow-ups the same day: the hostile plant is 2x (the GLB sits scaled under `Visual/Model`; collider, shadow, bite
 reach 1.7 m, stop 1.3 m, eating distance 1.3 m, wall probe and the flame aim height 1 m follow); the flame suite burns a
 live hostile and checks that breaking the glass with one alive is not misuse; `flame`, `ignite`, `glass_break` and
-`scorch` have real recipes. Known gaps: `hold_offset` of the modelled flamethrower was not tuned by eye;
+`scorch` have real recipes. A visual pass on the real renderer (tools/tests/m12_shots_body.gd, a windowed
+lead tool with a watchdog) checked the first-person flamethrower pose (fine as shipped), made the flame a full plume
+(150 larger particles) and added on-screen notices (Game.toast, kind error, every peer) for "GrowPlot N is moving." and
+"Something came out of GrowPlot N.", because Story lines are only a label over the Boss. A chain-link fence blocks the
+flame (the cone needs a clear LAYER_WORLD line): someone has to go into the pen. Known gaps:
 `Room.STATION_NAMES` does not list "EmergencyCabinet" (resolved by path).
