@@ -722,8 +722,7 @@ func server_roll_mutation() -> bool:
 
 
 ## SERVER. Counts the twitch down by `delta`; at zero the crop is lost (server_reset) and the hostile plant spawns
-## where the tray is. Returns true when it uprooted. A plant that left READY meanwhile just stops turning, and so does
-## one that finds the floor full (hostile_max): it keeps its crop.
+## where the tray is. Returns true when it uprooted. A plant that left READY meanwhile just stops turning.
 func server_tick_mutation(delta: float) -> bool:
 	if not _check_server(&"server_tick_mutation"):
 		return false
@@ -743,13 +742,8 @@ func server_tick_mutation(delta: float) -> bool:
 	var strain := strain_id
 	var where := global_position
 	turning = false
-	# M13 QA: spawn first, lose the crop only when a plant really came out. Hostiles.server_spawn refuses when the
-	# floor already holds hostile_max plants (several trays turning in the same tick: the first two take the floor),
-	# and the crop used to be reset to nothing anyway. A refused plant settles: it stops twitching and stays READY
-	# (Hostiles rolls once per READY, so it does not turn again).
-	if Hostiles.server_spawn(strain, where) <= 0:
-		return false
 	server_reset()
+	Hostiles.server_spawn(strain, where)
 	return true
 
 

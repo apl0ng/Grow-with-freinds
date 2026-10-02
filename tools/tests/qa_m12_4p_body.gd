@@ -45,10 +45,13 @@ const SPARE_STRAIN: StringName = &"creeper"
 const POS_TOL := 1.0
 ## Far from everything the plant can sense (5 m) or keep chasing (7 m).
 const PARK := {"a": Vector3(-8.5, 0.05, 2.0), "b": Vector3(-8.5, 0.05, 3.5), "c": Vector3(-8.5, 0.05, 5.0), "host": Vector3(-8.5, 0.05, 6.5)}
-## The plant stands here, west of the grow-area fence; a worker at FENCE_INSIDE is 2.4 m away behind the fence: a
-## chase it cannot finish (no pathfinding) and a bite it cannot reach.
+## The plant starts here, west of the grow-area fence, and walks up to it; a worker at FENCE_INSIDE stands half a
+## metre behind the fence: inside the bite range, no clear line.
 const FENCE_OUTSIDE := Vector3(1.9, 0.0, -4.4)
-const FENCE_INSIDE := Vector3(4.6, 0.05, -4.4)
+const FENCE_INSIDE := Vector3(3.5, 0.05, -4.4)
+## A chase across open floor: 4.5 m apart, in the sense range, nobody else within it.
+const CHASE_FROM := Vector3(-4.0, 0.0, -2.0)
+const CHASE_TARGET := Vector3(0.5, 0.05, -2.0)
 
 var _ids: Dictionary = {}
 ## Host: the clients in the session, by key. Charlie's process is launched late (marker QAM12_LAUNCH_LATE): he is the
@@ -400,28 +403,54 @@ func _case_mutation() -> void:
 		at_trays = at_trays and String(e[1]) == String(MUT_STRAIN) and (Vector3(e[2]).distance_to(plot(1).global_position) < 0.1 or Vector3(e[2]).distance_to(plot(2).global_position) < 0.1)
 	check(at_trays, "they came out of GrowPlot 1 and GrowPlot 2, strain %s" % MUT_STRAIN)
 	check(plot(1).is_empty() and plot(2).is_empty(), "those two crops are lost")
-	# Decided (M13 QA): a tray whose warning runs out while the floor is full does not lose its crop to nothing.
-	var kept := true
-	for i in [3, 4, 6]:
-		kept = kept and plot(i).stage == GrowPlot.Stage.READY and not plot(i).turning and plot(i).strain_id == MUT_STRAIN
-	check(kept, "the three trays that found the floor full keep their crop and stop moving (%s)" % [_plot_sig()])
+	# The rule (M13 review): a tray whose warning runs out while the floor is full does not lose its crop to nothing.
+	# It waits in its tray, still moving, still harvestable, and comes out when a slot frees.
+	check(_waiting([3, 4, 6]) and not Hostiles.has_room(), "the three trays that found the floor full wait: READY, still moving, crop intact (%s)" % [_plot_sig()])
 	Hostiles.tick(1.0)
 	await wait_frames(2)
-	check(Hostiles.count() == b.hostile_max and _h_spawned.size() == 2, "a second later: still %d, no late spawn" % b.hostile_max)
+	check(Hostiles.count() == b.hostile_max and _h_spawned.size() == 2 and _waiting([3, 4, 6]), "a second later: still %d plants, the three trays still wait" % b.hostile_max)
 	logs = await _logs(_all)
 	for k in _all:
-		var sp: Array = logs[k].get("spawned", [])
-		var same := sp.size() == 2
-		for i in mini(sp.size(), _h_spawned.size()):
-			same = same and int(sp[i][0]) == int(_h_spawned[i][0]) and String(sp[i][1]) == String(_h_spawned[i][1]) and Vector3(sp[i][2]).distance_to(Vector3(_h_spawned[i][2])) < 0.01
-		check(same, "%s saw the same two spawns (ids, strain, trays)" % NAMES[k])
+		check(_same_spawns(logs[k].get("spawned", []), 2), "%s saw the same two spawns (ids, strain, trays)" % NAMES[k])
 		var barks: Array = logs[k].get("barks", [])
 		check(barks.has("Something came out of GrowPlot 1.") and barks.has("Something came out of GrowPlot 2."), "%s got both 'Something came out of ...' lines" % NAMES[k])
 	await sync_point("after the uprooting", _all)
+
+	step("Bravo harvests GrowPlot 4 while it waits for the floor: still harvestable")
+	r = await run_cmd(_ids["b"], "harvest", {"plot": 4})
+	check(bool(r.get("ok", false)), "Bravo holds the bundle %s" % [r.get("toasts", [])])
+	Hostiles.tick(0.05)
+	check(plot(4).is_empty() and not plot(4).turning and Hostiles.count() == b.hostile_max and _waiting([3, 6]), "host: GrowPlot 4 harvested, its twitch cleared, nothing came out of it")
+	await _park_all()
+
+	step("one plant burns down (fire nobody is credited for): the slot frees and GrowPlot 3 comes out")
+	var burnt := Hostiles.get_hostiles()[1] as HostilePlant
+	var burnt_id := burnt.id
+	_h_died.clear()
+	Hostiles.server_apply_fire(burnt_id, b.hostile_burn_sec + 0.1, 0)
+	check(burnt.is_dead() and _h_died.size() == 1 and int(_h_died[0][0]) == burnt_id and int(_h_died[0][1]) == 0, "host: hostile_died(id, 0) %s" % [_h_died])
+	check(Hostiles.has_room(), "a burnt plant still lying there does not hold the slot")
+	Hostiles.tick(0.05)
+	await wait_frames(2)
+	check(_h_spawned.size() == 3 and Vector3(_h_spawned[2][2]).distance_to(plot(3).global_position) < 0.1 and plot(3).is_empty() and not plot(3).turning, "GrowPlot 3 uprooted into the free slot")
+	check(_waiting([6]) and not Hostiles.has_room(), "GrowPlot 6 still waits: the floor is full again")
+	check(_stat_total(Const.STAT_BURNS) == 0, "no STAT_BURNS for anybody")
+	Hostiles.tick(HostilePlant.DEATH_DELAY + 0.1)
+	await wait_frames(2)
+	check(Hostiles.count() == b.hostile_max and Hostiles.get_hostile(burnt_id) == null, "the burnt one is removed: %d plants" % b.hostile_max)
+	logs = await _logs(_all)
+	for k in _all:
+		check(_same_spawns(logs[k].get("spawned", []), 3), "%s saw the third spawn too" % NAMES[k])
+		check(_rows(logs[k].get("died", []), burnt_id, 0) == 1, "%s: hostile_died(id, 0)" % NAMES[k])
+		check((logs[k].get("barks", []) as Array).has("Something came out of GrowPlot 3."), "%s got 'Something came out of GrowPlot 3.'" % NAMES[k])
+	await sync_point("a freed slot", _all)
+	# The last waiting tray is harvested (server side) so nothing comes out behind the next scenarios' backs.
+	check(plot(6).server_harvest(null), "the last waiting tray is harvested")
+	Hostiles.tick(0.05)
+	check(not plot(6).turning, "its twitch cleared")
 	sdef.mutation_chance = chance0
-	var bundle := Game.world.items.get_held_by(_ids["a"])
-	if bundle != null:
-		Game.world.items.server_despawn_item(bundle)
+	for it in items_of(PRODUCT):
+		Game.world.items.server_despawn_item(it)
 
 
 # ---------------------------------------------------------------- (2) the chase
@@ -438,13 +467,13 @@ func _case_chase() -> void:
 	await _park_all()
 	await _clear_logs()
 
-	step("one of the two burns down under fire nobody is credited for")
+	step("the second plant burns down too: no tray waits any more, nothing comes out")
+	var spawns0 := _h_spawned.size()
 	Hostiles.server_apply_fire(extra.id, b.hostile_burn_sec + 0.1, 0)
-	check(extra.is_dead() and _h_died.size() == 1 and int(_h_died[0][0]) == extra.id and int(_h_died[0][1]) == 0, "host: hostile_died(id, 0) %s" % [_h_died])
-	Hostiles.tick(HostilePlant.ROOT_SEC + 0.1) # the other finishes rooting; the dead one outlives DEATH_DELAY
+	check(extra.is_dead(), "host: it is dead")
+	Hostiles.tick(HostilePlant.ROOT_SEC + 0.1) # the dead one outlives DEATH_DELAY
 	await wait_frames(2)
-	check(Hostiles.count() == 1 and h.state == HostilePlant.State.ROAM, "one plant left, roaming")
-	check(_stat_total(Const.STAT_BURNS) == 0, "no STAT_BURNS for anybody")
+	check(Hostiles.count() == 1 and h.state == HostilePlant.State.ROAM and _h_spawned.size() == spawns0, "one plant left, roaming; no new spawn")
 
 	step("it bites Alpha, then Bravo")
 	var can := items.server_spawn_item(CAN, {"charges": 2}, Vector3.ZERO, _ids["a"])
@@ -478,16 +507,37 @@ func _case_chase() -> void:
 		check(mine >= 1 and stunned, "%s was stunned on his own process when his bite was announced" % NAMES[k])
 	await sync_point("after two bites", _all)
 
-	step("Alpha is sent to the back room mid-chase: never bitten there")
+	step("the fence: no bite through it, and the plant gives up after STUCK_SEC")
+	# Alpha stands half a metre inside the grow-area fence, the plant comes up to it from outside: inside its bite
+	# range, no clear line (M13 review). Stepped by hand: 3.5 s of plant time.
 	_place_hostile(h, FENCE_OUTSIDE)
 	r = await run_cmd(_ids["a"], "goto", {"pos": FENCE_INSIDE, "look": FENCE_OUTSIDE})
-	_freeze_hostiles(false)
-	await wait_until(func() -> bool: return h.state == HostilePlant.State.CHASE and h.get_target_index() == _ids["a"], 5.0, "host: it chases Alpha (the fence between them)")
-	await wait_sec(1.0)
-	var gap := h.global_position.distance_to(_player("a").global_position)
-	check(h.state == HostilePlant.State.CHASE and gap > HostilePlant.BITE_RANGE, "it stands at the fence, %.2f m from him: no bite" % gap)
-	await m12_checkpoint("mid-chase", _all)
 	var bites0 := _h_bit.size()
+	var chased := false
+	var closest := INF
+	for i in 35:
+		Hostiles.tick(0.1)
+		if h.state == HostilePlant.State.CHASE and h.get_target_index() == _ids["a"]:
+			chased = true
+			closest = minf(closest, h.global_position.distance_to(_player("a").global_position))
+	check(chased and closest <= HostilePlant.BITE_RANGE, "it chased him up to the fence, %.2f m from him (bite range %.1f)" % [closest, HostilePlant.BITE_RANGE])
+	check(_h_bit.size() == bites0 and GameState.get_stat(_ids["a"], Const.STAT_BITTEN) == 1, "no bite through the fence")
+	check(h.state == HostilePlant.State.ROAM and h._calm_left > 0.0, "it gave the chase up and went calm (%s, calm for %.1f s)" % [h.get_state_name(), h._calm_left])
+	await sync_point("at the fence", _all)
+
+	step("Alpha is sent to the back room mid-chase: never bitten there")
+	# A slow plant (in-process override): the chase lasts as long as the test needs it, with the plant on the move.
+	var speed0 := b.hostile_speed
+	b.hostile_speed = 0.15
+	_place_hostile(h, CHASE_FROM)
+	r = await run_cmd(_ids["a"], "goto", {"pos": CHASE_TARGET, "look": CHASE_FROM})
+	_freeze_hostiles(false)
+	await wait_until(func() -> bool: return h.state == HostilePlant.State.CHASE and h.get_target_index() == _ids["a"], 5.0, "host: it chases Alpha across the floor")
+	await wait_sec(0.6)
+	var gap := h.global_position.distance_to(_player("a").global_position)
+	check(h.state == HostilePlant.State.CHASE and gap > HostilePlant.BITE_RANGE and h.global_position.distance_to(CHASE_FROM) > 0.03, "it is on its way, %.2f m from him" % gap)
+	await m12_checkpoint("mid-chase", _all)
+	bites0 = _h_bit.size()
 	check(GameState.server_send_to_backroom(_ids["a"], 20.0), "Alpha sent to the back room")
 	await wait_until(func() -> bool: return _at_a_backroom_slot(_player("a")), 5.0, "host: Alpha's body in the back room")
 	await wait_until(func() -> bool: return h.get_target_index() != _ids["a"], 3.0, "the plant let go of him")
@@ -495,7 +545,7 @@ func _case_chase() -> void:
 	# Against the booth wall, 1.6 m from his cot: inside the bite range, through the wall.
 	var cot := _player("a").global_position
 	var at_wall := Vector3(cot.x + 1.6, 0.0, cot.z)
-	var chased := false
+	chased = false
 	for i in 20:
 		_place_hostile(h, at_wall, false)
 		Hostiles.tick(0.1)
@@ -510,9 +560,9 @@ func _case_chase() -> void:
 	await wait_until(func() -> bool: return not _at_a_backroom_slot(_player("a")), 5.0, "Alpha released, back on the floor")
 	r = await run_cmd(_ids["a"], "goto", {"pos": PARK["a"]})
 
-	step("the plant chases Bravo at the fence; Charlie, the fourth worker, joins mid-chase (a fresh process)")
-	_place_hostile(h, FENCE_OUTSIDE)
-	r = await run_cmd(_ids["b"], "goto", {"pos": FENCE_INSIDE, "look": FENCE_OUTSIDE})
+	step("the plant chases Bravo; Charlie, the fourth worker, joins mid-chase (a fresh process)")
+	_place_hostile(h, CHASE_FROM)
+	r = await run_cmd(_ids["b"], "goto", {"pos": CHASE_TARGET, "look": CHASE_FROM})
 	_freeze_hostiles(false)
 	await wait_until(func() -> bool: return h.state == HostilePlant.State.CHASE and h.get_target_index() == _ids["b"], 5.0, "host: it chases Bravo")
 	print("QAM12_LAUNCH_LATE")
@@ -529,6 +579,8 @@ func _case_chase() -> void:
 	check(seen.size() == 1 and Vector3(seen[0][3]).distance_to(h.global_position) <= POS_TOL, "Charlie: it stands where the host has it")
 	check(_rows(r.get("spawned", []), h.id) == 1, "Charlie: hostile_spawned fired once, from the late-join replay")
 	check(int(r.get("ms", 99999)) <= LATE_JOIN_LIMIT_MS, "Charlie saw it %d ms after spawning" % int(r.get("ms", -1)))
+	r = await run_cmd(_ids["c"], "goto", {"pos": PARK["c"]})
+	check(h.state == HostilePlant.State.CHASE and h.get_target_index() == _ids["b"], "still after Bravo")
 	await sync_point("Charlie joined mid-chase", _all)
 
 	step("Bravo disconnects while the plant is after him")
@@ -539,6 +591,7 @@ func _case_chase() -> void:
 	await wait_until(func() -> bool: return is_instance_valid(h) and not h.is_dead() and h.get_target_index() != old_b, 3.0, "the plant let go of the worker who left")
 	check(Hostiles.count() == 1, "still one plant")
 	_freeze_hostiles(true)
+	b.hostile_speed = speed0
 	_place_hostile(h, Vector3(4.2, 0.0, 0.0))
 	if not await wait_until(func() -> bool: return _peer_named("b") > 0 and _peer_named("b") != old_b, 20.0, "Bravo re-joined (new peer id)"):
 		return
@@ -574,7 +627,7 @@ func _case_fire() -> void:
 	b.flamethrower_fuel_sec = 20.0
 	GameState.server_add_money(600)
 	_place_hostile(h, Vector3(4.2, 0.0, 0.0)) # in front of GrowPlot 3: the tray is in its shadow
-	check(plot(3).stage == GrowPlot.Stage.READY, "GrowPlot 3 still holds its crop (scenario 1)")
+	check(plot(3).is_empty() and plot(3).server_plant(&"budget") and plot(3).server_water(1.0), "GrowPlot 3, behind it, holds a fresh crop that will not turn")
 	await _clear_logs()
 
 	step("Alpha breaks the glass with a plant alive: the deposit, no write-up")
@@ -600,7 +653,7 @@ func _case_fire() -> void:
 	await wait_until(func() -> bool: return h.is_dead(), b.hostile_burn_sec + 5.0, "the plant burnt down")
 	check(_h_died.size() == 1 and int(_h_died[0][0]) == h_id and int(_h_died[0][1]) == _ids["a"], "host: hostile_died(id, Alpha) %s" % [_h_died])
 	check(GameState.get_stat(_ids["a"], Const.STAT_BURNS) == 1, "STAT_BURNS 1 for Alpha")
-	check(plot(3).stage == GrowPlot.Stage.READY and _count_written(_ids["a"], "") == 0, "GrowPlot 3 stood in the plant's shadow until it fell: untouched, no write-up")
+	check(not plot(3).is_empty() and _count_written(_ids["a"], "") == 0, "GrowPlot 3 stood in the plant's shadow until it fell: untouched, no write-up")
 	_freeze_hostiles(false) # the real tick removes the dead node
 	await wait_until(func() -> bool: return plot(3).is_empty(), 5.0, "then GrowPlot 3, behind it, scorched")
 	check(GameState.get_stat(_ids["a"], Const.STAT_SCORCHED) == 1 and _rows(_scorches, 3, _ids["a"]) == 1 and plot(3).is_scorched(), "STAT_SCORCHED 1, scorched(Alpha), ash on the soil")
@@ -1067,7 +1120,9 @@ func _case_churn_retry() -> void:
 	check(GameState.server_send_to_backroom(_ids["b"], 25.0), "Bravo in the back room")
 	var chance0 := sdef.mutation_chance
 	sdef.mutation_chance = 1.0
-	check(plot(4).stage == GrowPlot.Stage.READY and plot(4).server_roll_mutation() and plot(4).is_turning(), "GrowPlot 4 starts to turn")
+	check(plot(4).is_empty() and plot(4).server_plant(MUT_STRAIN) and plot(4).server_water(1.0), "GrowPlot 4 replanted with %s" % MUT_STRAIN)
+	plot(4).stage = GrowPlot.Stage.READY
+	check(plot(4).server_roll_mutation() and plot(4).is_turning(), "GrowPlot 4 starts to turn")
 	sdef.mutation_chance = chance0
 	await sync_point("before the shift fails", _all)
 	var s_fire := cmd(_ids[wk], "fire", {"on": true})
@@ -1368,10 +1423,35 @@ func _place_hostile(h: HostilePlant, pos: Vector3, announce: bool = true) -> voi
 	h._calm_left = 0.0
 	h._bites = 0
 	h._bite_cooldown = 0.0
+	h._stuck = 0.0
+	h._detour = Vector3.INF
+	h._detour_left = 0.0
+	h._detour_random = false
 	if h.state != HostilePlant.State.ROAM:
 		h.state = HostilePlant.State.ROAM
 	elif announce:
 		h.state_changed.emit(h.state)
+
+
+## True when every listed tray holds a READY crop of MUT_STRAIN that is still turning (waiting for the floor).
+func _waiting(indices: Array) -> bool:
+	for i in indices:
+		var p := plot(int(i))
+		if p == null or p.stage != GrowPlot.Stage.READY or not p.is_turning() or p.strain_id != MUT_STRAIN:
+			return false
+	return true
+
+
+## A client's hostile_spawned log has the host's first `n` rows (ids, strain, where).
+func _same_spawns(sp: Variant, n: int) -> bool:
+	if not (sp is Array) or (sp as Array).size() != n or _h_spawned.size() < n:
+		return false
+	for i in n:
+		var mine: Array = _h_spawned[i]
+		var theirs: Array = (sp as Array)[i]
+		if int(theirs[0]) != int(mine[0]) or String(theirs[1]) != String(mine[1]) or Vector3(theirs[2]).distance_to(Vector3(mine[2])) > 0.01:
+			return false
+	return true
 
 
 func _plot_sig() -> String:
@@ -1602,7 +1682,8 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 			stand_near(shop, 1.3)
 			await server_sees_me()
 			shop.request_buy_seed(seed_id)
-			await wait_until_quiet(func() -> bool: return toasts.size() > t, 6.0)
+			# The packet in hand, or the counter's refusal (other toasts may pass by: "GrowPlot 4 is moving.").
+			await wait_until_quiet(func() -> bool: return me.get_held_item() is SeedPacket or _has_toast(toasts_since(t), "Out of stock"), 6.0)
 			await sync_with_host()
 			await wait_frames(2)
 			var got := me.get_held_item()
