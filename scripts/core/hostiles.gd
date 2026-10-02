@@ -70,7 +70,7 @@ func server_spawn(strain_id: StringName, position: Vector3) -> int:
 		return 0
 	if _container() == null or not position.is_finite():
 		return 0
-	if count() >= Config.balance.hostile_max:
+	if not has_room():
 		return 0
 	var id := _next_id
 	_next_id += 1
@@ -110,7 +110,7 @@ func tick(delta: float) -> void:
 	if hostiles.is_empty():
 		return
 	var remaining := delta
-	while remaining > 0.0:
+	while remaining > 0.000001: # (not > 0: 0.1 s in 1/30 s steps leaves a float residue, a fourth step of ~1e-9 s)
 		var step := minf(remaining, STEP_MAX)
 		remaining -= step
 		for n in hostiles:
@@ -161,6 +161,17 @@ func is_any_alive() -> bool:
 		if not (n as HostilePlant).is_dead():
 			return true
 	return false
+
+
+## M13 review: true while fewer than Config.balance.hostile_max plants are alive on the floor (a burnt one still
+## lying there does not count). server_spawn refuses without room; a turning tray waits for it (GrowPlot.
+## server_tick_mutation), so its crop is not lost for a plant that could never come out.
+func has_room() -> bool:
+	var alive := 0
+	for n in get_hostiles():
+		if not (n as HostilePlant).is_dead():
+			alive += 1
+	return alive < Config.balance.hostile_max
 
 
 ## The nearest live hostile to `position`, or null.
