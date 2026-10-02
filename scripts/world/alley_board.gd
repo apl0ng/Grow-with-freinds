@@ -32,6 +32,7 @@ const TEXT_OWED := "Due $%d."
 const TEXT_NEXT := "Shift %d is next."
 const TEXT_DUE := "Payment due $%d."
 const TEXT_NO_RECORD := "Nothing on file."
+const TEXT_JOB := "Job: %s. $%d."
 const HEADS: PackedStringArray = ["LAST SHIFT", "NEXT", "YOUR RECORD"]
 ## The LAST SHIFT column: this many lines of result and money, then at most this many verdicts.
 const HEAD_LINES: int = 3
@@ -97,7 +98,20 @@ func get_next_lines() -> PackedStringArray:
 	var src: Object = briefing_source if briefing_source != null and is_instance_valid(briefing_source) else GameState
 	if src.has_method(&"get_shift_briefing"):
 		out.append_array(_clean_lines(src.call(&"get_shift_briefing"), MAX_BRIEFING))
+	var job := get_job_line()  # M15 lead: the shift's job, posted with the briefing
+	if job != "":
+		out.append(job)
 	return out
+
+
+## The shift's job as the board posts it ("Job: three cured bundles. $60."); "" when there is none (replay off, or
+## before the host rolled one).
+func get_job_line() -> String:
+	var contract := GameState.get_contract()
+	var text := String(contract.get("text", "")).strip_edges()
+	if text == "":
+		return ""
+	return TEXT_JOB % [text, int(contract.get("reward", 0))]
 
 
 ## This player's own record: the job title, then the career lines. Empty while there is nothing on file.

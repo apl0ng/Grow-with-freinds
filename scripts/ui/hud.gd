@@ -191,6 +191,7 @@ func _ready() -> void:
 	_lobby_ready() # M14 lobby
 	_replay_ready() # M15 replay: the condition chips under the payment bar
 	_career_ready() # M15 career: the job line under the payment bar, titles in the WORKERS list
+	_m15_lead_ready() # M15 lead: the centre banner follows the payment column's bottom edge
 
 	_ui_locked = Game.is_ui_locked()
 	_stats_ready = GameState.phase != GameState.Phase.MENU
@@ -789,7 +790,7 @@ const TEXT_LOBBY_TITLE := "THE VAN IS WAITING"
 const TEXT_LOBBY_COUNT := "Everyone in the van. %d / %d in."
 const TEXT_LOBBY_CLOSING := "Doors closing %d"
 const TEXT_LOBBY_CLOSED := "Doors closed."
-const TEXT_LOBBY_TIP_HOST := "%s · leave without the rest\n%s · chat"
+const TEXT_LOBBY_TIP_HOST := "%s · leave without the rest   %s · chat"
 const TEXT_LOBBY_TIP := "%s · chat"
 ## The fade's CanvasLayer (above the supply window on 5 and everything on the HUD's own layer).
 const TRANSITION_LAYER: int = 60
@@ -1399,3 +1400,36 @@ func _local_peer_id() -> int:
 	if mp == null or not mp.has_multiplayer_peer():
 		return 0
 	return mp.get_unique_id()
+
+
+
+# --- M15 lead: the centre banner sits under the payment column ----------------------------------------------------
+# The payment column grew (the job line, the condition chips), so the centre banner ("THE VAN IS WAITING", the hint
+# between shifts) has no fixed top any more: it follows the column's bottom edge and never sits higher than the
+# scene file puts it.
+
+## Gap between the payment column and the centre banner (pixels).
+const BANNER_GAP: float = 10.0
+## The banner's top in the scene file: never higher than this.
+const BANNER_MIN_TOP: float = 146.0
+
+
+func _m15_lead_ready() -> void:
+	var column := %QuotaColumn as Control
+	column.minimum_size_changed.connect(_place_banner)
+	column.resized.connect(_place_banner)
+	_place_banner.call_deferred()
+
+
+## The top the centre banner should have now: under the payment column's last visible panel.
+func get_banner_top() -> float:
+	var column := %QuotaColumn as Control
+	return maxf(BANNER_MIN_TOP, column.position.y + column.get_combined_minimum_size().y + BANNER_GAP)
+
+
+func _place_banner() -> void:
+	var top := get_banner_top()
+	if is_equal_approx(banner.offset_top, top):
+		return
+	banner.offset_top = top
+	banner.offset_bottom = top

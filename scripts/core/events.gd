@@ -1819,6 +1819,12 @@ const RAID_LIGHT_TURN_SEC := 1.1
 const RAID_GLOW_SEC := 0.3
 ## How far the two beams reach from the door (metres): the dock and, through the passage, a strip of the main room.
 const RAID_LIGHT_RANGE := 11.0
+## The two beams and the glow under the door (M15 lead, after seeing them rendered: at 7.0 / 1.8 the raid was a small
+## pink smudge on the door; it has to wash the dock red and blue).
+const RAID_BEAM_ENERGY := 15.0
+const RAID_BEAM_ANGLE := 46.0
+const RAID_GLOW_ENERGY := 5.0
+const RAID_GLOW_RANGE := 9.0
 ## The white flash at the eye point when they look.
 const RAID_FLASH_SEC := 0.6
 const SPRINKLERS_NAME := "Sprinklers"
@@ -2059,21 +2065,22 @@ func _start_raid_visuals() -> void:
 	var pivot := Node3D.new()
 	pivot.name = "Pivot"
 	root.add_child(pivot)
-	for entry: Array in [["Red", Toon.TOMATO, 0.0], ["Blue", Toon.SKY, PI]]:
+	for entry: Array in [["Red", raid_light_color(Toon.TOMATO), 0.0], ["Blue", raid_light_color(Toon.SKY), PI]]:
 		var beam := SpotLight3D.new()
 		beam.name = String(entry[0])
 		beam.light_color = entry[1]
-		beam.light_energy = 7.0
+		beam.light_energy = RAID_BEAM_ENERGY
 		beam.spot_range = RAID_LIGHT_RANGE
-		beam.spot_angle = 34.0
+		beam.spot_angle = RAID_BEAM_ANGLE
+		beam.spot_attenuation = 0.6
 		beam.shadow_enabled = false
 		beam.rotation = Vector3(deg_to_rad(-14.0), float(entry[2]), 0.0)
 		pivot.add_child(beam)
 	var glow := OmniLight3D.new()
 	glow.name = "Glow"
-	glow.light_color = Toon.TOMATO
-	glow.light_energy = 1.8
-	glow.omni_range = 6.0
+	glow.light_color = raid_light_color(Toon.TOMATO)
+	glow.light_energy = RAID_GLOW_ENERGY
+	glow.omni_range = RAID_GLOW_RANGE
 	glow.shadow_enabled = false
 	root.add_child(glow)
 	glow.global_position = door + (eye - door) * 0.5 + Vector3.UP * 0.2
@@ -2096,12 +2103,18 @@ func _start_raid_visuals() -> void:
 	turn.tween_property(pivot, ^"rotation:y", TAU, RAID_LIGHT_TURN_SEC).as_relative()
 	var swap := root.create_tween().set_loops()
 	swap.tween_interval(RAID_GLOW_SEC)
-	swap.tween_property(glow, ^"light_color", Toon.SKY, 0.04)
+	swap.tween_property(glow, ^"light_color", raid_light_color(Toon.SKY), 0.04)
 	swap.parallel().tween_property(strip_mat, ^"albedo_color", Toon.SKY, 0.04)
 	swap.tween_interval(RAID_GLOW_SEC)
-	swap.tween_property(glow, ^"light_color", Toon.TOMATO, 0.04)
+	swap.tween_property(glow, ^"light_color", raid_light_color(Toon.TOMATO), 0.04)
 	swap.parallel().tween_property(strip_mat, ^"albedo_color", Toon.TOMATO, 0.04)
 	_raid_siren = Sfx.play_loop(&"siren", door + Vector3.UP * 1.5)
+
+
+## A palette colour as a light: the same hue at full strength (the palette's reds and blues are paint, too pale to
+## read as a patrol car's lamps on a wall).
+static func raid_light_color(base: Color) -> Color:
+	return Color.from_hsv(base.h, 0.92, 1.0)
 
 
 ## Every peer: the lights go, the sirens stop.
