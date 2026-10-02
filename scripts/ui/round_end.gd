@@ -13,6 +13,10 @@ extends Control
 ## M10: the "SHIFT REPORT" block (%Report, shift_report.tscn: one row per worker, verdict lines from Story) sits
 ## under the shift stats and follows GameState.stats_changed / Net.players_changed while the overlay is up. The card
 ## must keep fitting 1280 x 720 with four workers (review_ui / ui_m10 check it).
+## M17 finale: when the final notice was paid (GameState.is_run_cleared()) the card reads "PAID IN FULL" / "The debt
+## is cleared. He will find another.", the host's button is NEW RUN (request_retry: a full reset, a new run code
+## unless one was typed; with the lobby on it leads back to the alley) and NEXT SHIFT is not offered; the sound is
+## paid_in_full. Clients see the waiting line as for any end of shift.
 
 const LOCK_SOURCE: StringName = &"round_end"
 ## Seconds before the host's default button takes the keyboard focus (see above).
@@ -31,6 +35,11 @@ const TEXT_START_OVER := "START OVER"
 const TEXT_WAITING := "Waiting for the Boss's decision…"
 const TEXT_MAIN_MENU := "MAIN MENU"
 const TEXT_LEAVE := "LEAVE"
+# --- M17 finale ---
+const TEXT_CLEARED_TITLE := "PAID IN FULL"
+const TEXT_CLEARED_SUB := "The debt is cleared. He will find another."
+const TEXT_NEW_RUN := "NEW RUN"
+# --- end M17 finale ---
 
 var _locked: bool = false
 var _shown_phase: int = -1
@@ -142,6 +151,9 @@ func _cancel_focus() -> void:
 
 
 func _on_round_ended(success: bool, _round_number: int) -> void:
+	if success and _is_cleared(): # M17 finale: the ledger closes, no bell
+		Sfx.play(&"paid_in_full") # M17 finale
+		return # M17 finale
 	Sfx.play(&"round_win" if success else &"round_lose")
 
 
@@ -170,9 +182,14 @@ func refresh() -> void:
 	var success := GameState.phase == GameState.Phase.ROUND_SUCCESS
 	var host := GameState.is_local_host()
 	var round_number := GameState.round_number
+	var cleared := success and _is_cleared() # M17 finale
 
 	title_label.theme_type_variation = &"TitleLabel"
-	if success:
+	if cleared: # M17 finale: the run is over
+		title_label.text = TEXT_CLEARED_TITLE # M17 finale
+		title_label.remove_theme_color_override(&"font_color") # M17 finale
+		subtitle_label.text = TEXT_CLEARED_SUB # M17 finale
+	elif success:
 		title_label.text = TEXT_PAID_TITLE
 		title_label.remove_theme_color_override(&"font_color")
 		subtitle_label.text = TEXT_PAID_SUB % round_number
@@ -188,7 +205,10 @@ func refresh() -> void:
 	time_key.visible = success
 	time_value.visible = success
 	time_value.text = GameState.get_time_string()
-	if success:
+	if cleared: # M17 finale: there is no next payment; the row counts the shifts the run took
+		next_key.text = TEXT_PAID_KEY # M17 finale
+		next_value.text = str(round_number) # M17 finale
+	elif success:
 		next_key.text = TEXT_NEXT_KEY
 		next_value.text = HUD.format_money(GameState.get_quota_for(round_number + 1))
 	else:
@@ -200,6 +220,8 @@ func refresh() -> void:
 	primary_button.visible = host
 	primary_button.text = TEXT_NEXT_SHIFT if success else TEXT_START_OVER
 	primary_button.theme_type_variation = &"BigButton" if success else &"GoldButton"
+	if cleared: # M17 finale: NEXT SHIFT is not offered, the one way on is a new run
+		primary_button.text = TEXT_NEW_RUN # M17 finale
 	waiting_label.visible = not host
 	waiting_label.text = TEXT_WAITING
 	menu_button.text = TEXT_MAIN_MENU if host else TEXT_LEAVE
@@ -207,7 +229,9 @@ func refresh() -> void:
 
 func _on_primary_pressed() -> void:
 	Sfx.play(&"ui_click")
-	if GameState.phase == GameState.Phase.ROUND_SUCCESS:
+	if GameState.phase == GameState.Phase.ROUND_SUCCESS and _is_cleared(): # M17 finale: NEW RUN
+		GameState.request_retry() # M17 finale: a full reset (a new run code unless one was typed; the alley with the lobby on)
+	elif GameState.phase == GameState.Phase.ROUND_SUCCESS:
 		GameState.request_next_round()
 	elif GameState.phase == GameState.Phase.ROUND_FAILED:
 		GameState.request_retry()
@@ -223,3 +247,15 @@ func _set_locked(locked: bool) -> void:
 		return
 	_locked = locked
 	Game.set_ui_lock(LOCK_SOURCE, locked)
+
+
+# --- M17 finale ---
+## True when the end screen is the end of the run: the final notice was paid (GameState.is_run_cleared(), synced).
+func _is_cleared() -> bool:
+	return GameState.phase == GameState.Phase.ROUND_SUCCESS and GameState.is_run_cleared()
+
+
+## True while the card reads PAID IN FULL (tests, capture tools).
+func is_showing_cleared() -> bool:
+	return visible and _is_cleared() and title_label.text == TEXT_CLEARED_TITLE
+# --- end M17 finale ---

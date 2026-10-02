@@ -95,6 +95,7 @@ func _ready() -> void:
 	# Host: a departing worker leaves the back room and loses their strikes (their stats stay for the report).
 	Net.peer_left.connect(_on_peer_left)
 	_career_ready() # M15 career: the shift's job (region at the end of the file)
+	_final_ready() # M17 finale: the final notice (region at the end of the file)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -349,6 +350,7 @@ func server_raise_quota(fraction: float) -> int:
 func server_start_round() -> void:
 	if not _require_server("server_start_round"):
 		return
+	if _final_refuse_next("server_start_round"): return # M17 finale: a cleared run has no next shift
 	if phase == Phase.MENU:
 		server_reset_game()
 	var s := _snapshot()
@@ -399,6 +401,7 @@ func server_reset_game() -> void:
 		"backroom": {},
 	}
 	_run_reset(s) # M16 variety: the run's seed and cover, shift 1's dice (before anything is rolled from them)
+	_final_reset(s) # M17 finale: a new run: the team seen so far is this one, nothing cleared (before shift 1's roll)
 	_replay_reset(s) # M15 replay: nothing carried over; shift 1's roll
 	if was_live:
 		_rpc_game_reset.rpc(s)
@@ -433,6 +436,7 @@ func request_start_round() -> void:
 func request_next_round() -> void:
 	if not is_local_host():
 		return
+	if _final_cleared: return # M17 finale: a cleared run has no next shift (NEW RUN is request_retry)
 	if phase == Phase.ROUND_SUCCESS:
 		if Config.lobby_enabled: # M14 lobby: back to the alley, the next shift starts from the van
 			server_return_to_lobby(false) # M14 lobby
@@ -497,6 +501,7 @@ func server_return_to_lobby(reset: bool) -> void:
 		return
 	if phase == Phase.MENU or _transition != &"":
 		return
+	if not reset and _final_refuse_next("server_return_to_lobby"): return # M17 finale: a cleared run has no next shift
 	if not reset and phase != Phase.ROUND_SUCCESS:
 		push_warning("GameState.server_return_to_lobby: ignored in phase %s" % get_phase_name())
 		return
@@ -827,6 +832,7 @@ func _replay_roll(r: Dictionary, round_n: int, previous: Array) -> void:
 	var events: Node = get_node_or_null(^"/root/Events")
 	var events_on: bool = events != null and bool(events.call(&"are_events_enabled"))
 	var count := ShiftConditions.count_for_round(round_n, b.conditions_from_round, b.conditions_per_shift)
+	count = _final_condition_count(round_n, count) # M17 finale: the final notice always has two (when any are rolled)
 	r["conditions"] = ShiftConditions.roll(count, previous, replay_rng, events_on, on_sale, mutating)
 	if round_n >= maxi(b.conditions_from_round, 1):
 		r["market"] = ShiftConditions.roll_market(replay_rng, b.market_swing, every, on_sale)
@@ -969,6 +975,7 @@ func _server_end_round(success: bool) -> void:
 		return
 	_career_shift_ending(success) # M15 career: a job judged at the end is settled before the end state goes out
 	var s := _snapshot()
+	_final_end_round(s, success) # M17 finale: paying the final notice clears the run (in the same end state)
 	s["phase"] = Phase.ROUND_SUCCESS if success else Phase.ROUND_FAILED
 	if not success:
 		s["time"] = 0.0
@@ -1072,6 +1079,7 @@ func _snapshot() -> Dictionary:
 		"backroom": backroom.duplicate(),
 		"replay": _replay_snapshot(), # M15 replay: conditions, market, whether the host runs with replay
 		"run": _run_snapshot(), # M16 variety: the run's seed and cover layout
+		"final": _final_snapshot(), # M17 finale: the run's last shift and whether it was paid
 	}
 
 ## Applies a state dictionary and emits change signals. `force` emits every state signal
@@ -1106,6 +1114,7 @@ func _apply_state(state: Dictionary, force: bool) -> void:
 	backroom = _parse_int_map(state.get("backroom", backroom), true)
 	_replay_apply(state, force) # M15 replay: conditions + market (their signals fire first: the rest reads them)
 	_run_apply(state, force) # M16 variety: the run's seed and cover (the Room moves its cover before the phase is heard)
+	_final_apply(state, force) # M17 finale: the last shift and the cleared flag (final_changed / run_cleared before the phase)
 
 	if force or money != old_money:
 		money_changed.emit(money)
@@ -1841,3 +1850,217 @@ func _run_clear_cover() -> void:
 			player.place_at(xf)
 
 # --- end M16 variety -------------------------------------------------------------------------------------------------
+
+
+# --- M17 finale ----------------------------------------------------------------------------------------------------
+# A run has an end: the final notice (FRIENDSLOP 11.1, CONTRACTS "M17", "Finale"). Everything here is behind the HOST's
+# Config.replay_enabled: with it off the last shift is 0, nothing is final, nothing is cleared, and a run goes on until
+# a payment is missed, as before.
+#
+# The last shift is Config.balance.final_shift_by_team[team - 1] for the LARGEST team seen in this run (a team past
+# the table's end takes its last entry; an empty table means no end). The host counts the team from
+# Net.players_changed: it never goes down within a run, and a new run (server_reset_game: a session's first set-up,
+# START OVER, NEW RUN) starts it again from the team that is there. Once the final notice has STARTED the number is
+# locked: a worker who joins in the middle of it does not move the end of the run (one who joins while the alley
+# waits for it does: the board follows). Every shift from the last one on is final (is_final_shift: round >= shift).
+#
+# State (one entry of the state dictionary, "final": {"shift", "cleared"}; it rides on every broadcast and on the full
+# state a late joiner gets; type-checked and clamped on receive):
+#   shift    the run's last shift, 0 = none
+#   cleared  the final notice was paid: the run is over, ROUND_SUCCESS is its end screen
+# What is different about the final notice: it always rolls two conditions (the hook in _replay_roll: only when any
+# are rolled at all, so a test that wants plain shifts keeps them), and at half time the host looks at the payment
+# once: under final_interim_share of it deposited, the payment due rises by final_interim_raise through the audit's
+# own path (server_raise_quota) and every peer hears final_look(true, raised); at or over it, final_look(false, 0).
+# Paying it: _server_end_round puts cleared into the end state, every peer present hears run_cleared (a late joiner
+# who arrives afterwards gets the flag with the state, not the signal), and the only way on is a reset
+# (request_retry: NEW RUN; server_start_round / server_return_to_lobby(false) / request_next_round refuse). Missing
+# it is a missed payment like any other.
+
+## Every peer: the run's last shift, whether the current shift is it, or the cleared flag changed.
+signal final_changed
+## Every peer present when the final notice is paid: the run is cleared (once per run; before round_ended).
+signal run_cleared
+## Every peer: the host looked at the payment at half time of the final notice. `short` = under the share deposited,
+## and the payment due rose by `raised` dollars; otherwise raised is 0.
+signal final_look(short: bool, raised: int)
+
+## Conditions the final notice rolls (when the shift rolls any).
+const FINAL_CONDITIONS: int = 2
+## The host looks at the payment when this share of the shift's clock has run.
+const FINAL_LOOK_AT: float = 0.5
+## A last shift past this is junk from the wire.
+const MAX_FINAL_SHIFT: int = 99
+
+## Synced: the run's last shift (0 = none) and whether it was paid.
+var _final_shift: int = 0
+var _final_cleared: bool = false
+## HOST: the largest team seen in this run.
+var _final_team_max: int = 0
+## HOST: the final notice has started; its number stays for the rest of the run.
+var _final_locked: bool = false
+## HOST: the half-time look happened this shift.
+var _final_looked: bool = false
+## HOST: the running shift's length (time_left when it started) and which shift it is, for half time.
+var _final_shift_len: float = 0.0
+var _final_len_round: int = 0
+## What is_final_shift() answered after the last state (final_changed fires when it flips).
+var _final_was_final: bool = false
+
+
+## The run's last shift (1 .. MAX_FINAL_SHIFT); 0 when the run has no end: replay off, no session, an empty table.
+func get_final_shift() -> int:
+	return _final_shift
+
+
+## True while the current shift is the final notice (in WAITING: the coming shift is it; it stays true on its end screen).
+func is_final_shift() -> bool:
+	return _final_shift > 0 and phase != Phase.MENU and round_number >= _final_shift
+
+
+## True once the final notice was paid: the run is over and ROUND_SUCCESS is its end screen (until a reset).
+func is_run_cleared() -> bool:
+	return _final_cleared
+
+
+## HOST: the largest team seen in this run (what the last shift follows). 0 before a session.
+func get_largest_team() -> int:
+	return _final_team_max
+
+
+func _final_ready() -> void:
+	Net.players_changed.connect(_final_on_players_changed)
+	round_started.connect(_final_on_round_started)
+	time_changed.connect(_final_on_time)
+
+
+## The table's entry for a team of `team` (the last entry past its end; 0 for an empty table or a junk entry).
+static func _final_table(team: int) -> int:
+	var table: Array[int] = Config.balance.final_shift_by_team
+	if table.is_empty():
+		return 0
+	return clampi(int(table[clampi(team, 1, table.size()) - 1]), 0, MAX_FINAL_SHIFT)
+
+
+## HOST: the run's last shift as this host sees it now: locked, the synced number; else the table for the largest team.
+func _final_host_shift() -> int:
+	if not Config.replay_enabled:
+		return 0
+	if _final_locked:
+		return _final_shift
+	return _final_table(_final_team_max)
+
+
+## HOST: the "final" entry of a snapshot.
+func _final_snapshot() -> Dictionary:
+	return {"shift": _final_host_shift(), "cleared": _final_cleared}
+
+
+## HOST, from server_reset_game (before the replay region rolls shift 1): a new run.
+func _final_reset(s: Dictionary) -> void:
+	_final_team_max = get_team_size()
+	_final_locked = false
+	_final_looked = false
+	s["final"] = {"shift": _final_table(_final_team_max) if Config.replay_enabled else 0, "cleared": false}
+
+
+## HOST, from _replay_roll: the final notice rolls FINAL_CONDITIONS (never fewer than the shift would have had, and
+## none when the shift rolls none).
+func _final_condition_count(round_n: int, count: int) -> int:
+	var last := _final_host_shift()
+	if count <= 0 or last <= 0 or round_n < last:
+		return count
+	return maxi(count, FINAL_CONDITIONS)
+
+
+## HOST, from _server_end_round (the end state `s` is built, its phase not yet set): paying the final notice clears it.
+func _final_end_round(s: Dictionary, success: bool) -> void:
+	if not success or not Config.replay_enabled or not is_final_shift():
+		return
+	var f: Variant = s.get("final")
+	if f is Dictionary:
+		(f as Dictionary)["cleared"] = true
+
+
+## HOST: true, with a warning, when the run is cleared: nothing follows the final notice but a reset.
+func _final_refuse_next(fn_name: String) -> bool:
+	if not _final_cleared:
+		return false
+	push_warning("GameState.%s: the run is cleared; NEW RUN (request_retry / server_reset_game) is the way on" % fn_name)
+	return true
+
+
+## HOST: a bigger team than any seen this run moves the end of the run (unless the final notice has started).
+func _final_on_players_changed() -> void:
+	if phase == Phase.MENU or not is_local_host() or not Config.replay_enabled:
+		return
+	var team := get_team_size()
+	if team <= _final_team_max:
+		return
+	_final_team_max = team
+	if _final_locked or _final_host_shift() == _final_shift:
+		return
+	_rpc_state.rpc(_snapshot())
+
+
+## HOST: the final notice has started: its number is locked for the run; the half-time look is armed.
+func _final_on_round_started(_round_number: int) -> void:
+	if not is_local_host():
+		return
+	_final_shift_len = time_left
+	_final_len_round = round_number
+	_final_looked = false
+	if Config.replay_enabled and is_final_shift():
+		_final_locked = true
+
+
+## HOST: half time of the final notice, once: the look at the payment (see the region header).
+func _final_on_time(left: float) -> void:
+	if _final_looked or phase != Phase.PLAYING or _final_shift_len <= 0.0 or _final_len_round != round_number or not is_final_shift():
+		return
+	if left > _final_shift_len * FINAL_LOOK_AT or not is_local_host() or not Config.replay_enabled:
+		return
+	_final_looked = true
+	var short := float(round_sales) < float(quota) * clampf(Config.balance.final_interim_share, 0.0, 1.0)
+	var raised := 0
+	if short:
+		var before := quota
+		raised = maxi(server_raise_quota(maxf(Config.balance.final_interim_raise, 0.0)) - before, 0)
+	_rpc_final_look.rpc(short, raised)
+
+
+## Every peer, from _apply_state (after the run entry, before the plain signals): takes the "final" entry of `state`
+## (kept as it is when the state has none; cleared in MENU), checked and clamped; final_changed when anything moved,
+## run_cleared on the state that cleared the run (not on a late joiner's first state).
+func _final_apply(state: Dictionary, force: bool) -> void:
+	var new_shift := _final_shift
+	var new_cleared := _final_cleared
+	var raw: Variant = state.get("final")
+	if phase == Phase.MENU:
+		new_shift = 0
+		new_cleared = false
+		_final_locked = false
+		_final_looked = false
+	elif raw is Dictionary:
+		var raw_shift: Variant = (raw as Dictionary).get("shift", 0)
+		var raw_cleared: Variant = (raw as Dictionary).get("cleared", false)
+		new_shift = clampi(int(raw_shift), 0, MAX_FINAL_SHIFT) if raw_shift is int else 0
+		new_cleared = bool(raw_cleared) if raw_cleared is bool else false
+	var just_cleared := new_cleared and not _final_cleared and not force
+	var differs := new_shift != _final_shift or new_cleared != _final_cleared
+	_final_shift = new_shift
+	_final_cleared = new_cleared
+	var now_final := is_final_shift()
+	if force or differs or now_final != _final_was_final:
+		final_changed.emit()
+	_final_was_final = now_final
+	if just_cleared:
+		run_cleared.emit()
+
+
+## Host -> every peer (the host through call_local): the half-time look and what it did to the payment due.
+@rpc("authority", "call_local", "reliable")
+func _rpc_final_look(short: bool, raised: int) -> void:
+	final_look.emit(short, clampi(raised, 0, 1000000))
+
+# --- end M17 finale --------------------------------------------------------------------------------------------------

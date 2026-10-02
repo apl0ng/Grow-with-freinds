@@ -192,6 +192,7 @@ func _ready() -> void:
 	_replay_ready() # M15 replay: the condition chips under the payment bar
 	_career_ready() # M15 career: the job line under the payment bar, titles in the WORKERS list
 	_m15_lead_ready() # M15 lead: the centre banner follows the payment column's bottom edge
+	_finale_ready() # M17 finale: the payment panel's title reads FINAL NOTICE on the run's last shift
 
 	_ui_locked = Game.is_ui_locked()
 	_stats_ready = GameState.phase != GameState.Phase.MENU
@@ -1433,3 +1434,45 @@ func _place_banner() -> void:
 		return
 	banner.offset_top = top
 	banner.offset_bottom = top
+
+
+# --- M17 finale: the payment panel's title -------------------------------------------------------------------------
+# The small title over the payment due (Root/Stats/QuotaColumn/QuotaPanel/VBox/QuotaTitle, "THIS SHIFT" in the scene)
+# reads "FINAL NOTICE" while GameState.is_final_shift(): the run's last shift, from the alley before it to its end
+# screen. In the warning colour, so it is read before the number. It follows GameState.final_changed and the phase on
+# every peer; a late joiner gets it with the state. With replay off it never changes.
+
+const TEXT_PAYMENT_TITLE := "THIS SHIFT"
+const TEXT_FINAL_TITLE := "FINAL NOTICE"
+
+var _finale_title: Label
+
+
+func _finale_ready() -> void:
+	_finale_title = quota_panel.get_node_or_null(^"VBox/QuotaTitle") as Label
+	if GameState.has_signal(&"final_changed"):
+		GameState.connect(&"final_changed", _finale_refresh_title)
+	GameState.phase_changed.connect(_finale_on_phase)
+	_finale_refresh_title()
+
+
+## The payment panel's title as shown ("THIS SHIFT" / "FINAL NOTICE"; "" without the label).
+func get_payment_title() -> String:
+	return _finale_title.text if _finale_title != null else ""
+
+
+func _finale_on_phase(_phase: int) -> void:
+	_finale_refresh_title()
+
+
+func _finale_refresh_title() -> void:
+	if _finale_title == null:
+		return
+	var final := GameState.has_method(&"is_final_shift") and bool(GameState.call(&"is_final_shift"))
+	_finale_title.text = TEXT_FINAL_TITLE if final else TEXT_PAYMENT_TITLE
+	if final:
+		_finale_title.add_theme_color_override(&"font_color", Toon.WARNING)
+	else:
+		_finale_title.remove_theme_color_override(&"font_color")
+
+# --- end M17 finale ------------------------------------------------------------------------------------------------

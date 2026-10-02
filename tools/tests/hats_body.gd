@@ -20,7 +20,7 @@ extends "res://tools/tests/qa_base.gd"
 ##   the wire   junk ids are dropped and the old hat stays; "" takes it off; a synced list is checked again; the
 ##              budget: the locker jams when the host would take no more, and what is worn stays what is shown
 ##   issued     the end of a shift issues the paper cap once, with the toast; a second shift issues nothing
-##   the card   "Issued: 4 of 7" on the pause menu's Record card, under the record's own lines
+##   the card   "Issued: 4 of 8" on the pause menu's Record card, under the record's own lines
 ##   replay off nothing is sent or shown, the locker is locked, a hat is issued without a toast
 ## Every engine/script error fails the run unless announced (qa_base.gd).
 
@@ -200,7 +200,7 @@ func _test_catalog() -> void:
 	check(_same(Hats.issued_for(rec), [&"hairnet", &"cone", &"bucket", &"welding_mask"]), "trouble is kit: cone, bucket, welding mask")
 	var clean := Record.new()
 	clean.values = {"shifts": 40, "best_round": 6, "deposited": 90000, "contracts": 30}
-	rec.values = {"shifts": 40, "best_round": 6, "backroom": 9, "bitten": 9, "burns": 9, "shot": 9}
+	rec.values = {"shifts": 40, "best_round": 6, "backroom": 9, "bitten": 9, "burns": 9, "shot": 9, "cleared": 1}  # M17 finale: + one debt cleared (the eyeshade)
 	check(Hats.issued_for(rec).size() == ids.size() and Hats.issued_for(clean).size() < ids.size(), "the worst record has the most kit (%d against %d)" % [Hats.issued_for(rec).size(), Hats.issued_for(clean).size()])
 	check(Hats.record_text(rec) == "Issued: %d of %d" % [ids.size(), ids.size()] and Hats.record_text(Record.new()) == "Issued: 0 of %d" % ids.size(), "the card's line: '%s'" % Hats.record_text(rec))
 
