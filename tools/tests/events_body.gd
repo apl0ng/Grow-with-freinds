@@ -242,6 +242,9 @@ func _test_inspection(b: BalanceConfig) -> void:
 	var speed: float = _started[0][1].get("speed", 1.6)
 	_boss.walk_route(route, speed, 6.0)
 	_boss.set_process(false)
+	# The sight steps below tick simulated time, but the inspection also counts real time: on a loaded machine its
+	# 35 s ran out before the loitering step and both checks failed. Give it time; "inspection end" ends it explicitly.
+	Events._time_left = 600.0
 	await wait_frames(2)  # Events' cosmetic tick (door state) sees the frozen position
 	check(clip != null and clip.visible and clip.global_position.distance_to(_boss.global_position) < 1.2, "the clipboard follows him (%.2f m from his feet)" % clip.global_position.distance_to(_boss.global_position))
 	var eye := _boss.get_eye_position()
