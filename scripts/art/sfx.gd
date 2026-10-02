@@ -1097,6 +1097,22 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_fade_in(b, 0.002)
 			_fade_out(b, 0.05)
 		# --- end M15 mayhem2 -------------------------------------------------------------------------------------
+		# --- M16 polish ---
+		&"uproot":  # a plant pulls itself out of a wet tray: the soil gives, roots tear, the clod comes free, dirt falls back
+			b = _buf(0.52)
+			_noise(b, rng, 0.0, 0.22, 1.0, 0.2, 0.03, 0.05, 1.5)                   # wet soil giving way
+			for t: float in [0.035, 0.07, 0.095, 0.13, 0.15, 0.175]:                 # root fibres letting go, one by one
+				_noise(b, rng, t, 0.018, 0.5, 0.55, 0.2, 0.0005, 10.0)
+			_tone(b, 0.17, 0.16, 125.0, 52.0, 0.6, Wave.SINE, 0.004, 4.0)           # the clod comes free: one low suck
+			_noise(b, rng, 0.17, 0.06, 0.5, 0.3, 0.05, 0.002, 5.0)
+			_noise(b, rng, 0.25, 0.25, 0.22, 0.35, 0.08, 0.02, 3.5)                 # loose dirt settling
+			for t: float in [0.28, 0.33, 0.37, 0.43]:                                # a few crumbs on the rim
+				_noise(b, rng, t, 0.02, 0.2, 0.5, 0.15, 0.001, 8.0)
+			_lowpass(b, 0.45)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.05)
+		# --- end M16 polish ---
 		_:
 			b = _buf(0.1)
 			_tone(b, 0.0, 0.08, 600.0, 600.0, 0.5, Wave.SINE, 0.002, 4.0)

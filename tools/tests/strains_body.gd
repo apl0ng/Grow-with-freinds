@@ -143,6 +143,11 @@ func _test_data(b: BalanceConfig) -> void:
 	var br := b.get_seed(&"brick")
 	check(br.sale_value_per_unit * br.yield_amount - br.cost == 210, "Floor Brick margin is $210 (3 x $110 - $120)")
 	check(b.get_seed(&"budget").mutation_chance == 0.0, "Budget Bud never turns")
+	# M16 polish: the cap. No strain's own chance is above it, and on a plain day the chance is the strain's own.
+	check(is_equal_approx(b.mutation_chance_cap, 0.5), "the cap on a walking plant's chance is %.2f" % b.mutation_chance_cap)
+	for s: SeedDef in b.seeds:
+		check(s.mutation_chance <= b.mutation_chance_cap and is_equal_approx(GrowPlot.get_mutation_chance(s), s.mutation_chance),
+				"%s: %.2f on a plain day, under the cap" % [s.id, GrowPlot.get_mutation_chance(s)])
 	_test_traits(b)
 
 

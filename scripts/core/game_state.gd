@@ -1260,6 +1260,10 @@ func _host_init_session() -> void:
 # The job is NOT part of the state dictionary: it has its own reliable RPC on this node (same channel, so it stays in
 # order with the state), and the host sends it to a late joiner when the peer registers. Peers keep what they are
 # sent; a peer back in MENU forgets it. With replay off nothing is rolled and every handler below returns at once.
+# M16 polish, three more jobs: "variety" counts the different strains deposited since the job went up (the chute's
+# hook), "keep" fails on the first plant a tray loses (GrowPlot's hook server_note_crop_lost: eaten, burnt, collected,
+# walked off) and is judged at the end like "clean", "raid" fails on Events.raid_took and is met when a raid that
+# looked in at least once ends (an event job: pool and half-time swap like "leak" and "driveby").
 
 ## Every peer: the job changed in any way (put up, progress, settled, cleared).
 signal contract_changed
@@ -1288,6 +1292,12 @@ var _career_prev_id: StringName = &""
 var _career_shift_len: float = 0.0
 ## HOST: what the job needs (a leak, a drive-by, a hostile plant) has shown up this shift.
 var _career_need_seen: bool = false
+# --- M16 polish ---
+## HOST, "variety": the strains deposited since the job went up (each counts once).
+var _career_strains_seen: PackedStringArray = []
+## HOST, "raid": the raid has looked in at least once since the job went up (a raid cut short settles nothing).
+var _career_raid_looked: bool = false
+# --- end M16 polish ---
 
 
 ## A copy of the shift's job ({} when there is none).
@@ -1348,6 +1358,10 @@ func server_note_deposit(strain: StringName, amount: int, cured: bool, value: in
 		Contracts.ID_STRAIN:
 			if String(strain) != "" and String(strain) == String(contract.get("strain", "")):
 				_career_add_progress()
+		Contracts.ID_VARIETY: # M16 polish: a strain counts once, wet or cured, whoever deposits it
+			if String(strain) != "" and not _career_strains_seen.has(String(strain)):
+				_career_strains_seen.append(String(strain))
+				_career_add_progress()
 
 
 ## HOST, from GrowPlot._server_interact: `plot` was harvested by a worker. The grow hall's trays count for "hall".
@@ -1363,6 +1377,18 @@ func server_note_harvest(plot: Node3D, _peer_id: int) -> void:
 		_career_add_progress()
 
 
+# --- M16 polish ---
+## HOST, from GrowPlot (server_crop_lost and the uprooting in server_tick_mutation), before the tray is reset: the
+## plant in `plot` is lost to `cause` (GrowPlot.LOSS_*). Any loss fails "keep". A harvest is not a loss, and gunfire
+## only sets a plant back.
+func server_note_crop_lost(_plot: Node3D, _cause: StringName) -> void:
+	if not _require_server("server_note_crop_lost"):
+		return
+	if _career_active() and _career_id() == Contracts.ID_KEEP:
+		_career_fail()
+# --- end M16 polish ---
+
+
 func _career_ready() -> void:
 	_career_rng.randomize()
 	phase_changed.connect(_career_on_phase)
@@ -1376,7 +1402,8 @@ func _career_ready() -> void:
 	var events := get_node_or_null(^"/root/Events")
 	if events != null:
 		for pair: Array in [[&"event_started", _career_on_event_started], [&"event_ended", _career_on_event_ended],
-				[&"leak_resolved", _career_on_leak_resolved], [&"worker_shot", _career_on_worker_shot]]:
+				[&"leak_resolved", _career_on_leak_resolved], [&"worker_shot", _career_on_worker_shot],
+				[&"raid_took", _career_on_raid_took], [&"raid_swept", _career_on_raid_swept]]: # M16 polish: the raid job
 			if events.has_signal(pair[0]):
 				events.connect(pair[0], pair[1])
 	var hostiles := get_node_or_null(^"/root/Hostiles")
@@ -1417,6 +1444,7 @@ func _career_context() -> Dictionary:
 		"reward": maxi(Config.balance.contract_reward, 0),
 		"strain": on_sale[_career_rng.randi_range(0, on_sale.size() - 1)] if not on_sale.is_empty() else &"",
 		"events": events_on, "can_mutate": can_mutate,
+		"strains": on_sale.size(), # M16 polish: "variety" needs three on sale
 		"early_ok": Config.balance.round_length_sec >= Contracts.EARLY_SECONDS * 3.0,
 	}
 
@@ -1424,13 +1452,15 @@ func _career_context() -> Dictionary:
 ## HOST: `c` becomes the job in force (every peer hears `event`).
 func _career_put_up(c: Dictionary, event: StringName) -> void:
 	_career_need_seen = _career_need_live(Contracts.get_need(StringName(str(c.get("id", "")))))
+	_career_strains_seen = PackedStringArray() # M16 polish: a new job counts from nothing
+	_career_raid_looked = false # M16 polish
 	_rpc_contract.rpc(c, event)
 
 
 ## HOST: is the thing a job needs on the floor right now.
 func _career_need_live(need: StringName) -> bool:
 	match need:
-		Contracts.NEED_LEAK, Contracts.NEED_DRIVEBY:
+		Contracts.NEED_LEAK, Contracts.NEED_DRIVEBY, Contracts.NEED_RAID: # M16 polish: + raid
 			var events := get_node_or_null(^"/root/Events")
 			return events != null and events.has_method(&"is_event_active") and bool(events.call(&"is_event_active", need))
 		Contracts.NEED_HOSTILE:
@@ -1572,6 +1602,22 @@ func _career_on_event_started(kind: StringName, _params: Dictionary) -> void:
 func _career_on_event_ended(kind: StringName) -> void:
 	if kind == &"driveby" and _career_active() and _career_id() == Contracts.ID_DRIVEBY and _career_need_seen:
 		_career_meet(contract.duplicate())
+	# M16 polish: a raid that came, looked and left with nothing (one that took a bundle failed the job already).
+	if kind == &"raid" and _career_active() and _career_id() == Contracts.ID_RAID and _career_need_seen and _career_raid_looked:
+		_career_meet(contract.duplicate())
+
+
+# --- M16 polish ---
+func _career_on_raid_swept(_point_index: int, _taken: int) -> void:
+	if _career_active() and _career_id() == Contracts.ID_RAID:
+		_career_raid_looked = true
+
+
+## The raid took a bundle (off the floor, off a rack or out of somebody's hands): the job is gone.
+func _career_on_raid_took(_item_name: String, _holder_peer: int) -> void:
+	if _career_active() and _career_id() == Contracts.ID_RAID:
+		_career_fail()
+# --- end M16 polish ---
 
 
 func _career_on_worker_shot(_peer_id: int) -> void:

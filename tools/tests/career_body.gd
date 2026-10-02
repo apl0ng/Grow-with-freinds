@@ -4,7 +4,7 @@ extends "res://tools/tests/qa_base.gd"
 ##   godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/career_body.gd --replay --career-file=user://career_test.cfg --port=7985 --round-sec=900
 ## The run REFUSES to start without --career-file (it must never touch a real record) and removes its files at the end.
 ## Pins:
-##   catalog    nine jobs, unique ids, flat copy (no "!"), goals that grow with the team, the pool by session (event
+##   catalog    twelve jobs (M16 polish: + variety, keep, raid; their own checks live in polish_body.gd), unique ids, flat copy (no "!"), goals that grow with the team, the pool by session (event
 ##              jobs only with events on, "burn" only with a strain that can turn), a roll never repeats the last job
 ##   the file   missing / corrupt / oversized / half-valid files read as an empty or partial record without one error
 ##              line; the summary lines; the title ladder at every threshold; a write and a second reader
@@ -107,8 +107,8 @@ func _test_catalog(b: BalanceConfig) -> void:
 	var unique: Dictionary = {}
 	for id in ids:
 		unique[id] = true
-	check(ids.size() >= 8 and unique.size() == ids.size(), "%d jobs, every id once" % ids.size())
-	for id: StringName in [&"cured", &"strain", &"clean", &"burn", &"leak", &"driveby", &"hall", &"cash"]:
+	check(ids.size() == 12 and unique.size() == ids.size(), "%d jobs, every id once" % ids.size()) # M16 polish: twelve
+	for id: StringName in [&"cured", &"strain", &"clean", &"burn", &"leak", &"driveby", &"hall", &"cash", &"variety", &"keep", &"raid"]:
 		check(Contracts.has(id), "the catalog has '%s'" % id)
 	var ctx := {"team": 1, "round": 1, "money": 150, "owed": 350, "reward": b.contract_reward, "strain": &"purple"}
 	var copy_ok := true
@@ -138,14 +138,18 @@ func _test_catalog(b: BalanceConfig) -> void:
 			"cash: on hand + 60%% of what is owed (at least $30), rounded up to $10 (%d, %d)" % [Contracts.cash_goal(150, 350), Contracts.cash_goal(205, 0)])
 	check(String(Contracts.build(&"cash", ctx)["text"]) == "end the shift with more than $360 on hand" and int(Contracts.build(&"cash", ctx)["goal"]) == 360, "the cash job names its number")
 	check(Contracts.number_words(3) == "three" and Contracts.number_words(12) == "twelve" and Contracts.number_words(14) == "14", "numbers in words up to twelve")
-	check(Contracts.get_judge(&"clean") == Contracts.JUDGE_END and Contracts.get_judge(&"cash") == Contracts.JUDGE_END and Contracts.get_judge(&"cured") == Contracts.JUDGE_SPOT,
-			"'clean' and 'cash' are judged when the shift ends, the rest on the spot")
-	check(Contracts.get_need(&"burn") == &"hostile" and Contracts.get_need(&"leak") == &"leak" and Contracts.get_need(&"driveby") == &"driveby" and Contracts.get_need(&"cured") == &"",
-			"'burn', 'leak' and 'driveby' need something to come")
+	check(Contracts.get_judge(&"clean") == Contracts.JUDGE_END and Contracts.get_judge(&"cash") == Contracts.JUDGE_END and Contracts.get_judge(&"keep") == Contracts.JUDGE_END
+			and Contracts.get_judge(&"cured") == Contracts.JUDGE_SPOT and Contracts.get_judge(&"variety") == Contracts.JUDGE_SPOT and Contracts.get_judge(&"raid") == Contracts.JUDGE_SPOT,
+			"'clean', 'cash' and 'keep' are judged when the shift ends, the rest on the spot")
+	check(Contracts.get_need(&"burn") == &"hostile" and Contracts.get_need(&"leak") == &"leak" and Contracts.get_need(&"driveby") == &"driveby" and Contracts.get_need(&"raid") == &"raid"
+			and Contracts.get_need(&"cured") == &"" and Contracts.get_need(&"keep") == &"" and Contracts.get_need(&"variety") == &"",
+			"'burn', 'leak', 'driveby' and 'raid' need something to come")
 
 	step("catalog: the pool and the roll")
 	var plain := Contracts.pool({"events": false, "can_mutate": false})
-	check(not plain.has(&"leak") and not plain.has(&"driveby") and not plain.has(&"burn") and plain.has(&"cured") and plain.has(&"cash") and plain.size() == ids.size() - 4,
+	# M16 polish: 'raid' needs events, 'keep' needs something that can take a plant: six stay out (were four).
+	check(not plain.has(&"leak") and not plain.has(&"driveby") and not plain.has(&"burn") and not plain.has(&"raid") and not plain.has(&"keep")
+			and plain.has(&"cured") and plain.has(&"cash") and plain.has(&"variety") and plain.size() == ids.size() - 6,
 			"no events, nothing that turns: only the jobs that need nothing (%d)" % plain.size())
 	check(not plain.has(&"clean") and Contracts.pool({"events": true, "can_mutate": false}).has(&"clean"), "'no write-ups' is only offered on a floor the Boss walks (events on)")
 	var full := Contracts.pool({"events": true, "can_mutate": true})
