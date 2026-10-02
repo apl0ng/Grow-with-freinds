@@ -182,3 +182,39 @@ func _refresh_visuals() -> void:
 	_label.position.y = _label_rest_y * s
 	_label.text = get_tag_text()
 	_label.visible = not is_held()
+
+
+# --- M17 cart -----------------------------------------------------------------------------------------------------------
+# A worker holding the hand truck (HandTruck) who presses E on a bundle nobody else holds (on the floor, on a rack) loads
+# it onto the truck instead of picking it up: the prompt, the check and the host's action are the truck's. Without a
+# truck in hand everything is the plain item interaction.
+
+func get_prompt(player: Player) -> String:
+	var truck := HandTruck.held_by(player)
+	if truck != null:
+		return truck.get_load_prompt(self)
+	return super(player)
+
+
+func can_interact(player: Player) -> bool:
+	var truck := HandTruck.held_by(player)
+	if truck != null:
+		return truck.get_load_denial(self, player) == ""
+	return super(player)
+
+
+func get_denied_reason(player: Player) -> String:
+	var truck := HandTruck.held_by(player)
+	if truck != null:
+		return truck.get_load_denial(self, player)
+	return super(player)
+
+
+func _server_interact(player: Player) -> void:
+	var truck := HandTruck.held_by(player)
+	if truck != null:
+		truck.server_load(self, player.peer_id)
+		return
+	super(player)
+
+# --- end M17 cart -------------------------------------------------------------------------------------------------------

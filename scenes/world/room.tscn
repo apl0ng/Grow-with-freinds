@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scenes/world/room.gd" id="1_room"]
+[ext_resource type="Script" path="res://scripts/items/hand_truck_spot.gd" id="m17_truck_spot"]
 [ext_resource type="Material" path="res://art/materials/toon_void.tres" id="4_void"]
 [ext_resource type="Material" path="res://art/materials/toon_olive.tres" id="5_olive"]
 [ext_resource type="Material" path="res://art/materials/toon_dark.tres" id="6_dark"]
@@ -1499,6 +1500,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 1.6, 15)
 
 [node name="CollectorSpot" type="Marker3D" parent="Dock"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0, 13.6)
+
+[node name="HandTruckSpot" type="Marker3D" parent="Dock"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -8, 0, 8.6)
+script = ExtResource("m17_truck_spot")
 
 [node name="Arrivals" type="Node3D" parent="."]
 

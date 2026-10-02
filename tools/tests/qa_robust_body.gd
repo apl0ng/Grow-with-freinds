@@ -130,7 +130,7 @@ func _section_a_garbage() -> void:
 	items.server_release_holder(999)
 	check(items.get_held_by(0) == null and items.get_held_by(-1) == null, "get_held_by(<=0) is null")
 	await wait_frames(2)
-	check(items.get_items().size() == 2 and items_of(Const.ITEM_WATERING_CAN).size() == 2, "only the 2 cans remain")
+	check(items.get_items().size() == 3 and items_of(Const.ITEM_WATERING_CAN).size() == 2 and items_of(Const.ITEM_HAND_TRUCK).size() == 1, "only the 2 cans and the dock's hand truck remain") # M17 cart: the shift's start stands the hand truck on the dock
 
 # ================================================================================================= B
 

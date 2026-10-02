@@ -104,6 +104,7 @@ static func get_scene_path(item_type: StringName) -> String:
 	if item_type == Const.ITEM_FLAMETHROWER: # M12: {"fuel": float}
 		return "res://scenes/items/flamethrower.tscn"
 	if item_type == Const.ITEM_BALL: return "res://scenes/items/ball.tscn" # M15 alley
+	if item_type == Const.ITEM_HAND_TRUCK: return "res://scenes/items/hand_truck.tscn" # M17 cart: {"cargo": String}
 	return ""
 
 ## The ItemManager for `from`'s world: the nearest ancestor with an "Items" ItemManager child, else
@@ -198,6 +199,7 @@ func server_throw_item(item: Item, origin: Vector3, velocity: Vector3, thrower: 
 		return false
 	if not _is_live(item) or item.is_flying():
 		return false
+	if item.item_type == Const.ITEM_HAND_TRUCK: return false # M17 cart: the hand truck is dropped (Q), never thrown
 	if not origin.is_finite() or not velocity.is_finite():
 		return false
 	_next_flight_serial += 1

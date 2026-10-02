@@ -70,6 +70,7 @@ func try_throw() -> void:
 	var items := ItemManager.find(player)
 	if items == null or items.get_held_by(player.peer_id) == null:
 		return
+	if HandTruck.refuse_throw(items.get_held_by(player.peer_id)): return # M17 cart: "Too heavy to throw."
 	items.request_throw()
 
 ## M10: asks the server to shove the worker under the crosshair (bound to the "shove" action: F). Local player only.

@@ -53,6 +53,7 @@ func _process(delta: float) -> void:
 # --- Interactable overrides -----------------------------------------------------------------------------------------
 
 func get_prompt(player: Player) -> String:
+	if HandTruck.held_by(player) != null: return _cart_prompt(HandTruck.held_by(player)) # M17 cart: "Deposit 3 bundles (+$560)"
 	var product := _get_held_product(player)
 	if product == null:
 		return "Deposit product"
@@ -74,6 +75,7 @@ func get_denied_reason(player: Player) -> String:
 func _server_interact(player: Player) -> void:
 	if _get_denial(player) != "":
 		return
+	if _cart_deposit(player): return # M17 cart: a hand truck in hand deposits every bundle on it
 	_server_sell(_get_held_product(player), player.peer_id)
 
 
@@ -180,6 +182,7 @@ func _get_denial(player: Player) -> String:
 	var item := _get_held_item(player)
 	if item == null:
 		return REASON_EMPTY
+	if item is HandTruck: return _cart_denial(item as HandTruck) # M17 cart
 	if item.item_type != Const.ITEM_PRODUCT:
 		return REASON_NOT_PRODUCT
 	if item.has_meta(SOLD_META) or get_sale_value(item) <= 0:
@@ -247,3 +250,75 @@ static func get_sold_text(round_sales: int, quota: int) -> String:
 	if round_sales >= quota:
 		return "DEPOSITED $%d / $%d\nPAID… FOR NOW" % [round_sales, quota]
 	return "DEPOSITED $%d / $%d" % [round_sales, quota]
+
+
+# --- M17 cart -----------------------------------------------------------------------------------------------------------
+# A worker holding the hand truck (HandTruck) deposits every bundle on it in one press: top first, each one taken off
+# the truck as a real bundle at the slot and sold through server_sell_item, the path a chute shot takes and the same
+# _server_sell a hand-carried bundle goes through. So each pays exactly what it would by hand (the market, a buyer,
+# cured, the scale), and each counts on its own: GameState.server_note_deposit (the job), STAT_DEPOSITED / STAT_CURED for
+# the holder, the money float. A sale that ends the shift (the payment is met) leaves the rest on the truck. An empty
+# truck is refused ("Truck's empty."). Hooks: get_prompt, _get_denial, _server_interact (one line each).
+
+## "Deposit 3 bundles (+$560)". The sum is the plain formula per bundle (compute_sale_value with today's multiplier).
+func _cart_prompt(truck: HandTruck) -> String:
+	var n := truck.get_load_count()
+	return "Deposit %d bundle%s (+$%d)" % [n, "" if n == 1 else "s", get_load_value(truck)]
+
+
+func _cart_denial(truck: HandTruck) -> String:
+	if truck.get_load_count() == 0:
+		return HandTruck.REASON_EMPTY
+	if sell_only_while_playing and not GameState.is_playing():
+		return REASON_NOT_PLAYING
+	if get_load_value(truck) <= 0:
+		return REASON_BAD_PRODUCT
+	return ""
+
+
+## SERVER, from _server_interact: true when `player` holds a hand truck (its load was deposited, as far as it went).
+func _cart_deposit(player: Player) -> bool:
+	var truck := HandTruck.held_by(player)
+	if truck == null:
+		return false
+	server_deposit_truck(truck, player.peer_id)
+	return true
+
+
+## What the load of `truck` pays right now, bundle by bundle.
+func get_load_value(truck: HandTruck) -> int:
+	var total := 0
+	if truck == null:
+		return 0
+	for entry in truck.get_load():
+		total += compute_sale_value(Config.balance.get_seed(entry["strain_id"]), int(entry["amount"]),
+				GameState.get_sale_multiplier(), bool(entry["cured"]))
+	return total
+
+
+## SERVER ONLY. Deposits the load of `truck` for `seller_peer` (see the region header). Returns how many bundles were
+## sold; whatever could not be sold stays on the truck.
+func server_deposit_truck(truck: HandTruck, seller_peer: int) -> int:
+	if not multiplayer.is_server():
+		push_error("TurnInStation.server_deposit_truck called on a client")
+		return 0
+	if truck == null or not is_instance_valid(truck) or truck.is_queued_for_deletion():
+		return 0
+	var sold := 0
+	while truck.get_load_count() > 0:
+		if sell_only_while_playing and not GameState.is_playing():
+			break
+		var product := truck.server_unload_at(get_mouth_position())
+		if product == null:
+			break
+		if not server_sell_item(product, seller_peer):
+			# Worth nothing (an unknown strain): back on top of the load, or at the holder's feet if that fails.
+			if not truck.server_load(product, truck.holder_id):
+				var items := ItemManager.find(self)
+				if items != null:
+					items.server_drop_item(product, truck.global_position)
+			break
+		sold += 1
+	return sold
+
+# --- end M17 cart -------------------------------------------------------------------------------------------------------

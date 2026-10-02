@@ -867,6 +867,7 @@ func _animate_arms(delta: float, walk: float) -> void:
 	var swing := sin(_walk_phase) * ARM_SWING * walk
 	arm_l.rotation = Vector3(swing, 0.0, 0.0)
 	arm_r.rotation = Vector3(-swing, 0.0, 0.0).lerp(HOLD_ARM_ROTATION, hold)
+	_cart_arms(delta, hold) # M17 cart: both hands on the hand truck
 
 func _set_crouching(value: bool) -> void:
 	if crouching == value:
@@ -1295,3 +1296,30 @@ func _refresh_hat() -> void:
 	set_hat(Net.get_player_hat(peer_id) if Config.replay_enabled else &"")
 
 # --- end M16 hats -----------------------------------------------------------------------------------------------------
+
+# --- M17 cart: the hand truck -----------------------------------------------------------------------------------------
+## The hand truck (scripts/items/hand_truck.gd) is a heavy carry through its is_heavy(): is_carrying_heavy() above is
+## true while this worker holds it, loaded or empty, so _current_speed gives walk_speed x heavy_speed_factor and no
+## sprint, enforced where the owner simulates the body like the Floor Brick bundle. It is dropped (Q) and never thrown
+## (ItemManager / Interactor hooks). The truck places itself in front of the body (HandTruck._follow_holder), so on
+## other peers this worker holds it with both hands: the left arm comes up the way the right one does for any item.
+
+## Remote bodies: the left arm's pose while both hands are on the truck (the right arm's HOLD_ARM_ROTATION, mirrored).
+const CART_ARM_ROTATION := Vector3(0.86, -0.11, 0.0)
+
+var _cart_both_hands: bool = false
+var _cart_check_left: float = 0.0
+
+
+## Remote bodies, from _animate_arms: blends the left arm up while the held item is the hand truck (checked every
+## 0.15 s, like the hold itself).
+func _cart_arms(delta: float, hold: float) -> void:
+	_cart_check_left -= delta
+	if _cart_check_left <= 0.0:
+		_cart_check_left = 0.15
+		var item := get_held_item()
+		_cart_both_hands = item != null and is_instance_valid(item) and item.item_type == Const.ITEM_HAND_TRUCK
+	if _cart_both_hands and arm_l != null:
+		arm_l.rotation = arm_l.rotation.lerp(CART_ARM_ROTATION, hold)
+
+# --- end M17 cart -----------------------------------------------------------------------------------------------------
