@@ -898,6 +898,20 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_lowpass(b, 0.3)
 			_fade_out(b, 0.03)
 		# --- end M12 disrupt --------------------------------------------------------------------------------
+		# --- M14 lobby ---
+		&"van_door":  # two tired steel leaves: a hinge groan, the first slam, the second a beat later, the latch
+			b = _buf(0.95)
+			_tone(b, 0.0, 0.2, 310.0, 190.0, 0.14, Wave.SAW, 0.02, 2.0, 9.0, 0.03)
+			_noise(b, rng, 0.16, 0.2, 1.0, 0.22, 0.02, 0.001, 9.0)
+			_tone(b, 0.16, 0.34, 82.0, 44.0, 0.9, Wave.SINE, 0.002, 5.0)
+			_tone(b, 0.17, 0.18, 240.0, 170.0, 0.2, Wave.TRIANGLE, 0.001, 7.0)
+			_noise(b, rng, 0.42, 0.2, 0.85, 0.2, 0.02, 0.001, 9.0)
+			_tone(b, 0.42, 0.36, 70.0, 40.0, 0.8, Wave.SINE, 0.002, 5.0)
+			_noise(b, rng, 0.62, 0.03, 0.4, 0.8, 0.3, 0.0005, 10.0)
+			_tone(b, 0.62, 0.08, 520.0, 430.0, 0.16, Wave.SQUARE, 0.001, 6.0)
+			_lowpass(b, 0.5)
+			_fade_out(b, 0.05)
+		# --- end M14 lobby ---
 		# --- M12 lead: the flamethrower and its consequences (dull and physical, nothing heroic) ------------------
 		&"flame":  # the loop while the trigger is held: a muffled roar with a slow rumble under it
 			b = _buf(0.8)

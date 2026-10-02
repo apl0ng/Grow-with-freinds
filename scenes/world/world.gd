@@ -63,6 +63,7 @@ func server_spawn_player(peer_id: int) -> Player:
 		"color": Net.get_player_color(peer_id),
 		"spawn_index": _free_spawn_index(),
 	}
+	_lobby_tag_spawn(data) # M14 lobby
 	return player_spawner.spawn(data) as Player
 
 ## SERVER ONLY. Removes the player everywhere (the spawner replicates the despawn).
@@ -104,8 +105,81 @@ func _spawn_player(data: Variant) -> Node:
 	player.player_color = color if color is Color else Net.get_player_color(pid)
 	player.spawn_index = int(d.get("spawn_index", 0))
 	player.set_multiplayer_authority(pid, true)
-	player.place_at(get_spawn_transform(player.spawn_index))
+	player.place_at(_lobby_spawn_transform(d, player.spawn_index)) # M14 lobby (get_spawn_transform unless the data names a place)
 	return player
+
+# --- M14 lobby ---------------------------------------------------------------------------------------------------
+# The alley and the van (scenes/world/lobby.tscn, one `Lobby` node at (0, 0, 80)). With Config.lobby_enabled the host
+# tags every spawn with the place the worker starts at: the alley while the phase is MENU / WAITING, the loading dock
+# (Room.get_arrival_transform) when they join during a shift. The tag travels in the spawn data, so every peer builds
+# the same body at the same spot. Without the tag (lobby off) nothing changes: the room's spawn points.
+
+const SPAWN_AT_KEY := "at"
+const SPAWN_AT_LOBBY := "lobby"
+const SPAWN_AT_ARRIVAL := "arrival"
+
+## The alley (null in a world without one).
+var lobby: Lobby:
+	get:
+		return get_node_or_null(^"Lobby") as Lobby
+
+## Where the spawn_index-th worker waits in the alley, in Players-local space (the room spawn without a lobby).
+func get_lobby_transform(spawn_index: int) -> Transform3D:
+	var alley := lobby
+	if alley == null:
+		return get_spawn_transform(spawn_index)
+	return _to_players_space(alley.get_spawn_transform(spawn_index))
+
+## Where the spawn_index-th worker stands after the van ride (the loading dock), in Players-local space.
+func get_arrival_transform(spawn_index: int) -> Transform3D:
+	if room == null or not room.has_method(&"get_arrival_transform"):
+		return get_spawn_transform(spawn_index)
+	return _to_players_space(room.get_arrival_transform(spawn_index))
+
+## SERVER ONLY. Every worker to the dock (the van arrived).
+func server_move_players_to_floor() -> void:
+	if not multiplayer.is_server():
+		return
+	for p in get_players():
+		_lobby_move(p, get_arrival_transform(p.spawn_index))
+
+## SERVER ONLY. Every worker back to the alley. What they carry stays on the floor where they stood.
+func server_move_players_to_lobby() -> void:
+	if not multiplayer.is_server():
+		return
+	for p in get_players():
+		if items != null:
+			items.server_release_holder(p.peer_id)
+		_lobby_move(p, get_lobby_transform(p.spawn_index))
+
+## Owned bodies go through Player.server_teleport (owner-authoritative movement); a body nobody owns (a fake worker in
+## a headless test) is placed directly.
+func _lobby_move(player: Player, xf: Transform3D) -> void:
+	if player.is_local() or multiplayer.get_peers().has(player.peer_id):
+		player.server_teleport(xf)
+	else:
+		player.place_at(xf)
+
+func _lobby_tag_spawn(data: Dictionary) -> void:
+	if not Config.lobby_enabled or lobby == null:
+		return
+	var waiting: bool = GameState.phase == GameState.Phase.MENU or GameState.phase == GameState.Phase.WAITING
+	data[SPAWN_AT_KEY] = SPAWN_AT_LOBBY if waiting else SPAWN_AT_ARRIVAL
+
+func _lobby_spawn_transform(data: Dictionary, spawn_index: int) -> Transform3D:
+	match String(data.get(SPAWN_AT_KEY, "")):
+		SPAWN_AT_LOBBY:
+			return get_lobby_transform(spawn_index)
+		SPAWN_AT_ARRIVAL:
+			return get_arrival_transform(spawn_index)
+	return get_spawn_transform(spawn_index)
+
+func _to_players_space(xf: Transform3D) -> Transform3D:
+	if players_root != null and players_root.is_inside_tree():
+		return players_root.global_transform.affine_inverse() * xf
+	return xf
+
+# --- end M14 lobby -------------------------------------------------------------------------------------------------
 
 func _free_spawn_index() -> int:
 	var used: Dictionary = {}

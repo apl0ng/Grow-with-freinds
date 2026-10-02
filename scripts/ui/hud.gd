@@ -188,6 +188,7 @@ func _ready() -> void:
 		if events.has_signal(&"event_ended"):
 			events.connect(&"event_ended", _on_event_ended)
 	Comms.ping_received.connect(_on_ping_received)
+	_lobby_ready() # M14 lobby
 
 	_ui_locked = Game.is_ui_locked()
 	_stats_ready = GameState.phase != GameState.Phase.MENU
@@ -718,6 +719,140 @@ func _on_game_reset() -> void:
 	show_toast(TEXT_RESET, &"info")
 
 
+# --- M14 lobby --------------------------------------------------------------------------------------------------
+# In the alley (phase WAITING with the lobby on: the van's synced head count says so) the centre banner reads
+# "Everyone in the van. 2 / 4 in." / "Doors closing 2" / "Doors closed." instead of the Enter hint; the host's Enter
+# still works (it leaves without the rest) and the tip says so. A ride (GameState.transition_started) fades the whole
+# screen to black over `seconds`, holds GameState.TRANSITION_HOLD_SEC and fades back in, with the van's door at the
+# start. The fade sits on its own CanvasLayer above every other UI and never takes the mouse.
+
+const TEXT_LOBBY_TITLE := "THE VAN IS WAITING"
+const TEXT_LOBBY_COUNT := "Everyone in the van. %d / %d in."
+const TEXT_LOBBY_CLOSING := "Doors closing %d"
+const TEXT_LOBBY_CLOSED := "Doors closed."
+const TEXT_LOBBY_TIP_HOST := "%s · leave without the rest\n%s · chat"
+const TEXT_LOBBY_TIP := "%s · chat"
+## The fade's CanvasLayer (above the supply window on 5 and everything on the HUD's own layer).
+const TRANSITION_LAYER: int = 60
+## Near-black, never pure black (STYLE: the void colour).
+const TRANSITION_COLOR := Color("040405")
+
+var _fade_layer: CanvasLayer
+var _fade_rect: ColorRect
+var _fade_tween: Tween
+var _lobby_van_ref: WeakRef
+var _lobby_last_second: int = 0
+
+
+func _lobby_ready() -> void:
+	GameState.transition_started.connect(_on_transition_started)
+	_fade_layer = CanvasLayer.new()
+	_fade_layer.name = "TransitionFade"
+	_fade_layer.layer = TRANSITION_LAYER
+	_fade_rect = ColorRect.new()
+	_fade_rect.name = "Black"
+	_fade_rect.color = TRANSITION_COLOR
+	_fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_fade_rect.modulate.a = 0.0
+	_fade_rect.visible = false
+	_fade_layer.add_child(_fade_rect)
+	add_child(_fade_layer)
+	_lobby_van()
+
+
+## The alley's van (World/Lobby/Van), connected once it is found; null in a world without an alley.
+func _lobby_van() -> Van:
+	var cached: Object = _lobby_van_ref.get_ref() if _lobby_van_ref != null else null
+	if cached != null:
+		return cached as Van
+	var world: World = Game.world
+	if world == null or not is_instance_valid(world):
+		world = get_parent() as World
+	var alley: Lobby = world.lobby if world != null else null
+	var van: Van = alley.get_van() if alley != null else null
+	if van == null:
+		return null
+	_lobby_van_ref = weakref(van)
+	if not van.changed.is_connected(_on_lobby_van_changed):
+		van.changed.connect(_on_lobby_van_changed)
+	return van
+
+
+## True while this peer waits in the alley: WAITING and the host runs the lobby.
+func is_lobby_banner() -> bool:
+	var van := _lobby_van()
+	return GameState.phase == GameState.Phase.WAITING and van != null and van.is_lobby_on()
+
+
+## The line under the banner title while waiting in the alley ("" otherwise): tests and the banner itself.
+func get_lobby_text() -> String:
+	if not is_lobby_banner():
+		return ""
+	var van := _lobby_van()
+	if van.is_departing():
+		return TEXT_LOBBY_CLOSED
+	if van.is_counting():
+		return TEXT_LOBBY_CLOSING % van.get_countdown_seconds()
+	return TEXT_LOBBY_COUNT % [van.occupants, van.total]
+
+
+func _lobby_apply_banner(host: bool) -> void:
+	if not is_lobby_banner():
+		return
+	banner_title.text = TEXT_LOBBY_TITLE
+	banner_text.text = get_lobby_text()
+	banner_tip.visible = true
+	if host:
+		banner_tip.text = TEXT_LOBBY_TIP_HOST % [action_key_text(&"start_round", "ENTER"), action_key_text(&"chat", "T")]
+	else:
+		banner_tip.text = TEXT_LOBBY_TIP % action_key_text(&"chat", "T")
+	start_button.visible = false # the mouse is captured out here; Enter is the way (the tip says so)
+
+
+func _on_lobby_van_changed() -> void:
+	var van := _lobby_van()
+	var second := van.get_countdown_seconds() if van != null else 0
+	if second != _lobby_last_second:
+		if second > 0 and is_lobby_banner():
+			play_sfx(&"tick", &"ui_click")
+		_lobby_last_second = second
+	_update_phase_ui()
+
+
+## True while the fade covers (part of) the screen.
+func is_transition_showing() -> bool:
+	return _fade_rect != null and _fade_rect.visible
+
+
+## 0 = clear, 1 = black.
+func get_transition_alpha() -> float:
+	return _fade_rect.modulate.a if is_transition_showing() else 0.0
+
+
+func _on_transition_started(_kind: StringName, seconds: float) -> void:
+	play_sfx(&"van_door", &"door_slam")
+	if _fade_rect == null:
+		return
+	if _fade_tween != null and _fade_tween.is_valid():
+		_fade_tween.kill()
+	_fade_rect.visible = true
+	if not is_inside_tree():
+		_fade_rect.modulate.a = 0.0
+		_fade_rect.visible = false
+		return
+	_fade_tween = create_tween()
+	if seconds > 0.0:
+		_fade_tween.tween_property(_fade_rect, "modulate:a", 1.0, seconds).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	else:
+		_fade_rect.modulate.a = 1.0
+	_fade_tween.tween_interval(GameState.TRANSITION_HOLD_SEC)
+	_fade_tween.tween_property(_fade_rect, "modulate:a", 0.0, maxf(seconds, 0.05)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_fade_tween.tween_callback(_fade_rect.hide)
+
+# --- end M14 lobby ------------------------------------------------------------------------------------------------
+
+
 # ---------------------------------------------------------------------------------------------
 # Game / player listeners
 # ---------------------------------------------------------------------------------------------
@@ -916,6 +1051,7 @@ func _update_phase_ui() -> void:
 				banner_title.text = TEXT_WAIT_CLIENT_TITLE
 				banner_text.text = TEXT_WAIT_CLIENT
 				start_button.visible = false
+	_lobby_apply_banner(host) # M14 lobby: in the alley the banner counts heads instead
 	var want_banner := (phase == GameState.Phase.MENU or phase == GameState.Phase.WAITING) and not _ui_locked
 	if want_banner and not banner.visible and is_inside_tree():
 		banner.visible = true

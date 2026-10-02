@@ -1072,6 +1072,36 @@
   ],
   "tris": 1004
  },
+ "van": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "TINT_paint",
+   "toon_metal_dark",
+   "toon_wood",
+   "toon_brown",
+   "van_glass",
+   "toon_dark",
+   "toon_metal",
+   "FLAT_van_lamp",
+   "van_lamp_dead",
+   "toon_cream",
+   "toon_rust",
+   "TINT_stripe",
+   "van_letter",
+   "toon_gray",
+   "toon_caution",
+   "FLAT_van_tail"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/van.py",
+  "size": [
+   2.477,
+   2.52,
+   5.73
+  ],
+  "tris": 6952
+ },
  "wall_clock": {
   "front": "+z",
   "kind": "prop",

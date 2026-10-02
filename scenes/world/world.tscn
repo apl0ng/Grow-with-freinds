@@ -1,14 +1,18 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scenes/world/world.gd" id="1_world"]
 [ext_resource type="PackedScene" path="res://scenes/world/room.tscn" id="2_room"]
 [ext_resource type="Script" path="res://scripts/items/item_manager.gd" id="3_items"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="4_hud"]
+[ext_resource type="PackedScene" path="res://scenes/world/lobby.tscn" id="5_lobby"]
 
 [node name="World" type="Node3D"]
 script = ExtResource("1_world")
 
 [node name="Room" parent="." instance=ExtResource("2_room")]
+
+[node name="Lobby" parent="." instance=ExtResource("5_lobby")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 80)
 
 [node name="Players" type="Node3D" parent="."]
 
