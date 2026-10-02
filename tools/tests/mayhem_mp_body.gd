@@ -222,6 +222,8 @@ func _client_a() -> void:
 	check(not Events.is_driveby_firing() and _shots == 0, "A: the warning first")
 	await wait_until(func() -> bool: return me.get_held_item() != null, 3.0, "A: the can the host handed over is in hand")
 	await wait_until(func() -> bool: return me.is_stunned(), STEP_TIMEOUT, "A: standing in a lane, knocked down on this process")
+	# The knock-down is a reliable packet and the rounds are unreliable ones: under load the stun can be read first.
+	await wait_until(func() -> bool: return _shots >= 1, 3.0, "A: the first round is drawn here")
 	check(Events.is_driveby_firing() and _shots >= 1, "A: the rounds arrive here (%d so far)" % _shots)
 	await wait_until(func() -> bool: return _shot_workers.has(my_id) and GameState.get_stat(my_id, Const.STAT_SHOT) >= 1 and me.get_held_item() == null, 3.0, "A: worker_shot(me), STAT_SHOT synced, the can dropped")
 	await wait_until(func() -> bool: return not me.is_stunned(), 3.0, "A: up again")

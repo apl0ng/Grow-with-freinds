@@ -1118,3 +1118,58 @@ plain game. Test ports: hats +87 / hats_mp +88, variety +89 / variety_mp +90, po
   WAV per name given with `--sounds=a,b,c` into `--out=<dir>` from the Sfx recipes, so the user can audition `siren`,
   `sprinkler`, `collector_knock`, `ball`, `uproot`, `locker` (and the footsteps) in any player.
 - Suite `polish` (+91); the career, strains and flame suites follow where a pinned number moves.
+
+### M16 as delivered (integration notes, lead, 2026-10-02)
+Three branches merged (polish, variety, hats). What differs from the plan above, and what a later change has to know:
+
+**Run codes (variety).** `RunSeed` (`scripts/core/run_seed.gd`): seeds are 1..923521, each with exactly one
+four-character code (alphabet without 0 O 1 I L); the hash is hand-written 32-bit arithmetic, so a code means the
+same run in every build. `GameState.get_run_seed()`, `get_run_code()`, `get_run_cover()`,
+`server_set_run_seed(seed)` (WAITING only), signal `run_changed`; state entry `"run": {"seed", "cover"}`.
+**The dice are seeded once per shift**, not once per run: `RunSeed.stream(seed, "<consumer>:<shift>")` for
+`replay`, `job`, `events`, `hostiles`, `spread`, so a swapped job or an extra event in one shift does not move the
+next shift's card. Events has two dice: `_rng` (picks) and `_card_rng` (kinds and gaps, read through `_card()`).
+A die a test seeded itself stays the test's. Not seeded: the mutation roll (global `randf()`) and each hostile
+plant's own wander.
+- START OVER with a typed code deals the same run again; without one the host rolls a new seed.
+- The weekly code is by UTC week.
+
+**Cover (variety).** `Room.COVER_LAYOUTS` (four; layout 0 is the scene), `COVER_NODES` (19),
+`apply_cover_layout(index)`, `get_cover_layout()`, `get_cover_footprints()`, `is_in_cover(point, margin)`. The host
+changes the layout only in `server_reset_game` and `server_set_run_seed`; a late joiner applies it on arrival.
+The variety suite proves per layout, from the geometry: routes and stations clear, a standing spot near every
+drive-by lane that no round reaches, a dock spot no raid eye sees, and that no two layouts stop the same lanes or
+share most of their hidden cells.
+
+**Suites that run with `--replay` pass `--run=B5VP`** (layout 0 and one fixed card): replay, replay_mp, career,
+career_mp, polish, hats, hats_mp. Without it they get a random layout and card (the career suite's half-time swap
+check fails when shift 2 rolls the short clock). The replay suite also sets `contract_reward` to 0: it counts money
+to the dollar and a job met by one of its deposits paid $60 on top.
+
+**Hats (hats).** Seven in `Hats.CATALOG` (`scripts/core/hats.gd`): hairnet (1 shift), paper cap (10 shifts),
+yellow hard hat (best shift 3), traffic cone (3 back rooms), bucket (5 bites), welding mask (5 burns), bandage
+(shot 3 times). "No hat" is the worker as shipped: **the white stock hard hat is its own mesh now**
+(`Visual/Model/Hat`, with an empty `Visual/Model/HatSocket`; `player.glb` rebuilt on Blender 5.2 from player.py),
+hidden while an issued hat hangs under the socket. `Career.get_issued_hats()`, `get_hat()`, `set_hat(id)`,
+`hat_issued(id)`; `hat=<id>` under `[career]` in the file. `Net._rpc_set_hat` / `_rpc_hats_sync`,
+`Net.get_player_hat(peer)`, `hats_changed`; the host takes any catalog id (it never sees a record) and at most
+`Net.MAX_HAT_CHANGES` changes a peer a session: **160** (the branch shipped 32, four trips round the locker; lead).
+The locker (`World/Lobby/Locker`, west wall under the street lamp, world (-4.7, 0, 80.1)) acts locally; its prompt
+names what is on now ("Locker · traffic cone", "· no hat", "· nothing issued", "· locked" with replay off,
+"· jammed" when the session's changes are used up). Record card: `%RecordIssued` ("Issued: 3 of 7").
+
+**Jobs (polish).** Twelve: `variety` (one bundle each of three strains; pool needs three strains on sale), `keep`
+(lose no plant: eaten, burnt, collected or walked off fails it; gunfire only sets a tray back and does not), `raid`
+(a raid that looked at least once and took nothing). `GameState.server_note_crop_lost(plot, cause)` is the hook.
+
+**The cap (polish).** `GrowPlot.get_mutation_chance(seed_def)` = `min(own x conditions, max(cap, own))`: the cap
+is on what conditions add, a strain whose own chance is above it keeps its own (older suites force 1.0). Twitchy
+Night Shift is 0.50. The twitchy line reads "More of them get up and walk." (lead).
+
+**Small things (polish).** A plant that walks off plays `uproot` (`_rpc_uprooted` marks the tray just before the
+reset); an empty flamethrower lying on the floor is despawned by the host after `empty_flamethrower_sec`
+(`Flamethrower.server_tick_empty`), silently; `tools/tests/sound_demo_body.gd` writes one WAV per Sfx name.
+
+**Known gaps.** `qa_m12_4p` has a race of its own (the cabinet's whole-second restock countdown can tick between
+two snapshots: "host 78, peer 77"); it passed on re-run. A flamethrower lying on a cover piece at START OVER is not
+re-rested when the cover moves. The uproot sound's arrival order on a client is proven only by an ad hoc run.

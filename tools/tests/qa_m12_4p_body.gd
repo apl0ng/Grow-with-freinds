@@ -1281,7 +1281,10 @@ func _case_short_shift() -> void:
 	var kinds := []
 	for e in _ev_started:
 		kinds.append(String(e[0]))
-	check(_ev_started.size() >= 2, "the scheduler fired %d events %s" % [_ev_started.size(), kinds])
+	# Two events fit a 30 s shift unless the first is one of the long ones (a raid is 26 s, the sprinklers and the
+	# collector 25 s): then that one event filled it.
+	var long_first := not _ev_started.is_empty() and float((_ev_started[0][1] as Dictionary).get("seconds", 0.0)) >= 20.0
+	check(_ev_started.size() >= 2 or long_first, "the scheduler fired %d events %s" % [_ev_started.size(), kinds])
 	check(_h_spawned.size() >= 1, "%d plant(s) uprooted during the shift" % _h_spawned.size())
 	check(_stat_total(Const.STAT_PLANTED) >= 2, "the team planted %d time(s)" % _stat_total(Const.STAT_PLANTED))
 	check(Hostiles.count() == 0 and not Events.is_event_active() and Events.is_power_on() and GameState.backroom.is_empty(), "shift end: no plants, no event, power on, back room empty")

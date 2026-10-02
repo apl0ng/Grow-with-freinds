@@ -68,6 +68,20 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 - The payment due (M15): $350 for the first shift, then it climbs fast ($1,325, $2,535, $4,174, $6,592, $10,429 for
   one worker; 10% more for each extra worker). The sixth shift needs favors and cured bundles. `--no-replay` turns
   the conditions, the market, the unlocks and the jobs off.
+- The floor moves (M16): the crates and pallets on the dock, in the main room and in the hall stand differently each
+  run (four arrangements). Every run has a four-character code on the alley board. Type a friend's code into the run
+  code field under Open the floor, or press THIS WEEK, and the host deals the same run: the same conditions, market,
+  jobs, order of events and the same crates in the same places (`--run=<code>` does the same from the command line).
+- Issued kit (M16): your record issues hats: a hairnet after the first shift, a paper cap after ten, a yellow hard
+  hat for reaching shift three, a traffic cone for three trips to the back room, a bucket for five bites, a welding
+  mask for five plants burnt, a bandage for being shot three times. Nothing is bought. Change it at the locker under
+  the street lamp in the alley (E); everyone on the floor sees what you wear.
+- Twelve jobs now (M16): one bundle each of three strains, lose no plant this shift, and a raid that takes nothing
+  join the list. No condition pushes a strain's chance to walk past 50%, a plant that leaves its tray sounds like
+  roots and not like a harvest, and an empty flamethrower left on the floor is cleared after 30 seconds.
+- To hear the synthesised sounds without launching the game:
+  `godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/sound_demo_body.gd --out=<dir>`
+  writes one WAV per sound (`--sounds=a,b,c` or `all`).
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows
