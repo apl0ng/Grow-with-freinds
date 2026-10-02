@@ -669,7 +669,7 @@ func _hostile_plot_index_near(position: Vector3) -> int:
 		return 0
 	var best := 0
 	var best_d := HOSTILE_PLOT_RANGE
-	for i in range(1, 7):
+	for i in range(1, Room.GROW_PLOT_COUNT + 1): # M14 level: the hall's trays too
 		var plot := room.call(&"get_station", "GrowPlot%d" % i) as Node3D
 		if plot == null or not plot.is_inside_tree():
 			continue

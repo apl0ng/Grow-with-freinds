@@ -278,6 +278,8 @@ func host_step(delta: float) -> void:
 			if _root_left <= 0.0:
 				state = State.ROAM
 		State.ROAM:
+			if _m14_follow_route(b, delta): # M14 level: walking a Room.get_route (a doorway, the pen gate)
+				return
 			if _detour.is_finite():
 				# M13 review: going round something it could not get through. Nothing distracts it on the way (at
 				# most DETOUR_SEC); then it picks its target again from where it stands.
@@ -294,6 +296,8 @@ func host_step(delta: float) -> void:
 				return
 			if not _plot_ok(_target_plot):
 				_pick_plot()
+				if _target_plot != null and _m14_start_route(_stand_point): # M14 level: the tray is round a wall or a fence
+					return
 			if _target_plot != null:
 				if _move_toward(_stand_point, b.hostile_speed, delta):
 					_wander_target = Vector3.INF
@@ -440,7 +444,7 @@ func _nearest_worker(range_m: float) -> Player:
 		if not p.is_inside_tree() or GameState.is_in_backroom(p.peer_id):
 			continue
 		var d := Vector2(p.global_position.x - global_position.x, p.global_position.z - global_position.z).length()
-		if d <= best_d:
+		if d <= best_d and not _m14_walled_off(p): # M14 level: it does not sense through a wall between two rooms
 			best_d = d
 			best = p
 	return best
@@ -502,7 +506,7 @@ func _wander(speed: float, delta: float) -> void:
 		var p := global_position + Vector3(cos(angle), 0.0, sin(angle)) * r
 		var w: World = Game.world
 		if w != null and is_instance_valid(w) and w.room != null:
-			var bounds: AABB = w.room.get_bounds()
+			var bounds: AABB = _m14_area(w.room) # M14 level: the room it is in (was Room.get_bounds())
 			p.x = clampf(p.x, bounds.position.x + ROOM_MARGIN, bounds.end.x - ROOM_MARGIN)
 			p.z = clampf(p.z, bounds.position.z + ROOM_MARGIN, bounds.end.z - ROOM_MARGIN)
 		_wander_target = Vector3(p.x, global_position.y, p.z)
@@ -583,7 +587,7 @@ func _start_detour(random: bool = false) -> void:
 	_detour_random = true
 	var w: World = Game.world
 	var room: Room = w.room if w != null and is_instance_valid(w) else null
-	if not random and room != null:
+	if not random and room != null and room.get_area_index(global_position) <= 0: # M14 level: the gate is in the main room
 		var gate := room.get_node_or_null(GATE_PATH) as Node3D
 		if gate != null and gate.is_inside_tree():
 			var g := Vector3(gate.global_position.x, global_position.y, gate.global_position.z)
@@ -622,7 +626,7 @@ func _retreat_from(peer_id: int) -> void:
 func _inside_room(p: Vector3) -> Vector3:
 	var w: World = Game.world
 	if w != null and is_instance_valid(w) and w.room != null:
-		var bounds: AABB = w.room.get_bounds()
+		var bounds: AABB = _m14_area(w.room) # M14 level: the room it is in (was Room.get_bounds())
 		p.x = clampf(p.x, bounds.position.x + ROOM_MARGIN, bounds.end.x - ROOM_MARGIN)
 		p.z = clampf(p.z, bounds.position.z + ROOM_MARGIN, bounds.end.z - ROOM_MARGIN)
 	return Vector3(p.x, global_position.y, p.z)
@@ -670,6 +674,100 @@ func _around(dir: Vector3, worker: Player) -> Vector3:
 	if t.length_squared() < 0.01:
 		t = Vector3(-n.z, 0.0, n.x)
 	return t.normalized()
+
+
+# --- M14 level: crossing rooms ----------------------------------------------------------------------------------------
+# The floor is three rooms now (Room.get_play_areas). A tray in another room, or behind the pen's fence, is reached by
+# Room.get_route: the plant walks its points (the doorways, the pen gate) one after the other. On the way it still goes
+# for a worker who comes close, and the M13 rules hold: a bite needs a clear line, it never steps onto a worker, a
+# stuck chase is dropped. After a chase, or through the last doorway, it picks its tray again from where it stands. It
+# does not sense a worker through a solid wall between two rooms, and its idle wander stays in the room it is in.
+
+## Seconds allowed per route point before the route is dropped.
+const ROUTE_POINT_SEC := 14.0
+
+var _route: PackedVector3Array = PackedVector3Array()   # host: the points still to walk through (never the tray)
+var _route_left: float = 0.0
+
+
+## True while it walks a route (host).
+func is_on_route() -> bool:
+	return not _route.is_empty()
+
+
+## The points still ahead on its route (host; empty when it walks straight).
+func get_route_points() -> PackedVector3Array:
+	return _route
+
+
+func _m14_room() -> Room:
+	var w: World = Game.world
+	return w.room if w != null and is_instance_valid(w) else null
+
+
+## Asks the room for the way round to `goal`. True when there is one: the route is set and the next steps walk it.
+func _m14_start_route(goal: Vector3) -> bool:
+	var room := _m14_room()
+	if room == null or not goal.is_finite():
+		return false
+	var pts := room.get_route(global_position, goal)
+	if pts.size() < 2:
+		return false
+	pts.remove_at(pts.size() - 1) # the last point is the goal: the tray is picked again from the last doorway
+	_route = pts
+	_route_left = ROUTE_POINT_SEC
+	_stuck = 0.0
+	_detour = Vector3.INF
+	_wander_target = Vector3.INF
+	return true
+
+
+func _m14_drop_route() -> void:
+	_route = PackedVector3Array()
+	_route_left = 0.0
+	_stuck = 0.0
+	_target_plot = null # picked again from where it stands
+
+
+## ROAM, first thing: one step along the route. False when there is none (the usual ROAM step runs).
+func _m14_follow_route(b: BalanceConfig, delta: float) -> bool:
+	if _route.is_empty():
+		return false
+	if not _plot_ok(_target_plot):
+		_m14_drop_route() # the tray it was walking to is gone (or the plant was put somewhere else)
+		return false
+	if _try_start_chase(b):
+		_m14_drop_route()
+		return true
+	_route_left -= delta
+	var point := Vector3(_route[0].x, global_position.y, _route[0].z)
+	if _move_toward(point, b.hostile_speed, delta, DETOUR_ARRIVE):
+		_route.remove_at(0)
+		_route_left = ROUTE_POINT_SEC
+		_stuck = 0.0
+		if _route.is_empty():
+			_target_plot = null # through the last doorway: the tray, and where to stand at it, is picked from here
+	elif _route_left <= 0.0 or _no_progress(delta):
+		_m14_drop_route()
+		_start_detour(true) # something stands in the way: a few steps aside, then it asks again
+	return true
+
+
+## True when a solid wall between two rooms separates the plant from `p` (it does not sense through it).
+func _m14_walled_off(p: Player) -> bool:
+	var room := _m14_room()
+	return room != null and room.is_wall_between(global_position, p.global_position)
+
+
+## The room the plant stands in, inside its walls (the main room when it is nowhere).
+func _m14_area(room: Room) -> AABB:
+	var i := room.get_area_index(global_position)
+	if i <= 0:
+		return room.get_bounds()
+	var area: AABB = room.get_play_areas()[i]
+	return area.grow(-Room.SHARED_WALL)
+
+# --- end M14 level ----------------------------------------------------------------------------------------------------
 
 
 func _probe(dir: Vector3, length: float) -> Dictionary:

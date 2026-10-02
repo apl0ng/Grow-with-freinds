@@ -485,7 +485,7 @@ func _pick_rat_plot() -> int:
 	if room == null:
 		return 0
 	var candidates: Array[int] = []
-	for i in range(1, 7):
+	for i in range(1, Room.GROW_PLOT_COUNT + 1): # M14 level: the hall's trays too (the gap is by the corridor door)
 		var plot := room.get_station("GrowPlot%d" % i) as GrowPlot
 		if plot != null and plot.is_growing():
 			candidates.append(i)
@@ -1002,7 +1002,7 @@ func _track_plantings(count: bool = true) -> void:
 	var room := _room()
 	if room == null:
 		return
-	for i in range(1, 7):
+	for i in range(1, Room.GROW_PLOT_COUNT + 1): # M14 level: the hall's trays too
 		var plot := room.get_station("GrowPlot%d" % i) as GrowPlot
 		if plot == null:
 			continue

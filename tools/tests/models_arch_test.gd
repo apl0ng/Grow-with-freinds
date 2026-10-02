@@ -11,6 +11,11 @@ extends SceneTree
 ##    wall panels whose widths sum to each wall's length (no gap, no overlap), their faces on the colliders' inner
 ##    faces looking into the room; 4 x 3 floor slabs on the floor collider's top; 4 x 3 deck panels whose crests sit
 ##    on the ceiling collider's face; 3 beam lines of 3 segments on the panel seams; the hole rim on the void box.
+## 3. M14 (level agent): the same for the grow hall (3 + 3 + 3 + 3 panels, 3 x 3 slabs and deck panels, beam lines at
+##    x 15 and 20) and the loading dock (3 + 3 + 2 + 2, 3 x 2, the main room's beam lines x -5 and 0 run on over it);
+##    the south and east wall colliders are cut round the dock passage and the two hall doorways; the walk-through
+##    panels (tools/blender/models/wall_opening.py) stand back to back on every doorway; the roller door stands in
+##    wall_panel_door_c on the dock's outer wall; every barred window sits in a window panel.
 
 const MODELS := "res://art/models/"
 const ROOM := "res://scenes/world/room.tscn"
@@ -24,12 +29,30 @@ const TUCK := 0.038                            # wall mortar plane runs this far
 const BUDGETS := {
 	"wall_panel": [4500, "wall"], "wall_panel_b": [4500, "wall"], "wall_panel_window": [4500, "wall"],
 	"wall_panel_door": [4500, "wall"], "wall_panel_door_b": [4500, "wall"],
+	# M14 (tools/blender/models/wall_opening.py): walk-through doorways, the dock passage, the dock's roller-door panel
+	"wall_panel_doorway": [4500, "wall"], "wall_panel_doorway_b": [4500, "wall"], "wall_panel_pass": [4500, "wall"],
+	"wall_panel_pass_b": [4500, "wall"], "wall_panel_door_c": [4500, "wall"],
 	"floor_slab": [1000, "floor"], "floor_slab_b": [1000, "floor"], "floor_slab_drain": [1000, "floor"],
 	"ceiling_panel": [2600, "deck"], "ceiling_panel_b": [2600, "deck"], "ceiling_panel_hole": [2600, "deck"],
 	"ceiling_beam": [1500, "beam"], "hole_rim": [2600, "rim"],
 }
 ## Upper bound for the whole shell (all copies), so the architecture stays cheap next to the props.
-const SHELL_TRIS_MAX := 110000
+## (M14: 110000 for the main room alone; with the grow hall and the loading dock the shell is 36 wall panels, 27 slabs and 27 deck panels.)
+const SHELL_TRIS_MAX := 200000
+## M14: the annexes (Room-local). Wall lines: where each annex's panels stand, by the side they are on; the ranges
+## their panels tile along the wall (the hall's north / south runs and the dock's side runs end outside, behind the
+## wall they meet: three whole 5 m modules cover a 12 m hall, two cover a 7.5 m dock).
+const AREA_NAMES: PackedStringArray = ["main", "hall", "dock"]
+const ANNEX_LINES := {
+	"hall": {"north": -7.5, "south": 7.5, "west": 10.6, "east": 22.0},
+	"dock": {"north": 8.1, "south": 15.6, "west": -10.0, "east": 5.0},
+}
+const ANNEX_SPANS := {
+	"hall": {"north": Vector2(10.0, 25.0), "south": Vector2(10.0, 25.0), "west": Vector2(-7.5, 7.5), "east": Vector2(-7.5, 7.5)},
+	"dock": {"north": Vector2(-10.0, 5.0), "south": Vector2(-10.0, 5.0), "west": Vector2(8.1, 18.1), "east": Vector2(8.1, 18.1)},
+}
+## Opening centre in the panel's own coordinates (x) for the walk-through variants.
+const OPENING_X := {"wall_panel_doorway": -1.25, "wall_panel_doorway_b": 1.25, "wall_panel_pass": -2.5, "wall_panel_pass_b": 2.5}
 
 var _checks := 0
 var _fails: PackedStringArray = []
@@ -208,17 +231,30 @@ func _room() -> void:
 			if c is MeshInstance3D:
 				_check(String(c.name) == "HoleVoid" and body == ceiling,
 						"%s/%s: no primitive shell mesh left (only Ceiling/HoleVoid)" % [body.name, c.name])
-	var shapes := {"Floor/Shape": Vector3(22, 1, 17), "Walls/NorthShape": Vector3(22, 8, 1), "Walls/SouthShape": Vector3(22, 8, 1),
-			"Walls/EastShape": Vector3(1, 8, 17), "Walls/WestShape": Vector3(1, 8, 17), "Ceiling/Shape": Vector3(22, 1, 17)}
+	# M14: the south and east walls are 0.6 m thick now and cut in pieces round the dock passage and the hall doorways
+	# (SouthShape / EastShape keep their names for the longest piece); the annexes add their own boxes.
+	var shapes := {"Floor/Shape": Vector3(22, 1, 17), "Walls/NorthShape": Vector3(22, 8, 1), "Walls/SouthShape": Vector3(13.9, 8, 0.6),
+			"Walls/EastShape": Vector3(0.6, 8, 6.25), "Walls/WestShape": Vector3(1, 8, 17), "Ceiling/Shape": Vector3(22, 1, 17),
+			"Walls/SouthShapeWest": Vector3(3.9, 8, 0.6), "Walls/SouthHead": Vector3(4.2, 3.25, 0.6),
+			"Walls/EastShapeMid": Vector3(0.6, 8, 5.5), "Walls/EastShapeSouth": Vector3(0.6, 8, 1.25),
+			"Walls/EastHeadPen": Vector3(0.6, 4.5, 2), "Walls/EastHeadSouth": Vector3(0.6, 4.5, 2),
+			"Walls/HallNorthShape": Vector3(12, 8, 1), "Walls/HallSouthShape": Vector3(12, 8, 1), "Walls/HallEastShape": Vector3(1, 8, 17),
+			"Walls/DockWestShape": Vector3(1, 8, 8.5), "Walls/DockEastShape": Vector3(1, 8, 8.5), "Walls/DockSouthShape": Vector3(17, 8, 1),
+			"Floor/HallShape": Vector3(13, 1, 17), "Floor/DockShape": Vector3(17, 1, 9.1),
+			"Ceiling/HallShape": Vector3(13, 1, 17), "Ceiling/DockShape": Vector3(17, 1, 9.1)}
 	for p: String in shapes:
 		var cs := room.get_node_or_null(NodePath(p)) as CollisionShape3D
 		_check(cs != null and cs.shape is BoxShape3D and (cs.shape as BoxShape3D).size.is_equal_approx(shapes[p]),
 				"%s is still the %s box collider" % [p, shapes[p]])
 	var total_tris := 0
+	var r := room as Room
 
-	# --- walls: 4 + 3 + 4 + 3, faces on the colliders' inner faces, looking into the room
+	# --- walls: main room 4 + 3 + 4 + 3 on the colliders' inner faces; M14: the hall 3 + 3 + 3 + 3 and the dock
+	# 3 + 3 + 2 + 2 on their own wall lines; every panel looks into the area it belongs to
 	var wall_copies := _copies(walls, room)
-	var sides := {"north": [], "south": [], "east": [], "west": []}
+	var sides := {}
+	for area in AREA_NAMES:
+		sides[area] = {"north": [], "south": [], "east": [], "west": []}
 	var inner := {
 		"north": _shape_face(walls, "NorthShape", room, 2, 1.0), "south": _shape_face(walls, "SouthShape", room, 2, -1.0),
 		"west": _shape_face(walls, "WestShape", room, 0, 1.0), "east": _shape_face(walls, "EastShape", room, 0, -1.0),
@@ -239,41 +275,99 @@ func _room() -> void:
 		if not _check(side != "" and absf(f.y) < 0.001, "%s (%s) faces straight into the room (front %s)" % [cp.node, cp.model, f]):
 			continue
 		_check(cp.xf.basis.y.is_equal_approx(Vector3.UP) and _near(o.y, 0.0, 0.001), "%s stands upright on the floor" % cp.node)
+		# The area a panel belongs to is the one its face looks into (1 m in front of the wall line).
+		var area_index := r.get_area_index(room.global_transform * (o + f * 1.0 + Vector3.UP))
+		if area_index < 0: # a module whose centre lies past the end of its wall (see ANNEX_SPANS): ask at the near end
+			var along := Vector3(1, 0, 0) if side in ["north", "south"] else Vector3(0, 0, 1)
+			for end: float in [-2.4, 2.4]:
+				area_index = maxi(area_index, r.get_area_index(room.global_transform * (o + along * end + f * 1.0 + Vector3.UP)))
+		if not _check(area_index >= 0, "%s looks into a play area" % cp.node):
+			continue
+		var area: String = AREA_NAMES[area_index]
 		var line: float = o.z if side in ["north", "south"] else o.x
-		_check(_near(line, inner[side], 0.001), "%s sits on the %s collider's inner face (%.3f == %.3f)"
-				% [cp.node, side, line, inner[side]])
+		var want: float = inner[side] if area == "main" else float(ANNEX_LINES[area][side])
+		_check(_near(line, want, 0.001), "%s sits on the %s wall line of %s (%.3f == %.3f)" % [cp.node, side, area, line, want])
 		var c: float = o.x if side in ["north", "south"] else o.z
-		(sides[side] as Array).append(Vector2(c - PANEL * 0.5, c + PANEL * 0.5))
-	var expect := {"north": 4, "south": 4, "east": 3, "west": 3}
-	for side: String in sides:
-		var ivs: Array = sides[side]
-		_check(ivs.size() == expect[side], "%s wall: %d panels (expected %d)" % [side, ivs.size(), expect[side]])
-		var half: float = (ROOM_SIZE.x if side in ["north", "south"] else ROOM_SIZE.z) * 0.5
-		_tiles(ivs, -half, half, side + " wall")
-	# Where the variants go (they carry the openings for the door / window props).
-	var door := room.get_node_or_null(^"Decor/RollerDoor") as Node3D
-	var window := room.get_node_or_null(^"Decor/BarredWindow") as Node3D
+		(sides[area][side] as Array).append(Vector2(c - PANEL * 0.5, c + PANEL * 0.5))
+	var expect := {"main": {"north": 4, "south": 4, "east": 3, "west": 3}, "hall": {"north": 3, "south": 3, "east": 3, "west": 3},
+			"dock": {"north": 3, "south": 3, "east": 2, "west": 2}}
+	for area: String in sides:
+		for side: String in sides[area]:
+			var ivs: Array = sides[area][side]
+			_check(ivs.size() == expect[area][side], "%s %s wall: %d panels (expected %d)" % [area, side, ivs.size(), expect[area][side]])
+			if area == "main":
+				var half: float = (ROOM_SIZE.x if side in ["north", "south"] else ROOM_SIZE.z) * 0.5
+				_tiles(ivs, -half, half, "main " + side + " wall")
+			else:
+				var span: Vector2 = ANNEX_SPANS[area][side]
+				_tiles(ivs, span.x, span.y, area + " " + side + " wall")
+	# Where the variants go (they carry the openings for the door / window props and the doorways).
 	var by_model := {}
 	for cp: Copy in wall_copies:
 		by_model[cp.model] = (by_model.get(cp.model, []) as Array) + [cp]
-	if _check(door != null and by_model.has("wall_panel_door") and by_model.has("wall_panel_door_b"),
-			"roller door + its two door panels exist"):
-		var d: Copy = by_model["wall_panel_door"][0]
-		var db: Copy = by_model["wall_panel_door_b"][0]
-		# the door straddles the seam: its centre is 2.0 m left of wall_panel_door's centre (local x -2.0), 3.0 m
-		# right of wall_panel_door_b's (local x +3.0), on the same wall, facing the same way
+	# M14: the roller door stands on the dock's outer wall, in the middle of its own panel.
+	var door := room.get_node_or_null(^"Decor/RollerDoor") as Node3D
+	if _check(door != null and by_model.has("wall_panel_door_c") and (by_model["wall_panel_door_c"] as Array).size() == 1,
+			"roller door + its panel (wall_panel_door_c) exist"):
+		var d: Copy = by_model["wall_panel_door_c"][0]
 		var dl: Vector3 = d.xf.affine_inverse() * door.position
-		var dbl: Vector3 = db.xf.affine_inverse() * door.position
-		_check(_near(dl.x, -2.0, 0.01) and _near(dl.z, 0.0, 0.01) and _near(dbl.x, 3.0, 0.01),
-				"RollerDoor sits in the panels' opening (local x %.2f / %.2f, expected -2.0 / 3.0)" % [dl.x, dbl.x])
+		_check(_near(dl.x, 0.0, 0.01) and _near(dl.y, 0.0, 0.01) and _near(dl.z, 0.0, 0.01),
+				"RollerDoor sits in the panel's opening (local %s, expected the panel origin)" % dl)
 		_check(door.basis.z.normalized().dot(d.xf.basis.z.normalized()) > 0.999, "RollerDoor faces the same way as its wall")
-	if _check(window != null and by_model.has("wall_panel_window"), "barred window + its panel exist"):
-		var w: Copy = by_model["wall_panel_window"][0]
-		var wl: Vector3 = w.xf.affine_inverse() * window.position
-		_check(_near(wl.x, -0.8, 0.01) and _near(wl.y, 4.1, 0.01) and _near(wl.z, 0.0, 0.01),
-				"BarredWindow sits in the window panel's opening (local %s, expected (-0.8, 4.1, 0))" % wl)
+		_check(r.get_area_index(room.global_transform * (door.position + door.basis.z.normalized() + Vector3.UP)) == 2,
+				"RollerDoor closes the loading dock")
+	# Every barred window prop sits in a window panel's opening, one each.
+	var windows: Array[Node3D] = []
+	for path: NodePath in [^"Decor/BarredWindow", ^"Hall/Window", ^"Dock/WindowWest", ^"Dock/WindowEast"]:
+		var w := room.get_node_or_null(path) as Node3D
+		if _check(w != null, "%s exists" % path):
+			windows.append(w)
+	var window_panels: Array = by_model.get("wall_panel_window", [])
+	_check(window_panels.size() == windows.size(), "%d window panels for %d barred windows" % [window_panels.size(), windows.size()])
+	for w in windows:
+		var w_pos: Vector3 = room.global_transform.affine_inverse() * w.global_position
+		var fits := 0
+		for cp: Copy in window_panels:
+			var wl: Vector3 = cp.xf.affine_inverse() * w_pos
+			if _near(wl.x, -0.8, 0.01) and _near(wl.y, 4.1, 0.01) and _near(wl.z, 0.0, 0.01):
+				fits += 1
+		_check(fits == 1, "%s sits in a window panel's opening (local (-0.8, 4.1, 0))" % room.get_path_to(w))
+	# M14: the walk-through panels stand back to back round each doorway: one on either side of the wall, their
+	# openings on the doorway's centre, half the wall's thickness from it.
+	var doorways := r.get_doorways()
+	var open_models := {"pen_door": ["wall_panel_doorway", "wall_panel_doorway_b"], "corridor_door": ["wall_panel_doorway", "wall_panel_doorway_b"],
+			"dock_passage": ["wall_panel_pass", "wall_panel_pass_b"]}
+	var used := 0
+	for dw in doorways:
+		var centre: Vector3 = room.global_transform.affine_inverse() * (dw["center"] as Vector3)
+		var axis: Vector3 = dw["axis"]
+		var fronts: Array = []
+		var models_seen := {}
+		for m: String in open_models.get(String(dw["name"]), []):
+			for cp: Copy in by_model.get(m, []):
+				var opening: Vector3 = cp.xf * Vector3(float(OPENING_X[m]), 0.0, 0.0)
+				var delta := opening - centre
+				if absf(delta.dot(axis.cross(Vector3.UP))) < 0.01 and _near(absf(delta.dot(axis)), Room.SHARED_WALL * 0.5, 0.01):
+					fronts.append(cp.xf.basis.z.normalized().dot(axis))
+					models_seen[m] = int(models_seen.get(m, 0)) + 1
+					used += 1
+		fronts.sort()
+		var want_each := 1 if String(dw["name"]) != "dock_passage" else 2
+		var ok_pair := models_seen.size() == 2
+		for m: String in models_seen:
+			ok_pair = ok_pair and int(models_seen[m]) == want_each
+		_check(ok_pair and fronts.size() == 2 * want_each and float(fronts[0]) < -0.99 and float(fronts[-1]) > 0.99,
+				"doorway %s: its panels stand back to back on both faces of the wall (%s)" % [dw["name"], models_seen])
+	var open_copies := 0
+	for m: String in OPENING_X:
+		open_copies += (by_model.get(m, []) as Array).size()
+	_check(used == open_copies and open_copies == 8, "every walk-through panel belongs to a doorway (%d of %d)" % [used, open_copies])
+	if _check(by_model.has("wall_panel_window"), "the main room's window panel exists"):
+		var window := room.get_node_or_null(^"Decor/BarredWindow") as Node3D
+		_check(window != null and r.get_area_index(window.global_position + window.global_basis.z.normalized()) == 0,
+				"Decor/BarredWindow is still the main room's west window")
 
-	# --- floor: 4 x 3 slabs, top on the collider's top face
+	# --- floor: 4 x 3 slabs in the main room, 3 x 3 in the hall, 3 x 2 on the dock, tops on the colliders' top face
 	var floor_top := _shape_face(floor_body, "Shape", room, 1, 1.0)
 	var cells := {}
 	var floor_copies := _copies(floor_body, room)
@@ -284,9 +378,13 @@ func _room() -> void:
 		var k := Vector2i(roundi(cp.xf.origin.x * 2.0), roundi(cp.xf.origin.z * 2.0))
 		cells[k] = int(cells.get(k, 0)) + 1
 	_grid(cells, "floor slabs")
+	for shape_name in ["HallShape", "DockShape"]:
+		_check(_near(_shape_face(floor_body, shape_name, room, 1, 1.0), floor_top, 0.001), "Floor/%s: its top is the floor (y %.3f)" % [shape_name, floor_top])
 
-	# --- ceiling: 4 x 3 deck panels (crests on the collider face), 3 beam lines x 3 segments, the hole rim
+	# --- ceiling: deck panels on the same cells (crests on the collider face), beam lines on the seams, the hole rim
 	var ceil_face := _shape_face(ceiling, "Shape", room, 1, -1.0)
+	for shape_name in ["HallShape", "DockShape"]:
+		_check(_near(_shape_face(ceiling, shape_name, room, 1, -1.0), ceil_face, 0.001), "Ceiling/%s: its face is the ceiling (y %.3f)" % [shape_name, ceil_face])
 	cells = {}
 	var beams := {}
 	var rim: Copy = null
@@ -307,10 +405,15 @@ func _room() -> void:
 				var k := Vector2i(roundi(o.x * 2.0), roundi(o.z * 2.0))
 				cells[k] = int(cells.get(k, 0)) + 1
 	_grid(cells, "ceiling panels")
-	_check(beams.keys().size() == 3 and beams.has(-5) and beams.has(0) and beams.has(5),
-			"beam lines at x = -5, 0, 5 (%s)" % [beams.keys()])
+	# Beam lines: x -5 and 0 run on over the dock (to z 17.5, past its outer wall), 5 over the main room only, 15 and
+	# 20 over the hall.
+	var beam_spans := {-5: Vector2(-7.5, 17.5), 0: Vector2(-7.5, 17.5), 5: Vector2(-7.5, 7.5), 15: Vector2(-7.5, 7.5), 20: Vector2(-7.5, 7.5)}
+	var beam_keys := beams.keys()
+	beam_keys.sort()
+	_check(beam_keys == [-5, 0, 5, 15, 20], "beam lines at x = -5, 0, 5 (main, the first two on over the dock) and 15, 20 (hall) (%s)" % [beam_keys])
 	for x: int in beams:
-		_tiles(beams[x], -ROOM_SIZE.z * 0.5, ROOM_SIZE.z * 0.5, "beam line x=%d" % x)
+		if beam_spans.has(x):
+			_tiles(beams[x], (beam_spans[x] as Vector2).x, (beam_spans[x] as Vector2).y, "beam line x=%d" % x)
 	# The hole: rim centred on the void box, the void box above the deck, its footprint round the rim.
 	var void_box := ceiling.get_node_or_null(^"HoleVoid") as MeshInstance3D
 	if _check(rim != null and void_box != null and void_box.mesh is BoxMesh, "hole rim + HoleVoid exist"):
@@ -341,14 +444,25 @@ func _room() -> void:
 
 
 func _grid(cells: Dictionary, what: String) -> void:
-	## cells: (2x, 2z) of each copy's centre -> count. Expect every 5 m cell of the room exactly once.
+	## cells: (2x, 2z) of each copy's centre -> count. Expect every 5 m cell of the floor plan exactly once: 4 x 3 in
+	## the main room, 3 x 3 in the grow hall (x 10..25: the last column ends outside, behind the hall's east wall),
+	## 3 x 2 on the loading dock (z 7.5..17.5: the last row ends behind its south wall).
 	var missing: Array = []
 	var ok := true
+	var want: Array[Vector2] = []
 	for ix in 4:
 		for iz in 3:
-			var k := Vector2i(roundi((-7.5 + ix * PANEL) * 2.0), roundi((-5.0 + iz * PANEL) * 2.0))
-			if int(cells.get(k, 0)) != 1:
-				ok = false
-				missing.append(Vector2(k) * 0.5)
-	_check(ok and cells.size() == 12, "%s: 4 x 3 cover the 20 x 15 m room once each (%d cells; wrong: %s)"
+			want.append(Vector2(-7.5 + ix * PANEL, -5.0 + iz * PANEL))
+	for ix in 3:
+		for iz in 3:
+			want.append(Vector2(12.5 + ix * PANEL, -5.0 + iz * PANEL))
+	for ix in 3:
+		for iz in 2:
+			want.append(Vector2(-7.5 + ix * PANEL, 10.0 + iz * PANEL))
+	for c in want:
+		var k := Vector2i(roundi(c.x * 2.0), roundi(c.y * 2.0))
+		if int(cells.get(k, 0)) != 1:
+			ok = false
+			missing.append(c)
+	_check(ok and cells.size() == want.size(), "%s: 4 x 3 (main room) + 3 x 3 (hall) + 3 x 2 (dock) modules, once each (%d cells; wrong: %s)"
 			% [what, cells.size(), missing])
