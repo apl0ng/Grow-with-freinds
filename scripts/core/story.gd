@@ -607,6 +607,8 @@ const HOSTILE_PLOT_FALLBACK := "the trays"
 ## Every peer, from GrowPlot's `turning` setter: "GrowPlot 3 is moving." (MAJOR: six seconds to harvest it or step back).
 func hostile_plot_turning(plot_label: String) -> void:
 	if _in_session():
+		# The Boss only speaks at his window: the floor also gets it on screen (every peer, local).
+		Game.toast(String(lines.get("plot_turning", "%s is moving.")) % plot_label, &"error")
 		_request_named("plot_turning", plot_label, Weight.MAJOR)
 
 func _connect_hostile_signals() -> void:
@@ -634,7 +636,9 @@ func _on_hostile_spawned(_id: int, _strain_id: StringName, position: Vector3) ->
 	if not _in_session():
 		return
 	var idx := _hostile_plot_index_near(position)
-	_request_named("hostile_spawned", HOSTILE_PLOT_NAME % idx if idx > 0 else HOSTILE_PLOT_FALLBACK, Weight.MAJOR)
+	var where: String = HOSTILE_PLOT_NAME % idx if idx > 0 else HOSTILE_PLOT_FALLBACK
+	Game.toast(String(lines.get("hostile_spawned", "Something came out of %s.")) % where, &"error")
+	_request_named("hostile_spawned", where, Weight.MAJOR)
 
 
 func _on_hostile_eating(_id: int, plot_index: int) -> void:
