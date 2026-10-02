@@ -1675,9 +1675,11 @@ func _spawn_shot_fx(from: Vector3, to: Vector3) -> void:
 	room.add_child(pock)
 	pock.global_position = to
 	_pocks.append(pock)
-	get_tree().create_timer(POCK_SEC).timeout.connect(func() -> void:
-		if is_instance_valid(pock):
-			pock.queue_free())
+	# A tween on the pock itself: it dies with the node (a scene-tree timer with the node captured in a lambda logged
+	# "Lambda capture was freed" whenever the floor was reset before the 25 s were up).
+	var pt := pock.create_tween()
+	pt.tween_interval(POCK_SEC)
+	pt.tween_callback(pock.queue_free)
 
 
 # --- resets --------------------------------------------------------------------------------------------------------
