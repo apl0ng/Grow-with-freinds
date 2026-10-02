@@ -59,6 +59,7 @@
 [ext_resource type="PackedScene" path="res://art/models/hole_rim.glb" id="53_hole_rim"]
 [ext_resource type="PackedScene" path="res://scenes/stations/fuse_box.tscn" id="54_fuse_box"]
 [ext_resource type="PackedScene" path="res://art/models/backroom_door.glb" id="55_backroom_door"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/wall_phone.tscn" id="m17_wall_phone"]
 [ext_resource type="PackedScene" path="res://scenes/stations/emergency_cabinet.tscn" id="56_emergency_cabinet"]
 [ext_resource type="PackedScene" path="res://scenes/stations/drying_rack.tscn" id="m14_drying_rack"]
 [ext_resource type="PackedScene" path="res://art/models/van.glb" id="m14_van_model"]
@@ -915,6 +916,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.2, -6.7)
 
 [node name="HeadcountSpot" type="Marker3D" parent="Decor"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3.2)
+
+[node name="WallPhone" parent="Decor" instance=ExtResource("m17_wall_phone")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.8, 1.15, -7.5)
 
 [node name="InspectionRoute" type="Node3D" parent="Decor"]
 

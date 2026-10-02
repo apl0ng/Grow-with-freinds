@@ -43,10 +43,11 @@ extends RefCounted
 ##
 ## EVENTS AND MUTATIONS (the tax; event_costs() lists every line)
 ##   Events: (round_length - event_first_delay) / (mean event length + mean gap) + 0.5 events a shift, the gap
-##   shrinking by event_gap_shrink_per_round with replay on. Per event, weighted by the M15 scheduler weights:
+##   shrinking by event_gap_shrink_per_round with replay on. Per event, weighted by the M17 scheduler weights:
 ##   seconds every worker loses (inspection, head count, drive-by, raid), seconds one worker loses (fuse box, rat,
-##   leak, collector), seconds the whole floor stops growing (power cut, a dry tank), cash (write-ups, the drive-by
-##   bill, the fee of the collector, a bundle lost to a raid) and the raise an audit puts on the payment. The model
+##   leak, collector, the scale, the phone), seconds the whole floor stops growing (power cut, a dry tank), cash
+##   (write-ups, the drive-by bill, the fee of the collector, a bundle lost to a raid, the phone's fine) and the raise
+##   an audit puts on the payment (the light scale counts as a raise too: the deposits it shorts). The model
 ##   spreads the total evenly over the shift: every action takes 1 / (1 - share) as long, growth runs at (1 - share),
 ##   cash drains at a steady rate, the payment is raised by the expected audit (a shift is "made" against that
 ##   raised number).
@@ -147,10 +148,10 @@ const P_LINE := 17
 const P_DOCK := 18
 const POINT_COUNT := 19
 
-# --- events (weights: CONTRACTS.md "M15", "Mayhem 2", twelve kinds, sum 100) ----------------------------------------
+# --- events (weights: CONTRACTS.md "M17", "Mayhem 3", fourteen kinds, sum 100) --------------------------------------
 const EVENT_WEIGHTS: Dictionary = {
-	"inspection": 22, "power_cut": 13, "audit": 7, "rat": 7, "headcount": 10, "water_off": 6, "shortage": 5,
-	"leak": 7, "driveby": 7, "raid": 6, "sprinklers": 5, "collection": 5,
+	"inspection": 20, "power_cut": 12, "audit": 7, "rat": 6, "headcount": 9, "water_off": 6, "shortage": 5,
+	"leak": 7, "driveby": 7, "raid": 6, "sprinklers": 5, "collection": 5, "scale": 3, "phone": 2,
 }
 ## Seconds a worker loses keeping out of the Boss's sight and on the move during an inspection.
 const INSPECTION_DODGE_SEC := 3.0
@@ -428,6 +429,25 @@ static func event_costs(cfg: BalanceConfig, workers: int, skill: int) -> Array[D
 				2.0 * dock_trip + cfg.collector_hold_sec, 0.0, 0.0, float(cfg.collector_fee), 0.0)
 	else:
 		add.call("collection", cfg.collector_sec, 0.0, 0.0, 0.0, 0.0, LOST_BUNDLE_VALUE, 0.0)
+	# M17 mayhem3. The scale: what is deposited before somebody hits the chute pays scale_cut less, the same as a
+	# payment that much higher for that share of the shift. A crew that fixes things notices it and walks over (the
+	# chute is on its way anyway); one that does not lets it run out.
+	var scale_open := cfg.scale_sec
+	var scale_work := 0.0
+	if fixes:
+		var chute_trip := distance(from, P_CHUTE) / speed + leg
+		scale_open = minf(react + chute_trip, cfg.scale_sec)
+		scale_work = chute_trip
+	add.call("scale", scale_open, 0.0, scale_work, 0.0, 0.0, 0.0, cfg.scale_cut * scale_open / maxf(cfg.round_length_sec, 1.0))
+	# The phone: one worker's walk to it and the hold, or nobody answers and the floor pays phone_fine. The phone hangs
+	# in the fuse box's corner of the main room (4 m from it), so the walk is the fuse box's. What an answered call
+	# brings (a tip, a minute of cheap seeds) is not counted: the line errs on the dear side.
+	if fixes:
+		var phone_trip := distance(from, P_FUSE) / speed + leg
+		add.call("phone", minf(react + phone_trip + cfg.phone_hold_sec, cfg.phone_sec), 0.0,
+				2.0 * phone_trip + cfg.phone_hold_sec, 0.0, 0.0, 0.0, 0.0)
+	else:
+		add.call("phone", cfg.phone_sec, 0.0, 0.0, 0.0, 0.0, float(cfg.phone_fine), 0.0)
 	return out
 
 

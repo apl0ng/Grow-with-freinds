@@ -165,7 +165,7 @@ func get_sale_value(product: Item) -> int:
 	if product == null:
 		return 0
 	return compute_sale_value(_get_product_seed(product), _get_product_amount(product),
-			GameState.get_sale_multiplier(), is_cured(product)) # M14 loop: cured
+			GameState.get_sale_multiplier() * Events.get_scale_factor(), is_cured(product)) # M14 loop: cured; M17 mayhem3: x the scale (1.0 unless it reads light)
 
 
 ## The product `player` is holding (null if empty hands, not a product, or already sold).

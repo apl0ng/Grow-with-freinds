@@ -1552,6 +1552,27 @@
   ],
   "tris": 2807
  },
+ "wall_phone": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "phone_plastic",
+   "toon_void",
+   "toon_dark",
+   "toon_cream",
+   "phone_grease",
+   "toon_metal_dark",
+   "phone_tape"
+  ],
+  "mount": "wall",
+  "script": "tools/blender/models/wall_phone.py",
+  "size": [
+   0.335,
+   0.586,
+   0.11
+  ],
+  "tris": 2992
+ },
  "water_tank": {
   "front": "+z",
   "kind": "station",

@@ -198,8 +198,14 @@ func _test_tax() -> void:
 	var weights := 0
 	for kind: String in Sim.EVENT_WEIGHTS:
 		weights += int(Sim.EVENT_WEIGHTS[kind])
-	check(Sim.EVENT_WEIGHTS.size() == 12 and weights == 100, "twelve event kinds, weights sum to 100")
-	check(Sim.event_costs(_b, 1, CAREFUL).size() == 12, "one cost line per kind")
+	# M17 mayhem3: fourteen kinds (the scale and the phone), the weights of CONTRACTS "M17", "Mayhem 3".
+	check(Sim.EVENT_WEIGHTS.size() == 14 and weights == 100, "fourteen event kinds, weights sum to 100")
+	var same_weights := true
+	for kind: String in Sim.EVENT_WEIGHTS:
+		if int(Events.WEIGHTS.get(StringName(kind), -1)) != int(Sim.EVENT_WEIGHTS[kind]):
+			same_weights = false
+	check(same_weights and Events.WEIGHTS.size() == Sim.EVENT_WEIGHTS.size(), "the model's weights are the scheduler's")
+	check(Sim.event_costs(_b, 1, CAREFUL).size() == 14, "one cost line per kind")
 	var first := Sim.event_tax(_b, 1, CAREFUL, 1)
 	var sixth := Sim.event_tax(_b, 4, CAREFUL, 6)
 	check(float(first["events"]) > 3.0 and float(first["events"]) < 4.0 and float(sixth["events"]) > float(first["events"]) + 0.5,

@@ -835,6 +835,20 @@ func is_in_hall(point: Vector3) -> bool:
 # --- end M15 mayhem2 ---------------------------------------------------------------------------------------------
 
 
+# --- M17 mayhem3 --- the wall phone ----------------------------------------------------------------------------------
+## The wall phone that rings for Events.EVENT_PHONE (scenes/world/props/wall_phone.tscn, a WallPhone): on the main
+## room's north wall, 1.5 m west of the debt board, its origin 1.15 m up the wall. No cover layout puts anything near it
+## (the closest piece, layout 2's pallet stack against the same wall, stands 1 m east of its edge) and no route,
+## walk or lane passes it.
+const WALL_PHONE_PATH := ^"Decor/WallPhone"
+
+
+## The wall phone, null when the room has none.
+func get_wall_phone() -> Node3D:
+	return get_node_or_null(WALL_PHONE_PATH) as Node3D
+# --- end M17 mayhem3 -----------------------------------------------------------------------------------------------
+
+
 
 # --- M16 variety: cover that moves --------------------------------------------------------------------------------
 # The loose cover (the crates and pallets on the dock, in the main room and in the hall) stands differently each run

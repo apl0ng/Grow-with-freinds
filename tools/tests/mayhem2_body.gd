@@ -57,20 +57,21 @@ func _run() -> void:
 
 	step("kinds + weights")
 	check(Config.has_arg("events") and Events.are_events_enabled(), "this suite runs with --events")
-	check(Events.KINDS.size() == 12 and Events.KINDS.has(Events.EVENT_RAID) and Events.KINDS.has(Events.EVENT_SPRINKLERS) and Events.KINDS.has(Events.EVENT_COLLECTION), "KINDS: the nine earlier kinds + raid, sprinklers, collection")
+	check(Events.KINDS.size() == 14 and Events.KINDS.has(Events.EVENT_RAID) and Events.KINDS.has(Events.EVENT_SPRINKLERS) and Events.KINDS.has(Events.EVENT_COLLECTION), "KINDS: the nine earlier kinds + raid, sprinklers, collection (+ the two M17 mayhem3 kinds)")
 	check(Events.EVENT_RAID == &"raid" and Events.EVENT_SPRINKLERS == &"sprinklers" and Events.EVENT_COLLECTION == &"collection", "the three kind names")
 	var total := 0
 	for k in Events.KINDS:
 		total += int(Events.WEIGHTS.get(k, 0))
 	check(total == 100 and Events.WEIGHTS.size() == Events.KINDS.size(), "weights sum to 100 over %d kinds (%d)" % [Events.KINDS.size(), total])
-	var expected := {Events.EVENT_INSPECTION: 22, Events.EVENT_POWER_CUT: 13, Events.EVENT_AUDIT: 7, Events.EVENT_RAT: 7,
-			Events.EVENT_HEADCOUNT: 10, Events.EVENT_WATER_OFF: 6, Events.EVENT_SHORTAGE: 5, Events.EVENT_LEAK: 7, Events.EVENT_DRIVEBY: 7,
+	# M17 mayhem3 rebalanced the weights for fourteen kinds (tools/tests/mayhem3_body.gd pins all fourteen).
+	var expected := {Events.EVENT_INSPECTION: 20, Events.EVENT_POWER_CUT: 12, Events.EVENT_AUDIT: 7, Events.EVENT_RAT: 6,
+			Events.EVENT_HEADCOUNT: 9, Events.EVENT_WATER_OFF: 6, Events.EVENT_SHORTAGE: 5, Events.EVENT_LEAK: 7, Events.EVENT_DRIVEBY: 7,
 			Events.EVENT_RAID: 6, Events.EVENT_SPRINKLERS: 5, Events.EVENT_COLLECTION: 5}
 	var weights_ok := true
 	for k in expected:
 		if int(Events.WEIGHTS.get(k, -1)) != int(expected[k]):
 			weights_ok = false
-	check(weights_ok, "weights: inspection 22 / power_cut 13 / audit 7 / rat 7 / headcount 10 / water_off 6 / shortage 5 / leak 7 / driveby 7 / raid 6 / sprinklers 5 / collection 5")
+	check(weights_ok, "weights: inspection 20 / power_cut 12 / audit 7 / rat 6 / headcount 9 / water_off 6 / shortage 5 / leak 7 / driveby 7 / raid 6 / sprinklers 5 / collection 5")
 	var kinds_seen: Dictionary = {}
 	var repeats := 0
 	for k in Events.KINDS:
@@ -80,7 +81,7 @@ func _run() -> void:
 			if pick == k or not Events.KINDS.has(pick):
 				repeats += 1
 	check(repeats == 0, "pick_kind() never repeats the previous kind and stays in KINDS")
-	check(kinds_seen.size() == 12, "pick_kind() reaches every kind (%d seen)" % kinds_seen.size())
+	check(kinds_seen.size() == Events.KINDS.size(), "pick_kind() reaches every kind (%d seen)" % kinds_seen.size())
 	check(Story.line("raid") == "They are outside. Get it out of sight." and Story.line("sprinklers") == "Sprinklers. Everything is watered. Do not run." and Story.line("collector_paid") == "Paid. He left.", "Story has the raid, sprinkler and collector lines")
 	check(Story.line("collection") % Story.mayhem_amount_words(40) == "He wants forty. He is on the dock.", "the Boss names the fee in words")
 	check(Story.mayhem2_raid_line(3, PackedStringArray(["Dale"])) == "They took three. Dale was holding one.", "raid line: three taken, one holder (%s)" % Story.mayhem2_raid_line(3, PackedStringArray(["Dale"])))

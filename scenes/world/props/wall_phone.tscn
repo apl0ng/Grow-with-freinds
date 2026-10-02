@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/world/props/wall_phone.gd" id="1_phone"]
+[ext_resource type="PackedScene" path="res://art/models/wall_phone.glb" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_phone"]
+size = Vector3(0.32, 0.48, 0.13)
+
+[node name="WallPhone" type="Node3D"]
+script = ExtResource("1_phone")
+
+[node name="Visual" parent="." instance=ExtResource("2_model")]
+outline_width = 0.012
+
+[node name="Body" type="StaticBody3D" parent="."]
+collision_layer = 4
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22, 0.065)
+shape = SubResource("BoxShape3D_phone")

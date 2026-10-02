@@ -624,6 +624,8 @@ func _event_title() -> String:
 			return _mayhem_event_title(_event_kind)
 		&"raid", &"sprinklers", &"collection":  # M15 mayhem2
 			return _mayhem2_event_title(_event_kind)
+		&"scale", &"phone":  # M17 mayhem3
+			return _mayhem3_event_title(_event_kind)
 	return String(_event_kind).to_upper().replace("_", " ")
 
 
@@ -648,6 +650,8 @@ func _event_hint() -> String:
 			return _mayhem_event_hint(_event_kind)
 		&"raid", &"sprinklers", &"collection":  # M15 mayhem2
 			return _mayhem2_event_hint(_event_kind)
+		&"scale", &"phone":  # M17 mayhem3
+			return _mayhem3_event_hint(_event_kind)
 	return ""
 
 
@@ -697,6 +701,22 @@ func _mayhem2_event_hint(kind: StringName) -> String:
 	var fee: Variant = _event_params.get("fee", Config.balance.collector_fee)
 	return TEXT_EVENT_COLLECTION_HINT % (int(fee) if fee is int or fee is float else Config.balance.collector_fee)
 # --- end M15 mayhem2 ---------------------------------------------------------------------------------------------
+
+
+# --- M17 mayhem3 --- the scale and the phone on the banner ---------------------------------------------------------
+const TEXT_EVENT_SCALE := "SCALE IS OFF"
+const TEXT_EVENT_SCALE_HINT := "It reads light. Hit it."
+const TEXT_EVENT_PHONE := "PHONE"
+const TEXT_EVENT_PHONE_HINT := "Somebody pick that up."
+
+
+func _mayhem3_event_title(kind: StringName) -> String:
+	return TEXT_EVENT_SCALE if kind == &"scale" else TEXT_EVENT_PHONE
+
+
+func _mayhem3_event_hint(kind: StringName) -> String:
+	return TEXT_EVENT_SCALE_HINT if kind == &"scale" else TEXT_EVENT_PHONE_HINT
+# --- end M17 mayhem3 ---------------------------------------------------------------------------------------------
 
 
 func _update_event_countdown() -> void:
