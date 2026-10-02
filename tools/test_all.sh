@@ -36,7 +36,7 @@ if command -v setsid >/dev/null 2>&1 && command -v pgrep >/dev/null 2>&1; then H
 ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test models_arch_test models_char_test models_plant_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
   review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline lan firewall voice_test voice_mp physics physics_mp ui_m10 ui_m10_mp events events_mp hostile hostile_mp strains flame flame_mp disrupt disrupt_mp
-  review_m10 review_m10_mp qa_m10_4p
+  review_m10 review_m10_mp review_m12 review_m12_mp qa_m10_4p
   qa_mouse_x11)
 
 ONLY=""
@@ -55,7 +55,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 71 72 73 74 80 91 92 95 96; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 71 72 73 74 80 91 92 95 96; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -288,6 +288,12 @@ run_suite disrupt_mp      240 "$LOGDIR/disruptmp/*.log" env DISRUPT_MP_PORT=$((B
 run_suite review_m10      300 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_m10_body.gd --port=$((BASE + 48)) --round-sec=900 --timeout=280
 rm -rf "$LOGDIR/rm10"; mkdir -p "$LOGDIR/rm10"
 run_suite review_m10_mp   200 "$LOGDIR/rm10/*.log" env RM10_LOGS="$LOGDIR/rm10" tools/tests/review_m10_mp.sh
+# M13 review of M12: fire requests (stunned / flying / flood), the arson brake, the turning tray, hostile_max, the
+# hostile plant's escape rules, shortage + head-count fairness, churn, the cabinet, copy, numbers (solo host + four
+# fake workers on +63); then a host + a ROGUE client (late join into M12 state, spoofed authority RPCs, raw requests) on +64.
+run_suite review_m12      300 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/review_m12_body.gd --port=$((BASE + 63)) --round-sec=900 --timeout=280
+rm -rf "$LOGDIR/rm12"; mkdir -p "$LOGDIR/rm12"
+run_suite review_m12_mp   220 "$LOGDIR/rm12/*.log" env RM12_PORT=$((BASE + 64)) RM12_LOGS="$LOGDIR/rm12" tools/tests/review_m12_mp.sh
 # M10 QA (10.8): host + three clients (one late) through the whole friendslop pass: same-frame throws, chute shots,
 # shove chains, an inspection with three workers in the Boss's path, the back room, power cuts, the rat, voice under
 # load, chat / ping floods, hostile M10 RPCs, churn (RETRY, leaving from the back room, the host leaving), a full
