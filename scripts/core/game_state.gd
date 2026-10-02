@@ -189,7 +189,7 @@ func get_effect_total(effect_key: StringName) -> float:
 	return total
 
 func get_growth_speed_multiplier() -> float:
-	return (1.0 + get_effect_total(Const.EFFECT_GROWTH_SPEED)) * Config.growth_speed_override
+	return (1.0 + get_effect_total(Const.EFFECT_GROWTH_SPEED)) * Config.growth_speed_override * condition_value(&"growth_speed", 1.0) # M15 replay: * the conditions' growth
 
 func get_can_capacity() -> int:
 	return Config.balance.can_capacity + int(get_effect_total(Const.EFFECT_CAN_CAPACITY))
@@ -366,6 +366,7 @@ func server_start_round() -> void:
 	s["quota"] = get_quota_for(next_round)
 	s["sales"] = 0 # quota = sales made during THIS round
 	s["time"] = Config.balance.round_length_sec
+	_replay_begin_shift(s, next_round) # M15 replay: this shift's conditions and market (unless the alley rolled them), their quota factor and seconds
 	s["serial"] = _serial + 1
 	s["stats"] = {}      # a fresh ledger every shift
 	s["write_ups"] = {}
@@ -395,6 +396,7 @@ func server_reset_game() -> void:
 		"write_ups": {},
 		"backroom": {},
 	}
+	_replay_reset(s) # M15 replay: nothing carried over; shift 1's roll
 	if was_live:
 		_rpc_game_reset.rpc(s)
 	else:
@@ -546,6 +548,7 @@ func _server_wait_for_next_shift() -> void:
 	s["quota"] = get_quota_for(next_round)
 	s["sales"] = 0
 	s["time"] = Config.balance.round_length_sec
+	_replay_begin_shift(s, next_round) # M15 replay: rolled here, so the alley shows the coming shift before boarding
 	s["serial"] = _serial + 1
 	s["stats"] = {}
 	s["write_ups"] = {}
@@ -563,6 +566,359 @@ func _rpc_transition(kind: StringName, seconds: float) -> void:
 	transition_started.emit(kind, clampf(seconds, 0.0, 10.0) if is_finite(seconds) else 0.0)
 
 # --- end M14 lobby ---------------------------------------------------------------------------------------------
+
+
+# --- M15 replay ----------------------------------------------------------------------------------------------------
+# No two shifts alike, and a run that builds (FRIENDSLOP 9.1 / 9.2, CONTRACTS "M15", "Replay"). Everything here is
+# behind the HOST's Config.replay_enabled: with it off nothing is rolled, the state below stays empty on every peer,
+# and every query answers as if this region did not exist (condition_value -> the default, the market 1.0, every
+# strain on sale, no briefing, the event gap factor 1.0).
+#
+# State (one entry of the state dictionary, "replay": {"on", "conditions", "market"}; it rides on every broadcast and
+# on the full state a late joiner gets, like the upgrades do):
+#   on          the host runs with replay: clients read it from here, never from their own Config
+#   conditions  the ids of this shift's conditions (ShiftConditions; `buyer:purple` carries its strain)
+#   market      strain id -> today's factor on its deposit value (1 - market_swing .. 1 + market_swing, 5% steps)
+# When it is rolled (host): for shift N, once, either when the game enters WAITING for it (the lobby's way back,
+# _server_wait_for_next_shift: the alley board shows it before anyone boards) or when it starts (lobby off). Shift 1
+# is plain: conditions AND the market begin with shift `conditions_from_round`. Never a condition of the shift before,
+# never an incompatible pair, never one that would do nothing today (ShiftConditions.roll).
+# What applies when: `quota` and `round_sec_add` are applied to the payment due and the clock when they are set
+# (entering WAITING for the shift, starting it, re-pricing for the team size); every other key is read live by its
+# consumer through condition_value(). The conditions stay up through the end screen (the report names them) and are
+# replaced by the next roll; a reset or the menu clears them.
+# Unlocks: SeedDef.unlock_round against the round number, nothing stored. Event gaps: get_event_gap_factor().
+
+## Every peer: the active conditions changed (rolled, set by a test, cleared).
+signal conditions_changed
+## Every peer: the market changed.
+signal market_changed
+
+## HOST: the dice for the conditions and the market. Tests seed it (GameState.replay_rng.seed = 7).
+var replay_rng := RandomNumberGenerator.new()
+
+var _replay_on: bool = false
+var _conditions: Array[StringName] = []
+var _market: Dictionary = {}                      # StringName strain id -> float
+## Every key of the active conditions -> its combined value (ShiftConditions.combine); what condition_value() reads.
+var _condition_values: Dictionary = {}
+## Strain id -> market x the conditions' sale factors for it (rebuilt with the two above).
+var _strain_deposit: Dictionary = {}
+## The conditions of the last shift that started (kept through the way back to the alley, for the report line).
+var _report_conditions: Array[StringName] = []
+## HOST: the shift the state above was rolled for (0 = none yet). A shift is rolled once: what a test sets while the
+## game is WAITING for a shift is what that shift starts with.
+var _replay_round: int = 0
+
+
+## True when the host runs with replay (synced; false before the first state arrives).
+func is_replay_on() -> bool:
+	return _replay_on
+
+
+## The ids of the active conditions (a copy). In WAITING they are the coming shift's.
+func get_conditions() -> Array[StringName]:
+	return _conditions.duplicate()
+
+
+## The conditions of the last shift that started (the report's line; the alley keeps them after the way back).
+func get_report_conditions() -> Array[StringName]:
+	return _report_conditions.duplicate()
+
+
+## The combined value of `key` over the active conditions: the PRODUCT of their values, or the SUM for an additive
+## key (`round_sec_add`, `floor_wet`: ShiftConditions.is_additive). `default` when no active condition has the key
+## (always, with replay off). The keys are listed in shift_conditions.gd.
+func condition_value(key: StringName, default: float) -> float:
+	if _condition_values.is_empty():
+		return default
+	return float(_condition_values.get(key, default))
+
+
+## Today's factor on `strain_id`'s deposit value (1.0 with replay off, on shift 1 and for an unknown strain).
+func get_market_multiplier(strain_id: StringName) -> float:
+	return float(_market.get(strain_id, 1.0))
+
+
+## Strain id -> today's factor (a copy; empty with replay off and on shift 1).
+func get_market() -> Dictionary:
+	return _market.duplicate()
+
+
+## False while `strain_id` is not sold yet (SeedDef.unlock_round against the round number; in WAITING that is the
+## coming shift). Always true with replay off and for an unknown strain.
+func is_strain_unlocked(strain_id: StringName) -> bool:
+	return round_number >= get_unlock_round(strain_id)
+
+
+## The first shift `strain_id` is sold in (1 with replay off).
+func get_unlock_round(strain_id: StringName) -> int:
+	if not _replay_on:
+		return 1
+	var def: SeedDef = Config.balance.get_seed(strain_id)
+	return maxi(def.unlock_round, 1) if def != null else 1
+
+
+## What a packet of `seed_def` costs today: its cost x the conditions' `seed_cost`, at least $1. The card shows it,
+## the counter charges it.
+func get_seed_cost(seed_def: SeedDef) -> int:
+	if seed_def == null:
+		return 0
+	var factor := condition_value(&"seed_cost", 1.0)
+	return seed_def.cost if factor == 1.0 else maxi(int(round(seed_def.cost * factor)), 1)
+
+
+## Today's factor on a deposit of `strain_id`: the market x the conditions' `sale_value` and `sale_value:<strain>`;
+## for a cured bundle also what `cure_bonus` adds to the bonus. 1.0 with replay off. TurnInStation.compute_sale_value
+## multiplies by it, so the chute's prompt, the sale and the supply card all show the same number.
+func get_deposit_factor(strain_id: StringName, cured: bool = false) -> float:
+	var factor := float(_strain_deposit.get(strain_id, 1.0))
+	if cured and not _condition_values.is_empty():
+		var bonus := maxf(Config.balance.cure_bonus, 0.0)
+		factor *= (1.0 + bonus * condition_value(&"cure_bonus", 1.0)) / (1.0 + bonus)
+	return factor
+
+
+## The factor on Events' gaps (and its first delay): they shrink by event_gap_shrink_per_round per shift after the
+## first, never below half, times the conditions' `event_gap`. 1.0 with replay off.
+func get_event_gap_factor() -> float:
+	if not _replay_on:
+		return 1.0
+	var shrink := clampf(1.0 - Config.balance.event_gap_shrink_per_round * float(round_number - 1), 0.5, 1.0)
+	return shrink * condition_value(&"event_gap", 1.0)
+
+
+## The strains that are sold for the first time in shift `round_n` (none on shift 1 and with replay off).
+func get_new_strains(round_n: int) -> Array[StringName]:
+	var out: Array[StringName] = []
+	if not _replay_on or round_n <= 1:
+		return out
+	for def: SeedDef in Config.balance.seeds:
+		if def != null and def.unlock_round == round_n:
+			out.append(def.id)
+	return out
+
+
+## The best and the worst strain on sale today: [best id or &"", worst id or &""], by the market x the conditions
+## that single a strain out (`sale_value:<strain>`: a strain with a buyer is never called bad). What moves every
+## strain alike (`sale_value`) is left out: it has its own line on the board and would name the first strain "bad"
+## for no reason. A strain only counts as best above 1.0 and as worst below it; ties go to the first in balance order.
+func get_market_extremes() -> Array[StringName]:
+	var best: StringName = &""
+	var worst: StringName = &""
+	var best_value := 1.0005
+	var worst_value := 0.9995
+	for def: SeedDef in Config.balance.seeds:
+		if def == null or not is_strain_unlocked(def.id):
+			continue
+		var value := get_market_multiplier(def.id) * condition_value(StringName("sale_value:%s" % def.id), 1.0)
+		if value > best_value:
+			best = def.id
+			best_value = value
+		if value < worst_value:
+			worst = def.id
+			worst_value = value
+	return [best, worst]
+
+
+## For the alley board (and anyone else): what is different about the shift `round_number` names. One line per
+## condition, then "Paying well: Purple Haze. Paying badly: Creeper." (strains on sale; each half only when one is
+## off par), then "New at the window: Night Shift." on the shift a strain unlocks. Empty with replay off.
+func get_shift_briefing() -> Array[String]:
+	var out: Array[String] = []
+	if not _replay_on:
+		return out
+	for id in _conditions:
+		out.append(ShiftConditions.get_line(id))
+	var extremes := get_market_extremes()
+	var market_parts: PackedStringArray = []
+	if extremes[0] != &"":
+		market_parts.append("Paying well: %s." % _replay_strain_name(extremes[0]))
+	if extremes[1] != &"":
+		market_parts.append("Paying badly: %s." % _replay_strain_name(extremes[1]))
+	if not market_parts.is_empty():
+		out.append(" ".join(market_parts))
+	var fresh := PackedStringArray()
+	for id in get_new_strains(round_number):
+		fresh.append(_replay_strain_name(id))
+	if not fresh.is_empty():
+		out.append("New at the window: %s." % ", ".join(fresh))
+	return out
+
+
+## SERVER ONLY (tests, debug). Replaces the active conditions with `ids` (unknown ids are dropped with a warning).
+## Live keys apply at once. `quota` and `round_sec_add` are terms of a shift: set while the game is WAITING they
+## apply to that shift (at once, and it starts with them, not with a roll); set while a shift runs they change
+## nothing about it. The roll for the next shift replaces whatever was set; a test that wants every shift plain sets
+## Config.balance.conditions_per_shift to 0 (and market_swing to 0). A no-op with replay off.
+func server_set_conditions(ids: Array[StringName]) -> void:
+	if not _require_server("server_set_conditions") or not Config.replay_enabled or phase == Phase.MENU:
+		return
+	var clean: Array[StringName] = []
+	for id in ids:
+		if ShiftConditions.has(id) and not clean.has(id):
+			clean.append(id)
+		else:
+			push_warning("GameState.server_set_conditions: '%s' dropped (unknown or twice)" % id)
+	var s := _snapshot()
+	(s["replay"] as Dictionary)["conditions"] = clean
+	if phase == Phase.WAITING:
+		s["quota"] = get_quota_for(round_number)
+		s["time"] = Config.balance.round_length_sec
+		_replay_apply_terms(s)
+	_rpc_state.rpc(s)
+
+
+## SERVER ONLY (tests, debug). Replaces the market with `d` (strain id -> factor, snapped to 5% and kept within
+## 0.05 .. 5; a strain left out pays 1.0). It lasts like server_set_conditions: until the next shift's roll. A no-op
+## with replay off.
+func server_set_market(d: Dictionary) -> void:
+	if not _require_server("server_set_market") or not Config.replay_enabled or phase == Phase.MENU:
+		return
+	var s := _snapshot()
+	(s["replay"] as Dictionary)["market"] = _replay_parse_market(d)
+	_rpc_state.rpc(s)
+
+
+## HOST, from server_start_round and _server_wait_for_next_shift, after `s` got the shift's plain quota and length:
+## rolls the conditions and the market for shift `round_n` unless that shift has its roll already (made in the
+## alley), then applies the conditions' quota factor and seconds to `s`.
+func _replay_begin_shift(s: Dictionary, round_n: int) -> void:
+	if not Config.replay_enabled:
+		_replay_round = 0
+		return
+	if _replay_round != round_n:
+		_replay_roll(s["replay"], round_n, _conditions)
+		_replay_round = round_n
+	_replay_apply_terms(s)
+
+
+## HOST, from server_reset_game: a fresh session has nothing rolled before it; shift 1 gets its roll here (nothing,
+## unless conditions_from_round is 1), so the alley shows it before the first ride.
+func _replay_reset(s: Dictionary) -> void:
+	_replay_round = 0
+	var r := {"on": Config.replay_enabled, "conditions": [], "market": {}}
+	s["replay"] = r
+	if not Config.replay_enabled:
+		return
+	_replay_roll(r, 1, [])
+	_replay_round = 1
+	_replay_apply_terms(s)
+
+
+## HOST: the roll for shift `round_n` into the "replay" entry `r`. `previous`: the conditions of the shift before.
+func _replay_roll(r: Dictionary, round_n: int, previous: Array) -> void:
+	var b: BalanceConfig = Config.balance
+	var every: Array[StringName] = []
+	var on_sale: Array[StringName] = []
+	var mutating := false
+	for def: SeedDef in b.seeds:
+		if def == null:
+			continue
+		every.append(def.id)
+		if def.unlock_round <= round_n:
+			on_sale.append(def.id)
+			if def.mutation_chance > 0.0:
+				mutating = true
+	var events: Node = get_node_or_null(^"/root/Events")
+	var events_on: bool = events != null and bool(events.call(&"are_events_enabled"))
+	var count := ShiftConditions.count_for_round(round_n, b.conditions_from_round, b.conditions_per_shift)
+	r["conditions"] = ShiftConditions.roll(count, previous, replay_rng, events_on, on_sale, mutating)
+	if round_n >= maxi(b.conditions_from_round, 1):
+		r["market"] = ShiftConditions.roll_market(replay_rng, b.market_swing, every, on_sale)
+	else:
+		r["market"] = {}
+
+
+## HOST: the conditions in `s` applied to its payment due and its clock (both must hold the plain values).
+func _replay_apply_terms(s: Dictionary) -> void:
+	var r: Variant = s.get("replay")
+	if not r is Dictionary:
+		return
+	var values := ShiftConditions.combine((r as Dictionary).get("conditions", []))
+	if values.has(&"quota"):
+		s["quota"] = int(round(float(s["quota"]) * float(values[&"quota"])))
+	if values.has(&"round_sec_add"):
+		var base := float(s["time"])
+		s["time"] = maxf(base + float(values[&"round_sec_add"]), base * 0.5) # never below half a shift
+
+
+## HOST: `plain_quota` with the active conditions' factor (the WAITING re-price for the team size).
+func _replay_quota(plain_quota: int) -> int:
+	var factor := condition_value(&"quota", 1.0)
+	return plain_quota if factor == 1.0 else int(round(float(plain_quota) * factor))
+
+
+## HOST: the "replay" entry of a snapshot.
+func _replay_snapshot() -> Dictionary:
+	if not Config.replay_enabled:
+		return {"on": false, "conditions": [], "market": {}}
+	return {"on": true, "conditions": _conditions.duplicate(), "market": _market.duplicate()}
+
+
+## Every peer, from _apply_state (after the plain fields were set, before their signals): takes the "replay" entry of
+## `state` (kept as it is when the state has none; cleared in MENU) and emits the two signals when something changed.
+func _replay_apply(state: Dictionary, force: bool) -> void:
+	var on := _replay_on
+	var new_conditions := _conditions
+	var new_market := _market
+	var raw: Variant = state.get("replay")
+	if phase == Phase.MENU:
+		on = false
+		new_conditions = []
+		new_market = {}
+	elif raw is Dictionary:
+		on = bool((raw as Dictionary).get("on", false))
+		new_conditions = []
+		var raw_ids: Variant = (raw as Dictionary).get("conditions", [])
+		if raw_ids is Array:
+			for id: Variant in raw_ids:
+				var clean := StringName(str(id))
+				if ShiftConditions.has(clean) and not new_conditions.has(clean):
+					new_conditions.append(clean)
+		new_market = _replay_parse_market((raw as Dictionary).get("market", {}))
+	var conditions_differ := new_conditions != _conditions
+	var market_differs := new_market != _market
+	_replay_on = on
+	_conditions = new_conditions
+	_market = new_market
+	if conditions_differ or market_differs:
+		_condition_values = ShiftConditions.combine(_conditions)
+		_strain_deposit = {}
+		for def: SeedDef in Config.balance.seeds:
+			if def == null:
+				continue
+			var factor := get_market_multiplier(def.id) * float(_condition_values.get(&"sale_value", 1.0)) \
+					* float(_condition_values.get(StringName("sale_value:%s" % def.id), 1.0))
+			if factor != 1.0:
+				_strain_deposit[def.id] = factor
+	if phase == Phase.PLAYING or phase == Phase.ROUND_SUCCESS or phase == Phase.ROUND_FAILED:
+		_report_conditions = _conditions.duplicate()
+	elif phase == Phase.MENU or round_number <= 1:
+		_report_conditions = []
+	if force or conditions_differ:
+		conditions_changed.emit()
+	if force or market_differs:
+		market_changed.emit()
+
+
+## {strain id -> factor} from a test or from the wire: StringName keys, factors on the 5% grid within 0.05 .. 5.
+static func _replay_parse_market(raw: Variant) -> Dictionary:
+	var out: Dictionary = {}
+	if not raw is Dictionary:
+		return out
+	for key: Variant in (raw as Dictionary):
+		var value: Variant = (raw as Dictionary)[key]
+		if value is float or value is int:
+			out[StringName(str(key))] = clampf(ShiftConditions.snap_market(float(value)), 0.05, 5.0)
+	return out
+
+
+func _replay_strain_name(strain_id: StringName) -> String:
+	var def: SeedDef = Config.balance.get_seed(strain_id)
+	return def.display_name if def != null else String(strain_id).capitalize()
+
+# --- end M15 replay ------------------------------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------------------------
@@ -709,6 +1065,7 @@ func _snapshot() -> Dictionary:
 		"stats": stats.duplicate(true),
 		"write_ups": write_ups.duplicate(),
 		"backroom": backroom.duplicate(),
+		"replay": _replay_snapshot(), # M15 replay: conditions, market, whether the host runs with replay
 	}
 
 ## Applies a state dictionary and emits change signals. `force` emits every state signal
@@ -741,6 +1098,7 @@ func _apply_state(state: Dictionary, force: bool) -> void:
 	stats = _parse_stats(state.get("stats", stats))
 	write_ups = _parse_int_map(state.get("write_ups", write_ups), false)
 	backroom = _parse_int_map(state.get("backroom", backroom), true)
+	_replay_apply(state, force) # M15 replay: conditions + market (their signals fire first: the rest reads them)
 
 	if force or money != old_money:
 		money_changed.emit(money)
@@ -865,6 +1223,7 @@ func _on_players_changed() -> void:
 	if phase != Phase.WAITING or not is_local_host():
 		return
 	var q := get_quota_for(round_number)
+	q = _replay_quota(q) # M15 replay: the coming shift's conditions keep their share of the payment due
 	if q == quota:
 		return
 	var s := _snapshot()

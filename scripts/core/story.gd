@@ -156,6 +156,7 @@ func _ready() -> void:
 	_disrupt_setup()  # M12 disrupt: its lines + event hooks (region at the end of the file)
 	_m13_setup()  # M13 lead: report verdicts for burns / scorched / bitten (region at the end of the file)
 	_mayhem_setup()  # M14 mayhem: the leak and the drive-by (region at the end of the file)
+	_replay_setup()  # M15 replay: the shift conditions (region at the end of the file)
 
 
 func _process(delta: float) -> void:
@@ -817,6 +818,7 @@ func get_report_verdicts() -> PackedStringArray:
 		if best_amount > 0:
 			out.append(line(String(entry[1])) % Net.get_player_name(best))
 	out.append_array(_mayhem_report_verdicts(peers))  # M14 mayhem: shot / slips (region below)
+	out.append_array(_replay_report_lines())  # M15 replay: which conditions ran (region at the end of the file)
 	return out
 
 
@@ -1032,3 +1034,66 @@ func loop_amount_words(amount: int) -> String:
 		if amount % 10 != 0:
 			words += "-" + LOOP_ONES[amount % 10]
 	return words.substr(0, 1).to_upper() + words.substr(1)
+
+
+# --- M15 replay: shift conditions ----------------------------------------------------------------------------------
+# What the Boss has to say about a shift that is not like the others (replay agent, CONTRACTS "M15", "Replay").
+# GameState syncs the conditions, so every peer derives the same lines without a Story RPC.
+#   shift starts with conditions     cond_<id>  PROGRESS: ONE line, for the first condition only. It waits in the
+#                                    one-slot queue behind "Shift's on." and is said six seconds later, or dropped
+#                                    when something heavier comes first. The HUD toasts every condition's flat line.
+#   the shift report                 report_conditions: "Conditions: Dry air, Short clock." as the last line under
+#                                    the table (the conditions of the last shift that started), so a missed payment
+#                                    has a reason on the page. No line when none ran.
+
+## "%s" in cond_buyer = the strain's name; in report_conditions = the chip titles, comma separated.
+const REPLAY_LINES: Dictionary = {
+	"cond_dry_air": "Air's dry. Water them more.",
+	"cond_twitchy": "This batch twitches. Watch the ready ones.",
+	"cond_buyer": "Somebody wants %s. Grow it.",
+	"cond_clearance": "Seeds are cheap today. Don't get used to it.",
+	"cond_inspection_week": "Inspection week. I'll be out there. Often.",
+	"cond_bad_wiring": "The wiring's bad. Learn where the breaker is.",
+	"cond_short_clock": "Short shift. Smaller number. Same door.",
+	"cond_overtime": "You're staying late. The number went up with it.",
+	"cond_slick_floor": "Floor's wet. Walk.",
+	"cond_thin_walls": "They can hear you through these walls. Stay low.",
+	"cond_heat_wave": "It's hot. They grow fast and they drink.",
+	"cond_quiet_night": "Quiet tonight. Prices are down. Make it up in bulk.",
+	"cond_cured_order": "The order wants it cured. Use the racks.",
+	"report_conditions": "Conditions: %s.",
+}
+
+
+func _replay_setup() -> void:
+	for k in REPLAY_LINES:
+		if not lines.has(k):
+			lines[k] = REPLAY_LINES[k]
+	if GameState.has_signal(&"conditions_changed"):
+		GameState.round_started.connect(_replay_on_round_started)
+
+
+## Every peer, after the shift_start line: the Boss names the first condition (see the region header).
+func _replay_on_round_started(_round_number: int) -> void:
+	if not _in_session():
+		return
+	var ids: Array[StringName] = GameState.get_conditions()
+	if ids.is_empty():
+		return
+	var key := "cond_%s" % ShiftConditions.base_of(ids[0])
+	var strain := ShiftConditions.param_of(ids[0])
+	if strain != &"":
+		_request_named(key, _disrupt_strain_name(strain), Weight.PROGRESS)
+	else:
+		_request(key, Weight.PROGRESS)
+
+
+## The shift report's last line: the conditions that ran ("Conditions: Dry air, Short clock."); none, no line.
+func _replay_report_lines() -> PackedStringArray:
+	var out := PackedStringArray()
+	var titles := PackedStringArray()
+	for id in GameState.get_report_conditions():
+		titles.append(ShiftConditions.get_title(id))
+	if not titles.is_empty():
+		out.append(line("report_conditions") % ", ".join(titles))
+	return out

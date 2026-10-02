@@ -36,6 +36,7 @@ const REASON_FAILED := "Can't buy that now."
 const REASON_REFUNDED := "Something broke. Cash refunded."
 const REASON_NOT_CONNECTED := "No connection."
 const REASON_PRICE_CHANGED := "Price changed. Look again."
+const REASON_LOCKED := "From shift %d." # M15 replay: a strain whose SeedDef.unlock_round is still ahead
 # M11 review: the back room buys nothing (the BackRoomSpot sits inside the counter's server range); the denial is the
 # inherited Interactable.REASON_BACKROOM.
 
@@ -60,6 +61,7 @@ func _ready() -> void:
 	_decorate_from_balance()
 	# M12 disrupt: a late joiner gets a running shortage (host only; the signal fires on the server).
 	Net.peer_registered.connect(_on_peer_registered)
+	GameState.conditions_changed.connect(_decorate_from_balance) # M15 replay: the jar tags follow the day's prices
 
 
 func _exit_tree() -> void:
@@ -215,6 +217,8 @@ func server_buy_seed(peer_id: int, seed_id: StringName) -> Dictionary:
 	var seed_def: SeedDef = Config.balance.get_seed(seed_id)
 	if seed_def == null:
 		return _fail(REASON_UNKNOWN_SEED)
+	if not GameState.is_strain_unlocked(seed_def.id): # M15 replay: a strain that is not sold yet is refused here, whatever the card showed
+		return _fail(REASON_LOCKED % GameState.get_unlock_round(seed_def.id)) # M15 replay
 	if seed_def.id == shortage_strain:
 		return _fail(REASON_OUT_OF_STOCK)
 	if player.get_held_item() != null:
@@ -222,14 +226,15 @@ func server_buy_seed(peer_id: int, seed_id: StringName) -> Dictionary:
 	var items := _get_item_manager()
 	if items == null:
 		return _fail(REASON_UNAVAILABLE)
-	if not GameState.server_try_spend(seed_def.cost, peer_id, "seed:" + String(seed_def.id)):
+	var cost := GameState.get_seed_cost(seed_def) # M15 replay: today's price (the plain cost with replay off)
+	if not GameState.server_try_spend(cost, peer_id, "seed:" + String(seed_def.id)): # M15 replay: cost
 		return _fail(REASON_NO_MONEY)
 	var packet: Item = items.server_spawn_item(Const.ITEM_SEED_PACKET, {"strain_id": seed_def.id},
 			get_item_spawn_position(), peer_id)
 	if packet == null:
 		# The money is already gone: refund so a spawn bug never eats the team's cash.
-		push_warning("ShopCounter: seed packet spawn failed for peer %d, refunding %d" % [peer_id, seed_def.cost])
-		GameState.server_add_money(seed_def.cost)
+		push_warning("ShopCounter: seed packet spawn failed for peer %d, refunding %d" % [peer_id, cost]) # M15 replay: cost
+		GameState.server_add_money(cost) # M15 replay: cost
 		return _fail(REASON_REFUNDED)
 	_rpc_purchase_fx.rpc(peer_id, seed_def.color)
 	return _ok("Seeds. Don't waste them.")
@@ -362,7 +367,7 @@ func _decorate_from_balance() -> void:
 				fill.material_override = _get_seed_material(seed_def)
 			var tag := jar3d.get_node_or_null(^"PriceTag") as Label3D
 			if tag != null:
-				tag.text = "$%d" % seed_def.cost
+				tag.text = "$%d" % GameState.get_seed_cost(seed_def) # M15 replay: today's price on the jar
 			i += 1
 	if _badges != null:
 		var j := 0
