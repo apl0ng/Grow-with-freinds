@@ -38,7 +38,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline lan firewall voice_test voice_mp physics physics_mp ui_m10 ui_m10_mp events events_mp hostile hostile_mp strains flame flame_mp disrupt disrupt_mp
   review_m10 review_m10_mp review_m12 review_m12_mp qa_m10_4p qa_m12_4p lobby lobby_mp mayhem mayhem_mp loop loop_mp level alley alley_mp
   replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp economy polish variety variety_mp
-  hats hats_mp
+  hats hats_mp finale finale_mp
   qa_mouse_x11)
 
 ONLY=""
@@ -57,7 +57,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 95 96; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -358,6 +358,12 @@ run_suite variety_mp      260 "$LOGDIR/varietymp/*.log" env VARIETY_MP_PORT=$((B
 run_suite hats            240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/hats_body.gd --port=$((BASE + 87)) --replay --lobby --run=B5VP --career-file=user://hats_test_$((BASE + 87)).cfg --round-sec=900 --timeout=200
 rm -rf "$LOGDIR/hatsmp"; mkdir -p "$LOGDIR/hatsmp"
 run_suite hats_mp         260 "$LOGDIR/hatsmp/*.log" env HATS_MP_PORT=$((BASE + 88)) HATS_MP_LOGS="$LOGDIR/hatsmp" tools/tests/hats_mp.sh
+# M17 finale: the final notice, a run cleared, the record and the eyeshade on a solo host with fake workers (+93,
+# --replay --run=B5VP, its own temp career file); host + Alpha + the late joiner Bravo, each with its own temp career
+# file (+94). Neither touches the real user://career.cfg.
+run_suite finale          240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/finale_body.gd --port=$((BASE + 93)) --replay --run=B5VP --career-file=user://finale_test_$((BASE + 93)).cfg --round-sec=900 --timeout=200
+rm -rf "$LOGDIR/finalemp"; mkdir -p "$LOGDIR/finalemp"
+run_suite finale_mp       260 "$LOGDIR/finalemp/*.log" env FINALE_MP_PORT=$((BASE + 94)) FINALE_MP_LOGS="$LOGDIR/finalemp" tools/tests/finale_mp.sh
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120
