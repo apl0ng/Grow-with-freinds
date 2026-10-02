@@ -497,7 +497,7 @@ func _career_reset() -> void:
 signal hats_changed
 
 ## Accepted hat changes per peer and session (the locker goes round the catalog a few times).
-const MAX_HAT_CHANGES: int = 32
+const MAX_HAT_CHANGES: int = 160
 ## Entries looked at in a synced list (the session never has this many peers).
 const MAX_HATS_SYNCED: int = 64
 

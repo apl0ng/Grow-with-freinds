@@ -38,6 +38,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline lan firewall voice_test voice_mp physics physics_mp ui_m10 ui_m10_mp events events_mp hostile hostile_mp strains flame flame_mp disrupt disrupt_mp
   review_m10 review_m10_mp review_m12 review_m12_mp qa_m10_4p qa_m12_4p lobby lobby_mp mayhem mayhem_mp loop loop_mp level alley alley_mp
   replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp economy polish variety variety_mp
+  hats hats_mp
   qa_mouse_x11)
 
 ONLY=""
@@ -352,6 +353,11 @@ run_suite polish          200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/polish_bod
 run_suite variety         260 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/variety_body.gd --port=$((BASE + 89)) --replay --lobby --events --run=7K2M --round-sec=900 --timeout=220
 rm -rf "$LOGDIR/varietymp"; mkdir -p "$LOGDIR/varietymp"
 run_suite variety_mp      260 "$LOGDIR/varietymp/*.log" env VARIETY_MP_PORT=$((BASE + 90)) VARIETY_MP_LOGS="$LOGDIR/varietymp" tools/tests/variety_mp.sh
+# M16 hats: the catalog, the career file's hat line, the locker and the sync on a solo host with one fake worker (+87);
+# host + Alpha + the late joiner Bravo, each with its own temp career file (+88). Neither touches user://career.cfg.
+run_suite hats            240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/hats_body.gd --port=$((BASE + 87)) --replay --lobby --run=B5VP --career-file=user://hats_test_$((BASE + 87)).cfg --round-sec=900 --timeout=200
+rm -rf "$LOGDIR/hatsmp"; mkdir -p "$LOGDIR/hatsmp"
+run_suite hats_mp         260 "$LOGDIR/hatsmp/*.log" env HATS_MP_PORT=$((BASE + 88)) HATS_MP_LOGS="$LOGDIR/hatsmp" tools/tests/hats_mp.sh
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120

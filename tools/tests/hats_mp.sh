@@ -42,7 +42,7 @@ PIDS=()
 launch() { # name args...
   local name=$1; shift
   timeout 200 "$GODOT" --headless --path . -s res://tools/tests/run_test.gd -- \
-    --body=res://tools/tests/hats_mp_body.gd --port="$PORT" --round-sec=900 --replay --lobby \
+    --body=res://tools/tests/hats_mp_body.gd --port="$PORT" --round-sec=900 --replay --lobby --run=B5VP \
     --career-file="user://hats_mp_${PORT}_${name}.cfg" "$@" >"$LOGS/hats_$name.log" 2>&1 &
   PIDS+=("$!:$name")
 }
