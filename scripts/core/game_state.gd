@@ -367,6 +367,7 @@ func server_start_round() -> void:
 	s["quota"] = get_quota_for(next_round)
 	s["sales"] = 0 # quota = sales made during THIS round
 	s["time"] = Config.balance.round_length_sec
+	_run_seed_dice(_run_seed, next_round) # M16 variety: this shift's dice from the run seed (once per shift)
 	_replay_begin_shift(s, next_round) # M15 replay: this shift's conditions and market (unless the alley rolled them), their quota factor and seconds
 	s["serial"] = _serial + 1
 	s["stats"] = {}      # a fresh ledger every shift
@@ -397,6 +398,7 @@ func server_reset_game() -> void:
 		"write_ups": {},
 		"backroom": {},
 	}
+	_run_reset(s) # M16 variety: the run's seed and cover, shift 1's dice (before anything is rolled from them)
 	_replay_reset(s) # M15 replay: nothing carried over; shift 1's roll
 	if was_live:
 		_rpc_game_reset.rpc(s)
@@ -549,6 +551,7 @@ func _server_wait_for_next_shift() -> void:
 	s["quota"] = get_quota_for(next_round)
 	s["sales"] = 0
 	s["time"] = Config.balance.round_length_sec
+	_run_seed_dice(_run_seed, next_round) # M16 variety: the coming shift's dice from the run seed (once per shift)
 	_replay_begin_shift(s, next_round) # M15 replay: rolled here, so the alley shows the coming shift before boarding
 	s["serial"] = _serial + 1
 	s["stats"] = {}
@@ -1068,6 +1071,7 @@ func _snapshot() -> Dictionary:
 		"write_ups": write_ups.duplicate(),
 		"backroom": backroom.duplicate(),
 		"replay": _replay_snapshot(), # M15 replay: conditions, market, whether the host runs with replay
+		"run": _run_snapshot(), # M16 variety: the run's seed and cover layout
 	}
 
 ## Applies a state dictionary and emits change signals. `force` emits every state signal
@@ -1101,6 +1105,7 @@ func _apply_state(state: Dictionary, force: bool) -> void:
 	write_ups = _parse_int_map(state.get("write_ups", write_ups), false)
 	backroom = _parse_int_map(state.get("backroom", backroom), true)
 	_replay_apply(state, force) # M15 replay: conditions + market (their signals fire first: the rest reads them)
+	_run_apply(state, force) # M16 variety: the run's seed and cover (the Room moves its cover before the phase is heard)
 
 	if force or money != old_money:
 		money_changed.emit(money)
@@ -1675,3 +1680,164 @@ func _rpc_deposit_noted(strain: StringName, amount: int, cured: bool, value: int
 	deposit_noted.emit(strain, amount, cured, value, seller_peer)
 
 # --- end M15 career ----------------------------------------------------------------------------------------------
+
+
+# --- M16 variety ---------------------------------------------------------------------------------------------------
+# The run code, the dice it seeds, the cover it picks (FRIENDSLOP 10.1, CONTRACTS "M16", "Variety"; the code itself:
+# scripts/core/run_seed.gd). Everything here is behind the HOST's Config.replay_enabled: with it off the seed is 0,
+# the code "", the cover layout 0, nothing is seeded and nothing changes.
+#
+# State (one entry of the state dictionary, "run": {"seed", "cover"}; it rides on every broadcast and on the full
+# state a late joiner gets):
+#   seed    1 .. RunSeed.SEED_COUNT, 0 = no run. The code on the alley board is RunSeed.to_code(seed).
+#   cover   the index into Room.COVER_LAYOUTS the host derived from the seed. Every peer's Room applies it from here.
+# When it is picked (host): in server_reset_game, which is both a session's first set-up and START OVER. From
+# Config.run_code when that reads as a code, else random. server_set_run_seed changes it while the game is WAITING.
+# The cover therefore only ever changes while nobody is on a shift; a late joiner applies it when its state arrives.
+# The dice (host): every shift has its own sub-seeds (RunSeed.stream(seed, "<consumer>:<shift>")), given once when
+# the shift's card is about to be rolled: at the reset for shift 1, on the way back to the alley or at the start for
+# the others. So shift 4 of a code deals the same card whatever happened in shifts 1 to 3: the conditions and the
+# market (replay_rng), the job (_career_rng), the order and gaps of events and their picks (Events.server_seed), the
+# hostile plants' dice (Hostiles.server_seed) and the spread roll (GrowPlot.spread_rng). What the workers do is not
+# seeded. The two dice a test may seed itself (replay_rng, GrowPlot.spread_rng) are left alone from the moment
+# somebody else has seeded them: `GameState.replay_rng.seed = 7` still means what it meant.
+
+## Every peer: the run's seed or its cover layout changed (picked, set by a test, cleared in the menu).
+signal run_changed
+
+var _run_seed: int = 0
+var _run_cover: int = 0
+## HOST: picks a seed when no code was asked for (made and randomized on first use).
+var _run_rng: RandomNumberGenerator = null
+## HOST: the shift the dice were last seeded for (0 = none): a shift is seeded once.
+var _run_dice_round: int = 0
+## HOST: the seed each public die last had from this region (at start: the one it was made with). A die whose seed
+## is not this any more was seeded by a test and is the test's.
+var _run_dice_given: Dictionary = {&"replay": replay_rng.seed, &"spread": GrowPlot.spread_rng.seed}
+
+
+## The run's seed (1 .. RunSeed.SEED_COUNT), 0 when there is none: replay off, or no session.
+func get_run_seed() -> int:
+	return _run_seed
+
+
+## The run's code as the alley board shows it ("7K2M"); "" when there is none.
+func get_run_code() -> String:
+	return RunSeed.to_code(_run_seed)
+
+
+## The index into Room.COVER_LAYOUTS the run stands in (0 = the scene's own arrangement, and with replay off).
+func get_run_cover() -> int:
+	return _run_cover
+
+
+## SERVER ONLY (tests, debug). Makes `run_seed` the run's seed (folded into range by RunSeed.normalize) while the game
+## is WAITING: the code and the cover change on every peer, and the dice of the shift the game waits for are seeded
+## again. What is on the board for that shift already (conditions, market, job) stays; every later roll comes from
+## the new seed. Refused with a warning in any other phase, for a seed below 1, and with replay off.
+func server_set_run_seed(run_seed: int) -> void:
+	if not _require_server("server_set_run_seed") or not Config.replay_enabled:
+		return
+	var canonical := RunSeed.normalize(run_seed)
+	if phase != Phase.WAITING or canonical == 0:
+		push_warning("GameState.server_set_run_seed: ignored (phase %s, seed %d)" % [get_phase_name(), run_seed])
+		return
+	_run_dice_round = 0
+	_run_seed_dice(canonical, round_number)
+	var s := _snapshot()
+	s["run"] = _run_entry(canonical)
+	_rpc_state.rpc(s)
+
+
+## HOST, from server_reset_game before the replay region rolls shift 1: the run's seed into `s` and shift 1's dice.
+func _run_reset(s: Dictionary) -> void:
+	_run_dice_round = 0
+	if not Config.replay_enabled:
+		s["run"] = {"seed": 0, "cover": 0}
+		return
+	var run_seed := RunSeed.from_code(Config.run_code)
+	if run_seed == 0:
+		if _run_rng == null:
+			_run_rng = RandomNumberGenerator.new()
+			_run_rng.randomize()
+		run_seed = RunSeed.roll(_run_rng)
+	s["run"] = _run_entry(run_seed)
+	_run_seed_dice(run_seed, 1)
+
+
+## HOST: the "run" entry for `run_seed`: the seed and the cover layout it stands for.
+func _run_entry(run_seed: int) -> Dictionary:
+	return {"seed": run_seed, "cover": int(RunSeed.stream(run_seed, &"cover") % maxi(Room.COVER_LAYOUTS.size(), 1))}
+
+
+## HOST: the "run" entry of a snapshot.
+func _run_snapshot() -> Dictionary:
+	return {"seed": _run_seed, "cover": _run_cover}
+
+
+## HOST: gives every die its sub-seed for shift `round_n` of `run_seed`, once per shift (see the region header).
+func _run_seed_dice(run_seed: int, round_n: int) -> void:
+	if not Config.replay_enabled or run_seed <= 0 or _run_dice_round == round_n:
+		return
+	_run_dice_round = round_n
+	_run_give(&"replay", replay_rng, RunSeed.stream(run_seed, StringName("replay:%d" % round_n)))
+	_run_give(&"spread", GrowPlot.spread_rng, RunSeed.stream(run_seed, StringName("spread:%d" % round_n)))
+	_career_rng.seed = RunSeed.stream(run_seed, StringName("job:%d" % round_n))
+	# Events and Hostiles come later in the autoload order: looked up by path, like the career region does.
+	for pair: Array in [[^"/root/Events", "events"], [^"/root/Hostiles", "hostiles"]]:
+		var node := get_node_or_null(pair[0])
+		if node != null and node.has_method(&"server_seed"):
+			node.call(&"server_seed", RunSeed.stream(run_seed, StringName("%s:%d" % [pair[1], round_n])))
+
+
+## HOST: seeds a public die unless a test has seeded it since this region last did.
+func _run_give(key: StringName, rng: RandomNumberGenerator, value: int) -> void:
+	if int(_run_dice_given.get(key, rng.seed)) != rng.seed:
+		return
+	rng.seed = value
+	_run_dice_given[key] = rng.seed
+
+
+## Every peer, from _apply_state (after the replay entry, before the plain signals): takes the "run" entry of `state`
+## (kept as it is when the state has none; cleared in MENU), checked and clamped, and emits run_changed when it moved.
+## The Room moves its cover on that signal, so the floor is in place before phase_changed and game_reset are heard.
+func _run_apply(state: Dictionary, force: bool) -> void:
+	var new_seed := _run_seed
+	var new_cover := _run_cover
+	var raw: Variant = state.get("run")
+	if phase == Phase.MENU:
+		new_seed = 0
+		new_cover = 0
+	elif raw is Dictionary:
+		var raw_seed: Variant = (raw as Dictionary).get("seed", 0)
+		var raw_cover: Variant = (raw as Dictionary).get("cover", 0)
+		new_seed = clampi(int(raw_seed), 0, RunSeed.SEED_COUNT) if raw_seed is int else 0
+		new_cover = clampi(int(raw_cover), 0, maxi(Room.COVER_LAYOUTS.size() - 1, 0)) if raw_cover is int else 0
+	var cover_moved := new_cover != _run_cover
+	var differs := cover_moved or new_seed != _run_seed
+	_run_seed = new_seed
+	_run_cover = new_cover
+	if force or differs:
+		run_changed.emit()
+	if cover_moved and phase != Phase.MENU:
+		_run_clear_cover()
+
+
+## HOST, after the cover moved: a worker a crate now stands on is put back on their spawn point (a reset with the
+## lobby off leaves the workers where they stood; with the lobby on they are in the alley and nothing happens).
+func _run_clear_cover() -> void:
+	if not is_local_host():
+		return
+	var w: World = Game.world
+	if w == null or not is_instance_valid(w) or not w.is_inside_tree() or w.room == null:
+		return
+	for player in w.get_players():
+		if not player.is_inside_tree() or not w.room.is_in_cover(player.global_position, Room.COVER_BODY_MARGIN):
+			continue
+		var xf := w.get_spawn_transform(player.spawn_index)
+		if player.is_local() or multiplayer.get_peers().has(player.peer_id):
+			player.server_teleport(xf)
+		else:
+			player.place_at(xf)
+
+# --- end M16 variety -------------------------------------------------------------------------------------------------

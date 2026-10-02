@@ -438,3 +438,17 @@ func _on_phase_changed(phase: int) -> void:
 		# The world is about to go (and its hostiles with it): forget the session's bookkeeping.
 		_rolled.clear()
 		_sync_accum = 0.0
+
+
+# --- M16 variety: the run's dice ---------------------------------------------------------------------------------
+
+## SERVER ONLY. Reseeds this autoload's dice (the way a new hostile plant faces) from `seed_value`. With replay on
+## the host calls it once per shift with RunSeed.stream(run seed, "hostiles:<shift>") (GameState's `M16 variety`
+## region). Which plant turns is rolled in grow_plot.gd; where one wanders is each plant's own dice.
+func server_seed(seed_value: int) -> void:
+	if not _is_host():
+		push_warning("Hostiles.server_seed called on a non-host peer")
+		return
+	_rng.seed = RunSeed.stream(seed_value, &"spawn")
+
+# --- end M16 variety -----------------------------------------------------------------------------------------------

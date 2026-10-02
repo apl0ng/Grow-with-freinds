@@ -192,6 +192,37 @@ size_flags_horizontal = 3
 theme_type_variation = &"BigButton"
 text = "Report for shift"
 
+[node name="RunRow" type="HBoxContainer" parent="Center/Column/Card/Form"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="RunCaption" type="Label" parent="Center/Column/Card/Form/RunRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "Run code"
+
+[node name="RunEdit" type="LineEdit" parent="Center/Column/Card/Form/RunRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+placeholder_text = "Blank: random"
+max_length = 8
+select_all_on_focus = true
+
+[node name="RunHint" type="Label" parent="Center/Column/Card/Form/RunRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+clip_text = true
+
+[node name="WeekButton" type="Button" parent="Center/Column/Card/Form/RunRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SmallButton"
+text = "THIS WEEK"
+
 [node name="StatusLabel" type="Label" parent="Center/Column/Card/Form"]
 unique_name_in_owner = true
 visible = false

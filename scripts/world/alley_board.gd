@@ -10,7 +10,8 @@ extends Node3D
 ##                 "No shift worked yet." A START OVER keeps it (the shift that was missed is what is read).
 ##   NEXT          "Shift 4 is next.", "Payment due $520." (GameState.round_number / quota while the game waits), then
 ##                 the lines of GameState.get_shift_briefing() when that method exists (the replay agent's:
-##                 conditions, the market, new strains). Built on every peer from synced state.
+##                 conditions, the market, new strains), the job, and last the run's code, "Run 7K2M." (M16
+##                 variety; nothing when there is no code). Built on every peer from synced state.
 ##   YOUR RECORD   this player's own Career.get_title() and Career.get_summary_lines(), read through has_method
 ##                 guards. LOCAL: every player sees their own. "Nothing on file." while there is none.
 ##
@@ -33,6 +34,7 @@ const TEXT_NEXT := "Shift %d is next."
 const TEXT_DUE := "Payment due $%d."
 const TEXT_NO_RECORD := "Nothing on file."
 const TEXT_JOB := "Job: %s. $%d."
+const TEXT_RUN := "Run %s."  # M16 variety
 const HEADS: PackedStringArray = ["LAST SHIFT", "NEXT", "YOUR RECORD"]
 ## The LAST SHIFT column: this many lines of result and money, then at most this many verdicts.
 const HEAD_LINES: int = 3
@@ -72,6 +74,7 @@ func _ready() -> void:
 	_build_labels()
 	GameState.round_ended.connect(_on_round_ended)
 	GameState.phase_changed.connect(_on_phase_changed)
+	GameState.run_changed.connect(refresh)  # M16 variety: the run line follows the code
 	Net.peer_registered.connect(_on_peer_registered)
 	refresh()
 
@@ -101,7 +104,17 @@ func get_next_lines() -> PackedStringArray:
 	var job := get_job_line()  # M15 lead: the shift's job, posted with the briefing
 	if job != "":
 		out.append(job)
+	var run := get_run_line()  # M16 variety: the run's code closes the column
+	if run != "":
+		out.append(run)
 	return out
+
+
+## M16 variety: the run's code as the board posts it ("Run 7K2M."): what a friend types into the host panel to be
+## dealt the same run. "" when there is none (replay off, or before the host's state arrived).
+func get_run_line() -> String:
+	var code := GameState.get_run_code()
+	return TEXT_RUN % code if code != "" else ""
 
 
 ## The shift's job as the board posts it ("Job: three cured bundles. $60."); "" when there is none (replay off, or
