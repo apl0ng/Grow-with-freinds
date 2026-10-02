@@ -23,6 +23,13 @@ const VIEWS := {
 	"overview_ne": [Vector3(9.2, 4.3, -6.1), Vector3(-1.5, 0.0, 1.5)],
 	# M12: the emergency cabinet on the west wall, with a hostile plant and a flamethrower (GLBs) placed for the shot
 	"trouble_west": [Vector3(-6.6, 1.5, -3.4), Vector3(-9.7, 1.0, -2.4)],
+	# M14 (level agent): the grow hall from just inside the pen door and from its south-east corner, the loading dock
+	# from the passage and from its south-west corner, the corridor door seen along the corridor south of the pen
+	"hall_pen_door": [Vector3(11.3, 1.6, -1.25), Vector3(18.0, 0.7, 0.6)],
+	"hall_overview": [Vector3(21.3, 4.3, 6.6), Vector3(14.5, 0.0, -1.5)],
+	"dock_passage": [Vector3(-5.0, 1.6, 6.6), Vector3(-1.2, 1.1, 13.6)],
+	"dock_overview": [Vector3(-9.3, 4.3, 14.9), Vector3(-0.5, 0.3, 9.8)],
+	"corridor_door": [Vector3(3.6, 1.6, 6.2), Vector3(10.3, 1.2, 6.25)],
 }
 
 var _out := "user://world_preview"

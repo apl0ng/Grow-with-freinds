@@ -389,3 +389,11 @@ sections, half-block seams), `floor_slab`, `floor_slab_b`, `floor_slab_drain` (5
 `ceiling_panel_b`, `ceiling_panel_hole` (corrugated deck), `ceiling_beam` (5 m I-beam), `hole_rim`. Built by
 `tools/blender/models/{wall_panel,floor_slab,ceiling_panel,ceiling_beam,hole_rim}.py` (shared helper `_arch.py`),
 placed in room.tscn as `segment_run.gd` MultiMesh runs; `tools/tests/models_arch_test.gd` proves the tiling.
+
+M14 (level agent), `tools/blender/models/wall_opening.py` (it imports `wall_panel.py`'s `Wall` class): `wall_panel_doorway`,
+`wall_panel_doorway_b` (a 2.0 x 2.5 m walk-through doorway 1.25 m left / right of the panel centre), `wall_panel_pass`,
+`wall_panel_pass_b` (half of the 4.2 x 3.75 m dock passage on the panel's left / right edge), `wall_panel_door_c` (the
+roller door's opening, dark back, centred in one panel). Walk-through openings have no back face: two panels stand back
+to back, 0.6 m apart (2 x the 0.3 m reveal), so each variant serves both faces of its wall. The room's shell is now
+36 wall panels, 27 floor slabs and 27 deck panels (main room 20 x 15, grow hall 12 x 15, loading dock 15 x 7.5; the
+5 m modules of the hall's long walls and the dock's side walls end outside, behind the wall they meet).

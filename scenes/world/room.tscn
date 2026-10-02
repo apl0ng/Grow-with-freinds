@@ -41,11 +41,14 @@
 [ext_resource type="PackedScene" path="res://scenes/world/props/pipe_hanger.tscn" id="96_pipe_hanger"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/cable_tray.tscn" id="97_cable_tray"]
 [ext_resource type="Script" path="res://scenes/world/props/segment_run.gd" id="40_segment_run"]
+[ext_resource type="PackedScene" path="res://art/models/wall_panel_doorway.glb" id="60_wall_doorway"]
+[ext_resource type="PackedScene" path="res://art/models/wall_panel_doorway_b.glb" id="61_wall_doorway_b"]
+[ext_resource type="PackedScene" path="res://art/models/wall_panel_pass.glb" id="62_wall_pass"]
+[ext_resource type="PackedScene" path="res://art/models/wall_panel_pass_b.glb" id="63_wall_pass_b"]
+[ext_resource type="PackedScene" path="res://art/models/wall_panel_door_c.glb" id="64_wall_door_c"]
 [ext_resource type="PackedScene" path="res://art/models/wall_panel.glb" id="41_wall_a"]
 [ext_resource type="PackedScene" path="res://art/models/wall_panel_b.glb" id="42_wall_b"]
 [ext_resource type="PackedScene" path="res://art/models/wall_panel_window.glb" id="43_wall_window"]
-[ext_resource type="PackedScene" path="res://art/models/wall_panel_door.glb" id="44_wall_door"]
-[ext_resource type="PackedScene" path="res://art/models/wall_panel_door_b.glb" id="45_wall_door_b"]
 [ext_resource type="PackedScene" path="res://art/models/floor_slab.glb" id="46_floor_a"]
 [ext_resource type="PackedScene" path="res://art/models/floor_slab_b.glb" id="47_floor_b"]
 [ext_resource type="PackedScene" path="res://art/models/floor_slab_drain.glb" id="48_floor_drain"]
@@ -112,6 +115,51 @@ size = Vector3(22, 8, 1)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_3"]
 size = Vector3(1, 8, 17)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_east_north"]
+size = Vector3(0.6, 8, 6.25)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_east_mid"]
+size = Vector3(0.6, 8, 5.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_east_south"]
+size = Vector3(0.6, 8, 1.25)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_east_head"]
+size = Vector3(0.6, 4.5, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_south_east"]
+size = Vector3(13.9, 8, 0.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_south_west"]
+size = Vector3(3.9, 8, 0.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_south_head"]
+size = Vector3(4.2, 3.25, 0.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_hall_wall"]
+size = Vector3(12, 8, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_dock_side"]
+size = Vector3(1, 8, 8.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_dock_south"]
+size = Vector3(17, 8, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_hall_slab"]
+size = Vector3(13, 1, 17)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_dock_slab"]
+size = Vector3(17, 1, 9.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_m14_van_box"]
+size = Vector3(2, 1.9, 3.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_m14_van_cab"]
+size = Vector3(1.9, 1.45, 1.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m14_van"]
+size = Vector3(2, 2.2, 4.8)
 
 [sub_resource type="BoxMesh" id="BoxMesh_8"]
 flip_faces = true
@@ -331,7 +379,7 @@ flip_alternate = false
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.5, 0, 7.5)
 cast_shadow = 0
 script = ExtResource("40_segment_run")
-model = ExtResource("45_wall_door_b")
+model = ExtResource("63_wall_pass_b")
 count = 1
 step = 5.0
 flip_alternate = false
@@ -340,7 +388,7 @@ flip_alternate = false
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -7.5, 0, 7.5)
 cast_shadow = 0
 script = ExtResource("40_segment_run")
-model = ExtResource("44_wall_door")
+model = ExtResource("62_wall_pass")
 count = 1
 step = 5.0
 flip_alternate = false
@@ -350,7 +398,7 @@ transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 10, 0, -5)
 cast_shadow = 0
 script = ExtResource("40_segment_run")
 model = ExtResource("41_wall_a")
-count = 2
+count = 1
 step = 10.0
 flip_alternate = false
 
@@ -358,7 +406,7 @@ flip_alternate = false
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 10, 0, 0)
 cast_shadow = 0
 script = ExtResource("40_segment_run")
-model = ExtResource("42_wall_b")
+model = ExtResource("60_wall_doorway")
 count = 1
 step = 5.0
 flip_alternate = false
@@ -395,12 +443,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, -8)
 shape = SubResource("BoxShape3D_2")
 
 [node name="SouthShape" type="CollisionShape3D" parent="Walls"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 8)
-shape = SubResource("BoxShape3D_2")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.05, 3, 7.8)
+shape = SubResource("BoxShape3D_m14_south_east")
 
 [node name="EastShape" type="CollisionShape3D" parent="Walls"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.5, 3, 0)
-shape = SubResource("BoxShape3D_3")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.3, 3, -5.375)
+shape = SubResource("BoxShape3D_m14_east_north")
 
 [node name="WestShape" type="CollisionShape3D" parent="Walls"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.5, 3, 0)
@@ -749,10 +797,10 @@ outline_size = 6
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -10, 0, 4.9)
 
 [node name="RollerDoor" parent="Decor" instance=ExtResource("23_roller_door")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -5.5, 0, 7.5)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.5, 0, 15.6)
 
 [node name="IncidentSign" parent="Decor" instance=ExtResource("14_sign_board")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -5.5, 4.75, 7.48)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -5, 4.75, 7.48)
 text = "DAYS WITHOUT
 INCIDENT:  0"
 board_size = Vector2(2.6, 1.0)
@@ -782,7 +830,7 @@ transform = Transform3D(-0.104528, 0, 0.994522, 0, 1, 0, -0.994522, 0, -0.104528
 transform = Transform3D(0.990268, 0, 0.139173, 0, 1, 0, -0.139173, 0, 0.990268, 2.2, 0.3, 6.75)
 
 [node name="Cot" parent="Decor" instance=ExtResource("28_cot")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.4, 0, 6.75)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.4, 0, 2.35)
 
 [node name="CrateC" parent="Decor" instance=ExtResource("27_crate")]
 transform = Transform3D(0.978148, 0, -0.207912, 0, 1, 0, 0.207912, 0, 0.978148, 6.35, 0, 6.8)
@@ -917,6 +965,553 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -6.9)
 [node name="P16" type="Marker3D" parent="Decor/InspectionRoute"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0, -6.9)
 
+[node name="HallSlabsNorth" type="MultiMeshInstance3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 0, -5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("46_floor_a")
+count = 3
+step = 5.0
+flip_alternate = true
+
+[node name="HallSlabsMid" type="MultiMeshInstance3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 0, 0)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("47_floor_b")
+count = 3
+step = 5.0
+flip_alternate = true
+
+[node name="HallSlabsSouth" type="MultiMeshInstance3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 0, 5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("46_floor_a")
+count = 3
+step = 5.0
+flip_alternate = false
+
+[node name="DockSlabsNorth" type="MultiMeshInstance3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0, 10)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("47_floor_b")
+count = 3
+step = 5.0
+flip_alternate = true
+
+[node name="DockSlabsSouth" type="MultiMeshInstance3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0, 15)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("46_floor_a")
+count = 3
+step = 5.0
+flip_alternate = true
+
+[node name="HallShape" type="CollisionShape3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.5, -0.5, 0)
+shape = SubResource("BoxShape3D_m14_hall_slab")
+
+[node name="DockShape" type="CollisionShape3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, -0.5, 12.55)
+shape = SubResource("BoxShape3D_m14_dock_slab")
+
+[node name="EastDoorwayB" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 10, 0, 5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("61_wall_doorway_b")
+count = 1
+step = 5.0
+flip_alternate = false
+
+[node name="HallWestB" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 10.6, 0, -5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("42_wall_b")
+count = 1
+step = 5.0
+flip_alternate = false
+
+[node name="HallWestDoorwayB" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 10.6, 0, 0)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("61_wall_doorway_b")
+count = 1
+step = 5.0
+flip_alternate = false
+
+[node name="HallWestDoorway" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 10.6, 0, 5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("60_wall_doorway")
+count = 1
+step = 5.0
+flip_alternate = false
+
+[node name="HallNorthB" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 0, -7.5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("42_wall_b")
+count = 2
+step = 10.0
+flip_alternate = false
+
+[node name="HallNorthA" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17.5, 0, -7.5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("41_wall_a")
+count = 1
+step = 5.0
+flip_alternate = false
+
+[node name="HallSouthA" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 22.5, 0, 7.5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("41_wall_a")
+count = 2
+step = 10.0
+flip_alternate = false
+
+[node name="HallSouthB" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 17.5, 0, 7.5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("42_wall_b")
+count = 1
+step = 5.0
+flip_alternate = false
+
+[node name="HallEastA" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 22, 0, -5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("41_wall_a")
+count = 2
+step = 10.0
+flip_alternate = false
+
+[node name="HallEastWindow" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 22, 0, 0)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("43_wall_window")
+count = 1
+step = 5.0
+flip_alternate = false
+
+[node name="DockNorthPassB" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0, 8.1)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("63_wall_pass_b")
+count = 1
+step = 5.0
+flip_alternate = false
+
+[node name="DockNorthPass" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0, 8.1)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("62_wall_pass")
+count = 1
+step = 5.0
+flip_alternate = false
+
+[node name="DockNorthA" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0, 8.1)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("41_wall_a")
+count = 1
+step = 5.0
+flip_alternate = false
+
+[node name="DockSouthWindow" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.5, 0, 15.6)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("43_wall_window")
+count = 2
+step = 10.0
+flip_alternate = false
+
+[node name="DockSouthDoor" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.5, 0, 15.6)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("64_wall_door_c")
+count = 1
+step = 5.0
+flip_alternate = false
+
+[node name="DockWestA" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -10, 0, 15.6)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("41_wall_a")
+count = 2
+step = 5.0
+flip_alternate = false
+
+[node name="DockEastB" type="MultiMeshInstance3D" parent="Walls"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5, 0, 10.6)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("42_wall_b")
+count = 2
+step = 5.0
+flip_alternate = false
+
+[node name="EastShapeMid" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.3, 3, 2.5)
+shape = SubResource("BoxShape3D_m14_east_mid")
+
+[node name="EastShapeSouth" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.3, 3, 7.875)
+shape = SubResource("BoxShape3D_m14_east_south")
+
+[node name="EastHeadPen" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.3, 4.75, -1.25)
+shape = SubResource("BoxShape3D_m14_east_head")
+
+[node name="EastHeadSouth" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.3, 4.75, 6.25)
+shape = SubResource("BoxShape3D_m14_east_head")
+
+[node name="SouthShapeWest" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.05, 3, 7.8)
+shape = SubResource("BoxShape3D_m14_south_west")
+
+[node name="SouthHead" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 5.375, 7.8)
+shape = SubResource("BoxShape3D_m14_south_head")
+
+[node name="HallNorthShape" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 3, -8)
+shape = SubResource("BoxShape3D_m14_hall_wall")
+
+[node name="HallSouthShape" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 3, 8)
+shape = SubResource("BoxShape3D_m14_hall_wall")
+
+[node name="HallEastShape" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22.5, 3, 0)
+shape = SubResource("BoxShape3D_3")
+
+[node name="DockWestShape" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.5, 3, 12.35)
+shape = SubResource("BoxShape3D_m14_dock_side")
+
+[node name="DockEastShape" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 3, 12.35)
+shape = SubResource("BoxShape3D_m14_dock_side")
+
+[node name="DockSouthShape" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 3, 16.1)
+shape = SubResource("BoxShape3D_m14_dock_south")
+
+[node name="HallPanelsNorth" type="MultiMeshInstance3D" parent="Ceiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 6.1, -5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("49_ceiling_a")
+count = 3
+step = 5.0
+flip_alternate = true
+
+[node name="HallPanelsMid" type="MultiMeshInstance3D" parent="Ceiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 6.1, 0)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("50_ceiling_b")
+count = 3
+step = 5.0
+flip_alternate = false
+
+[node name="HallPanelsSouth" type="MultiMeshInstance3D" parent="Ceiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 6.1, 5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("49_ceiling_a")
+count = 3
+step = 5.0
+flip_alternate = false
+
+[node name="DockPanelsNorth" type="MultiMeshInstance3D" parent="Ceiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 6.1, 10)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("50_ceiling_b")
+count = 3
+step = 5.0
+flip_alternate = true
+
+[node name="DockPanelsSouth" type="MultiMeshInstance3D" parent="Ceiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 6.1, 15)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("49_ceiling_a")
+count = 3
+step = 5.0
+flip_alternate = true
+
+[node name="HallBeamWest" type="MultiMeshInstance3D" parent="Ceiling"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 15, 6, -5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("52_ceiling_beam")
+count = 3
+step = 5.0
+flip_alternate = false
+
+[node name="HallBeamEast" type="MultiMeshInstance3D" parent="Ceiling"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20, 6, -5)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("52_ceiling_beam")
+count = 3
+step = 5.0
+flip_alternate = true
+
+[node name="DockBeamWest" type="MultiMeshInstance3D" parent="Ceiling"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -5, 6, 10)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("52_ceiling_beam")
+count = 2
+step = 5.0
+flip_alternate = true
+
+[node name="DockBeamEast" type="MultiMeshInstance3D" parent="Ceiling"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, 6, 10)
+cast_shadow = 0
+script = ExtResource("40_segment_run")
+model = ExtResource("52_ceiling_beam")
+count = 2
+step = 5.0
+flip_alternate = false
+
+[node name="HallShape" type="CollisionShape3D" parent="Ceiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.5, 6.5, 0)
+shape = SubResource("BoxShape3D_m14_hall_slab")
+
+[node name="DockShape" type="CollisionShape3D" parent="Ceiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 6.5, 12.55)
+shape = SubResource("BoxShape3D_m14_dock_slab")
+
+[node name="HallPipeA" parent="Ceiling" instance=ExtResource("92_pipe_segment")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 5.25, -6.7)
+count = 6
+tint = Color(0.435294, 0.466667, 0.529412, 1)
+
+[node name="HallPipeHangersA" parent="Ceiling" instance=ExtResource("96_pipe_hanger")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 5.25, -6.7)
+count = 2
+step = 6.0
+
+[node name="HallPipeB" parent="Ceiling" instance=ExtResource("92_pipe_segment")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 5.05, -6.35)
+count = 6
+tint = Color(0.639216, 0.341176, 0.180392, 1)
+
+[node name="HallPipeHangersB" parent="Ceiling" instance=ExtResource("96_pipe_hanger")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 5.05, -6.35)
+count = 2
+step = 6.0
+
+[node name="HallCableTray" parent="Ceiling" instance=ExtResource("97_cable_tray")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 6, 1.4)
+count = 6
+
+[node name="DockPipe" parent="Ceiling" instance=ExtResource("92_pipe_segment")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 5.3, 8.8)
+count = 7
+tint = Color(0.486275, 0.52549, 0.396078, 1)
+
+[node name="DockPipeHangers" parent="Ceiling" instance=ExtResource("96_pipe_hanger")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 5.3, 8.8)
+count = 3
+step = 6.0
+
+[node name="Hall" type="Node3D" parent="."]
+
+[node name="GrowLightWest" parent="Hall" instance=ExtResource("15_grow_light")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 3.2, 0)
+
+[node name="GrowLightEast" parent="Hall" instance=ExtResource("15_grow_light")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.6, 3.2, 0)
+
+[node name="GrowWarmLight" type="OmniLight3D" parent="Hall"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17.3, 2.8, 0)
+light_color = Color(1, 0.768627, 0.478431, 1)
+light_energy = 1.9
+light_specular = 0.15
+omni_range = 7
+
+[node name="FluoroWest" parent="Hall" instance=ExtResource("31_fluoro_light")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 12.6, 6, 2.4)
+
+[node name="RackLamp" parent="Hall" instance=ExtResource("30_pendant_lamp")]
+transform = Transform3D(0.99863, 0.052336, 0, -0.052336, 0.99863, 0, 0, 0, 1, 15.7, 6, -5.3)
+
+[node name="SouthLamp" parent="Hall" instance=ExtResource("30_pendant_lamp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.3, 6, 5.4)
+swing_degrees = 3
+
+[node name="Window" parent="Hall" instance=ExtResource("21_barred_window")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 22, 4.1, -0.8)
+
+[node name="QuotaSign" parent="Hall" instance=ExtResource("14_sign_board")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 21.98, 2.9, -4.4)
+text = "QUOTA IS
+THE MINIMUM"
+board_size = Vector2(2.2, 1.2)
+font_size = 84
+text_color = Color(0.95, 0.92, 0.82, 1)
+outline_color = Color(0.18, 0.165, 0.24, 1)
+board_material = ExtResource("10_rust")
+frame_material = ExtResource("8_metal_dark")
+outline_size = 12
+
+[node name="LeakyPipe" parent="Hall" instance=ExtResource("22_leaky_pipe")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 22, 0, 3.8)
+
+[node name="Camera" parent="Hall" instance=ExtResource("20_security_camera")]
+transform = Transform3D(0.819152, 0, -0.573576, 0, 1, 0, 0.573576, 0, 0.819152, 21.65, 4.7, -7.5)
+
+[node name="CrateNorthA" parent="Hall" instance=ExtResource("27_crate")]
+transform = Transform3D(0.990268, 0, 0.139173, 0, 1, 0, -0.139173, 0, 0.990268, 20.9, 0, -6.75)
+
+[node name="CrateNorthB" parent="Hall" instance=ExtResource("27_crate")]
+transform = Transform3D(0.978148, 0, -0.207912, 0, 1, 0, 0.207912, 0, 0.978148, 20.95, 0.9, -6.8)
+
+[node name="DrumNorth" parent="Hall" instance=ExtResource("25_oil_drum")]
+transform = Transform3D(0.766044, 0, 0.642788, 0, 1, 0, -0.642788, 0, 0.766044, 19.85, 0, -6.95)
+
+[node name="PalletSouth" parent="Hall" instance=ExtResource("26_pallet")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 20.7, 0, 6.7)
+
+[node name="CrateSouth" parent="Hall" instance=ExtResource("27_crate")]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 20.7, 0.15, 6.7)
+
+[node name="DrumSouth" parent="Hall" instance=ExtResource("25_oil_drum")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21.45, 0, 5.3)
+
+[node name="Dock" type="Node3D" parent="."]
+
+[node name="DockVan" type="StaticBody3D" parent="Dock"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.5, 0, 9.6)
+collision_mask = 0
+
+[node name="Visual" type="Node3D" parent="Dock/DockVan"]
+
+[node name="Box" type="MeshInstance3D" parent="Dock/DockVan/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0.8)
+mesh = SubResource("BoxMesh_m14_van_box")
+material_override = ExtResource("5_olive")
+
+[node name="Cab" type="MeshInstance3D" parent="Dock/DockVan/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.025, -1.6)
+mesh = SubResource("BoxMesh_m14_van_cab")
+material_override = ExtResource("8_metal_dark")
+
+[node name="Shape" type="CollisionShape3D" parent="Dock/DockVan"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0)
+shape = SubResource("BoxShape3D_m14_van")
+
+[node name="RollerLamp" parent="Dock" instance=ExtResource("31_fluoro_light")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 6, 13.4)
+flicker = true
+
+[node name="PassageLamp" parent="Dock" instance=ExtResource("30_pendant_lamp")]
+transform = Transform3D(1, 0, 0, 0, 0.997564, 0.069756, 0, -0.069756, 0.997564, -5.4, 6, 10.6)
+
+[node name="VanLamp" parent="Dock" instance=ExtResource("30_pendant_lamp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 6, 10.4)
+swing_degrees = 4
+
+[node name="WindowWest" parent="Dock" instance=ExtResource("21_barred_window")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -6.7, 4.1, 15.6)
+
+[node name="WindowEast" parent="Dock" instance=ExtResource("21_barred_window")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.3, 4.1, 15.6)
+
+[node name="NoExitSign" parent="Dock" instance=ExtResource("14_sign_board")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 1.4, 2.7, 15.58)
+text = "NO EXIT"
+board_size = Vector2(1.8, 0.8)
+font_size = 100
+text_color = Color(0.18, 0.165, 0.24, 1)
+outline_color = Color(0.97, 0.9, 0.62, 1)
+board_material = ExtResource("7_caution")
+frame_material = ExtResource("8_metal_dark")
+outline_size = 6
+
+[node name="Camera" parent="Dock" instance=ExtResource("20_security_camera")]
+transform = Transform3D(-0.819152, 0, -0.573576, 0, 1, 0, 0.573576, 0, -0.819152, 4.65, 4.7, 15.6)
+
+[node name="CrateWestA" parent="Dock" instance=ExtResource("27_crate")]
+transform = Transform3D(0.990268, 0, 0.139173, 0, 1, 0, -0.139173, 0, 0.990268, -6.3, 0, 12.4)
+
+[node name="CrateWestB" parent="Dock" instance=ExtResource("27_crate")]
+transform = Transform3D(0.978148, 0, -0.207912, 0, 1, 0, 0.207912, 0, 0.978148, -6.25, 0.9, 12.45)
+
+[node name="CrateWestC" parent="Dock" instance=ExtResource("27_crate")]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -7.4, 0, 12.2)
+
+[node name="CrateMidA" parent="Dock" instance=ExtResource("27_crate")]
+transform = Transform3D(0.978148, 0, -0.207912, 0, 1, 0, 0.207912, 0, 0.978148, -4.6, 0, 11.6)
+
+[node name="CrateMidB" parent="Dock" instance=ExtResource("27_crate")]
+transform = Transform3D(0.990268, 0, 0.139173, 0, 1, 0, -0.139173, 0, 0.990268, -4.55, 0.9, 11.6)
+
+[node name="PalletEast" parent="Dock" instance=ExtResource("26_pallet")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 4.2, 0, 12.3)
+
+[node name="CrateEast" parent="Dock" instance=ExtResource("27_crate")]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 4.2, 0.15, 12.3)
+
+[node name="PalletWestA" parent="Dock" instance=ExtResource("26_pallet")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.2, 0, 10.4)
+
+[node name="PalletWestB" parent="Dock" instance=ExtResource("26_pallet")]
+transform = Transform3D(-0.104528, 0, 0.994522, 0, 1, 0, -0.994522, 0, -0.104528, -9.2, 0.15, 10.4)
+
+[node name="CrateWestD" parent="Dock" instance=ExtResource("27_crate")]
+transform = Transform3D(0.990268, 0, 0.139173, 0, 1, 0, -0.139173, 0, 0.990268, -9.2, 0.3, 10.45)
+
+[node name="DrumWestA" parent="Dock" instance=ExtResource("25_oil_drum")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.3, 0, 14.7)
+
+[node name="DrumWestB" parent="Dock" instance=ExtResource("25_oil_drum")]
+transform = Transform3D(0.34202, 0, 0.939693, 0, 1, 0, -0.939693, 0, 0.34202, -8.55, 0, 14.95)
+
+[node name="DrumEast" parent="Dock" instance=ExtResource("25_oil_drum")]
+transform = Transform3D(0.766044, 0, 0.642788, 0, 1, 0, -0.642788, 0, 0.766044, 4.3, 0, 14.6)
+
+[node name="Arrivals" type="Node3D" parent="."]
+
+[node name="Arrival0" type="Marker3D" parent="Arrivals"]
+transform = Transform3D(0.422618, 0, 0.906308, 0, 1, 0, -0.906308, 0, 0.422618, -1.3, 0.2, 9.4)
+
+[node name="Arrival1" type="Marker3D" parent="Arrivals"]
+transform = Transform3D(0.642788, 0, 0.766044, 0, 1, 0, -0.766044, 0, 0.642788, -1.3, 0.2, 11)
+
+[node name="Arrival2" type="Marker3D" parent="Arrivals"]
+transform = Transform3D(0.766044, 0, 0.642788, 0, 1, 0, -0.642788, 0, 0.766044, -2.9, 0.2, 10.2)
+
+[node name="Arrival3" type="Marker3D" parent="Arrivals"]
+transform = Transform3D(0.882948, 0, 0.469472, 0, 1, 0, -0.469472, 0, 0.882948, -2.9, 0.2, 11.8)
+
 [node name="Spawns" type="Node3D" parent="."]
 
 [node name="Spawn1" type="Marker3D" parent="Spawns"]
@@ -959,6 +1554,18 @@ transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5, 0, 3)
 
 [node name="GrowPlot6" parent="Stations" instance=ExtResource("36_grow_plot")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 7.6, 0, 3)
+
+[node name="GrowPlot7" parent="Stations" instance=ExtResource("36_grow_plot")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 16, 0, -1.5)
+
+[node name="GrowPlot8" parent="Stations" instance=ExtResource("36_grow_plot")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 18.6, 0, -1.5)
+
+[node name="GrowPlot9" parent="Stations" instance=ExtResource("36_grow_plot")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 16, 0, 1.5)
+
+[node name="GrowPlot10" parent="Stations" instance=ExtResource("36_grow_plot")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 18.6, 0, 1.5)
 
 [node name="FuseBox" parent="Stations" instance=ExtResource("54_fuse_box")]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.98, 1.2, -4)

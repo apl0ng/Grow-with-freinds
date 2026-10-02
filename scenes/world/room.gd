@@ -13,8 +13,17 @@ extends Node3D
 ##   east (x+)  : fenced GROW AREA (gate on its west side, caution stripes), GrowPlot1..6 in a 2x3 grid
 ##                (x 5.0 / 7.6, z -3.0 / 0 / 3.0) facing -X under two grow-light bars
 ##   west (x-)  : Well (water tank) at (-6.8, 0, 0) facing +X with its feed pipe, a barred night window, a leak
-##   south (z+) : TurnInStation at (0, 0, 5.8) facing -Z, the chained + beamed roller door, CLOCK IN, pallets
+##   south (z+) : TurnInStation at (0, 0, 5.8) facing -Z, the passage to the loading dock (M14: the chained + beamed
+##                roller door stands on the dock's outer wall now), CLOCK IN, pallets
 ##   ceiling    : 6 m, steel beams, pipes, a cable tray, drop-down pendant lamps and a black hole with dust
+## M14 (level agent): two annexes joined to the main room, see the "M14 level" region at the end of this file:
+##   grow hall  : x 10..22, the main room's z range. Two doorways (2.0 x 2.5 m) in the east wall: z -2.25..-0.25 from
+##                inside the grow pen, z 5.25..7.25 from the corridor south of it. GrowPlot7..10 (x 16.0 / 18.6,
+##                z -1.5 / 1.5) under two grow-light bars; the north wall is kept clear for the drying racks.
+##   loading dock: x -10..5, z 7.5..15.6, through the 4.2 x 3.75 m passage where the roller door used to be
+##                (x -7.1..-2.9). Arrivals/Arrival0..3 behind the parked van, crate stacks, the roller door (chained)
+##                and two high windows on its south wall.
+## INTERIOR_SIZE / get_bounds() still describe the main room; get_play_areas() lists all three.
 ## Every station's "front" (+Z in its local space) faces the room centre.
 ## Solid geometry (floor, walls, ceiling, booth partitions, fences, solid props) is on collision layer 1, mask 0.
 ## Props live under $Decor as scenes from scenes/world/props/ with their meshes under a `Visual` child.
@@ -27,8 +36,11 @@ const INTERIOR_SIZE := Vector3(20.0, 6.0, 15.0)
 const STATION_NAMES: PackedStringArray = [
 	"ShopCounter", "Well", "TurnInStation",
 	"GrowPlot1", "GrowPlot2", "GrowPlot3", "GrowPlot4", "GrowPlot5", "GrowPlot6",
+	"GrowPlot7", "GrowPlot8", "GrowPlot9", "GrowPlot10", # M14 level: the grow hall's trays
 	"FuseBox",
 ]
+## M14 level: how many trays the floor has (GrowPlot1..GROW_PLOT_COUNT: six in the pen, four in the grow hall).
+const GROW_PLOT_COUNT := 10
 ## Stations mounted on a wall (not on the floor).
 const WALL_STATION_NAMES: PackedStringArray = ["FuseBox"]
 
@@ -121,7 +133,7 @@ func get_spawn_transform(index: int) -> Transform3D:
 	return t
 
 
-## A station node by name ("ShopCounter", "Well", "TurnInStation", "GrowPlot1".."GrowPlot6"), or null.
+## A station node by name ("ShopCounter", "Well", "TurnInStation", "GrowPlot1".."GrowPlot10", ...), or null.
 func get_station(station_name: String) -> Node3D:
 	if station_name.is_empty():
 		return null
@@ -425,15 +437,16 @@ func _set_fixtures_powered(on: bool) -> void:
 
 ## The grow-light bars' glowing tubes (grow_light.tscn instances: `Tube` meshes under their Visual).
 func _set_grow_tubes(on: bool) -> void:
-	var decor := get_node_or_null(^"Decor")
-	if decor == null:
-		return
-	for c in decor.get_children():
-		if not (c is Node3D) or not String(c.scene_file_path).ends_with("grow_light.tscn"):
+	for holder_path: NodePath in [^"Decor", ^"Hall"]: # M14 level: the grow hall's bars too
+		var holder := get_node_or_null(holder_path)
+		if holder == null:
 			continue
-		for t in c.find_children("Tube", "", true, false):
-			if t is Node3D:
-				(t as Node3D).visible = on
+		for c in holder.get_children():
+			if not (c is Node3D) or not String(c.scene_file_path).ends_with("grow_light.tscn"):
+				continue
+			for t in c.find_children("Tube", "", true, false):
+				if t is Node3D:
+					(t as Node3D).visible = on
 
 
 func _environment() -> Environment:
@@ -460,22 +473,305 @@ func _to_global(room_local: Transform3D) -> Transform3D:
 	return room_local
 
 
-# --- M14 stubs (lead): the level agent replaces these with the real annexes --------------------------------------------
+# --- M14 level: the grow hall, the loading dock, play areas, arrivals, gunfire lanes, routes ---------------------------
 
-## Where worker index stands after the van ride (the loading dock). Stub: the spawn transform.
-func get_arrival_transform(index: int) -> Transform3D:
-	return get_spawn_transform(index)
+## The annexes in Room-local metres, floor to ceiling. Each box includes the SHARED_WALL it has in common with the
+## main room (solid apart from its openings), so the three areas touch and a point in a doorway is inside one of them.
+const HALL_AREA := AABB(Vector3(10.0, 0.0, -7.5), Vector3(12.0, 6.0, 15.0))
+const DOCK_AREA := AABB(Vector3(-10.0, 0.0, 7.5), Vector3(15.0, 6.0, 8.1))
+## Thickness of the walls between the main room and the annexes (two wall panels back to back).
+const SHARED_WALL := 0.6
+## The openings between the areas (Room-local): `center` on the floor in the middle of the wall, `axis` the way
+## through it from the main room into the annex, clear `width` and `height`.
+const DOORWAYS: Array[Dictionary] = [
+	{"name": "pen_door", "center": Vector3(10.3, 0.0, -1.25), "axis": Vector3(1.0, 0.0, 0.0), "width": 2.0, "height": 2.5},
+	{"name": "corridor_door", "center": Vector3(10.3, 0.0, 6.25), "axis": Vector3(1.0, 0.0, 0.0), "width": 2.0, "height": 2.5},
+	{"name": "dock_passage", "center": Vector3(-5.0, 0.0, 7.8), "axis": Vector3(0.0, 0.0, 1.0), "width": 4.2, "height": 3.75},
+]
+## Where the workers stand after the van ride (Marker3Ds Arrival0..3 on the dock, feet + 0.2 m, facing the passage).
+const ARRIVALS_PATH := ^"Arrivals"
+## What a walking body cannot cross, as Room-local floor rectangles (x, z, width, depth). The first
+## WALL_BLOCKER_COUNT are the solid walls between the areas (minus the doorways); then the pen's chain-link fence
+## (minus the gate) and the Boss's booth with its counter. Trays, crates and the van are not listed: whoever walks a
+## route still looks where it steps.
+const WALK_BLOCKERS: Array[Rect2] = [
+	Rect2(10.0, -7.5, 0.6, 5.25), Rect2(10.0, -0.25, 0.6, 5.5), Rect2(10.0, 7.25, 0.6, 0.25),
+	Rect2(-10.0, 7.5, 2.9, 0.6), Rect2(-2.9, 7.5, 12.9, 0.6),
+	Rect2(3.0, -5.05, 7.0, 0.1), Rect2(3.0, 4.95, 7.0, 0.1), Rect2(2.95, -5.0, 0.1, 2.5), Rect2(2.95, 2.5, 0.1, 2.5),
+	Rect2(-2.12, -7.5, 4.24, 3.1),
+]
+const WALL_BLOCKER_COUNT := 5
+## A route keeps this far from every blocker (a body is wider than a line), except where it starts or ends closer.
+const ROUTE_MARGIN := 0.35
+## The hand-made waypoint graph (Room-local x, z on the floor): the pen gate, the aisle between the pen's tray rows,
+## both hall doorways, the corridor south of the pen, the open floor and the dock passage.
+const ROUTE_POINTS: Array[Vector2] = [
+	Vector2(2.1, 0.0),      # 0 outside the pen gate
+	Vector2(3.9, 0.0),      # 1 inside the gate
+	Vector2(3.9, -1.5),     # 2 the pen's west aisle, level with the gap between the tray rows
+	Vector2(9.2, -1.35),    # 3 the pen's east aisle, at the pen door
+	Vector2(11.6, -1.25),   # 4 the hall, inside the pen door
+	Vector2(11.6, 6.25),    # 5 the hall, inside the corridor door
+	Vector2(9.2, 6.25),     # 6 the corridor, at its door
+	Vector2(7.6, 5.66),     # 7 the corridor south of the pen
+	Vector2(2.3, 5.6),      # 8 the pen's south-west corner
+	Vector2(-1.0, 3.2),     # 9 the open floor
+	Vector2(-5.0, 6.3),     # 10 the main room, at the dock passage
+	Vector2(-5.0, 9.4),     # 11 the dock, inside the passage
+]
+const ROUTE_EDGES: Array[Vector2i] = [
+	Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5), Vector2i(5, 6), Vector2i(6, 7),
+	Vector2i(7, 8), Vector2i(8, 0), Vector2i(8, 9), Vector2i(0, 9), Vector2i(9, 10), Vector2i(0, 10), Vector2i(10, 11),
+]
+## Drive-by lanes, Room-local [from, to] at chest height. `from` is just inside the outer wall the shots come through
+## (the dock's roller door and its two windows, the main room's west window), `to` is where the lane ends on a wall.
+## Lanes 0, 1 and 3 leave the dock through the passage and cross the main room; the crate stacks on the dock stand in
+## lanes 1 and 3, the pen's trays under lane 5.
+const GUNFIRE_HEIGHT := 1.3
+const GUNFIRE_LANES: Array = [
+	[Vector3(-3.3, 1.3, 15.3), Vector3(-4.0, 1.3, -7.2)],   # 0 roller door -> passage -> the main room's north wall
+	[Vector3(-2.5, 1.3, 15.3), Vector3(-9.7, 1.3, 1.5)],    # 1 roller door -> passage -> west wall (CrateMid in it)
+	[Vector3(-1.1, 1.3, 15.3), Vector3(-0.6, 1.3, 8.4)],    # 2 roller door -> across the dock, past the van's rear
+	[Vector3(-6.7, 1.3, 15.3), Vector3(-4.0, 1.3, -7.2)],   # 3 dock west window -> passage -> north wall (CrateWest)
+	[Vector3(3.3, 1.3, 15.3), Vector3(-9.7, 1.3, 3.6)],     # 4 dock east window -> passage -> the main room's west wall
+	[Vector3(-9.5, 1.3, -4.6), Vector3(9.7, 1.3, 0.6)],     # 5 west window -> the pen gate -> over GrowPlot3 / 4
+]
 
 
-## Drive-by lanes in global space: each {"from": Vector3, "to": Vector3} at chest height, from outside inwards. Stub:
-## three lanes across the main room from the south wall.
-func get_gunfire_lanes() -> Array:
-	var out: Array = []
-	for x: float in [-4.0, 0.5, 4.0]:
-		out.append({"from": global_transform * Vector3(x, 1.3, INTERIOR_SIZE.z * 0.5 - 0.3), "to": global_transform * Vector3(x * 0.6, 1.3, -INTERIOR_SIZE.z * 0.5 + 0.3)})
+## Arrival markers in order (Arrival0..Arrival3); empty when the room has none.
+func get_arrival_points() -> Array[Marker3D]:
+	var out: Array[Marker3D] = []
+	var holder := get_node_or_null(ARRIVALS_PATH)
+	if holder == null:
+		return out
+	for c in holder.get_children():
+		if c is Marker3D:
+			out.append(c)
 	return out
 
 
-## Every walkable room as an AABB in global space. Stub: the main room only.
+## Where worker `index` stands after the van ride: on the loading dock behind the parked van, facing the passage
+## into the building (wraps like get_spawn_transform; the spawn transform when the room has no arrival markers).
+func get_arrival_transform(index: int) -> Transform3D:
+	var pts := get_arrival_points()
+	if pts.is_empty():
+		return get_spawn_transform(index)
+	var i := posmod(index, pts.size())
+	var wraps := floori(float(absi(index)) / float(pts.size()))
+	var t := _to_global(_room_transform_of(pts[i]))
+	if wraps > 0:
+		var side := 1.0 if wraps % 2 == 1 else -1.0
+		t.origin += t.basis.x.normalized() * SPAWN_WRAP_OFFSET * side * ceilf(float(wraps) * 0.5)
+	return t
+
+
+## Every walkable room as an AABB (global space in the tree, Room-local otherwise): the main room (== get_bounds()),
+## the grow hall, the loading dock.
 func get_play_areas() -> Array[AABB]:
-	return [get_bounds()]
+	var out: Array[AABB] = [get_bounds()]
+	for local: AABB in [HALL_AREA, DOCK_AREA]:
+		out.append(global_transform * local if is_inside_tree() else local)
+	return out
+
+
+## The box round all the play areas (it also covers the outside corner between the hall and the dock: ask
+## contains_point() whether a point is on the floor).
+func get_play_bounds() -> AABB:
+	var areas := get_play_areas()
+	var box := areas[0]
+	for i in range(1, areas.size()):
+		box = box.merge(areas[i])
+	return box
+
+
+## Index into get_play_areas() of the area `point` (global) is in: 0 main room, 1 grow hall, 2 loading dock, -1 none.
+## Only x / z count, plus a little slack below the floor and above the ceiling.
+func get_area_index(point: Vector3) -> int:
+	if not point.is_finite():
+		return -1
+	var areas := get_play_areas()
+	for i in areas.size():
+		var a := areas[i]
+		if point.x >= a.position.x and point.x <= a.end.x and point.z >= a.position.z and point.z <= a.end.z \
+				and point.y >= a.position.y - 0.5 and point.y <= a.end.y + 0.5:
+			return i
+	return -1
+
+
+## True when `point` (global) is in one of the play areas. With `margin` > 0 it must also be that far from the outside
+## (a doorway between two areas is inside whatever the margin).
+func contains_point(point: Vector3, margin: float = 0.0) -> bool:
+	if get_area_index(point) < 0:
+		return false
+	if margin <= 0.0:
+		return true
+	for offset: Vector3 in [Vector3(margin, 0.0, 0.0), Vector3(-margin, 0.0, 0.0), Vector3(0.0, 0.0, margin), Vector3(0.0, 0.0, -margin)]:
+		if get_area_index(point + offset) < 0:
+			return false
+	return true
+
+
+## The openings between the areas in global space: {"name", "center" (floor, mid-wall), "axis" (unit, from the main
+## room into the annex), "width", "height"}.
+func get_doorways() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for d: Dictionary in DOORWAYS:
+		var g := d.duplicate()
+		if is_inside_tree():
+			g["center"] = global_transform * (d["center"] as Vector3)
+			g["axis"] = (global_transform.basis * (d["axis"] as Vector3)).normalized()
+		out.append(g)
+	return out
+
+
+## Drive-by lanes in global space: each {"from": Vector3, "to": Vector3} at chest height (see GUNFIRE_LANES). A shot
+## travels from `from` towards `to` and stops at the first thing on LAYER_WORLD (a crate stack, the van, a fence).
+func get_gunfire_lanes() -> Array:
+	var out: Array = []
+	for lane: Array in GUNFIRE_LANES:
+		var from: Vector3 = lane[0]
+		var to: Vector3 = lane[1]
+		if is_inside_tree():
+			from = global_transform * from
+			to = global_transform * to
+		out.append({"from": from, "to": to})
+	return out
+
+
+## True when a solid wall between two areas lies on the straight line from `a` to `b` (global), or the line leaves
+## the play areas. The pen's fence and the booth do not count: this is "could they see each other without the mesh".
+func is_wall_between(a: Vector3, b: Vector3) -> bool:
+	if not a.is_finite() or not b.is_finite():
+		return true
+	var a2 := _floor_point(a)
+	var b2 := _floor_point(b)
+	for i in WALL_BLOCKER_COUNT:
+		if _segment_hits_rect(a2, b2, WALK_BLOCKERS[i]):
+			return true
+	return not _stays_inside(a2, b2)
+
+
+## The way round on foot from `from` to `to` (global): the points to walk through, ending at `to`. Empty when the
+## straight line is already clear (no wall, fence or booth on it) or when there is no way (an end outside the play
+## areas, or inside the booth). The points come from ROUTE_POINTS: through the doorways and the pen gate.
+func get_route(from: Vector3, to: Vector3) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	if not from.is_finite() or not to.is_finite():
+		return out
+	var a := _floor_point(from)
+	var b := _floor_point(to)
+	if not _local_in_areas(a) or not _local_in_areas(b) or _walk_clear(a, b):
+		return out
+	var n := ROUTE_POINTS.size()
+	var start := n
+	var goal := n + 1
+	var pts: Array[Vector2] = []
+	pts.assign(ROUTE_POINTS)
+	pts.append(a)
+	pts.append(b)
+	var links: Array = []
+	for i in n + 2:
+		links.append([])
+	for e in ROUTE_EDGES:
+		(links[e.x] as Array).append(e.y)
+		(links[e.y] as Array).append(e.x)
+	for i in n:
+		if _walk_clear(a, pts[i]):
+			(links[start] as Array).append(i)
+		if _walk_clear(pts[i], b):
+			(links[i] as Array).append(goal)
+	# Dijkstra over a dozen points.
+	var dist: Array[float] = []
+	var prev: Array[int] = []
+	var done: Array[bool] = []
+	dist.resize(n + 2)
+	prev.resize(n + 2)
+	done.resize(n + 2)
+	dist.fill(INF)
+	prev.fill(-1)
+	done.fill(false)
+	dist[start] = 0.0
+	for _step in n + 2:
+		var u := -1
+		var best := INF
+		for i in n + 2:
+			if not done[i] and dist[i] < best:
+				best = dist[i]
+				u = i
+		if u < 0 or u == goal:
+			break
+		done[u] = true
+		for v: int in links[u]:
+			var d := best + pts[u].distance_to(pts[v])
+			if d < dist[v]:
+				dist[v] = d
+				prev[v] = u
+	if not is_finite(dist[goal]):
+		return out
+	var chain: Array[int] = []
+	var c := prev[goal]
+	while c >= 0 and c != start:
+		chain.push_front(c)
+		c = prev[c]
+	var floor_y := _to_global(Transform3D.IDENTITY).origin.y
+	for i in chain:
+		var p := _to_global(Transform3D(Basis.IDENTITY, Vector3(pts[i].x, 0.0, pts[i].y))).origin
+		out.append(Vector3(p.x, floor_y, p.z))
+	out.append(to)
+	return out
+
+
+## `point` (global) as Room-local floor coordinates (x, z).
+func _floor_point(point: Vector3) -> Vector2:
+	var p := global_transform.affine_inverse() * point if is_inside_tree() else point
+	return Vector2(p.x, p.z)
+
+
+func _local_in_areas(p: Vector2) -> bool:
+	var b := AABB(Vector3(-INTERIOR_SIZE.x * 0.5, 0.0, -INTERIOR_SIZE.z * 0.5), INTERIOR_SIZE)
+	for a: AABB in [b, HALL_AREA, DOCK_AREA]:
+		if p.x >= a.position.x and p.x <= a.end.x and p.y >= a.position.z and p.y <= a.end.z:
+			return true
+	return false
+
+
+## True when every point of the Room-local segment a-b is in a play area (sampled every 0.25 m).
+func _stays_inside(a: Vector2, b: Vector2) -> bool:
+	var steps := int(ceil(a.distance_to(b) / 0.25))
+	for i in range(0, steps + 1):
+		if not _local_in_areas(a.lerp(b, float(i) / float(maxi(steps, 1)))):
+			return false
+	return true
+
+
+## True when nothing in WALK_BLOCKERS (grown by ROUTE_MARGIN, unless an end of the segment is that close itself) lies on
+## the Room-local segment a-b and the segment stays inside the play areas.
+func _walk_clear(a: Vector2, b: Vector2) -> bool:
+	for r in WALK_BLOCKERS:
+		var grown := r.grow(ROUTE_MARGIN)
+		if grown.has_point(a) or grown.has_point(b):
+			grown = r
+		if _segment_hits_rect(a, b, grown):
+			return false
+	return _stays_inside(a, b)
+
+
+## Segment a-b against an axis-aligned rectangle (Liang-Barsky).
+static func _segment_hits_rect(a: Vector2, b: Vector2, r: Rect2) -> bool:
+	var d := b - a
+	var t0 := 0.0
+	var t1 := 1.0
+	for axis in 2:
+		var lo := r.position[axis] - a[axis]
+		var hi := r.end[axis] - a[axis]
+		if absf(d[axis]) < 0.000001:
+			if lo > 0.0 or hi < 0.0:
+				return false
+			continue
+		var ta := lo / d[axis]
+		var tb := hi / d[axis]
+		t0 = maxf(t0, minf(ta, tb))
+		t1 = minf(t1, maxf(ta, tb))
+		if t0 > t1:
+			return false
+	return true

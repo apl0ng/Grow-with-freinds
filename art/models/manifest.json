@@ -1215,6 +1215,121 @@
   ],
   "tris": 2422
  },
+ "wall_panel_door_c": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_olive",
+   "olive_dark",
+   "toon_concrete",
+   "block_dark",
+   "block_light",
+   "toon_concrete_dark",
+   "toon_dark",
+   "toon_caution",
+   "toon_rust"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/wall_opening.py",
+  "size": [
+   5.076,
+   6.0,
+   0.35
+  ],
+  "tris": 1579
+ },
+ "wall_panel_doorway": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_olive",
+   "block_light",
+   "olive_dark",
+   "toon_concrete",
+   "block_dark",
+   "toon_concrete_dark",
+   "toon_dark",
+   "toon_caution",
+   "toon_rust"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/wall_opening.py",
+  "size": [
+   5.076,
+   6.0,
+   0.353
+  ],
+  "tris": 2531
+ },
+ "wall_panel_doorway_b": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_olive",
+   "block_light",
+   "olive_dark",
+   "toon_concrete",
+   "block_dark",
+   "toon_concrete_dark",
+   "toon_dark",
+   "toon_caution",
+   "toon_rust"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/wall_opening.py",
+  "size": [
+   5.076,
+   6.0,
+   0.353
+  ],
+  "tris": 2519
+ },
+ "wall_panel_pass": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_olive",
+   "block_light",
+   "olive_dark",
+   "toon_concrete_dark",
+   "toon_dark",
+   "toon_concrete",
+   "block_dark",
+   "toon_caution",
+   "toon_rust"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/wall_opening.py",
+  "size": [
+   5.076,
+   6.0,
+   0.353
+  ],
+  "tris": 2254
+ },
+ "wall_panel_pass_b": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_olive",
+   "block_light",
+   "olive_dark",
+   "toon_concrete",
+   "block_dark",
+   "toon_concrete_dark",
+   "toon_dark",
+   "toon_caution",
+   "toon_rust"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/wall_opening.py",
+  "size": [
+   5.076,
+   6.0,
+   0.353
+  ],
+  "tris": 2287
+ },
  "wall_panel_window": {
   "front": "+z",
   "kind": "prop",

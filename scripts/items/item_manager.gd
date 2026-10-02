@@ -563,7 +563,7 @@ func _find_flight_landing(item: Item, point: Vector3, t_end: float) -> Vector3:
 			continue
 		var landing := _probe_floor_below(p)
 		var spot: Vector3 = landing["position"]
-		if not _inside_bounds(spot, bounds):
+		if not _inside_play(spot, bounds): # M14 level: any play area (main room, grow hall, loading dock)
 			continue
 		# M13 review: never inside the Boss's booth. The pay window has no collider above the 1 m counter, so a
 		# thrown can / flamethrower sailed in (or was lobbed over the partition) and was lost for the shift: the
@@ -575,7 +575,7 @@ func _find_flight_landing(item: Item, point: Vector3, t_end: float) -> Vector3:
 	var origin := _from_items_space(item.flight_origin)
 	if origin.is_finite():
 		var below := _probe_floor_below(origin)
-		if _inside_bounds(below["position"], bounds) and not _in_booth(below["position"]) and _is_drop_spot_free(below, null):
+		if _inside_play(below["position"], bounds) and not _in_booth(below["position"]) and _is_drop_spot_free(below, null): # M14 level
 			return below["position"]
 	return _safe_drop_spot(get_player(item.thrower_id))
 
@@ -629,6 +629,31 @@ func _inside_bounds(spot: Vector3, bounds: AABB) -> bool:
 	inner.position.y = bounds.position.y - 0.5
 	inner.size.y = bounds.size.y + 1.0
 	return inner.has_point(spot)
+
+# --- M14 level: the play areas (main room, grow hall, loading dock) --------------------------------------------------
+
+## True if `spot` is a plausible landing in ANY play area of the room (Room.contains_point with the 0.1 m margin
+## _inside_bounds keeps from the outer walls; a doorway between two areas counts as inside). A room without the M14
+## API, or no room at all, falls back to _inside_bounds(spot, bounds).
+func _inside_play(spot: Vector3, bounds: AABB) -> bool:
+	var world := get_parent() as World
+	var room: Node = world.room if world != null and world.is_node_ready() else null
+	if room == null or not room.has_method(&"contains_point") or not room.has_method(&"get_play_bounds"):
+		return _inside_bounds(spot, bounds)
+	if not spot.is_finite():
+		return false
+	var play: AABB = room.call(&"get_play_bounds")
+	if spot.y >= play.position.y - 0.5 and spot.y <= play.end.y + 0.5 \
+			and bool(room.call(&"contains_point", Vector3(spot.x, play.position.y + 1.0, spot.z), 0.1)):
+		return true
+	# The alley (M14 lobby: World/Lobby with get_bounds() in global space) is a place to throw things as well.
+	var lobby := world.get_node_or_null(^"Lobby")
+	if lobby != null and lobby.has_method(&"get_bounds"):
+		var alley: AABB = lobby.call(&"get_bounds")
+		return alley.size != Vector3.ZERO and _inside_bounds(spot, alley)
+	return false
+
+# --- end M14 level ------------------------------------------------------------------------------------------------------
 
 func _flight_floor_limit() -> float:
 	var bounds := _room_bounds()

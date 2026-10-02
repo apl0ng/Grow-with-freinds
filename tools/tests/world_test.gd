@@ -8,6 +8,12 @@ extends SceneTree
 ## reserved station footprints free of props (colliders AND visuals); every station reachable on foot from the
 ## spawn (grid flood fill with a player-sized cylinder) while the Boss's booth behind the counter stays sealed;
 ## lighting setup; the ceiling hole is closed for physics; the DEBT BOARD API.
+## M14 (level agent): the grow hall and the loading dock. The four hall trays are contract stations too (measured
+## against the hall's walls); the walk grid covers all three play areas (both annexes and every arrival spot are
+## reached on foot from Spawn1, nothing outside is); get_play_areas / get_play_bounds / contains_point; a closed
+## shell, a floor and a ceiling round each annex; the three doorways are open and framed by solid wall; the
+## arrivals; the parked van. On purpose: the light budget is 3-8 per play area (16 in all, was 3-8), the node
+## budget 640 (was 360).
 ## Boss NPC (ShopkeeperNPC): pure visual, feet at the origin, faces -Z, ~2 m tall, breathing idle, null-safe
 ## head tracking, beckon (wave), cold nod + counting money (cheer), bark() lines and idle barks.
 
@@ -23,6 +29,10 @@ const STATION_SCENES := {
 	"GrowPlot4": "res://scenes/stations/grow_plot.tscn",
 	"GrowPlot5": "res://scenes/stations/grow_plot.tscn",
 	"GrowPlot6": "res://scenes/stations/grow_plot.tscn",
+	"GrowPlot7": "res://scenes/stations/grow_plot.tscn",   # M14: the grow hall's four trays
+	"GrowPlot8": "res://scenes/stations/grow_plot.tscn",
+	"GrowPlot9": "res://scenes/stations/grow_plot.tscn",
+	"GrowPlot10": "res://scenes/stations/grow_plot.tscn",
 	"FuseBox": "res://scenes/stations/fuse_box.tscn",
 }
 ## Wall-mounted stations (M10 FuseBox: origin on the wall at 1.2 m, front +X) are contract nodes but exempt from
@@ -35,6 +45,10 @@ const FOOTPRINTS := {
 	"GrowPlot": Vector2(1.4, 1.4),
 }
 const EXPECTED_INTERIOR := Vector3(20.0, 6.0, 15.0)
+## M14: the play areas in get_play_areas() order, and what the annexes must measure (Room-local).
+const AREA_NAMES: PackedStringArray = ["the main room", "the grow hall", "the loading dock"]
+const EXPECTED_HALL := AABB(Vector3(10.0, 0.0, -7.5), Vector3(12.0, 6.0, 15.0))
+const EXPECTED_DOCK := AABB(Vector3(-10.0, 0.0, 7.5), Vector3(15.0, 6.0, 8.1))
 const MIN_WALL_CLEARANCE := 1.2
 const MIN_STATION_SPACING := 1.8
 const MIN_SPAWN_SPACING := 1.5
@@ -86,6 +100,7 @@ func _run() -> void:
 	_test_lighting(room)
 	_test_debt_board(room)
 	_test_ceiling_hole(room, space)
+	_test_annexes(room, space)
 	_test_node_budget(room)
 	room.queue_free()
 	await process_frame
@@ -218,8 +233,12 @@ func _test_layout(room: Room) -> void:
 		var p := s.global_position
 		_check(absf(p.y - b.position.y) < 0.001, "%s origin is at floor level (y=%.3f)" % [s.name, p.y])
 		_check(s.global_basis.y.normalized().dot(Vector3.UP) > 0.999, "%s is upright" % s.name)
-		var clear := minf(minf(p.x - b.position.x, b.end.x - p.x), minf(p.z - b.position.z, b.end.z - p.z))
-		_check(clear >= MIN_WALL_CLEARANCE, "%s is inside the room, %.2f m from the nearest wall (>= %.1f)" % [s.name, clear, MIN_WALL_CLEARANCE])
+		# M14: a station is measured against the play area it stands in (the hall's trays against the hall).
+		var area_index := room.get_area_index(p)
+		var sb: AABB = room.get_play_areas()[area_index] if area_index >= 0 else b
+		var clear := minf(minf(p.x - sb.position.x, sb.end.x - p.x), minf(p.z - sb.position.z, sb.end.z - p.z))
+		_check(area_index >= 0 and clear >= MIN_WALL_CLEARANCE, "%s is inside %s, %.2f m from the nearest wall (>= %.1f)"
+				% [s.name, AREA_NAMES[maxi(area_index, 0)], clear, MIN_WALL_CLEARANCE])
 		var front := _flat(s.global_basis.z)
 		var to_centre := _flat(centre - p)
 		_check(front.dot(to_centre) > 0.5, "%s front (+Z) faces the room centre (dot %.2f)" % [s.name, front.dot(to_centre)])
@@ -342,7 +361,7 @@ func _footprint_aabb(s: Node3D) -> AABB:
 # --- walkability ------------------------------------------------------------------------------------
 
 func _test_walkability(room: Room, space: PhysicsDirectSpaceState3D) -> void:
-	var b := room.get_bounds()
+	var b := room.get_play_bounds()   # M14: the grid covers the main room, the grow hall and the loading dock
 	var x0 := b.position.x + PLAYER_RADIUS
 	var z0 := b.position.z + PLAYER_RADIUS
 	var nx := int(floor((b.size.x - 2.0 * PLAYER_RADIUS) / GRID_STEP)) + 1
@@ -421,6 +440,26 @@ func _test_walkability(room: Room, space: PhysicsDirectSpaceState3D) -> void:
 		var behind := shop.global_transform * Vector3(0.0, 0.0, -1.3)
 		var bc := _cell_of(behind, x0, z0, nx, nz)
 		all_ok = _check(reach[bc] == 0, "walkability: the Boss's booth behind the counter is sealed off") and all_ok
+	# M14: both annexes are reached on foot from Spawn1 (through the doorways), so is every arrival spot; nothing
+	# outside the play areas is.
+	var areas := room.get_play_areas()
+	for i in range(1, areas.size()):
+		var c := areas[i].get_center()
+		var found_cell := false
+		for dz in range(-5, 6):
+			for dx in range(-5, 6):
+				if reach[_cell_of(c + Vector3(dx * GRID_STEP, 0.0, dz * GRID_STEP), x0, z0, nx, nz)] == 1:
+					found_cell = true
+		all_ok = _check(found_cell, "walkability: the middle of %s is reachable from Spawn1" % AREA_NAMES[i]) and all_ok
+	var arrivals := room.get_arrival_points()
+	for m in arrivals:
+		all_ok = _check(reach[_cell_of(m.global_position, x0, z0, nx, nz)] == 1, "walkability: %s is reachable from Spawn1" % m.name) and all_ok
+	var outside := 0
+	for iz in nz:
+		for ix in nx:
+			if reach[iz * nx + ix] == 1 and not room.contains_point(Vector3(x0 + ix * GRID_STEP, 1.0, z0 + iz * GRID_STEP)):
+				outside += 1
+	all_ok = _check(outside == 0, "walkability: no reachable cell lies outside the play areas (%d do)" % outside) and all_ok
 	if not all_ok:
 		_print_grid(free, reach, nx, nz)
 
@@ -463,8 +502,20 @@ func _test_lighting(room: Room) -> void:
 			local_shadow += 1 if (l as Light3D).shadow_enabled else 0
 			spots += 1 if l is SpotLight3D else 0
 	_check(dirs == 1 and dir_shadow == 1, "one DirectionalLight3D with shadows (got %d, %d with shadows)" % [dirs, dir_shadow])
-	_check(locals >= 3 and locals <= 8 and local_shadow == 0,
-			"3-8 omni/spot lights without shadows (got %d, %d with shadows)" % [locals, local_shadow])
+	# M14: the budget of 8 local lights is per play area now (three rooms, each lit on its own), 16 in all.
+	var per_area := [0, 0, 0]
+	var stray := 0
+	for l in room.find_children("*", "Light3D", true, false):
+		if stations_root.is_ancestor_of(l) or l is DirectionalLight3D:
+			continue
+		var idx := room.get_area_index((l as Node3D).global_position)
+		if idx < 0:
+			stray += 1
+		else:
+			per_area[idx] += 1
+	_check(stray == 0 and local_shadow == 0 and locals <= 16, "%d omni/spot lights, all inside a play area, none with shadows (max 16)" % locals)
+	for i in per_area.size():
+		_check(int(per_area[i]) >= 3 and int(per_area[i]) <= 8, "%s: 3-8 omni/spot lights (got %d)" % [AREA_NAMES[i], int(per_area[i])])
 	_check(spots >= 3, "drop-down pendant lamps pool light on the floor (%d spot lights)" % spots)
 
 
@@ -495,6 +546,127 @@ func _test_ceiling_hole(room: Room, space: PhysicsDirectSpaceState3D) -> void:
 			"the ceiling hole is closed for physics (ray up hits the Ceiling: %s)" % _hit_str(hit))
 
 
+# --- M14: the grow hall and the loading dock -------------------------------------------------------------------------
+
+func _test_annexes(room: Room, space: PhysicsDirectSpaceState3D) -> void:
+	var walls := room.get_node_or_null("Walls")
+	var floor_body := room.get_node_or_null("Floor")
+	var ceiling := room.get_node_or_null("Ceiling")
+	var areas := room.get_play_areas()
+	if not _check(areas.size() == 3, "get_play_areas() returns the main room, the grow hall and the loading dock (got %d)" % areas.size()):
+		return
+	_check(areas[0].is_equal_approx(room.get_bounds()), "play area 0 is get_bounds() (the main room)")
+	_check(areas[1].is_equal_approx(EXPECTED_HALL), "play area 1 is the grow hall %s (got %s)" % [EXPECTED_HALL, areas[1]])
+	_check(areas[2].is_equal_approx(EXPECTED_DOCK), "play area 2 is the loading dock %s (got %s)" % [EXPECTED_DOCK, areas[2]])
+	var union := areas[0].merge(areas[1]).merge(areas[2])
+	_check(room.get_play_bounds().is_equal_approx(union), "get_play_bounds() is the union of the three (%s)" % room.get_play_bounds())
+	for i in areas.size():
+		var c := areas[i].get_center()
+		_check(room.contains_point(c) and room.get_area_index(c) == i, "contains_point: the middle of %s (area index %d)" % [AREA_NAMES[i], i])
+	_check(not room.contains_point(Vector3(8.0, 1.0, 12.0)) and room.get_play_bounds().has_point(Vector3(8.0, 1.0, 12.0)),
+			"contains_point: the outside corner between the hall and the dock is not on the floor (the union box has it)")
+	_check(not room.contains_point(Vector3(30.0, 1.0, 0.0)) and not room.contains_point(Vector3(0.0, 1.0, -9.0)) and not room.contains_point(Vector3(INF, 0.0, 0.0)),
+			"contains_point: outside the walls / a bad point is false")
+	_check(room.contains_point(Vector3(21.95, 0.0, 0.0)) and not room.contains_point(Vector3(21.95, 0.0, 0.0), 0.1),
+			"contains_point(p, margin): 5 cm from the hall's outer wall is inside, but not with a 0.1 m margin")
+	# Closed shell round each annex: horizontal and diagonal rays from its middle never escape.
+	var exclude := _non_shell_rids(room)
+	for i in range(1, areas.size()):
+		var c := areas[i].get_center()
+		var escaped := 0
+		var total := 0
+		for h: float in [0.3, 1.0, 2.0, 3.5, 5.5]:
+			for k in 32:
+				var a := TAU * float(k) / 32.0
+				var from := Vector3(c.x, h, c.z)
+				var hit := _ray(space, from, from + Vector3(cos(a), 0.0, sin(a)) * 60.0, Const.LAYER_WORLD, exclude)
+				total += 1
+				if hit.is_empty() or hit["collider"] != walls:
+					escaped += 1
+		for k in 16:
+			var a := TAU * float(k) / 16.0
+			for vy: float in [-0.6, 0.6]:
+				var from := Vector3(c.x, 2.0, c.z)
+				var hit := _ray(space, from, from + Vector3(cos(a), vy, sin(a)).normalized() * 60.0, Const.LAYER_WORLD, exclude)
+				total += 1
+				if hit.is_empty() or not (hit["collider"] in [walls, floor_body, ceiling]):
+					escaped += 1
+		_check(escaped == 0, "closed shell: %d/%d rays from the middle of %s end on the walls / floor / ceiling" % [total - escaped, total, AREA_NAMES[i]])
+	# Floor under and ceiling over a grid of points in each annex (no hole to fall through or see out of).
+	for i in range(1, areas.size()):
+		var holes := 0
+		var probes := 0
+		var x := areas[i].position.x + 1.0
+		while x < areas[i].end.x - 0.9:
+			var z := areas[i].position.z + 1.0
+			while z < areas[i].end.z - 0.9:
+				var down := _ray(space, Vector3(x, 0.5, z), Vector3(x, -3.0, z), Const.LAYER_WORLD, exclude)
+				var up := _ray(space, Vector3(x, 0.5, z), Vector3(x, 12.0, z), Const.LAYER_WORLD, exclude)
+				probes += 1
+				if down.is_empty() or down["collider"] != floor_body or absf((down["position"] as Vector3).y) > 0.01 \
+						or up.is_empty() or up["collider"] != ceiling or absf((up["position"] as Vector3).y - EXPECTED_INTERIOR.y) > 0.01:
+					holes += 1
+				z += 1.0
+			x += 1.0
+		_check(holes == 0, "%s: floor at y=0 and ceiling at y=%.0f over all %d probes" % [AREA_NAMES[i], EXPECTED_INTERIOR.y, probes])
+	# Doorways: open at walking height from one side to the other, closed above the head.
+	var doors := room.get_doorways()
+	_check(doors.size() == 3, "get_doorways(): two into the hall, one onto the dock (got %d)" % doors.size())
+	for d in doors:
+		var c: Vector3 = d["center"]
+		var axis: Vector3 = d["axis"]
+		var side := axis.cross(Vector3.UP).normalized()
+		var half: float = float(d["width"]) * 0.5
+		var height: float = float(d["height"])
+		var open := true
+		for off: float in [-half + 0.08, 0.0, half - 0.08]:
+			for h: float in [0.1, 1.0, height - 0.1]:
+				var p := c + side * off + Vector3.UP * h
+				if not _ray(space, p - axis * 1.2, p + axis * 1.2, Const.LAYER_WORLD, exclude).is_empty():
+					open = false
+		_check(open, "doorway %s: %.1f x %.2f m clear through the wall" % [d["name"], float(d["width"]), height])
+		var shut := true
+		for off: float in [-half - 0.12, half + 0.12]:
+			var p := c + side * off + Vector3.UP * 1.0
+			var hit := _ray(space, p - axis * 1.2, p + axis * 1.2, Const.LAYER_WORLD, exclude)
+			if hit.is_empty() or hit["collider"] != walls:
+				shut = false
+		var over := _ray(space, c + Vector3.UP * (height + 0.12) - axis * 1.2, c + Vector3.UP * (height + 0.12) + axis * 1.2, Const.LAYER_WORLD, exclude)
+		_check(shut and not over.is_empty() and over["collider"] == walls, "doorway %s: solid wall beside the jambs and above the head" % d["name"])
+		_check(room.get_area_index(c - axis * 1.0) == 0 and room.get_area_index(c + axis * 1.0) > 0, "doorway %s leads from the main room into an annex" % d["name"])
+	# Arrivals: four markers on the dock floor, apart, facing the passage, with headroom.
+	var arrivals := room.get_arrival_points()
+	_check(arrivals.size() == 4, "get_arrival_points() returns 4 markers (got %d)" % arrivals.size())
+	var passage: Vector3 = doors[2]["center"] if doors.size() == 3 else Vector3.ZERO
+	for i in arrivals.size():
+		var m := arrivals[i]
+		var p := m.global_position
+		_check(String(m.name) == "Arrival%d" % i and room.get_arrival_transform(i).is_equal_approx(m.global_transform),
+				"get_arrival_transform(%d) == Arrivals/Arrival%d" % [i, i])
+		_check(room.get_area_index(p) == 2 and p.y > 0.0 and p.y < 1.0, "%s stands on the loading dock, just above the floor (%s)" % [m.name, p])
+		_check(_flat(-m.global_basis.z).dot(_flat(passage - p)) > 0.9 and m.global_basis.y.normalized().dot(Vector3.UP) > 0.999,
+				"%s faces the passage into the building, upright" % m.name)
+		var cap := CapsuleShape3D.new()
+		cap.radius = PLAYER_RADIUS
+		cap.height = 1.8
+		var q := PhysicsShapeQueryParameters3D.new()
+		q.shape = cap
+		q.collision_mask = Const.LAYER_WORLD
+		q.transform = Transform3D(Basis.IDENTITY, Vector3(p.x, 0.95, p.z))
+		_check(space.intersect_shape(q, 1).is_empty(), "%s has room for a worker" % m.name)
+		for j in range(i + 1, arrivals.size()):
+			_check(_flat_dist(p, arrivals[j].global_position) >= MIN_SPAWN_SPACING, "%s-%s are %.2f m apart (>= %.1f)"
+					% [m.name, arrivals[j].name, _flat_dist(p, arrivals[j].global_position), MIN_SPAWN_SPACING])
+	if arrivals.size() == 4:
+		var wrapped := room.get_arrival_transform(4)
+		_check(wrapped.basis.is_equal_approx(arrivals[0].global_basis) and wrapped.origin.distance_to(arrivals[0].global_position) > 0.5,
+				"get_arrival_transform(4) wraps to Arrival0's facing with a side offset")
+	# The parked van: a solid placeholder under Dock/DockVan with its meshes under Visual (the lead swaps van.glb in).
+	var van := room.get_node_or_null(^"Dock/DockVan") as StaticBody3D
+	_check(van != null and van.collision_layer == Const.LAYER_WORLD and van.collision_mask == 0 and van.get_node_or_null(^"Visual") != null
+			and room.get_area_index(van.global_position) == 2, "Dock/DockVan: a LAYER_WORLD body on the dock with a Visual child")
+
+
 func _test_node_budget(room: Room) -> void:
 	var stations_root := room.get_node("Stations")
 	var count := 1
@@ -506,7 +678,8 @@ func _test_node_budget(room: Room) -> void:
 		if n is MeshInstance3D:
 			meshes += 1
 	print("   info: room nodes (excluding station internals) = %d, of which MeshInstance3D = %d" % [count, meshes])
-	_check(count <= 360, "room node count stays reasonable (%d <= 360)" % count)
+	# M14: 360 for the main room alone; the grow hall and the loading dock (shell runs, crates, lamps) raise it to 640.
+	_check(count <= 640, "room node count stays reasonable (%d <= 640)" % count)
 
 
 # --- shopkeeper NPC ---------------------------------------------------------------------------------
