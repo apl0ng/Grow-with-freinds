@@ -800,3 +800,56 @@ and `loop_mp` (+76).
   and sets `cured: true` (`cured` sound, darker tint, label "Cured"); a bundle taken off early is not cured. The chute
   pays `1 + cure_bonus` for a cured bundle (`STAT_CURED` for the seller). A hanging bundle is an ordinary item: it can
   be taken, thrown at, eaten is not a thing, burnt by the flamethrower is not a thing (items do not burn), stolen is.
+
+### M14 as delivered (integration notes, lead, 2026-10-02)
+Branches merged: lobby d449f70, mayhem bff3d6f, loop 7bc9588 (its events.gd loiter commit dropped in favour of mayhem's
+`LOITER_EPSILON`), level 3ac2cdd. Suites: `lobby` (+66), `lobby_mp` (+67), `level` (+68), `mayhem` (+69), `mayhem_mp`
+(+70), `loop` (+75), `loop_mp` (+76). Lead integration: the two racks stand in the grow hall at (14, 0, -6.6) and
+(16.5, 0, -6.6); `Dock/DockVan/Visual/Model` is `van.glb` (offset z 1.66 so it fills the collider); `qa_base.
+canonical_state()` covers `Room.GROW_PLOT_COUNT` trays; footsteps and the drive-by effect below.
+- **Flow.** `GameState.transition_started(kind, seconds)` with `TRANSITION_TO_FLOOR` / `TRANSITION_TO_LOBBY`
+  (`seconds` is ONE fade; a ride is fade + `TRANSITION_HOLD_SEC` 0.3 + fade), `server_begin_shift_from_lobby()`,
+  `server_return_to_lobby(reset)`, `is_transitioning()`. `World.lobby`, `World.get_lobby_transform(i)`,
+  `get_arrival_transform(i)`, `server_move_players_to_floor()` / `_to_lobby()`. `Lobby` (10 x 15 m alley at (0, 0, 80);
+  `get_spawn_transform`, `get_van`, `get_bounds`, `contains_point`, `is_in_use`). `Van` (synced `occupants`, `total`,
+  `countdown_left`; `is_everyone_in`, `get_seat_transform`, `get_entry_point`, `get_cargo_aabb`; an invisible ramp
+  over the bumper step). Clients read "lobby on" from the van's synced `total`, not from their own
+  `Config.lobby_enabled`. START OVER resets first, then moves to the alley. Held items stay on the floor.
+  Windowed runs start in the alley: capture and playtest tools that stage the floor pass `--no-lobby` or set
+  `Config.lobby_enabled = false` before hosting. `-s` scripts must not name `Lobby` / `Van` as types.
+- **Floor.** Main room unchanged (x -10..10, z -7.5..7.5). Grow hall x 10..22 through `pen_door` (from inside the pen,
+  centre (10.3, 0, -1.25)) and `corridor_door` (centre (10.3, 0, 6.25)); trays `GrowPlot7`..`10` at (16 / 18.6, 0,
+  -1.5 / 1.5). Loading dock x -10..5, z 7.5..15.6 through `dock_passage` (centre (-5, 0, 7.8), 4.2 m wide);
+  `Arrivals/Arrival0..3`; crate stacks as cover; `Decor/RollerDoor` on the dock's south wall. Room API:
+  `get_play_areas()`, `get_play_bounds()`, `contains_point(point, margin)`, `get_area_index(point)`,
+  `get_arrival_points()` / `get_arrival_transform(i)`, `get_gunfire_lanes()` (six lanes, each starting 0.3 m inside
+  the outer wall), `get_route(from, to)` (waypoints through the doorways; empty when the line is clear),
+  `is_wall_between(a, b)`, `get_doorways()`, `GROW_PLOT_COUNT` 10, `STATION_NAMES` 14. A thrown item rests in any
+  play area (and in the alley). The plant follows `get_route` to a tray it cannot walk straight to, does not start a
+  chase through a solid wall, and wanders inside the room it stands in. The rat, the shortage count and Story's
+  "came out of GrowPlot N" cover ten trays. Balance was not retuned for ten trays.
+- **Mayhem.** `Events.EVENT_LEAK` / `EVENT_DRIVEBY`; signals `leak_resolved`, `tank_refilled`, `worker_slipped`,
+  `worker_shot`, `tray_shot`, `driveby_billed`, `shot_fired`; `server_fire_lane(lane, first)`. `Well.leaking`,
+  `server_set_leaking`, `server_patch`, `request_patch`, `is_in_puddle`, the puddle grows 0.5 to 2.2 m over 10 s.
+  A slip needs 5.5 m/s over a 0.25 s window; crouched, jumping and back-room workers never slip. Lane distances are
+  flat (x / z); a tray takes one round per drive-by; a planted tray stops a round; a collider named or grouped
+  "glass" lets it through; a worker is knocked down about once per 2 s at most. `water_off` and `leak` are refused
+  while the tank is empty. Force-ended events lose and bill nothing. Lead: tracers are 6 cm, hold 0.07 s and fade
+  over 0.26 s; every round has a muzzle flash (`OmniLight3D`, 0.09 s) and leaves a dark pock for 25 s (36 at most).
+- **Loop.** Traits as in the brief; the card tag shows the trait in place of "SEED PACKET". `GrowPlot.
+  server_crop_lost(cause)` (`LOSS_EATEN`, `LOSS_FIRE`, `LOSS_GUNFIRE`) takes the counted fine and announces it;
+  `crop_lost(cause, strain, fine)`. `spread_force` / `spread_rng` for tests. `DryingRack` (`server_hang`, `tick`,
+  three hooks; nothing on the rack is synced: occupancy is derived from each bundle's own props `rack`, `dry_left`,
+  `cured`); the countdown runs only while PLAYING. `TurnInStation.compute_sale_value(seed, amount, multiplier,
+  cured)`. `Player.is_carrying_heavy()`, `get_move_speed()`. Balance note from the agent: curing is nearly always
+  right outside the last half minute, Purple Haze is the weakest strain per unit of labour, Golden's trait is a pure
+  penalty; not retuned yet.
+- **Footsteps (lead).** `Player.STEP_STRIDE_WALK` 1.6 / `_SPRINT` 2.3 / `_CROUCH` 1.2 m, `STEP_SOUNDS` (`step`,
+  `step2`, `step3`, never the same twice), crouch -7 dB, sprint +2 dB, `land` after a fall faster than 2.5 m/s; remote
+  bodies count the same strides on their smoothed movement. `Sfx._dc_block`. `tools/tests/step_demo_body.gd` writes an
+  audition WAV.
+- **Events suite flake fixed.** The loiter clock is a sum of float steps and could land a hair under `loiter_sec`:
+  `Events.LOITER_EPSILON` (0.001 s).
+Known gaps: economy not retuned for ten trays and cured bundles; `STAT_CURED`, `STAT_SHOT`, `STAT_SLIPS` are counted
+but the shift report shows only the two mayhem verdicts; no lamp goes out in a drive-by; the alley has no items to
+play with while waiting.

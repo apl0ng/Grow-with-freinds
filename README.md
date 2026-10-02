@@ -37,6 +37,16 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   fire (eight seconds of fuel; burnt crops and co-workers are arson, another write-up); it restocks after ninety
   seconds. Breaking it while a tray is turning is not misuse. The Boss keeps the flamethrower of anyone he sends to the
   back room. Stats: bitten, scorched, burns (the shift report names who).
+- The alley and the van (M14): a windowed game starts in a back alley. The shift begins when every worker stands in the
+  back of the van (a short count, a fade, and everyone is on the loading dock); the host's Enter leaves without the
+  stragglers. Between shifts everyone is back in the alley. Use --no-lobby for the old start on the floor.
+- A bigger floor (M14): a grow hall to the east (four more trays, ten in all, and two drying racks) and a loading dock
+  to the south with crates for cover. Hang a bundle on a rack for twenty seconds and it sells cured for 40% more.
+  Each strain has a trait: Purple Haze is thirsty, Golden Kush is counted (losing one is a fine), Night Shift grows
+  during a power cut, Creeper can leave a seedling behind, Floor Brick is heavy to carry.
+- Two more things go wrong on a shift (M14): the tank springs a leak (hold E on it to patch it before it runs dry,
+  and do not sprint through the puddle), and a rival crew pulls up outside and shoots the floor up for six seconds
+  (get down or get behind a crate; trays in the way lose growth and the Boss bills the floor for the glass).
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows

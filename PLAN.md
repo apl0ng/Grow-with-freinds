@@ -275,14 +275,14 @@ Rationale: FRIENDSLOP.md section 7.
 Known UI gap: the supply window shows one and a half rows of the six strain cards at 720 lines (it scrolls; arrows and the
 wheel reach the second row). A compact card would fit both rows; not done yet.
 
-## M14 The lobby and the van, a bigger floor, mayhem, strain traits (in progress, 2026-10-02)
+## M14 The lobby and the van, a bigger floor, mayhem, strain traits (merged 2026-10-02)
 Asked for by the user on 2026-10-02 (brainstorm + build): FRIENDSLOP.md section 8, CONTRACTS.md "M14".
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | 14.0 | Prep: Config.lobby_enabled, Const stats and group, BalanceConfig groups (Lobby, Mayhem, Loop), SeedDef traits, Room stubs (arrival, gunfire lanes, play areas), Sfx names | lead | done |
-| 14.1 | The alley, the van, pile-in start with a countdown, fade and teleport to the dock, back to the alley between shifts, van model; lobby + lobby_mp suites | lobby | in progress |
-| 14.2 | Grow hall (four more trays) and loading dock through new openings, play areas, arrivals, gunfire lanes, the plant crossing rooms; level suite | level | in progress |
-| 14.3 | Events: the tank leak (patch it, puddle, slips) and the drive-by (lanes, cover, crouch, tray damage, the fine); mayhem + mayhem_mp suites | mayhem | in progress |
-| 14.4 | Strain traits (thirsty, counted, grows in the dark, spreads, heavy) on the six strains, drying racks with cured bundles; loop + loop_mp suites | loop | in progress |
-| 14.5 | Footsteps: one per human stride, three variants, crouch quieter, a landing thud | lead | in progress |
+| 14.1 | The alley, the van, pile-in start with a countdown, fade and teleport to the dock, back to the alley between shifts, van model; lobby + lobby_mp suites | lobby | done (168 + 214 checks) |
+| 14.2 | Grow hall (four more trays) and loading dock through new openings, play areas, arrivals, gunfire lanes, the plant crossing rooms; level suite | level | done (240 checks; world_test 302) |
+| 14.3 | Events: the tank leak (patch it, puddle, slips) and the drive-by (lanes, cover, crouch, tray damage, the fine); mayhem + mayhem_mp suites | mayhem | done (210 + 87 checks) |
+| 14.4 | Strain traits (thirsty, counted, grows in the dark, spreads, heavy) on the six strains, drying racks with cured bundles; loop + loop_mp suites | loop | done (238 + 66 checks) |
+| 14.5 | Footsteps: one per human stride, three variants, crouch quieter, a landing thud | lead | done |
 | 14.6 | Integration: merges, racks moved into the hall, van model on the dock, test_all registration, README, a visual pass, full run, export | lead | pending |

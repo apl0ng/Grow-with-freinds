@@ -4,7 +4,9 @@
 You are the lead developer on this Godot 4.7.2 project. The user wants the game launched and played on their PC,
 and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of 2026-09-29.
 
-0. State (2026-10-02): M10 to M13 merged (M13 = review + four-player QA + visual pass of M12, CONTRACTS "M13"). M12 (CONTRACTS "M12", FRIENDSLOP section 7) added six strains with
+0. State (2026-10-02): M10 to M14 merged. M14 (CONTRACTS "M14", FRIENDSLOP section 8): the alley and the van start, a
+   grow hall and a loading dock, the tank leak and the drive-by, strain traits and drying racks, new footsteps. A windowed
+   run starts in the alley (--no-lobby for the old start). M12 (CONTRACTS "M12", FRIENDSLOP section 7) added six strains with
    mutation chances, the hostile plant (Hostiles autoload), the break-glass flamethrower (EmergencyCabinet + Flamethrower
    item, `use_item` on LMB) and three disruption events (head count, water main off, shortage). 59 suites in
    tools/test_all.sh, all green on this PC except the skipped X11 mouse suite (last full run 2026-10-02, 9891 checks,
