@@ -158,6 +158,7 @@ func _ready() -> void:
 	_mayhem_setup()  # M14 mayhem: the leak and the drive-by (region at the end of the file)
 	_replay_setup()  # M15 replay: the shift conditions (region at the end of the file)
 	_mayhem2_setup()  # M15 mayhem2: the raid, the sprinklers, the collector (region after the M14 mayhem one)
+	_career_setup()  # M15 career: the shift's job (region at the end of the file)
 
 
 func _process(delta: float) -> void:
@@ -1272,3 +1273,101 @@ func _replay_report_lines() -> PackedStringArray:
 	if not titles.is_empty():
 		out.append(line("report_conditions") % ", ".join(titles))
 	return out
+
+
+# --- M15 career: the shift's job ---------------------------------------------------------------------------------
+# GameState tells every peer what happens to the job (contract_offered / contract_met / contract_failed); Story owns
+# the copy. _ready() calls _career_setup(). What the whole floor has to know goes out as a toast (the Boss only speaks
+# at his window):
+#   a job is put up                  toast_job (info)           + job_offered, PROGRESS, a little after the shift's
+#                                                                 opening line (it must not be swept away by it)
+#   swapped (its event never came)   toast_job_swapped (info)   + job_swapped, PROGRESS
+#   met                              toast_job_done (success)   + job_done, MAJOR ("%s" = the reward in words); a job
+#                                                                 judged at the end of the shift gets the toast only:
+#                                                                 the Boss is busy with "paid", the report has the line
+#   failed                           toast_job_failed (error)
+
+## Copy for the job, merged into `lines` at start-up. Toasts: "%s" = the job's text, then the reward as "$60".
+const CAREER_LINES: Dictionary = {
+	"job_offered": "There's a job on top of the payment. It's posted.",
+	"job_swapped": "That job's off. There's another.",
+	"job_done": "That was the job. %s.",
+	"toast_job": "Job: %s. %s.",
+	"toast_job_swapped": "Job changed: %s. %s.",
+	"toast_job_done": "Job done: %s. %s to cash on hand.",
+	"toast_job_failed": "Job failed: %s.",
+}
+## The Boss names the job this long after it could first be said (the shift's opening line is MAJOR and comes first).
+const CAREER_OFFER_DELAY_SEC: float = MIN_BARK_GAP_SEC + 0.5
+
+var _career_offer_queued: bool = false
+
+
+func _career_setup() -> void:
+	for k in CAREER_LINES:
+		if not lines.has(k):
+			lines[k] = CAREER_LINES[k]
+	if GameState.has_signal(&"contract_offered"):
+		GameState.connect(&"contract_offered", _career_on_offered)
+	if GameState.has_signal(&"contract_met"):
+		GameState.connect(&"contract_met", _career_on_met)
+	if GameState.has_signal(&"contract_failed"):
+		GameState.connect(&"contract_failed", _career_on_failed)
+	GameState.round_started.connect(_career_on_round_started)
+
+
+func _career_on_offered(contract: Dictionary, swapped: bool) -> void:
+	if not _in_session():
+		return
+	var text := String(contract.get("text", ""))
+	var reward := format_money(int(contract.get("reward", 0)))
+	if swapped:
+		Game.toast(line("toast_job_swapped") % [text, reward], &"info")
+		_request("job_swapped", Weight.PROGRESS)
+		return
+	Game.toast(line("toast_job") % [text, reward], &"info")
+	if GameState.is_playing():
+		_career_queue_offer_line()
+
+
+## A job put up in the alley is named by the Boss once the shift runs.
+func _career_on_round_started(_round_number: int) -> void:
+	var gs: Node = GameState
+	if gs.has_method(&"get_contract") and _career_is_open(gs.call(&"get_contract")):
+		_career_queue_offer_line()
+
+
+func _career_queue_offer_line() -> void:
+	if _career_offer_queued or not is_inside_tree():
+		return
+	_career_offer_queued = true
+	get_tree().create_timer(CAREER_OFFER_DELAY_SEC).timeout.connect(_career_say_offer.bind(GameState.round_number))
+
+
+func _career_say_offer(round_number: int) -> void:
+	_career_offer_queued = false
+	var gs: Node = GameState
+	if not _in_session() or not GameState.is_playing() or GameState.round_number != round_number:
+		return
+	if gs.has_method(&"get_contract") and _career_is_open(gs.call(&"get_contract")):
+		_request("job_offered", Weight.PROGRESS)
+
+
+static func _career_is_open(contract: Dictionary) -> bool:
+	return not contract.is_empty() and not bool(contract.get("done", false)) and not bool(contract.get("failed", false))
+
+
+func _career_on_met(contract: Dictionary) -> void:
+	if not _in_session():
+		return
+	var reward := int(contract.get("reward", 0))
+	Game.toast(line("toast_job_done") % [String(contract.get("text", "")), format_money(reward)], &"success")
+	if Contracts.get_judge(StringName(str(contract.get("id", "")))) != Contracts.JUDGE_END:
+		_request_named("job_done", loop_amount_words(reward), Weight.MAJOR)
+
+
+func _career_on_failed(contract: Dictionary) -> void:
+	if _in_session():
+		Game.toast(line("toast_job_failed") % String(contract.get("text", "")), &"error")
+
+# --- end M15 career ----------------------------------------------------------------------------------------------

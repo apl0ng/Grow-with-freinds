@@ -190,6 +190,7 @@ func _ready() -> void:
 	Comms.ping_received.connect(_on_ping_received)
 	_lobby_ready() # M14 lobby
 	_replay_ready() # M15 replay: the condition chips under the payment bar
+	_career_ready() # M15 career: the job line under the payment bar, titles in the WORKERS list
 
 	_ui_locked = Game.is_ui_locked()
 	_stats_ready = GameState.phase != GameState.Phase.MENU
@@ -347,6 +348,7 @@ func refresh_players() -> void:
 		player_list.add_child(row)
 		_player_rows[peer_id] = {"row": row, "name": name_label, "speak": speak, "strikes": strikes, "backroom": backroom}
 		_fit_player_name(row, name_label)
+		_career_add_title(peer_id, color) # M15 career: the worker's job title on its own small line under the name
 	refresh_marks()
 
 
@@ -1004,6 +1006,106 @@ func _replay_on_round_started(round_number: int) -> void:
 		Game.toast(TEXT_NEW_STRAIN % ", ".join(fresh), &"info")
 
 # --- end M15 replay -----------------------------------------------------------------------------------------------
+
+
+# --- M15 career: the job line under the payment bar, job titles in the WORKERS list --------------------------------
+# The job: one Label ("JobLine") in its own container "CareerBox", the last child of the payment panel's VBox
+# (Root/Stats/QuotaColumn/QuotaPanel/VBox/CareerBox), built here so the scene file stays untouched. It reads
+# "Job: three cured bundles 1 / 3" (Contracts.hud_text), dims with " · paid" / " · failed" once it is settled and is
+# hidden without a job (replay off: always). Trimmed with "…" rather than widening the panel.
+# The titles: Net.get_player_title(peer) in small type on a line of its own under the worker's row (a second child of
+# %PlayerList per worker, only for workers who sent a title: the row itself keeps its width for the name and marks).
+
+const JOB_FONT_SIZE: int = 16
+## Alpha of the job line once it is paid or failed.
+const JOB_SETTLED_ALPHA: float = 0.5
+const TITLE_FONT_SIZE: int = 12
+## The title starts under the name: the colour dot (16) plus the row's separation (8).
+const TITLE_INDENT: float = 24.0
+const TITLE_ALPHA: float = 0.75
+
+var _career_box: VBoxContainer
+var _career_job_label: Label
+
+
+func _career_ready() -> void:
+	_career_box = VBoxContainer.new()
+	_career_box.name = "CareerBox"
+	_career_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_career_box.visible = false
+	_career_job_label = Label.new()
+	_career_job_label.name = "JobLine"
+	_career_job_label.theme_type_variation = &"HudLabel"
+	_career_job_label.add_theme_font_size_override(&"font_size", JOB_FONT_SIZE)
+	_career_job_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_career_job_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_career_job_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_career_box.add_child(_career_job_label)
+	quota_bar.get_parent().add_child(_career_box)
+	if GameState.has_signal(&"contract_changed"):
+		GameState.connect(&"contract_changed", _career_refresh_job)
+	if GameState.has_signal(&"contract_met"):
+		GameState.connect(&"contract_met", _career_on_contract_met)
+	if Net.has_signal(&"titles_changed"):
+		Net.connect(&"titles_changed", refresh_players)
+	_career_refresh_job()
+
+
+func _career_refresh_job() -> void:
+	if _career_job_label == null:
+		return
+	var job: Dictionary = GameState.get_contract() if GameState.has_method(&"get_contract") else {}
+	var text := Contracts.hud_text(job)
+	_career_job_label.text = text
+	var settled := bool(job.get("done", false)) or bool(job.get("failed", false))
+	_career_job_label.modulate.a = JOB_SETTLED_ALPHA if settled else 1.0
+	_career_box.visible = text != ""
+
+
+func _career_on_contract_met(_contract: Dictionary) -> void:
+	play_sfx(&"contract", &"coin")
+	if is_inside_tree() and _career_job_label != null and _career_box.visible:
+		Juice.punch_ui(_career_job_label)
+
+
+## The job line as shown ("" while hidden).
+func get_job_text() -> String:
+	return _career_job_label.text if _career_job_label != null and _career_box.visible else ""
+
+
+## True while the job line is dimmed (paid or failed).
+func is_job_settled() -> bool:
+	return get_job_text() != "" and _career_job_label.modulate.a < 0.99
+
+
+## The job title shown under a worker's name ("" when they have none).
+func get_title_text(peer_id: int) -> String:
+	if not _player_rows.has(peer_id):
+		return ""
+	var label: Variant = (_player_rows[peer_id] as Dictionary).get("title")
+	return (label as Label).text if label is Label and is_instance_valid(label) else ""
+
+
+func _career_add_title(peer_id: int, color: Color) -> void:
+	var title := Net.get_player_title(peer_id) if Net.has_method(&"get_player_title") else ""
+	if title == "" or not _player_rows.has(peer_id):
+		return
+	var line := HBoxContainer.new()
+	line.name = "Title%d" % peer_id
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.add_theme_constant_override(&"separation", 0)
+	var pad := Control.new()
+	pad.custom_minimum_size = Vector2(TITLE_INDENT, 0.0)
+	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.add_child(pad)
+	var label := _player_label(title, color, TITLE_FONT_SIZE)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.modulate.a = TITLE_ALPHA
+	line.add_child(label)
+	player_list.add_child(line)
+	(_player_rows[peer_id] as Dictionary)["title"] = label
+
+# --- end M15 career ------------------------------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------------------------

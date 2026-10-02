@@ -200,3 +200,44 @@ theme_type_variation = &"SubtleLabel"
 text = "RMB throw · F shove · MMB ping · T chat · V talk"
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="Record" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 256.0
+offset_right = 536.0
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="RecordBox" type="VBoxContainer" parent="Record"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="RecordTitle" type="Label" parent="Record/RecordBox"]
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "RECORD"
+horizontal_alignment = 1
+
+[node name="RecordJob" type="Label" parent="Record/RecordBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudLabel"
+theme_override_font_sizes/font_size = 22
+text = "New hire"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="RecordLines" type="VBoxContainer" parent="Record/RecordBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2

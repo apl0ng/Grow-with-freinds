@@ -110,6 +110,7 @@ func _server_sell(product: Item, seller_peer: int) -> bool:
 	product.set_meta(SOLD_META, true)
 	if is_cured(product) and seller_peer > 0: # M14 loop: the seller's cured count (before the sale: it may end the shift)
 		GameState.server_add_stat(seller_peer, Const.STAT_CURED)
+	GameState.server_note_deposit(StringName(str(product.get(&"strain_id"))), _get_product_amount(product), is_cured(product), value, seller_peer) # M15 career: the shift's job and the seller's record (before the sale: it may end the shift)
 	GameState.server_add_sale(value, seller_peer)
 	items.server_despawn_item(product)
 	_rpc_sold_fx.rpc(value, seed_def.color if seed_def != null else Color.WHITE)

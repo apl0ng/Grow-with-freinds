@@ -69,6 +69,39 @@ func refresh() -> void:
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		verdicts_box.add_child(label)
 	verdicts_box.visible = not _verdict_texts.is_empty()
+	_career_refresh_job() # M15 career: whether the shift's job was done
+
+
+# --- M15 career: the shift's job on the report ---------------------------------------------------------------------
+# One centred line between the table and the verdicts ("JobLine", built on first use): "Job: three cured bundles.
+# Done. $60 paid." / "... Failed." / "... Not done." (Contracts.report_text). Hidden without a job.
+
+var _career_job_label: Label
+
+
+func _career_refresh_job() -> void:
+	if _career_job_label == null:
+		_career_job_label = Label.new()
+		_career_job_label.name = "JobLine"
+		_career_job_label.add_theme_font_size_override(&"font_size", VERDICT_FONT_SIZE)
+		_career_job_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_career_job_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_career_job_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_career_job_label)
+		move_child(_career_job_label, verdicts_box.get_index())
+		if GameState.has_signal(&"contract_changed"):
+			GameState.connect(&"contract_changed", _career_refresh_job)
+	var job: Dictionary = GameState.get_contract() if GameState.has_method(&"get_contract") else {}
+	var text := Contracts.report_text(job)
+	_career_job_label.text = text
+	_career_job_label.visible = text != ""
+
+
+## The job line as shown ("" while hidden).
+func get_job_text() -> String:
+	return _career_job_label.text if _career_job_label != null and _career_job_label.visible else ""
+
+# --- end M15 career ------------------------------------------------------------------------------------------------
 
 
 ## Peer ids shown, in row order (tests).

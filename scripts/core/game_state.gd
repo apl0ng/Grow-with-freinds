@@ -94,6 +94,7 @@ func _ready() -> void:
 	Net.players_changed.connect(_on_players_changed)
 	# Host: a departing worker leaves the back room and loses their strikes (their stats stay for the report).
 	Net.peer_left.connect(_on_peer_left)
+	_career_ready() # M15 career: the shift's job (region at the end of the file)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -963,6 +964,7 @@ func _process(delta: float) -> void:
 func _server_end_round(success: bool) -> void:
 	if phase != Phase.PLAYING:
 		return
+	_career_shift_ending(success) # M15 career: a job judged at the end is settled before the end state goes out
 	var s := _snapshot()
 	s["phase"] = Phase.ROUND_SUCCESS if success else Phase.ROUND_FAILED
 	if not success:
@@ -1244,3 +1246,386 @@ func _on_peer_left(peer_id: int) -> void:
 func _host_init_session() -> void:
 	if phase == Phase.MENU and Net.is_host and multiplayer.has_multiplayer_peer() and multiplayer.is_server():
 		server_reset_game()
+
+
+# --- M15 career ------------------------------------------------------------------------------------------------
+# One optional job per shift (FRIENDSLOP 9.3, CONTRACTS "Career"; the catalog and the copy: scripts/core/contracts.gd).
+# The HOST rolls it with replay on (Config.replay_enabled): when the game enters WAITING for a shift with the lobby
+# on (so the alley can show it), else when the shift starts. It counts progress from what already happens on the
+# host (the chute's and the trays' one-line hooks, worker_written_up, sale_made, Events / Hostiles signals), pays
+# Config.balance.contract_reward into cash on hand the moment the job is met (STAT_CONTRACTS +1 for peer 1, "the
+# floor") and tells every peer. Jobs judged at the end ("clean", "cash") are settled in _server_end_round before the
+# end state goes out, and only when the payment was made. A job that needs an event which has not come by half
+# time is swapped for one that needs nothing (Contracts.fallback_id).
+# The job is NOT part of the state dictionary: it has its own reliable RPC on this node (same channel, so it stays in
+# order with the state), and the host sends it to a late joiner when the peer registers. Peers keep what they are
+# sent; a peer back in MENU forgets it. With replay off nothing is rolled and every handler below returns at once.
+
+## Every peer: the job changed in any way (put up, progress, settled, cleared).
+signal contract_changed
+## Every peer: a job was put up. swapped = it replaces a job whose event never came.
+signal contract_offered(contract: Dictionary, swapped: bool)
+## Every peer present, once per job: it was met and `contract.reward` went into cash on hand.
+signal contract_met(contract: Dictionary)
+## Every peer: the job can no longer be met this shift.
+signal contract_failed(contract: Dictionary)
+## The host and the seller's own peer: one deposit at the chute (what the career file counts per strain).
+signal deposit_noted(strain: StringName, amount: int, cured: bool, value: int, seller_peer: int)
+
+const CONTRACT_EVENT_NONE: StringName = &""
+const CONTRACT_EVENT_OFFER: StringName = &"offer"
+const CONTRACT_EVENT_SWAP: StringName = &"swap"
+const CONTRACT_EVENT_MET: StringName = &"met"
+const CONTRACT_EVENT_FAILED: StringName = &"failed"
+
+## The shift's job ({} = none): id, text, goal, progress, reward, done, failed, round (+ strain). See Contracts.
+var contract: Dictionary = {}
+
+var _career_rng := RandomNumberGenerator.new()
+## HOST: the last job rolled (the next roll picks another kind).
+var _career_prev_id: StringName = &""
+## HOST: the length of the running shift (time_left when it started), for the half-time swap.
+var _career_shift_len: float = 0.0
+## HOST: what the job needs (a leak, a drive-by, a hostile plant) has shown up this shift.
+var _career_need_seen: bool = false
+
+
+## A copy of the shift's job ({} when there is none).
+func get_contract() -> Dictionary:
+	return contract.duplicate()
+
+
+## HOST (tests, debug): puts up the catalog job `id` for the current shift, replacing the one in force (&"" = none).
+## `overrides` are merged into the build context (e.g. {"strain": &"purple"} for "strain"). Works with replay off too.
+func server_set_contract(id: StringName, overrides: Dictionary = {}) -> void:
+	if not _require_server("server_set_contract"):
+		return
+	if phase == Phase.MENU:
+		return
+	if id == &"":
+		_rpc_contract.rpc({}, CONTRACT_EVENT_NONE)
+		return
+	var ctx := _career_context()
+	ctx.merge(overrides, true)
+	var c := Contracts.build(id, ctx)
+	if c.is_empty():
+		push_warning("GameState.server_set_contract: unknown job '%s'" % id)
+		return
+	_career_prev_id = id
+	_career_put_up(c, CONTRACT_EVENT_OFFER)
+
+
+## HOST: rolls a job for the current shift from the pool that makes sense now (never the last shift's kind).
+func server_roll_contract() -> void:
+	if not _require_server("server_roll_contract"):
+		return
+	if phase == Phase.MENU:
+		return
+	var ctx := _career_context()
+	var id := Contracts.roll(ctx, _career_rng, _career_prev_id)
+	if id == &"":
+		return
+	_career_prev_id = id
+	_career_put_up(Contracts.build(id, ctx), CONTRACT_EVENT_OFFER)
+
+
+## HOST, from TurnInStation._server_sell (before the sale is booked: the sale may end the shift): one deposit.
+## Counts for "cured" / "strain" and is passed on to the seller's own peer for its career file.
+func server_note_deposit(strain: StringName, amount: int, cured: bool, value: int, seller_peer: int) -> void:
+	if not _require_server("server_note_deposit"):
+		return
+	if phase == Phase.MENU:
+		return
+	if seller_peer > 0 and seller_peer != multiplayer.get_unique_id() and seller_peer in multiplayer.get_peers():
+		_rpc_deposit_noted.rpc_id(seller_peer, strain, amount, cured, value, seller_peer)
+	deposit_noted.emit(strain, amount, cured, value, seller_peer)
+	if not _career_active():
+		return
+	match _career_id():
+		Contracts.ID_CURED:
+			if cured:
+				_career_add_progress()
+		Contracts.ID_STRAIN:
+			if String(strain) != "" and String(strain) == String(contract.get("strain", "")):
+				_career_add_progress()
+
+
+## HOST, from GrowPlot._server_interact: `plot` was harvested by a worker. The grow hall's trays count for "hall".
+func server_note_harvest(plot: Node3D, _peer_id: int) -> void:
+	if not _require_server("server_note_harvest"):
+		return
+	if not _career_active() or _career_id() != Contracts.ID_HALL:
+		return
+	var w: World = Game.world
+	if plot == null or w == null or not is_instance_valid(w) or w.room == null or not plot.is_inside_tree():
+		return
+	if w.room.get_area_index(plot.global_position) == Contracts.HALL_AREA_INDEX:
+		_career_add_progress()
+
+
+func _career_ready() -> void:
+	_career_rng.randomize()
+	phase_changed.connect(_career_on_phase)
+	round_started.connect(_career_on_round_started)
+	game_reset.connect(_career_on_game_reset)
+	worker_written_up.connect(_career_on_written_up)
+	sale_made.connect(_career_on_sale)
+	time_changed.connect(_career_on_time)
+	Net.peer_registered.connect(_career_on_peer_registered)
+	# Events and Hostiles come later in the autoload order: their nodes exist already, their signals are plain.
+	var events := get_node_or_null(^"/root/Events")
+	if events != null:
+		for pair: Array in [[&"event_started", _career_on_event_started], [&"event_ended", _career_on_event_ended],
+				[&"leak_resolved", _career_on_leak_resolved], [&"worker_shot", _career_on_worker_shot]]:
+			if events.has_signal(pair[0]):
+				events.connect(pair[0], pair[1])
+	var hostiles := get_node_or_null(^"/root/Hostiles")
+	if hostiles != null:
+		if hostiles.has_signal(&"hostile_spawned"):
+			hostiles.connect(&"hostile_spawned", _career_on_hostile_spawned)
+		if hostiles.has_signal(&"hostile_died"):
+			hostiles.connect(&"hostile_died", _career_on_hostile_died)
+
+
+func _career_id() -> StringName:
+	return StringName(str(contract.get("id", "")))
+
+
+## HOST: true while the job in force can still be met (this shift, running, not settled).
+func _career_active() -> bool:
+	if contract.is_empty() or phase != Phase.PLAYING:
+		return false
+	if bool(contract.get("done", false)) or bool(contract.get("failed", false)):
+		return false
+	return int(contract.get("round", 0)) == round_number and is_local_host()
+
+
+## HOST: what a job is built and rolled from.
+func _career_context() -> Dictionary:
+	var on_sale: Array[StringName] = []
+	var can_mutate := false
+	for s: SeedDef in Config.balance.seeds:
+		if s == null or (Config.replay_enabled and s.unlock_round > round_number):
+			continue
+		on_sale.append(s.id)
+		if s.mutation_chance > 0.0:
+			can_mutate = true
+	var events := get_node_or_null(^"/root/Events")
+	var events_on := events != null and events.has_method(&"are_events_enabled") and bool(events.call(&"are_events_enabled"))
+	return {
+		"team": get_team_size(), "round": round_number, "money": money, "owed": maxi(quota - round_sales, 0),
+		"reward": maxi(Config.balance.contract_reward, 0),
+		"strain": on_sale[_career_rng.randi_range(0, on_sale.size() - 1)] if not on_sale.is_empty() else &"",
+		"events": events_on, "can_mutate": can_mutate,
+		"early_ok": Config.balance.round_length_sec >= Contracts.EARLY_SECONDS * 3.0,
+	}
+
+
+## HOST: `c` becomes the job in force (every peer hears `event`).
+func _career_put_up(c: Dictionary, event: StringName) -> void:
+	_career_need_seen = _career_need_live(Contracts.get_need(StringName(str(c.get("id", "")))))
+	_rpc_contract.rpc(c, event)
+
+
+## HOST: is the thing a job needs on the floor right now.
+func _career_need_live(need: StringName) -> bool:
+	match need:
+		Contracts.NEED_LEAK, Contracts.NEED_DRIVEBY:
+			var events := get_node_or_null(^"/root/Events")
+			return events != null and events.has_method(&"is_event_active") and bool(events.call(&"is_event_active", need))
+		Contracts.NEED_HOSTILE:
+			var hostiles := get_node_or_null(^"/root/Hostiles")
+			return hostiles != null and hostiles.has_method(&"is_any_alive") and bool(hostiles.call(&"is_any_alive"))
+	return false
+
+
+func _career_add_progress(amount: int = 1) -> void:
+	var c := contract.duplicate()
+	var goal := int(c.get("goal", 1))
+	c["progress"] = mini(int(c.get("progress", 0)) + amount, goal)
+	if int(c["progress"]) >= goal:
+		_career_meet(c)
+	else:
+		_rpc_contract.rpc(c, CONTRACT_EVENT_NONE)
+
+
+## HOST: the job is met. The reward and the floor's stat go out in one state, then every peer hears it.
+func _career_meet(c: Dictionary) -> void:
+	c["progress"] = int(c.get("goal", 1))
+	c["done"] = true
+	c["failed"] = false
+	var s := _snapshot()
+	s["money"] = money + maxi(int(c.get("reward", 0)), 0)
+	_bump_stat(s["stats"], Const.SERVER_PEER_ID, Const.STAT_CONTRACTS, 1)
+	_rpc_state.rpc(s)
+	_rpc_contract.rpc(c, CONTRACT_EVENT_MET)
+
+
+func _career_fail() -> void:
+	var c := contract.duplicate()
+	c["failed"] = true
+	_rpc_contract.rpc(c, CONTRACT_EVENT_FAILED)
+
+
+## HOST: the job's event has not come by half time: another job that needs nothing, with nothing lost.
+func _career_swap() -> void:
+	var any_write_up := false
+	for pid: Variant in stats:
+		if get_stat(int(pid), Const.STAT_WRITE_UPS) > 0:
+			any_write_up = true
+	var id := Contracts.fallback_id(any_write_up)
+	_career_prev_id = id
+	_career_put_up(Contracts.build(id, _career_context()), CONTRACT_EVENT_SWAP)
+
+
+## HOST, from _server_end_round while the phase is still PLAYING: the jobs judged at the end. They need the payment.
+func _career_shift_ending(success: bool) -> void:
+	if not _career_active():
+		return
+	var id := _career_id()
+	if Contracts.get_judge(id) != Contracts.JUDGE_END:
+		return
+	var met := success
+	if id == Contracts.ID_CASH:
+		met = success and money > int(contract.get("goal", 0))
+	if met:
+		_career_meet(contract.duplicate())
+	else:
+		_career_fail()
+
+
+## HOST, deferred from the phase change (a reset clears the old job first): roll when the alley opens for a shift.
+func _career_roll_for_waiting() -> void:
+	if not Config.replay_enabled or not Config.lobby_enabled or phase != Phase.WAITING or not is_local_host():
+		return
+	if not contract.is_empty() and int(contract.get("round", 0)) == round_number:
+		return
+	server_roll_contract()
+
+
+func _career_on_phase(new_phase: int) -> void:
+	if new_phase == Phase.MENU:
+		_career_prev_id = &""
+		if not contract.is_empty():
+			contract = {}
+			contract_changed.emit()
+	elif new_phase == Phase.WAITING and Config.replay_enabled and Config.lobby_enabled:
+		_career_roll_for_waiting.call_deferred()
+
+
+func _career_on_round_started(_round_number: int) -> void:
+	if not is_local_host():
+		return
+	_career_shift_len = time_left
+	_career_need_seen = false
+	if not Config.replay_enabled:
+		return
+	if contract.is_empty() or int(contract.get("round", 0)) != round_number \
+			or bool(contract.get("done", false)) or bool(contract.get("failed", false)):
+		server_roll_contract()
+
+
+func _career_on_game_reset() -> void:
+	if not is_local_host():
+		return
+	if not contract.is_empty():
+		_rpc_contract.rpc({}, CONTRACT_EVENT_NONE)
+
+
+func _career_on_peer_registered(peer_id: int) -> void:
+	if contract.is_empty() or not is_local_host():
+		return
+	if peer_id != multiplayer.get_unique_id() and peer_id in multiplayer.get_peers():
+		_rpc_contract.rpc_id(peer_id, contract, CONTRACT_EVENT_NONE)
+
+
+func _career_on_written_up(_peer_id: int, _reason: String, _count: int) -> void:
+	if _career_active() and _career_id() == Contracts.ID_CLEAN:
+		_career_fail()
+
+
+func _career_on_sale(_amount: int, _seller_peer: int) -> void:
+	if _career_active() and _career_id() == Contracts.ID_EARLY \
+			and round_sales >= quota and time_left >= Contracts.EARLY_SECONDS:
+		_career_meet(contract.duplicate())
+
+
+func _career_on_time(left: float) -> void:
+	if contract.is_empty() or not _career_active():
+		return
+	var id := _career_id()
+	if id == Contracts.ID_EARLY:
+		if left < Contracts.EARLY_SECONDS and round_sales < quota:
+			_career_fail()
+		return
+	if Contracts.get_need(id) != Contracts.NEED_NONE and not _career_need_seen and _career_shift_len > 0.0 \
+			and left <= _career_shift_len * (1.0 - Contracts.SWAP_AT_FRACTION):
+		_career_swap()
+
+
+func _career_on_event_started(kind: StringName, _params: Dictionary) -> void:
+	if _career_active() and Contracts.get_need(_career_id()) == kind:
+		_career_need_seen = true
+
+
+## A drive-by that ran its course with nobody knocked down (a shift that ends first settles nothing: not active).
+func _career_on_event_ended(kind: StringName) -> void:
+	if kind == &"driveby" and _career_active() and _career_id() == Contracts.ID_DRIVEBY and _career_need_seen:
+		_career_meet(contract.duplicate())
+
+
+func _career_on_worker_shot(_peer_id: int) -> void:
+	if _career_active() and _career_id() == Contracts.ID_DRIVEBY:
+		_career_fail()
+
+
+## Patched inside Contracts.LEAK_SECONDS of the leak event's start (the event still runs when this arrives, so its
+## own clock says how long it took); patched late or not at all: failed.
+func _career_on_leak_resolved(patched: bool, _by_peer: int) -> void:
+	if not _career_active() or _career_id() != Contracts.ID_LEAK:
+		return
+	var events := get_node_or_null(^"/root/Events")
+	if events == null or not bool(events.call(&"is_event_active", &"leak")):
+		return # a leak outside the event (tests, a late patch after the shift's event ended): nothing to time
+	var params: Dictionary = events.call(&"get_event_params")
+	var elapsed := float(params.get("seconds", 0.0)) - float(events.call(&"get_event_time_left"))
+	if patched and elapsed <= Contracts.LEAK_SECONDS + 0.001:
+		_career_meet(contract.duplicate())
+	else:
+		_career_fail()
+
+
+func _career_on_hostile_spawned(_id: int, _strain_id: StringName, _position: Vector3) -> void:
+	if _career_active() and _career_id() == Contracts.ID_BURN:
+		_career_need_seen = true
+
+
+func _career_on_hostile_died(_id: int, by_peer: int) -> void:
+	if by_peer > 0 and _career_active() and _career_id() == Contracts.ID_BURN:
+		_career_meet(contract.duplicate())
+
+
+## Host -> every peer (the host through call_local): the job as it stands, and what just happened to it.
+@rpc("authority", "call_local", "reliable")
+func _rpc_contract(raw: Dictionary, event: StringName) -> void:
+	contract = Contracts.parse(raw)
+	contract_changed.emit()
+	if contract.is_empty():
+		return
+	match event:
+		CONTRACT_EVENT_OFFER:
+			contract_offered.emit(get_contract(), false)
+		CONTRACT_EVENT_SWAP:
+			contract_offered.emit(get_contract(), true)
+		CONTRACT_EVENT_MET:
+			contract_met.emit(get_contract())
+		CONTRACT_EVENT_FAILED:
+			contract_failed.emit(get_contract())
+
+
+## Host -> the seller: your deposit (the host emits deposit_noted itself).
+@rpc("authority", "call_remote", "reliable")
+func _rpc_deposit_noted(strain: StringName, amount: int, cured: bool, value: int, seller_peer: int) -> void:
+	deposit_noted.emit(strain, amount, cured, value, seller_peer)
+
+# --- end M15 career ----------------------------------------------------------------------------------------------

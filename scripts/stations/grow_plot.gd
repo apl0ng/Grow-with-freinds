@@ -239,6 +239,7 @@ func _server_interact(player: Player) -> void:
 		Stage.READY:
 			if server_harvest(player):
 				GameState.server_add_stat(player.peer_id, Const.STAT_HARVESTED)
+				GameState.server_note_harvest(self, player.peer_id) # M15 career: the grow hall's trays count for a job
 		_:
 			if item_is(held, Const.ITEM_WATERING_CAN) and get_can_charges(held) > 0 and server_water(1.0):
 				held.set(&"charges", get_can_charges(held) - 1)
