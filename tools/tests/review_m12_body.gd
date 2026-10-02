@@ -7,7 +7,8 @@ extends "res://tools/tests/qa_base.gd"
 ## Every section pins a bug that was demonstrated on the integrated M12 commit (3151d8d) or a rule the review added:
 ##   R1  the flamethrower fired for a STUNNED holder (throws and shoves are refused while stunned; the flame was not),
 ##       and a stagger did not put the flame out. Requests from a non-holder, for a flying / just-thrown item, from the
-##       back room and after the shift stay refused; a 400-request on/off burst costs no fuel and leaves a sane state.
+##       back room and after the shift stay refused; a 400-request on/off burst costs no fuel, leaves a sane state and
+##       flips the synced `firing` at most MAX_STARTS_PER_FRAME times per physics frame (it was once per request).
 ##   R2  the arson brake had a hole: one cone pass over several workers kept igniting (and fining the team) after the
 ##       third write-up had already sent the shooter to the back room. The pass stops there now.
 ##   R3  breaking the glass, or burning the plant, during the six-second "GrowPlot 3 is moving." warning was written up
@@ -330,15 +331,20 @@ func _r1_fire_requests() -> void:
 	await wait_physics(2)
 	var fuel0 := ft.fuel
 	_write_ups.clear()
+	var flips := [0]
+	ft.firing_changed.connect(func(_on: bool) -> void: flips[0] = int(flips[0]) + 1)
+	await get_tree().physics_frame
 	var t0 := Time.get_ticks_usec()
 	for i in 200:
 		ft.server_request_fire(BOB, true)
 		ft.server_request_fire(BOB, false)
 	var ms := (Time.get_ticks_usec() - t0) / 1000.0
 	check(not ft.firing and ft.fuel == fuel0 and ft._loop_handle == 0, "400 requests in one frame: flame off, fuel untouched (%.1f s)" % ft.fuel)
-	check(ms < 600.0, "the burst cost %.1f ms" % ms)
+	check(int(flips[0]) <= 2 * Flamethrower.MAX_STARTS_PER_FRAME, "the flood flipped the synced state %d times, not 400 (at most %d starts per physics frame)" % [int(flips[0]), Flamethrower.MAX_STARTS_PER_FRAME])
+	check(ms < 100.0, "the burst cost %.1f ms" % ms)
 	# Toggling every tick never adds up to a scorch (the exposure must be continuous) and still pays for each tick.
 	for i in 40:
+		await get_tree().physics_frame
 		ft.server_request_fire(BOB, true)
 		ft._server_tick(1.0 / 60.0)
 		ft.server_request_fire(BOB, false)
@@ -556,6 +562,23 @@ func _r5_escape_rules() -> void:
 	check(float(nearest[0]) >= 1.04, "it never overlapped Dana (closest %.2f m; the two bodies need 1.04)" % float(nearest[0]))
 	_tick(12.0, func() -> bool: return h.state == HostilePlant.State.EAT)
 	check(h.state == HostilePlant.State.EAT, "and it still got to the tray (state %s at %s)" % [h.get_state_name(), h.global_position])
+	# A worker standing ON the spot it is heading for: it stops short, it does not circle them.
+	await _reset_floor()
+	_make_growing(p3, &"budget", 0.95)
+	h = _hostile(Vector3(-1.0, 0.0, 0.0))
+	Hostiles.tick(HostilePlant.ROOT_SEC + 0.1)
+	h._calm_left = 30.0
+	_put(DANA, p3.global_position + Vector3(-HostilePlant.EAT_DISTANCE, 0.0, 0.0)) # where it would stand to eat
+	nearest[0] = INF
+	var swept := [0.0]
+	var bearing := [atan2(h.global_position.z - dana.global_position.z, h.global_position.x - dana.global_position.x)]
+	_tick(3.3, func() -> bool: # the walk up to her (1.6 s) and most of the STUCK_SEC it then stands there
+		nearest[0] = minf(float(nearest[0]), _flat(h.global_position, dana.global_position))
+		var a := atan2(h.global_position.z - dana.global_position.z, h.global_position.x - dana.global_position.x)
+		swept[0] = float(swept[0]) + absf(angle_difference(float(bearing[0]), a))
+		bearing[0] = a
+		return false)
+	check(float(nearest[0]) >= 1.04 and float(nearest[0]) < 1.3 and float(swept[0]) < 0.1, "Dana on its spot at the tray: it stops %.2f m short and does not circle her (swept %.2f rad)" % [float(nearest[0]), float(swept[0])])
 
 	step("R5e: a worker in a corner is let out after the two bites")
 	await _reset_floor()
@@ -756,6 +779,18 @@ func _r8_churn() -> void:
 	check(_bites.is_empty() and _flat(h.global_position, room.get_backroom_transform(0).origin) > 2.0, "nobody in the back room is bitten")
 	GameState.server_release_from_backroom(CHLOE)
 	await wait_frames(2)
+	# The same with a worker who leaves the session mid-chase.
+	await _reset_floor()
+	_put(DANA, Vector3(0.4, 0.0, 2.0))
+	h = _hostile(Vector3(3.0, 0.0, 2.0))
+	_tick(HostilePlant.ROOT_SEC + 0.3)
+	check(h.state == HostilePlant.State.CHASE and h.get_target_index() == DANA, "the plant chases Dana")
+	_drop_worker(DANA)
+	await wait_frames(2)
+	_tick(1.0)
+	check(h.state != HostilePlant.State.CHASE and h.state != HostilePlant.State.BITE and _bites.is_empty(), "Dana left the session: the chase is dropped (state %s)" % h.get_state_name())
+	_add_worker(DANA)
+	await wait_frames(3)
 
 	step("R8c: the flamethrower thrown at the chute, at the booth and out of the room")
 	await _reset_floor()

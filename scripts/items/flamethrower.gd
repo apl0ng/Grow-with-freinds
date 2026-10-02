@@ -39,6 +39,8 @@ const IGNITE_COOLDOWN_SEC: float = 10.0
 const PLANT_POINT_HEIGHT: float = 0.8
 ## Height above a hostile's origin where it is tested against the cone.
 const HOSTILE_POINT_HEIGHT: float = 1.0   # mid-body of the 2x plant
+## M13 review: fire requests granted per physics frame (the rest of an on/off flood is dropped).
+const MAX_STARTS_PER_FRAME: int = 2
 const STATUS_EMPTY := "empty"
 const EMPTY_COLOR := Color("ff5a5f")
 
@@ -52,6 +54,8 @@ var firing: bool = false:
 var _fuel_exact: float = 0.0          # server: the exact fuel (the synced value follows in FUEL_STEP steps)
 var _exposure: Dictionary = {}        # server: GrowPlot instance id -> seconds of continuous exposure
 var _ignited_at: Dictionary = {}      # server: peer id -> msec of the last ignite
+var _started_frame: int = -1          # server: the physics frame of the last granted start ...
+var _starts_in_frame: int = 0         # ... and how many were granted in it (MAX_STARTS_PER_FRAME)
 var _loop_handle: int = 0
 var _want_sent: bool = false          # local holder: the last request_fire(on) value sent
 var _empty_click_played: bool = false
@@ -183,6 +187,16 @@ func server_request_fire(sender: int, on: bool) -> bool:
 	# thing a stumbling worker could still do. The holder's poll asks again once the stun has passed.
 	if holder.is_stunned():
 		return false
+	# M13 review: at most MAX_STARTS_PER_FRAME starts per physics frame. Nothing burns between two physics ticks
+	# anyway, so an on/off flood from a modified client only bought the host (and every peer's flame cosmetics) a
+	# state flip per request.
+	var frame := Engine.get_physics_frames()
+	if frame != _started_frame:
+		_started_frame = frame
+		_starts_in_frame = 0
+	if _starts_in_frame >= MAX_STARTS_PER_FRAME:
+		return false
+	_starts_in_frame += 1
 	_exposure.clear()
 	firing = true
 	return true

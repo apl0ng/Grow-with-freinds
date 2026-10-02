@@ -535,6 +535,9 @@ func _move_toward(point: Vector3, speed: float, delta: float, stop: float = ARRI
 	var worker := _worker_in_the_way(global_position + dir * step)
 	if worker != null:
 		_blocker = worker
+		# The worker stands ON the spot it is heading for: there is no way round to it (it would circle them).
+		if Vector2(point.x - worker.global_position.x, point.z - worker.global_position.z).length() < BODY_CLEARANCE:
+			return false
 		var around := _around(dir, worker)
 		if around == Vector3.ZERO or not _probe(around, step + PROBE_MARGIN).is_empty() \
 				or _worker_in_the_way(global_position + around * step) != null:

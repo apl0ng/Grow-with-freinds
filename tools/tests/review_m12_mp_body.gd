@@ -171,7 +171,7 @@ func _host_main() -> void:
 	var took := Time.get_ticks_msec() - t0
 	await wait_physics(3)
 	check(not rft.firing and rft.fuel >= b.flamethrower_fuel_sec - 0.3, "300 on/off requests in one frame: flame off, fuel %.1f s (nothing burnt for free)" % rft.fuel)
-	check(int(rogue_fire[0]) <= 300 and took < 5000, "the host handled the burst in %d ms (%d state changes)" % [took, int(rogue_fire[0])])
+	check(int(rogue_fire[0]) <= 40 and took < 5000, "the host handled the burst in %d ms and flipped the synced state %d times, not 300" % [took, int(rogue_fire[0])])
 	r = await run_cmd(_rogue, "fire_raw", {"item": String(rft.name), "on": true})
 	check(rft.firing, "one honest request: the flame is on")
 	check(GameState.server_send_to_backroom(_rogue, 60.0), "the rogue is sent to the back room while firing")
