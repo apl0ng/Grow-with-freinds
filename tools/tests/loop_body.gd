@@ -474,7 +474,7 @@ func _test_rack_layout(b: BalanceConfig) -> void:
 	check(Sfx.has_sound(&"rack_hang") and Sfx.has_sound(&"cured"), "the rack's sounds are registered")
 	check(Sfx.measure(Sfx.get_stream(&"rack_hang")).seconds > 0.25 and Sfx.measure(Sfx.get_stream(&"cured")).seconds > 0.25,
 			"with recipes of their own (not the default blip)")
-	check(is_equal_approx(b.cure_sec, 20.0) and is_equal_approx(b.cure_bonus, 0.4), "20 s on a hook for +40%")
+	check(is_equal_approx(b.cure_sec, 45.0) and is_equal_approx(b.cure_bonus, 0.4), "45 s on a hook for +40%")
 	await wait_frames(1)
 
 
@@ -520,23 +520,23 @@ func _test_rack(b: BalanceConfig) -> void:
 	check(_hung == [["DryingRack1", 0, 1]], "bundle_hung(0, 1) %s" % [_hung])
 	check(bundle.get_props() == {"strain_id": "purple", "amount": 1, "rack": true, "dry_left": b.cure_sec}, "props %s" % [bundle.get_props()])
 	var tag := bundle.get_node(^"AmountLabel") as Label3D
-	check(tag.visible and tag.text == "x1 · 20 s" and bundle.get_status_text() == "Drying 20 s", "the label counts: '%s' / '%s'" % [tag.text, bundle.get_status_text()])
+	check(tag.visible and tag.text == "x1 · 45 s" and bundle.get_status_text() == "Drying 45 s", "the label counts: '%s' / '%s'" % [tag.text, bundle.get_status_text()])
 	check(bundle.is_drying() and bundle.can_interact(bob) and bundle.get_collider().collision_layer == Const.LAYER_ITEM, "a hanging bundle is an ordinary item: anyone can take it")
 	check(not rack1.can_interact(me) and rack1.get_denied_reason(me) == DryingRack.REASON_EMPTY_HANDS, "my hands are empty again")
 
 	step("drying rack: the countdown")
 	rack1.tick(5.0)
-	check(is_equal_approx(rack1.get_exact_left(bundle), 15.0) and is_equal_approx(bundle.dry_left, 15.0), "5 s later: 15 s left (%.2f)" % bundle.dry_left)
+	check(is_equal_approx(rack1.get_exact_left(bundle), 40.0) and is_equal_approx(bundle.dry_left, 40.0), "5 s later: 40 s left (%.2f)" % bundle.dry_left)
 	rack1.tick(0.2)
-	check(is_equal_approx(rack1.get_exact_left(bundle), 14.8) and is_equal_approx(bundle.dry_left, 15.0), "the synced value moves in %.1f s steps, rounded up (exact %.1f, synced %.1f)" % [DryingRack.SYNC_STEP, rack1.get_exact_left(bundle), bundle.dry_left])
+	check(is_equal_approx(rack1.get_exact_left(bundle), 39.8) and is_equal_approx(bundle.dry_left, 40.0), "the synced value moves in %.1f s steps, rounded up (exact %.1f, synced %.1f)" % [DryingRack.SYNC_STEP, rack1.get_exact_left(bundle), bundle.dry_left])
 	rack1.tick(0.4)
-	check(is_equal_approx(rack1.get_exact_left(bundle), 14.4) and is_equal_approx(bundle.dry_left, 14.5), "exact 14.4, synced 14.5")
-	check(tag.text == "x1 · 15 s", "label '%s'" % tag.text)
+	check(is_equal_approx(rack1.get_exact_left(bundle), 39.4) and is_equal_approx(bundle.dry_left, 39.5), "exact 39.4, synced 39.5")
+	check(tag.text == "x1 · 40 s", "label '%s'" % tag.text)
 	# By itself, in real time (the rack's own _process).
 	rack1.set_process(true)
 	await wait_sec(1.2)
 	rack1.set_process(false)
-	check(bundle.dry_left <= 13.5 and bundle.dry_left >= 12.5 and not bundle.cured, "left alone for 1.2 s it keeps drying (%.1f s left)" % bundle.dry_left)
+	check(bundle.dry_left <= 38.5 and bundle.dry_left >= 37.5 and not bundle.cured, "left alone for 1.2 s it keeps drying (%.1f s left)" % bundle.dry_left)
 
 	step("drying rack: taken off early")
 	var exact := rack1.get_exact_left(bundle)
@@ -551,7 +551,7 @@ func _test_rack(b: BalanceConfig) -> void:
 	rack2.tick(30.0)
 	check(is_equal_approx(bundle.dry_left, exact) and not bundle.cured, "it never cures in the hand, however long (%.2f)" % bundle.dry_left)
 	var plain := chute.get_sale_value(bundle)
-	check(plain == 130, "half dry it is still worth the plain $%d" % plain)
+	check(plain == 140, "part dry it is still worth the plain $%d" % plain)
 
 	step("drying rack: hung again for the remainder (on the other rack)")
 	_put(bob, rack2.global_position + Vector3(0.0, 0.0, 1.4))
@@ -616,7 +616,7 @@ func _test_rack(b: BalanceConfig) -> void:
 	items.server_despawn_item(mine)
 	# All three dry on their own clocks; the middle one is taken and its hook is used again.
 	rack1.tick(4.0)
-	check(is_equal_approx(hung[0].dry_left, 16.0) and is_equal_approx(hung[1].dry_left, 16.0) and is_equal_approx(hung[2].dry_left, 16.0), "three bundles dry side by side (16 s left each)")
+	check(is_equal_approx(hung[0].dry_left, 41.0) and is_equal_approx(hung[1].dry_left, 41.0) and is_equal_approx(hung[2].dry_left, 41.0), "three bundles dry side by side (41 s left each)")
 	items.server_drop_item(fourth, FAR_A)
 	hung[1]._server_interact(bob)
 	rack1.tick(0.016)
@@ -625,7 +625,7 @@ func _test_rack(b: BalanceConfig) -> void:
 	check(items.server_give_item(fourth, BOB) and rack1.server_hang(bob), "the fourth bundle hangs now")
 	await wait_frames(1)
 	check(rack1.get_hook_item(1) == fourth and is_equal_approx(fourth.dry_left, b.cure_sec) and rack1.is_full(), "on hook 2, with the whole %.0f s ahead of it" % b.cure_sec)
-	rack1.tick(16.0)
+	rack1.tick(41.0)
 	check(hung[0].cured and hung[2].cured and not fourth.cured and is_equal_approx(fourth.dry_left, 4.0), "the two that stayed are cured; the late one has 4 s left")
 	# A despawned bundle (sold from the hook by a chute shot, a reset) just frees its hook.
 	items.server_despawn_item(hung[0])
@@ -659,46 +659,46 @@ func _test_sale(b: BalanceConfig) -> void:
 	step("the chute: a cured bundle pays more")
 	var purple := b.get_seed(&"purple")
 	var golden := b.get_seed(&"golden")
-	check(TurnInStation.compute_sale_value(purple, 1, 1.0) == 130 and TurnInStation.compute_sale_value(purple, 1, 1.0, true) == 182,
-			"Purple Haze x1: $130 wet, $182 cured (x%.1f)" % (1.0 + b.cure_bonus))
-	check(TurnInStation.compute_sale_value(golden, 2, 1.0, true) == 336 and TurnInStation.compute_sale_value(golden, 2, 1.1, true) == int(round(240 * 1.1 * 1.4)),
-			"Golden Kush x2 cured: $336; the Better Cut multiplies on top")
+	check(TurnInStation.compute_sale_value(purple, 1, 1.0) == 140 and TurnInStation.compute_sale_value(purple, 1, 1.0, true) == 196,
+			"Purple Haze x1: $140 wet, $196 cured (x%.1f)" % (1.0 + b.cure_bonus))
+	check(TurnInStation.compute_sale_value(golden, 2, 1.0, true) == 350 and TurnInStation.compute_sale_value(golden, 2, 1.1, true) == int(round(250 * 1.1 * 1.4)),
+			"Golden Kush x2 cured: $350; the Better Cut multiplies on top")
 	var cured_bundle := items.get_held_by(BOB) as Product
 	if not check(cured_bundle != null and cured_bundle.cured, "Bob holds the cured bundle"):
 		return
 	_put(bob, chute.global_position + chute.global_basis.z * 1.3)
-	check(TurnInStation.is_cured(cured_bundle) and chute.get_sale_value(cured_bundle) == 182, "the chute prices it at $%d" % chute.get_sale_value(cured_bundle))
-	check(chute.get_prompt(bob) == "Deposit Purple Haze x1, cured (+$182)", "prompt '%s'" % chute.get_prompt(bob))
+	check(TurnInStation.is_cured(cured_bundle) and chute.get_sale_value(cured_bundle) == 196, "the chute prices it at $%d" % chute.get_sale_value(cured_bundle))
+	check(chute.get_prompt(bob) == "Deposit Purple Haze x1, cured (+$196)", "prompt '%s'" % chute.get_prompt(bob))
 	var money0 := GameState.money
 	var sales0 := GameState.round_sales
 	var deposited0 := GameState.get_stat(BOB, Const.STAT_DEPOSITED)
 	check(GameState.get_stat(BOB, Const.STAT_CURED) == 0, "no cured deposits yet")
 	chute._server_interact(bob)
 	await wait_frames(2)
-	check(GameState.money == money0 + 182 and GameState.round_sales == sales0 + 182, "paid $182 (yield x value x 1.4)")
-	check(GameState.get_stat(BOB, Const.STAT_CURED) == 1 and GameState.get_stat(BOB, Const.STAT_DEPOSITED) == deposited0 + 182, "STAT_CURED 1 for the seller, deposited +182")
+	check(GameState.money == money0 + 196 and GameState.round_sales == sales0 + 196, "paid $196 (yield x value x 1.4)")
+	check(GameState.get_stat(BOB, Const.STAT_CURED) == 1 and GameState.get_stat(BOB, Const.STAT_DEPOSITED) == deposited0 + 196, "STAT_CURED 1 for the seller, deposited +196")
 	check(items.get_held_by(BOB) == null, "the bundle is gone")
 	# An uncured bundle (even one that hung for a while) sells at the plain value and counts nothing.
 	var wet := _bundle(&"purple", 1, BOB)
 	_put(bob, rack1.global_position + Vector3(0.0, 0.0, 1.4))
 	check(rack1.server_hang(bob), "another bundle hangs")
-	rack1.tick(12.0)
+	rack1.tick(37.0)
 	wet._server_interact(bob)
 	rack1.tick(0.016)
 	check(wet.holder_id == BOB and not wet.cured and not wet.rack and is_equal_approx(wet.dry_left, 8.0), "taken 8 s early")
 	_put(bob, chute.global_position + chute.global_basis.z * 1.3)
-	check(chute.get_sale_value(wet) == 130 and chute.get_prompt(bob) == "Deposit Purple Haze x1 (+$130)", "prompt '%s'" % chute.get_prompt(bob))
+	check(chute.get_sale_value(wet) == 140 and chute.get_prompt(bob) == "Deposit Purple Haze x1 (+$140)", "prompt '%s'" % chute.get_prompt(bob))
 	money0 = GameState.money
 	check(chute.server_sell_item(wet, BOB), "sold")
 	await wait_frames(2)
-	check(GameState.money == money0 + 130, "paid the plain $130")
+	check(GameState.money == money0 + 140, "paid the plain $140")
 	check(GameState.get_stat(BOB, Const.STAT_CURED) == 1, "STAT_CURED unchanged")
 	# A cured bundle thrown into the chute pays the same (the one sale path).
 	var shot := items.server_spawn_item(Const.ITEM_PRODUCT, {"strain_id": "golden", "amount": 2, "cured": true}, FAR_A) as Product
 	money0 = GameState.money
 	check(chute.server_sell_item(shot, 1), "a cured bundle sold for the host")
 	await wait_frames(2)
-	check(GameState.money == money0 + 336 and GameState.get_stat(1, Const.STAT_CURED) == 1, "$336, STAT_CURED for that seller")
+	check(GameState.money == money0 + 350 and GameState.get_stat(1, Const.STAT_CURED) == 1, "$350, STAT_CURED for that seller")
 	check(GameState.is_playing(), "the shift is still running")
 
 

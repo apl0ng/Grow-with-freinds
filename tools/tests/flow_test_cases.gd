@@ -423,11 +423,11 @@ func _test_ui() -> void:
 func _test_balance_numbers() -> void:
 	print("== Balance (payment numbers)")
 	_check(_balance.starting_money == 150, "starting cash $150 (%d)" % _balance.starting_money)
-	_check(_balance.quota_for_round(1) == 350, "shift 1 payment $350 solo (%d)" % _balance.quota_for_round(1))
-	_check(_balance.quota_for_round(2) == 675, "shift 2 payment $675 solo = 350*1.5+150 (%d)" % _balance.quota_for_round(2))
-	_check(is_equal_approx(_balance.quota_per_extra_player, 0.2), "+20%% per extra worker (%.2f)" % _balance.quota_per_extra_player)
-	_check(_balance.quota_for_round(1, 4) == roundi(_balance.quota_for_round(1) * 1.6),
-		"4 workers pay 1.6x the solo number (%d)" % _balance.quota_for_round(1, 4))
+	_check(_balance.quota_for_round(1) == 500, "shift 1 payment $500 solo (%d)" % _balance.quota_for_round(1))
+	_check(_balance.quota_for_round(2) == 1325, "shift 2 payment $1325 solo = 500*1.75+450 (%d)" % _balance.quota_for_round(2))
+	_check(is_equal_approx(_balance.quota_per_extra_player, 0.1), "+10%% per extra worker (%.2f)" % _balance.quota_per_extra_player)
+	_check(_balance.quota_for_round(1, 4) == roundi(_balance.quota_for_round(1) * 1.3),
+		"4 workers pay 1.3x the solo number (%d)" % _balance.quota_for_round(1, 4))
 	_check(_balance.quota_for_round(1, 1) == _balance.quota_for_round(1) and _balance.quota_for_round(1, 0) == _balance.quota_for_round(1),
 		"1 (or 0) workers = the solo number")
 
@@ -443,8 +443,8 @@ func _test_team_payment() -> void:
 	GameState.reset_local()
 	GameState.server_reset_game()
 	var solo := _balance.quota_for_round(1)
-	_check(GameState.quota == _balance.quota_for_round(1, 4) and GameState.quota == roundi(solo * 1.6),
-		"WAITING with 4 workers: payment %d = 1.6 x %d" % [GameState.quota, solo])
+	_check(GameState.quota == _balance.quota_for_round(1, 4) and GameState.quota == roundi(solo * 1.3),
+		"WAITING with 4 workers: payment %d = 1.3 x %d" % [GameState.quota, solo])
 	Net.players.erase(4)
 	Net.players_changed.emit()
 	_check(GameState.quota == _balance.quota_for_round(1, 3), "WAITING: a worker leaves -> payment re-priced (%d)" % GameState.quota)
@@ -490,17 +490,17 @@ func _test_story() -> void:
 
 	# WAITING -> the payment on the board
 	GameState.server_reset_game()
-	_check(board.text == "OWED $350 / SHIFT 1", "WAITING board: %s" % board.text)
+	_check(board.text == "OWED $500 / SHIFT 1", "WAITING board: %s" % board.text)
 	_check(boss.said.is_empty(), "nothing barked before the shift")
 
 	# shift start: MAJOR, immediate
 	GameState.request_start_round()
 	_check(boss.last() == lines["shift_start"], "shift start bark: %s" % boss.last())
-	_check(board.text == "OWED $350 / SHIFT 1", "PLAYING board: %s" % board.text)
+	_check(board.text == "OWED $500 / SHIFT 1", "PLAYING board: %s" % board.text)
 
 	# first deposit: queued behind the shift line (min gap), then shown
 	GameState.server_add_sale(1, 1)
-	_check(board.text == "OWED $349 / SHIFT 1", "board counts down on a deposit: %s" % board.text)
+	_check(board.text == "OWED $499 / SHIFT 1", "board counts down on a deposit: %s" % board.text)
 	_check(boss.last() == lines["shift_start"] and Story.get_pending_text() == lines["first_sale"],
 		"first deposit within %.0f s of the last line waits in the queue" % gap)
 	Story.tick(gap + 0.1)
@@ -538,7 +538,7 @@ func _test_story() -> void:
 	# next shift: MAJOR cuts through the gap
 	GameState.request_next_round()
 	_check(boss.last() == lines["shift_start"], "shift 2 start bark right after the verdict")
-	_check(board.text == "OWED $675 / SHIFT 2", "shift 2 board: %s" % board.text)
+	_check(board.text == "OWED $1,325 / SHIFT 2", "shift 2 board: %s" % board.text)
 
 	# workers come and go (Net signals, every peer)
 	Net.peer_joined.emit(4242)
@@ -557,7 +557,7 @@ func _test_story() -> void:
 	_check(GameState.phase == GameState.Phase.ROUND_FAILED and boss.last() == lines["missed"], "missed payment bark: %s" % boss.last())
 	_check(board.text == "YOU'RE DONE", "failure board: %s" % board.text)
 	GameState.request_retry()
-	_check(board.text == "OWED $350 / SHIFT 1", "START OVER: board back to %s" % board.text)
+	_check(board.text == "OWED $500 / SHIFT 1", "START OVER: board back to %s" % board.text)
 
 	# bark_now + fallbacks
 	Story.bark_now("Back to work.")
@@ -577,7 +577,7 @@ func _test_story() -> void:
 	Story.refresh_board()
 	_check(toasts.is_empty() and Story.last_bark == "Nobody hears this." and Story.bark_log.has("Nobody hears this."),
 		"no world: nothing shown, the line is still logged")
-	_check(Story.board_text == "OWED $350 / SHIFT 1", "no world: board text still tracked, no crash")
+	_check(Story.board_text == "OWED $500 / SHIFT 1", "no world: board text still tracked, no crash")
 	Game.toast_requested.disconnect(on_toast)
 	GameState.reset_local()
 	_check(Story.last_bark == "" and Story.get_pending_text() == "", "MENU clears Story's state")

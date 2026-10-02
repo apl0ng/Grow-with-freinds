@@ -7,7 +7,7 @@ extends "res://tools/tests/qa_net_base.gd"
 ## "RESULT: PASS|FAIL" line; unannounced engine errors fail the run (qa_base).
 ## Pins over the wire: the client's hang (the bundle rests on hook 1 on both peers, `rack` and `dry_left` synced, the
 ## client's own rack reads the hook as taken); both peers see `dry_left` fall and `cured` flip (label, darker tint);
-## the client takes the cured bundle (`rack` clears) and sells it: both see the bonus ($182 for Purple Haze) and
+## the client takes the cured bundle (`rack` clears) and sells it: both see the bonus ($196 for Purple Haze) and
 ## STAT_CURED; a bundle taken off early keeps its remainder on both peers and sells at the plain value; a rack the
 ## host filled reads "Rack is full." on the client, whose rack state is derived from the synced bundles alone.
 
@@ -97,9 +97,9 @@ func _host_main() -> void:
 	check(GameState.get_stat(a, Const.STAT_CURED) == 0, "host: no cured deposits yet")
 	r = await run_cmd(a, "take_and_sell", {"item": String(bundle.name)}, 30.0)
 	check(bool(r.get("taken", false)) and bool(r.get("rack_cleared", false)), "Alpha took it off the hook and saw `rack` clear")
-	check(String(r.get("prompt", "")) == "Deposit Purple Haze x1, cured (+$182)", "Alpha's chute prompt: '%s'" % r.get("prompt", ""))
+	check(String(r.get("prompt", "")) == "Deposit Purple Haze x1, cured (+$196)", "Alpha's chute prompt: '%s'" % r.get("prompt", ""))
 	check(bool(r.get("sold", false)), "Alpha saw the bundle go")
-	check(GameState.money == money0 + 182 and GameState.round_sales == sales0 + 182, "host: paid $182 (130 x 1.4), cash %d -> %d" % [money0, GameState.money])
+	check(GameState.money == money0 + 196 and GameState.round_sales == sales0 + 196, "host: paid $196 (140 x 1.4), cash %d -> %d" % [money0, GameState.money])
 	check(GameState.get_stat(a, Const.STAT_CURED) == 1, "host: STAT_CURED 1 for Alpha")
 	check(int(r.get("money", -1)) == GameState.money and int(r.get("sales", -1)) == GameState.round_sales, "Alpha saw the same cash and deposits (%s, %s)" % [r.get("money"), r.get("sales")])
 	check(int(r.get("stat_cured", -1)) == 1, "Alpha saw its STAT_CURED (%s)" % r.get("stat_cured"))
@@ -117,8 +117,8 @@ func _host_main() -> void:
 			"Alpha sees the same remainder (%s)" % r.get("dry_left"))
 	check(String(r.get("status", "")) == "%d s to dry" % ceili(wet.dry_left), "Alpha's bundle says '%s'" % r.get("status", ""))
 	r = await run_cmd(a, "sell", {}, 20.0)
-	check(String(r.get("prompt", "")) == "Deposit Purple Haze x1 (+$130)" and bool(r.get("sold", false)), "Alpha deposits it: '%s'" % r.get("prompt", ""))
-	check(GameState.money == money0 + 130 and GameState.get_stat(a, Const.STAT_CURED) == 1, "host: the plain $130, STAT_CURED unchanged")
+	check(String(r.get("prompt", "")) == "Deposit Purple Haze x1 (+$140)" and bool(r.get("sold", false)), "Alpha deposits it: '%s'" % r.get("prompt", ""))
+	check(GameState.money == money0 + 140 and GameState.get_stat(a, Const.STAT_CURED) == 1, "host: the plain $140, STAT_CURED unchanged")
 	await checkpoint("after the plain deposit", ["a"])
 
 	step("a rack the host filled reads full on the client")

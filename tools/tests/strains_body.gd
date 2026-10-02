@@ -11,8 +11,8 @@ const MODELS_DIR := "res://art/models/"
 ## id -> [display_name, cost, grow mult, yield, value, mutation]
 const EXPECTED := {
 	"budget": ["Budget Bud", 20, 1.0, 1, 60, 0.0],
-	"purple": ["Purple Haze", 45, 1.3, 1, 130, 0.05],
-	"golden": ["Golden Kush", 90, 1.6, 2, 120, 0.1],
+	"purple": ["Purple Haze", 45, 1.3, 1, 140, 0.05],
+	"golden": ["Golden Kush", 90, 1.6, 2, 125, 0.1],
 	"nightshift": ["Night Shift", 70, 1.2, 1, 210, 0.35],
 	"creeper": ["Creeper", 30, 0.8, 1, 70, 0.12],
 	"brick": ["Floor Brick", 120, 2.0, 3, 110, 0.2],
@@ -168,7 +168,7 @@ func _test_traits(b: BalanceConfig) -> void:
 				traits += 1
 		check(traits == (0 if id == "budget" else 1), "%s carries %s (%d)" % [id, "no trait: the control group" if id == "budget" else "exactly one trait", traits])
 		check((s.trait_text == "") == (traits == 0), "%s names its trait on the card exactly when it has one" % id)
-	check(is_equal_approx(b.cure_sec, 20.0) and is_equal_approx(b.cure_bonus, 0.4), "drying: %.0f s on the rack for +%d%%" % [b.cure_sec, roundi(b.cure_bonus * 100.0)])
+	check(is_equal_approx(b.cure_sec, 45.0) and is_equal_approx(b.cure_bonus, 0.4), "drying: %.0f s on the rack for +%d%%" % [b.cure_sec, roundi(b.cure_bonus * 100.0)])
 	check(is_equal_approx(b.heavy_speed_factor, 0.7) and b.counted_fine == 25, "heavy carry x%.1f, counted fine $%d" % [b.heavy_speed_factor, b.counted_fine])
 
 
