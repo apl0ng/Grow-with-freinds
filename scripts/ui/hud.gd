@@ -502,7 +502,9 @@ func _on_phase_changed(new_phase: int) -> void:
 func _on_worker_written_up(peer_id: int, reason: String, _count: int) -> void:
 	var worker_name := Net.get_player_name(peer_id)
 	var text := TEXT_WRITE_UP_PLAIN % worker_name
-	if reason == Const.WRITE_UP_SKIMMING or reason == Const.WRITE_UP_LOITERING:
+	# M13 review: the M12 reasons are named too ("Bob written up: arson."). They used to fall through to the plain
+	# line, and the Boss only says "Written up, Bob.": nobody was told what the write-up was for.
+	if reason in [Const.WRITE_UP_SKIMMING, Const.WRITE_UP_LOITERING, Const.WRITE_UP_ARSON, Const.WRITE_UP_MISUSE, Const.WRITE_UP_ABSENT]:
 		text = TEXT_WRITE_UP % [worker_name, reason]
 	Game.toast(text, &"error") # through Game so every toast listener (tests included) sees it; lands in show_toast
 	play_sfx(&"write_up", &"error")

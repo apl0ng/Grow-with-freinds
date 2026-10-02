@@ -26,9 +26,14 @@ extends "res://tools/tests/qa_base.gd"
 ##       was not on the floor when a head count began (back room, joined late) was written up as absent.
 ##   R8  churn: the holder disconnects while firing; the shift ends / RETRY / back to the menu with a hostile alive, a
 ##       flame on, a head count running and a tray turning; the back room while holding the flamethrower and while
-##       being chased; the flamethrower thrown at the chute, at the booth and out of bounds; two flamethrowers.
+##       being chased; two flamethrowers; the flamethrower thrown at the chute and out of bounds. BUG: anything thrown
+##       past the Boss (the pay window has no collider above the 1 m counter) or lobbed over a partition came to rest
+##       INSIDE the booth and was lost for the shift (the flamethrower, and both of the team's watering cans). A flight
+##       never ends in the booth now (Room.is_in_booth).
 ##   R9  the cabinet: from across the room, five requests in one frame, two workers in one frame, cash short.
-##   R10 copy audit of every M12 string (no "!", no cheer, house vocabulary).   R11 numbers that must hold together.
+##   R10 copy audit of every M12 string (no "!", no cheer, house vocabulary); the M12 write-ups (arson / misuse /
+##       absent) were toasts without a reason ("Bob written up."): named now. Cabinet denials got their full stop.
+##   R11 numbers that must hold together.
 ## Every engine/script error fails the run unless announced (qa_base.gd).
 
 const BOB := 2
@@ -424,6 +429,7 @@ func _r3_turning_tray() -> void:
 	check(cabinet.server_break(me), "glass broken with a quiet floor")
 	await wait_frames(1)
 	check(_write_ups.size() == 1 and _write_ups[0][1] == Const.WRITE_UP_MISUSE, "misuse write-up %s" % [_write_ups])
+	check(toast_seen("Reviewer written up: misuse."), "and the floor is told what for: 'Reviewer written up: misuse.' %s" % [toasts])
 	_make_ready(p2, &"nightshift")
 	Hostiles.tick(0.05)
 	check(not p2.turning, "a ready plant that did not turn")
@@ -431,6 +437,7 @@ func _r3_turning_tray() -> void:
 	check(p2.server_scorch(1), "burnt")
 	await wait_frames(3)
 	check(_write_ups.size() == 1 and _write_ups[0][1] == Const.WRITE_UP_ARSON, "arson write-up %s" % [_write_ups])
+	check(toast_seen("Reviewer written up: arson."), "'Reviewer written up: arson.'")
 	# A turning tray excuses the tray itself, not the rest of the row.
 	Hostiles.tick(0.05) # the watch sees the tray empty (a new READY rolls again)
 	ns.mutation_chance = 1.0
@@ -564,6 +571,38 @@ func _r5_escape_rules() -> void:
 	check(after >= pinned + 1.5, "calm: it walked away from her (%.2f m -> %.2f m) instead of wandering at random, the corner is open" % [pinned, after])
 	check(_bites.size() == HostilePlant.BITES_BEFORE_CALM, "no third bite while calm")
 
+	step("R5f: a plant out of the tray by the east wall gets to the far tray; nothing to eat: it wanders, never stuck")
+	await _reset_floor()
+	var p6 := plot(6)
+	_make_growing(p6, &"budget", 0.95)
+	h = _hostile(plot(2).global_position) # GrowPlot 2: the north-east tray, the wall 2.4 m behind it
+	_tick(14.0, func() -> bool: return h.state == HostilePlant.State.EAT)
+	check(h.state == HostilePlant.State.EAT and h.get_target_plot() == p6, "it walked the east row and eats GrowPlot 6 (state %s at %s)" % [h.get_state_name(), h.global_position])
+	p6.server_reset()
+	# Nobody on the floor (the back room is no prey): a plant that strays near a worker would stand and wait on the
+	# REAL stagger clock while this loop runs simulated minutes.
+	for id: int in [1, BOB, CHLOE, DANA, EVE]:
+		GameState.server_send_to_backroom(id, 600.0)
+	await wait_frames(2)
+	var bounds := room.get_bounds().grow(-0.3)
+	var inside := true
+	var travelled := 0.0
+	var still := 0.0
+	var longest_still := 0.0
+	var last := h.global_position
+	for i in 1800: # three minutes of wandering with nothing to eat and nobody near
+		Hostiles.tick(0.1)
+		var d := _flat(h.global_position, last)
+		travelled += d
+		last = h.global_position
+		still = still + 0.1 if d < 0.001 else 0.0
+		longest_still = maxf(longest_still, still)
+		if not bounds.has_point(h.global_position + Vector3.UP):
+			inside = false
+	# A wander target on the far side of a fence used to hold it there for good (until a worker came near).
+	check(inside and longest_still < 10.0 and travelled > 60.0, "three minutes of wandering: %.0f m walked, never still for more than %.1f s, always inside the room" % [travelled, longest_still])
+	check(h.state == HostilePlant.State.ROAM and _bites.is_empty(), "(nobody on the floor: it only ever roamed)")
+
 
 # =================================================================================================== R6
 
@@ -644,6 +683,7 @@ func _r7_shortage_and_headcount() -> void:
 	var absent := Events.server_headcount()
 	check(absent == [CHLOE], "only Chloe is written up as absent %s" % [absent])
 	check(_write_ups.size() == 1 and _write_ups[0][0] == CHLOE and _write_ups[0][1] == Const.WRITE_UP_ABSENT, "one absent write-up %s" % [_write_ups])
+	check(toast_seen("Chloe written up: absent."), "'Chloe written up: absent.'")
 	Events.server_end_event()
 	await wait_frames(2)
 	# The next count has them on the roster like everybody else.
@@ -733,6 +773,19 @@ func _r8_churn() -> void:
 	await wait_until(func() -> bool: return not ft.is_flying(), 4.0, "it comes down")
 	var rest := ft.global_position
 	check(not (absf(rest.x) < 2.06 and rest.z < -5.2), "it did not end up inside the Boss's booth %s" % rest)
+	# Past the Boss, over the counter (the pay window has no collider above 1.04 m) and lobbed over the partition.
+	for throw: Array in [[Vector3(1.25, 1.6, -3.0), Vector3(0.0, 4.0, -9.0)], [Vector3(-1.2, 1.6, -3.2), Vector3(0.0, 3.0, -7.0)],
+			[Vector3(-4.0, 1.6, -4.0), Vector3(4.5, 8.0, -3.5)], [Vector3(0.0, 1.6, -1.0), Vector3(0.0, 8.4, -5.8)]]:
+		check(items.server_throw_item(ft, throw[0], throw[1], 1), "thrown from %s at %s" % [throw[0], throw[1]])
+		await wait_until(func() -> bool: return not ft.is_flying(), 5.0, "it comes down")
+		rest = ft.global_position
+		check(not (absf(rest.x) < 2.06 and rest.z < -5.2), "it did not end up inside the Boss's booth %s" % rest)
+	var can: Item = items_of(Const.ITEM_WATERING_CAN)[0]
+	check(items.server_throw_item(can, Vector3(1.25, 1.6, -3.0), Vector3(0.0, 4.0, -9.0), 1), "a watering can thrown past the Boss")
+	await wait_until(func() -> bool: return not can.is_flying(), 5.0, "it comes down")
+	check(not room.is_in_booth(can.global_position) and can.global_position.z > -5.0, "the can is still on the workers' side of the counter %s" % can.global_position)
+	check(room.is_in_booth(room.get_backroom_transform(0).origin) and not room.is_in_booth(room.get_headcount_spot()) and not room.is_in_booth(Vector3(-3.0, 0.0, -6.9)),
+			"Room.is_in_booth: the back-room spot is inside; the line and the floor west of the partition are not")
 	check(items.server_throw_item(ft, Vector3(0.0, 2.0, 0.0), Vector3(40.0, 30.0, 40.0), 1), "thrown at 64 m/s into the far corner")
 	await wait_until(func() -> bool: return not ft.is_flying(), 5.0, "it comes down")
 	check(room.get_bounds().grow(-0.05).has_point(ft.global_position + Vector3.UP * 0.5) and ft.global_position.is_finite(), "still inside the room %s" % ft.global_position)

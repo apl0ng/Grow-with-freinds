@@ -565,14 +565,27 @@ func _find_flight_landing(item: Item, point: Vector3, t_end: float) -> Vector3:
 		var spot: Vector3 = landing["position"]
 		if not _inside_bounds(spot, bounds):
 			continue
+		# M13 review: never inside the Boss's booth. The pay window has no collider above the 1 m counter, so a
+		# thrown can / flamethrower sailed in (or was lobbed over the partition) and was lost for the shift: the
+		# floor cannot get in there. The walk back along the arc finds the last spot on the workers' side.
+		if _in_booth(spot):
+			continue
 		if _is_drop_spot_free(landing, null):
 			return spot
 	var origin := _from_items_space(item.flight_origin)
 	if origin.is_finite():
 		var below := _probe_floor_below(origin)
-		if _inside_bounds(below["position"], bounds) and _is_drop_spot_free(below, null):
+		if _inside_bounds(below["position"], bounds) and not _in_booth(below["position"]) and _is_drop_spot_free(below, null):
 			return below["position"]
 	return _safe_drop_spot(get_player(item.thrower_id))
+
+
+## M13 review: true when `spot` lies inside the Boss's booth (Room.is_in_booth; false without a room).
+func _in_booth(spot: Vector3) -> bool:
+	var world := get_parent() as World
+	if world == null or not world.is_node_ready() or world.room == null or not world.room.has_method(&"is_in_booth"):
+		return false
+	return bool(world.room.call(&"is_in_booth", spot))
 
 ## The TurnInStation whose collider (or mouth) contains `point`, or null.
 func _find_chute_at(point: Vector3) -> TurnInStation:

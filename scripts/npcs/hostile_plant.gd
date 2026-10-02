@@ -460,7 +460,6 @@ func _bite(target: Player, flat: Vector3, b: BalanceConfig) -> void:
 
 func _pick_plot() -> void:
 	_target_plot = null
-	_stuck = 0.0
 	var best_d := INF
 	for n in get_tree().get_nodes_in_group(Const.GROUP_GROW_PLOTS):
 		var plot := n as GrowPlot
@@ -472,6 +471,7 @@ func _pick_plot() -> void:
 			_target_plot = plot
 	if _target_plot == null:
 		return
+	_stuck = 0.0 # a new tray to walk to: the no-progress clock starts over (not while there is none: ROAM asks every step)
 	var from := global_position - _target_plot.global_position
 	from.y = 0.0
 	if from.length_squared() < 0.0001:
