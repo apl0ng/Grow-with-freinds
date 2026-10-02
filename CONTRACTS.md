@@ -1040,3 +1040,81 @@ crew (average four deposit about $8,900 against $3,296 in shift 3): only a per-s
 capacity jump at shift 3. The siren, sprinkler and collector sounds pass `art_test` but nobody has heard them.
 Three more job ideas from the career branch are not built (one bundle each of three strains; lose no plant; a raid
 that takes nothing).
+
+## M16 — the floor moves, issued kit, more jobs (lead prep, 2026-10-02)
+Design: FRIENDSLOP.md section 10. Three agents in worktrees `.claude/worktrees/<agent>` on `m16/<agent>`:
+**variety**, **hats**, **polish**. Lead-only files as before (project.godot, CONTRACTS.md, PLAN.md, README.md,
+HANDOFF.md, FRIENDSLOP.md, tools/test_all.sh, const.gd, balance_config.gd, config.gd, the tables of sfx.gd). Shared
+files are edited only inside `# --- M16 <agent> ---` regions plus tagged one-line hooks (`# M16 <agent>`).
+Everything new that changes a run sits behind `Config.replay_enabled`, so the 76 existing suites keep running the
+plain game. Test ports: hats +87 / hats_mp +88, variety +89 / variety_mp +90, polish +91.
+
+### Prep already in place (lead)
+- `Config.run_code: String` (`--run=<code>`, "" = the host rolls one).
+- `BalanceConfig` group "M16": `mutation_chance_cap` 0.5 (no condition pushes a strain's chance to walk past this),
+  `empty_flamethrower_sec` 30 (an empty flamethrower left lying is cleared after this).
+- Sfx names with default blips: `uproot`, `locker`.
+
+### Variety (variety agent) — scripts/core/run_seed.gd, game_state.gd region, room.gd / room.tscn, the menu, the board
+- **A run code.** `RunSeed` (static, `class_name RunSeed`): `to_code(seed: int) -> String` (four characters from an
+  alphabet without look-alikes), `from_code(text: String) -> int` (0 for junk; case and spaces ignored),
+  `weekly(unix_time: int) -> int` (the same for everyone in one ISO week), `stream(seed: int, name: StringName) ->
+  int` (an independent sub-seed per consumer). The host picks the run's seed when a session's first shift is set up
+  and on START OVER: `Config.run_code` when given, else random. Synced in the state dictionary under `"run"`
+  (`{"seed": int, "cover": int}`), so late joiners have it. `GameState.get_run_seed() -> int`, `get_run_code() ->
+  String`, `server_set_run_seed(seed: int)` (tests; WAITING only), signal `run_changed`.
+- **Seeded dice.** With replay on, the host seeds from the run seed, each with its own stream: `GameState.replay_rng`
+  (conditions, market), the job roll, `Events` (`Events.server_seed(seed: int)`: kinds, gaps, picks),
+  `Hostiles.server_seed(seed: int)`, `GrowPlot.spread_rng`. The same code gives the same card: the same conditions,
+  market, jobs and order of events, shift by shift. What the workers do is not seeded. With replay off nothing is
+  seeded and nothing changes.
+- **Cover that moves.** The loose cover (the crates and pallets under `Dock`, `Decor` and `Hall` in room.tscn) gets
+  at least four arrangements: `Room.COVER_LAYOUTS` (layout 0 is exactly today's), `Room.get_cover_layout() -> int`,
+  `Room.apply_cover_layout(index: int)` (moves the existing nodes: never reparent, never free). The host derives the
+  layout from the run seed (`stream(seed, &"cover")`), it is applied on every peer from the synced state while the
+  game is WAITING or as the first shift is set up, never during a shift. Every layout keeps: the route graph
+  (`ROUTE_POINTS` / doorways) clear by `ROUTE_MARGIN`, every station's interaction side free, each drive-by lane
+  with a spot behind cover, and on the dock at least one spot out of sight of all three raid eyes. The suite proves
+  these for every layout from the geometry.
+- **The menu and the board.** The host panel gets a run code field (blank: random) and a "THIS WEEK" button that
+  fills in the week's code. The alley board's NEXT column ends with "Run 7K2M." (alley_board.gd: variety agent
+  only).
+- Suites `variety` (+89) and `variety_mp` (+90), both with `--replay`.
+
+### Hats (hats agent) — scripts/core/hats.gd, career.gd, net.gd region, player, a locker in the alley, models
+- **Issued, not bought.** `Hats` (static, `class_name Hats`): a catalog of at least six, each `{id, name, line (what
+  it is issued for, flat), record key, threshold, scene}`, issued from the player's own record: for example a
+  hairnet (one shift worked), a paper cap (ten shifts), a hard hat (best shift 3), a traffic cone (sent to the back
+  room three times), a bucket (bitten five times), a welding mask (five plants burnt). `Hats.ids()`,
+  `Hats.get_def(id)`, `Hats.issued_for(career: Object) -> Array[StringName]`.
+- **Career.** `Career.get_issued_hats() -> Array[StringName]`, `get_hat() -> StringName` (&"" = none),
+  `set_hat(id: StringName) -> bool` (only an issued one or &""), signal `hat_issued(id)` when the end of a shift
+  issues a new one (a toast: "Issued: hard hat. It is in your locker."). The chosen hat is kept in the career file.
+- **Everyone sees it.** The hat id is the second thing a peer sends: `Net._rpc_set_hat(id)` (any_peer, call_local,
+  reliable; sender must be registered; accepted only when it is a catalog id or empty; at most 32 changes a peer a
+  session), `Net._rpc_hats_sync(dict)` to all and to a late joiner, `Net.get_player_hat(peer) -> StringName`,
+  signal `hats_changed`. The host cannot check a record it never sees: any catalog id is accepted. Every peer shows
+  the hat on that worker's body model (a socket on the head; the local player's own first-person view is not
+  blocked by it). Models are built by the Blender pipeline (`tools/blender/models/hats.py`, one GLB each, MODELING.md
+  rows), chunky and worn, nothing cheerful.
+- **The locker.** An interactable in the alley (`scenes/world/locker.tscn`, placed in lobby.tscn by this agent): E
+  puts on the next issued hat, round to none ("Locker · hard hat", "Locker · nothing issued"); sound `locker`. The
+  pause menu's Record card lists "Issued: 3 of 6".
+- Gated like the title: with replay off no hat is sent and the locker says "Locker · locked".
+- Suites `hats` (+87) and `hats_mp` (+88), with `--replay --lobby --career-file=<temp>`. NEVER the real
+  `user://career.cfg`.
+
+### Polish (polish agent) — contracts.gd + the career region of game_state.gd, grow_plot.gd, flamethrower, a sound tool
+- **Three more jobs** (twelve in all): `variety` (one bundle each of three different strains), `keep` (lose no plant
+  this shift: fails on any `GrowPlot` crop loss; judged at the end, payment made), `raid` (a raid that takes
+  nothing: fails on `Events.raid_took`, met when a raid ends clean; an event job: pool and half-time swap as the
+  others).
+- **A cap on walking plants.** After conditions, a strain's chance to turn is capped at
+  `Config.balance.mutation_chance_cap` (twitchy took Night Shift to 0.70).
+- **Uprooting sounds like uprooting** (`uproot`, not the harvest snip): recipe in the agent's block of sfx.gd.
+- **Empty flamethrowers do not pile up.** An empty one lying on the floor (not held, not in the cabinet) is removed
+  by the host after `empty_flamethrower_sec`, on every peer through the item system's own despawn.
+- **A way to hear the new sounds.** `tools/tests/sound_demo_body.gd` (headless, no audio device needed) writes one
+  WAV per name given with `--sounds=a,b,c` into `--out=<dir>` from the Sfx recipes, so the user can audition `siren`,
+  `sprinkler`, `collector_knock`, `ball`, `uproot`, `locker` (and the footsteps) in any player.
+- Suite `polish` (+91); the career, strains and flame suites follow where a pinned number moves.

@@ -179,6 +179,12 @@ extends Resource
 ## Cash paid on the spot for a contract met.
 @export var contract_reward: int = 60
 
+@export_group("M16")
+## After conditions, no strain's chance to get up and walk goes past this (twitchy took Night Shift to 0.70).
+@export var mutation_chance_cap: float = 0.5
+## An empty flamethrower left lying on the floor is cleared after this many seconds.
+@export var empty_flamethrower_sec: float = 30.0
+
 @export_group("Networking")
 @export var default_port: int = 7777
 @export var max_players: int = 4

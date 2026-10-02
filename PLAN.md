@@ -299,3 +299,14 @@ FRIENDSLOP.md section 9, CONTRACTS.md "M15".
 | 15.4 | Shift conditions (ten or more), the market, strains unlocking by shift, event gaps shrinking; replay + replay_mp suites | replay | done (thirteen conditions; 293 + 81 checks, 52 with --no-replay) |
 | 15.5 | Contracts (eight or more), the career file, job titles, the Record page; career + career_mp suites | career | done (nine jobs; 207 + 91 checks) |
 | 15.6 | Integration: merges, test_all registration, captures in the real renderer (the job on the alley board, the banner under the payment column, raid lights retuned), README, full run, export | lead | done (76 suites, 13525 checks green; export re-cut) |
+
+## M16 The floor moves, issued kit, more jobs (in progress, 2026-10-02)
+The user said "proceed" after M15 (2026-10-02); the lead chose this scope from FRIENDSLOP 9.5: FRIENDSLOP.md
+section 10, CONTRACTS.md "M16".
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 16.0 | Prep: Config.run_code, BalanceConfig group M16 (mutation cap, empty flamethrower timer), Sfx names (uproot, locker) | lead | done |
+| 16.1 | A run code that seeds the card, cover layouts picked per run, the menu field, the board line; variety + variety_mp suites | variety | in progress |
+| 16.2 | Hats issued from the record, the locker in the alley, hat sync, six models; hats + hats_mp suites | hats | in progress |
+| 16.3 | Three more jobs, the mutation cap, the uproot sound, empty flamethrowers cleared, the sound audition tool; polish suite | polish | in progress |
+| 16.4 | Integration: merges, test_all registration, captures in the real renderer, README, full run, export | lead | pending |

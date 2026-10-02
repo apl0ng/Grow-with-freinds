@@ -195,3 +195,28 @@ people can start again and not know how it will go. Four things do that here; ea
 ### 9.5 Next
 - A second layout (the same rooms joined differently, picked per run); crate cover shuffled per run; a weekly seed so
   friends can compare the same run; hats bought with career cash; a "final notice" shift with a boss-level event.
+
+## 10. M16: the floor moves, issued kit (2026-10-02)
+M15 made the card different every shift. Two things were still the same every run: the room, and the worker.
+
+### 10.1 The floor moves (now)
+- **Cover that moves.** The crates and pallets on the dock, in the main room and in the hall stand differently each
+  run (four arrangements). The spot that hid a bundle from the raid last run is in the open this run; the crate that
+  stopped the rounds is somewhere else.
+- **A run code.** Every run has a four-character code on the alley board. The same code gives the same card: the
+  same conditions, market, jobs, order of events and cover. Type a friend's code into the host panel and play what
+  they played. "This week" fills in a code that is the same for everyone that week.
+
+### 10.2 Issued kit (now)
+- Nothing is bought and nothing is a reward. The record issues it: a hairnet after the first shift, a paper cap
+  after ten, a hard hat for reaching shift three, a traffic cone for three trips to the back room, a bucket for
+  being bitten five times, a welding mask for five plants burnt. It is in the locker in the alley and everyone on
+  the floor sees it. The worst record has the most hats.
+
+### 10.3 Small things (now)
+- Three more jobs (one bundle each of three strains; lose no plant; a raid that takes nothing), a cap on how many
+  plants a condition can make walk, an uprooting sound, empty flamethrowers cleared away, and a tool that writes
+  every new sound to a file so it can be heard before it is trusted.
+
+### 10.4 Next
+- A second way the rooms join; a "final notice" shift with its own event; a hand truck; the scale that lies.

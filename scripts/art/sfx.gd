@@ -89,6 +89,8 @@ const SOUNDS: Array[StringName] = [
 	&"rack_hang", &"cured",
 	# M15 (lead placeholders: the raid, the sprinklers, the collector, the alley ball)
 	&"siren", &"sprinkler", &"collector_knock", &"ball",
+	# M16 (lead placeholders: uprooting a plant, the alley locker)
+	&"uproot", &"locker",
 ]
 
 ## Sounds synthesised as seamless loops (loop_mode FORWARD over the whole buffer): ambience and walking keys.
@@ -163,6 +165,8 @@ const SETTINGS := {
 	&"sprinkler": [-15.0, 0.0, 10.0],
 	&"collector_knock": [-4.0, 0.03, 12.0],
 	&"ball": [-8.0, 0.08, 6.0],
+	&"uproot": [-7.0, 0.06, 6.0],
+	&"locker": [-8.0, 0.04, 7.0],
 }
 
 enum Wave { SINE, TRIANGLE, SQUARE, SAW, CHIP }

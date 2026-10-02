@@ -22,6 +22,9 @@ var lobby_enabled: bool = false
 ## M15: shift conditions, the market, strain unlocks, contracts (FRIENDSLOP 9). On in a windowed run, off under
 ## --headless (the suites play a plain, deterministic game); --replay forces it on, --no-replay off.
 var replay_enabled: bool = false
+## M16: the run code the host asked for (--run=<code>, or typed into the host panel). "" = the host rolls one.
+## RunSeed.from_code() turns it into the run's seed (CONTRACTS "M16", Variety).
+var run_code: String = ""
 
 func _ready() -> void:
 	balance = load(BALANCE_PATH) as BalanceConfig
@@ -77,6 +80,8 @@ func _apply_overrides() -> void:
 		replay_enabled = true
 	if user_args.has("no-replay"):
 		replay_enabled = false
+	if user_args.has("run"):
+		run_code = str(user_args["run"]).strip_edges()
 	if user_args.has("mute"):
 		set_muted(true, false)
 	if user_args.has("fast"):
