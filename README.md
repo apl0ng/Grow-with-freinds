@@ -31,8 +31,8 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 - Trouble (M12, FRIENDSLOP.md section 7): six strains (Night Shift, Creeper and Floor Brick pay more and have a
   mutation chance), a ready plant can twitch and uproot into a hostile plant that eats growing trays and bites workers
   (a stagger, the item knocked loose; never through a fence); only fire kills it. A tray that starts to turn warns
-  every player on screen ("GrowPlot 3 is moving."): six seconds to harvest it or step back. A red cabinet on the wall by the fuse box holds one
-  flamethrower: break the glass (E; a cash deposit, and a write-up for misuse when nothing is on the floor), hold LMB to
+  every player on screen ("GrowPlot 3 is moving."): six seconds to harvest it or step back.
+  A red cabinet on the wall by the fuse box holds one flamethrower: break the glass (E; a cash deposit, and a write-up for misuse when nothing is on the floor), hold LMB to
   fire (eight seconds of fuel; burnt crops and co-workers are arson, another write-up); it restocks after ninety
   seconds. Breaking it while a tray is turning is not misuse. The Boss keeps the flamethrower of anyone he sends to the
   back room. Stats: bitten, scorched, burns (the shift report names who).
