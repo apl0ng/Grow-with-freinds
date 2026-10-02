@@ -262,3 +262,14 @@ Rationale: FRIENDSLOP.md section 7.
 | 12.3 | Emergency cabinet (deposit, restock, misuse write-up) + flamethrower item (use_item, fuel, cone: burns hostiles, scorches crops, ignites workers, arson write-ups); flame + flame_mp suites | flame | done (104 + 47 checks) |
 | 12.4 | Events: head count, water main off, supply shortage; weights; Well pressure, ShopCounter shortage; Story lines; disrupt + disrupt_mp suites | disrupt | done (114 + 59 checks) |
 | 12.5 | Integration: merge, hook the models, test_all registration + ports, README controls (LMB = use item), CONTRACTS "M12 as delivered", a four-player playtest | lead | pending |
+
+## M13 Hardening M12: review, four-player QA, visual pass (in progress, 2026-10-01)
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 13.1 | Adversarial review of every M12 request path and state transition (fire RPC, cabinet, shortage / pressure refusals, authority-only RPCs, late joins, shift end, back room, griefing limits, copy, numbers) + review_m12 suites (+63 / +64) | review | in progress |
+| 13.2 | Four-process stress of M12 (mutation under load, the chase, fire, events on top, churn) qa_m12_4p (+65) | qa | in progress |
+| 13.3 | Visual pass on the real renderer (tools/tests/m12_shots_body.gd): flame plume, on-screen notices for a moving tray and a plant coming out, first-person flamethrower pose checked, banners checked | lead | done |
+| 13.4 | Hostile plant 2x (user request), tray warning line, fire-kills-plant covered in the flame suite, real recipes for flame / ignite / glass_break / scorch | lead | done |
+| 13.5 | Merge 13.1 and 13.2, register the suites, full run, re-export | lead | pending |
+Known UI gap: the supply window shows one and a half rows of the six strain cards at 720 lines (it scrolls; arrows and the
+wheel reach the second row). A compact card would fit both rows; not done yet.

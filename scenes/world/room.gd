@@ -247,6 +247,22 @@ func get_backroom_transform(slot: int = 0) -> Transform3D:
 	return t
 
 
+## M13 review: true when `point` (global) lies inside the Boss's booth: between the two partitions (Decor/Booth
+## ShapeWest / ShapeEast), from the ShopCounter's centre line back to the north wall. No worker on the floor gets in
+## there, so nothing a worker throws may come to rest there (ItemManager's flight landing asks: a thrown watering can
+## or flamethrower used to sail over the 1 m counter and was lost for the shift). False without the booth nodes.
+func is_in_booth(point: Vector3) -> bool:
+	var west := get_node_or_null(^"Decor/Booth/ShapeWest") as Node3D
+	var east := get_node_or_null(^"Decor/Booth/ShapeEast") as Node3D
+	var counter := get_station("ShopCounter")
+	if west == null or east == null or counter == null or not point.is_finite():
+		return false
+	var p := global_transform.affine_inverse() * point if is_inside_tree() else point
+	var x0 := minf(_room_transform_of(west).origin.x, _room_transform_of(east).origin.x)
+	var x1 := maxf(_room_transform_of(west).origin.x, _room_transform_of(east).origin.x)
+	return p.x > x0 and p.x < x1 and p.z < _room_transform_of(counter).origin.z
+
+
 ## The booth door prop (hinge node) or null.
 func get_backroom_door() -> Node3D:
 	return get_node_or_null(BACKROOM_DOOR_PATH) as Node3D

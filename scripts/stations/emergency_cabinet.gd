@@ -28,8 +28,10 @@ signal restocked
 
 const PROMPT_BREAK := "Break glass"
 const PROMPT_RESTOCKING := "Restocking (%d s)"
-const REASON_CASH_SHORT := "Cash short"
-const REASON_HANDS_FULL := "Hands full"
+## Denials (greyed in the prompt, and the toast when the server refuses): a full stop like every other denial in the
+## game ("Hands full.", "Too far."), M13 review.
+const REASON_CASH_SHORT := "Cash short."
+const REASON_HANDS_FULL := "Hands full."
 const REASON_UNAVAILABLE := "Cabinet's jammed."
 ## The `what` of the deposit (GameState.purchase_made / server_try_spend).
 const DEPOSIT_WHAT := "Emergency equipment deposit"
@@ -157,10 +159,21 @@ func server_break(player: Player) -> bool:
 	broken = true
 	# The write-up (MAJOR Story line) goes first: the PROGRESS "Glass broke." then waits its turn in Story's queue
 	# instead of being swept away by it.
-	if not Hostiles.is_any_alive():
+	# M13 review: a tray that is turning ("GrowPlot 3 is moving.") is trouble on the floor already: the worker who
+	# runs for the cabinet during the six-second warning used to be written up for it.
+	if not Hostiles.is_any_alive() and not _any_tray_turning():
 		GameState.server_write_up(peer, Const.WRITE_UP_MISUSE)
 	_rpc_glass_break.rpc(peer)
 	return true
+
+
+## True while some tray's ready plant twitches before it uproots (GrowPlot.is_turning()).
+func _any_tray_turning() -> bool:
+	for n in get_tree().get_nodes_in_group(Const.GROUP_GROW_PLOTS):
+		var plot := n as GrowPlot
+		if plot != null and plot.is_inside_tree() and plot.is_turning():
+			return true
+	return false
 
 
 ## SERVER. Puts a new flamethrower behind new glass right away (the countdown normally does this).

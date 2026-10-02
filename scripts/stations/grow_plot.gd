@@ -553,9 +553,11 @@ func server_scorch(by_peer: int) -> bool:
 		return false
 	if stage == Stage.EMPTY or _scorch_pending:
 		return false
-	var arson := true
+	# M13 review: a plant burnt while it is turning ("GrowPlot 3 is moving.") is not arson: the floor was told to deal
+	# with it, and burning it in its tray is dealing with it. Read before the stage changes below.
+	var arson := not is_turning()
 	var nearest: Node3D = Hostiles.nearest_to(global_position)
-	if nearest != null and is_instance_valid(nearest) and nearest.is_inside_tree():
+	if arson and nearest != null and is_instance_valid(nearest) and nearest.is_inside_tree():
 		arson = not (nearest.global_position.distance_to(global_position) <= ARSON_HOSTILE_RADIUS)
 	# Stat and write-up first (the write-up's MAJOR Story line goes out before the PROGRESS "burnt" line, which then
 	# waits its turn in Story's queue), then the cosmetic, then the crop.
@@ -732,6 +734,11 @@ func server_tick_mutation(delta: float) -> bool:
 		return false
 	turn_left -= delta
 	if turn_left > 0.0:
+		return false
+	# M13 review: with hostile_max plants already on the floor the spawn below was refused AFTER the reset: the crop
+	# vanished and nothing came out. The plant waits in its tray instead (still "Moving", still harvestable) until
+	# one of them is burnt.
+	if not Hostiles.has_room():
 		return false
 	var strain := strain_id
 	var where := global_position

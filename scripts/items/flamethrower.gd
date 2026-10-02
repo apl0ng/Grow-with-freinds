@@ -11,7 +11,8 @@ extends Item
 ##           request_fire(on) -> _rpc_request_fire.rpc_id(1, on). An empty flamethrower clicks "error" locally once
 ##           per press and sends nothing.
 ##   server  _rpc_request_fire(on) -> server_request_fire(sender, on): the sender must be the holder; `on` also needs
-##           fuel > 0, not flying, the holder not in the back room and the shift PLAYING. `firing` is synced.
+##           fuel > 0, not flying, the holder not in the back room, not stunned (M13 review) and the shift PLAYING.
+##           `firing` is synced.
 ##   every   the `firing` setter starts / stops the flame cone (Visual/Nozzle/Flame, CPUParticles3D) and the "flame"
 ##   peer    loop (Sfx.play_loop, follows this node).
 ##   server  _physics_process while firing: fuel -= delta (at 0: firing stops, label "Flamethrower (empty)"); cone
@@ -20,7 +21,8 @@ extends Item
 ##           clear; the nozzle is only where the flame is drawn): hostiles -> Hostiles.server_apply_fire(id,
 ##           delta, holder); GrowPlots with a plant -> after scorch_sec of CONTINUOUS exposure plot.server_scorch(
 ##           holder); workers -> player.server_ignite(holder) once per victim per IGNITE_COOLDOWN_SEC. Firing stops
-##           by itself when the holder lets go (drop / throw / release), goes to the back room or the shift ends.
+##           by itself when the holder lets go (drop / throw / release), is staggered, goes to the back room or the
+##           shift ends. One cone pass stops burning the moment its write-ups send the shooter to the back room.
 ## An empty flamethrower is still an item: carried, dropped and thrown like the others.
 ## View model: the base Item moves every GeometryInstance3D into the local holder's view-model layer; the flame
 ## particles are pinned back to the world layer each frame (they reach 3.5 m into the room and must be depth-tested
@@ -37,6 +39,8 @@ const IGNITE_COOLDOWN_SEC: float = 10.0
 const PLANT_POINT_HEIGHT: float = 0.8
 ## Height above a hostile's origin where it is tested against the cone.
 const HOSTILE_POINT_HEIGHT: float = 1.0   # mid-body of the 2x plant
+## M13 review: fire requests granted per physics frame (the rest of an on/off flood is dropped).
+const MAX_STARTS_PER_FRAME: int = 2
 const STATUS_EMPTY := "empty"
 const EMPTY_COLOR := Color("ff5a5f")
 
@@ -50,6 +54,8 @@ var firing: bool = false:
 var _fuel_exact: float = 0.0          # server: the exact fuel (the synced value follows in FUEL_STEP steps)
 var _exposure: Dictionary = {}        # server: GrowPlot instance id -> seconds of continuous exposure
 var _ignited_at: Dictionary = {}      # server: peer id -> msec of the last ignite
+var _started_frame: int = -1          # server: the physics frame of the last granted start ...
+var _starts_in_frame: int = 0         # ... and how many were granted in it (MAX_STARTS_PER_FRAME)
 var _loop_handle: int = 0
 var _want_sent: bool = false          # local holder: the last request_fire(on) value sent
 var _empty_click_played: bool = false
@@ -177,6 +183,20 @@ func server_request_fire(sender: int, on: bool) -> bool:
 	var holder := get_holder()
 	if holder == null or not holder.is_inside_tree():
 		return false
+	# M13 review: a stunned worker does not throw or shove (ItemManager / Player refuse both); the flame was the one
+	# thing a stumbling worker could still do. The holder's poll asks again once the stun has passed.
+	if holder.is_stunned():
+		return false
+	# M13 review: at most MAX_STARTS_PER_FRAME starts per physics frame. Nothing burns between two physics ticks
+	# anyway, so an on/off flood from a modified client only bought the host (and every peer's flame cosmetics) a
+	# state flip per request.
+	var frame := Engine.get_physics_frames()
+	if frame != _started_frame:
+		_started_frame = frame
+		_starts_in_frame = 0
+	if _starts_in_frame >= MAX_STARTS_PER_FRAME:
+		return false
+	_starts_in_frame += 1
 	_exposure.clear()
 	firing = true
 	return true
@@ -209,7 +229,8 @@ static func point_in_cone(origin: Vector3, direction: Vector3, point: Vector3, r
 
 func _server_tick(delta: float) -> void:
 	var holder := get_holder()
-	if holder == null or not holder.is_inside_tree() or is_flying() \
+	# M13 review: a stagger (a shove from the front leaves the item in the hands) puts the flame out as well.
+	if holder == null or not holder.is_inside_tree() or is_flying() or holder.is_stunned() \
 			or GameState.is_in_backroom(holder_id) or not GameState.is_playing():
 		_server_stop()
 		return
@@ -257,6 +278,10 @@ func _server_cone(holder: Player, delta: float) -> void:
 	# Crops: continuous exposure for scorch_sec.
 	var seen := {}
 	for n in get_tree().get_nodes_in_group(Const.GROUP_GROW_PLOTS):
+		# M13 review: the third write-up of this pass has sent the shooter to the back room: the pass ends there. It
+		# used to go on burning (a strike and a fine per tray / worker booked on a worker already in the back room).
+		if GameState.is_in_backroom(shooter):
+			return
 		var plot := n as GrowPlot
 		if plot == null or not plot.is_inside_tree() or plot.stage == GrowPlot.Stage.EMPTY:
 			continue
@@ -278,6 +303,8 @@ func _server_cone(holder: Player, delta: float) -> void:
 	# Workers: once per victim per IGNITE_COOLDOWN_SEC.
 	var now := Time.get_ticks_msec()
 	for n in get_tree().get_nodes_in_group(Const.GROUP_PLAYERS):
+		if GameState.is_in_backroom(shooter):
+			return # M13 review: see the crops loop above
 		var p := n as Player
 		if p == null or p == holder or not p.is_inside_tree() or p.is_queued_for_deletion():
 			continue
@@ -336,6 +363,8 @@ func _poll_local_fire() -> void:
 	var pressed := Input.is_action_pressed(&"use_item") and not Game.is_ui_locked()
 	if pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
 		pressed = false # a click that recaptures the mouse is not a trigger pull
+	if holder.is_stunned():
+		pressed = false # M13 review: the server refuses a stunned holder; holding the button resumes after the stun
 	var want := pressed
 	if want and fuel <= 0.0:
 		want = false

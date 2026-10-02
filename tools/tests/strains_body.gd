@@ -13,7 +13,7 @@ const EXPECTED := {
 	"budget": ["Budget Bud", 20, 1.0, 1, 60, 0.0],
 	"purple": ["Purple Haze", 45, 1.3, 1, 130, 0.05],
 	"golden": ["Golden Kush", 90, 1.6, 2, 120, 0.1],
-	"nightshift": ["Night Shift", 70, 1.2, 1, 170, 0.35],
+	"nightshift": ["Night Shift", 70, 1.2, 1, 210, 0.35],
 	"creeper": ["Creeper", 30, 0.8, 1, 70, 0.12],
 	"brick": ["Floor Brick", 120, 2.0, 3, 110, 0.2],
 }

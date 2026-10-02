@@ -118,6 +118,9 @@ var _rng := RandomNumberGenerator.new()
 ## no planted signal, so tick() watches the plots turn from EMPTY; the shortage picks the most-planted strain.
 var _planted: Dictionary = {}       # strain_id -> plantings this shift
 var _plot_strains: Dictionary = {}  # GrowPlot index 1..6 -> StringName
+## Host (M13 review): the workers who stood on the floor when the running head count began (peer_id -> true). Only
+## they can be absent at the end of it.
+var _headcount_roster: Dictionary = {}
 
 
 func _ready() -> void:
@@ -238,6 +241,15 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 			p["seconds"] = seconds
 			p["spot"] = room.get_headcount_spot()
 			p["speed"] = _headcount_speed_for(seconds)
+			# M13 review: the roster is who stands on the floor NOW. A worker let out of the back room or joining
+			# the session during the count appears at a spawn point (4 m from the line) and used to be written
+			# up as absent for a count they never heard called.
+			_headcount_roster.clear()
+			var hw: World = Game.world
+			if hw != null and is_instance_valid(hw):
+				for player in hw.get_players():
+					if not GameState.is_in_backroom(player.peer_id):
+						_headcount_roster[player.peer_id] = true
 		EVENT_WATER_OFF:
 			if _well() == null:
 				return false
@@ -829,7 +841,8 @@ func _rat() -> Node3D:
 # ------------------------------------------------------------------------------------------------------
 
 ## SERVER ONLY. The count at the end of a head count: every worker with a body on the floor (the back room is
-## excused) further than headcount_radius from the line (flat distance; a non-finite position counts as absent)
+## excused, and so is anyone who was not on the floor when the count began: M13 review, `_headcount_roster`) further
+## than headcount_radius from the line (flat distance; a non-finite position counts as absent)
 ## gets WRITE_UP_ABSENT, and worker_spotted(peer, absent) fires on every peer. Returns the peers written up.
 ## Public for tests (normally called by tick() when the timer runs out).
 func server_headcount() -> Array[int]:
@@ -845,6 +858,8 @@ func server_headcount() -> Array[int]:
 		var pid: int = player.peer_id
 		if GameState.is_in_backroom(pid) or not player.is_inside_tree():
 			continue
+		if not _headcount_roster.has(pid):
+			continue # M13 review: not on the floor when the count began (back room, joined since): excused
 		var p: Vector3 = player.global_position
 		var flat := Vector2(p.x - spot.x, p.z - spot.z).length()
 		if not (flat <= radius):
@@ -854,18 +869,28 @@ func server_headcount() -> Array[int]:
 	return out
 
 
-## The strain a shortage hits: the one planted most this shift (ties go to the dearer one), the most expensive
-## strain when nothing was planted yet; &"" without seeds. Reads the host's planting count (see _track_plantings).
+## The strain a shortage hits: the one planted most this shift (every strain ties at zero when nothing was planted
+## yet); &"" without seeds. Reads the host's planting count (see _track_plantings).
+## M13 review: among the strains with the top count the pick is the dearest one the team can pay for right now (cash
+## on hand), the cheapest when it can pay for none. Before, with nothing planted yet, the shortage always hit the
+## dearest strain on the list: usually one nobody could afford anyway, so the event cost nothing.
 func pick_shortage_strain() -> StringName:
-	var best: SeedDef = null
-	var best_count := 0
+	var top := 0
 	for s in Config.balance.seeds:
-		if s == null:
+		if s != null:
+			top = maxi(top, int(_planted.get(s.id, 0)))
+	var cash: int = GameState.money
+	var best: SeedDef = null
+	for s in Config.balance.seeds:
+		if s == null or int(_planted.get(s.id, 0)) != top:
 			continue
-		var n := int(_planted.get(s.id, 0))
-		if best == null or n > best_count or (n == best_count and s.cost > best.cost):
+		if best == null:
 			best = s
-			best_count = n
+			continue
+		var s_ok := s.cost <= cash
+		var best_ok := best.cost <= cash
+		if (s_ok and not best_ok) or (s_ok and best_ok and s.cost > best.cost) or (not s_ok and not best_ok and s.cost < best.cost):
+			best = s
 	return best.id if best != null else &""
 
 

@@ -119,6 +119,9 @@ func open(p_counter: ShopCounter, p_player: Player) -> void:
 const SCROLL_MIN_HEIGHT := 340.0
 ## What the panel needs besides the scroll area (header, tabs, footer, separations, padding), roughly, in px.
 const PANEL_CHROME_HEIGHT := 300.0
+## Footer hint: the default, and the one shown while part of the seed page is below the fold (M13 visual pass).
+const HINT_DEFAULT := "Arrows: select   Enter: buy   Esc / E: close"
+const HINT_SCROLL := "More below: wheel or arrows   Enter: buy   Esc / E: close"
 
 var _fit_queued := false
 
@@ -161,6 +164,9 @@ func _fit_scroll() -> void:
 	var height := maxf(SCROLL_MIN_HEIGHT, minf(maxf(_rows_height, SCROLL_MIN_HEIGHT), room))
 	if absf(height - _scroll.custom_minimum_size.y) > 0.5:
 		_scroll.custom_minimum_size.y = height
+	var hint := get_node_or_null(^"Root/Panel/VBox/Footer/Hint") as Label
+	if hint != null:
+		hint.text = HINT_SCROLL if _rows_height > height + 1.0 else HINT_DEFAULT
 
 
 ## The height the scroll area was given for the current cards (tests).

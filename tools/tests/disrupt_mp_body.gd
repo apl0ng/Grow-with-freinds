@@ -118,7 +118,7 @@ func _client_a() -> void:
 	# The Well's pressure RPC and event_started are two reliable packets: the second may land a poll later.
 	await wait_until(func() -> bool: return not well.has_pressure() and Events.is_event_active(Events.EVENT_WATER_OFF), STEP_TIMEOUT, "A: pressure off + event_started(water_off) arrived")
 	check(_started.size() >= 1 and _started.back()[0] == Events.EVENT_WATER_OFF and _started.back()[1].has("seconds"), "A: event_started(water_off, {seconds})")
-	check(well.get_prompt(me) == "No pressure" and not well.can_interact(me) and well.get_denied_reason(me) == "No pressure", "A: the tank reads 'No pressure'")
+	check(well.get_prompt(me) == "No pressure." and not well.can_interact(me) and well.get_denied_reason(me) == "No pressure.", "A: the tank reads 'No pressure'")
 	check(Events.get_event_time_left() > 0.0, "A: time left counts down locally (%.1f)" % Events.get_event_time_left())
 	var water := well.get_node_or_null(^"Visual/Water") as Node3D
 	check(water != null and not water.visible, "A: the water is gone from the tank here too")
