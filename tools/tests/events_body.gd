@@ -98,10 +98,12 @@ func _test_rat(b: BalanceConfig) -> void:
 	if not Events.RAT_ENABLED:
 		check(not Events.server_start_event(Events.EVENT_RAT), "rat disabled: refused")
 		return
-	# A fresh seedling half-way through its stage, so the drain is visible; any other growing plot is cleared.
-	for i in range(1, 7):
+	# A fresh seedling half-way through its stage, so the drain is visible; every tray is cleared first, whatever it
+	# holds: a plant from an earlier step that had ripened by now is not "growing" and used to stay in GrowPlot2, so
+	# planting there failed on a slow run.
+	for i in range(1, Room.GROW_PLOT_COUNT + 1):
 		var p := _room.get_station("GrowPlot%d" % i) as GrowPlot
-		if p != null and p.is_growing():
+		if p != null:
 			p.server_reset()
 	var plot2 := _room.get_station("GrowPlot2") as GrowPlot
 	check(plot2.server_plant(b.seeds[0].id) and plot2.server_water(1.0), "GrowPlot2 grows")
