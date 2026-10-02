@@ -100,3 +100,63 @@ damage number:
   them cost time you do not have.
 Tone guard still applies: the plant does not roar, the flamethrower does not whoosh heroically, the Boss does not
 thank you for putting the fire out. He notes the deposit.
+
+## 8. M14 brainstorm: a bigger floor, a van, and more things going wrong (2026-10-02)
+Asked for by the user: more ways to break the loop, a better loop, strains that mean something, a bigger place, a lobby
+with a van, more "what the hell" moments, footsteps that do not suck. Each idea is marked **now** (being built in M14),
+**next** (good, not started) or **parked** (does not fit yet).
+
+### 8.1 The start: a lobby and a van (now)
+- Workers spawn in a back alley at night: a street lamp, bins, the van with its rear doors open. This is the place to
+  shove each other, throw a can at the lamp and wait for the late one.
+- The shift starts when every worker in the session stands in the back of the van. Doors close on a short count, the
+  screen goes black, and everyone is on the loading dock of the floor. The drive is never shown.
+- Between shifts the report is read on the floor, then everybody is back in the alley. The host can still press Enter
+  to leave without the one who will not get in.
+
+### 8.2 A bigger floor (now)
+The single room is 20 by 15 metres with six trays and a lot of empty concrete. More space only helps if it puts
+distance between the steps of the loop, so people split up, lose sight of each other and have to shout.
+- **Grow hall** to the east through two doorways: four more trays (ten in all) and the drying racks. The plant now has
+  two pens to walk between.
+- **Loading dock** to the south: where the van drops you, crates for cover, the roll-up door the outside comes through.
+- The old room keeps the supply window, the tank, the chute, the fuse box and the cabinet. Water, seeds, trays and the
+  chute are now in different rooms.
+- next: a roof hatch and a basement stash; parked: a second floor (too much level for the head count).
+
+### 8.3 A loop with one more decision (now)
+- **Drying racks.** A harvested bundle sells as it is, or hangs on a rack for twenty seconds and sells cured for forty
+  per cent more. A hanging bundle can be taken, shot, eaten or burnt. Sell wet now or leave it and hope.
+- next: the scale lies some shifts (the chute pays ten per cent less until someone hits it); a hand truck that carries
+  three bundles and steers badly; watering from a hose that reaches one room only.
+
+### 8.4 Strains that play differently (now: refine the six, add none, remove none)
+Today the six strains differ in price, time and mutation chance only. Each gets one trait, visible on its card:
+- **Budget Bud**: nothing. The control group.
+- **Purple Haze**: thirsty. Dries sixty per cent faster.
+- **Golden Kush**: counted. Lose one to the plant or to fire and the Boss fines the floor.
+- **Night Shift**: grows in the dark. During a power cut it grows at double speed while everything else stops. Still
+  one in three walks.
+- **Creeper**: spreads. One harvest in three leaves a seedling behind in the same tray.
+- **Floor Brick**: heavy. Whoever carries the bundle walks slower and cannot sprint.
+- next: Skunk (pays well, the smell brings the Boss out more often); Glass (a thrown bundle shatters);
+  parked: removing Budget Bud (new players need one plain strain).
+
+### 8.5 What-the-hell moments
+Rule: each one takes the floor's attention for under a minute, has a physical answer, and costs time, not lives.
+- have: inspection, power cut, audit, rat, head count, water main off, supply shortage, the hostile plant.
+- **now: the tank springs a leak.** A jet from the tank and a spreading puddle. Hold E on the hole to patch it. Not
+  patched in time: the tank is empty for a minute. Sprint through the puddle and you slip.
+- **now: a drive-by.** Tyres outside, two and a half seconds of warning, then six seconds of gunfire through the dock
+  door and the windows. Standing in a lane: knocked down, item dropped. Crouched or behind a crate: fine. Trays in a
+  lane lose progress, a lamp goes out. Nobody dies. The Boss bills the floor for the glass.
+- next: a raid (sirens; every bundle in sight after twenty seconds is taken, so hide it or sell it); sprinklers (every
+  tray watered to the top, the floor slippery, the power out); the Boss's nephew (walks around, picks things up, drops
+  them elsewhere); a wrong delivery (a pallet of crates lands on the dock and blocks the door until moved); a
+  collection (a man at the door wants a payment now: put cash in the tray or he takes a bundle).
+- parked: anything that removes a player from the game for longer than the back room does.
+
+### 8.6 Footsteps (now)
+The complaint is fair: at walking speed the game plays six steps a second, almost twelve when sprinting, all the same
+sample. Fix: one step per human stride (about three a second), three variants, a heavier heel and less hiss, quieter
+when crouched, a landing thud after a jump.

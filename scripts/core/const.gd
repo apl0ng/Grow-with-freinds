@@ -15,6 +15,7 @@ const GROUP_ITEMS: StringName = &"items"
 const GROUP_GROW_PLOTS: StringName = &"grow_plots"
 const GROUP_NPCS: StringName = &"npcs"            # M10: the Boss, the rat (things that walk the floor)
 const GROUP_HOSTILES: StringName = &"hostiles"    # M12: hostile plants (children of World/Hostiles; also in GROUP_NPCS)
+const GROUP_DRYING_RACKS: StringName = &"drying_racks"   # M14: DryingRack stations
 
 # --- Item types (Item.item_type) ---
 const ITEM_WATERING_CAN: StringName = &"watering_can"
@@ -41,6 +42,9 @@ const STAT_PINGS: StringName = &"pings"
 const STAT_BITTEN: StringName = &"bitten"         # M12: bites taken from a hostile plant
 const STAT_SCORCHED: StringName = &"scorched"     # M12: crops this worker burnt with the flamethrower
 const STAT_BURNS: StringName = &"burns"           # M12: hostile plants this worker burnt down
+const STAT_SHOT: StringName = &"shot"             # M14: times knocked down by gunfire in a drive-by
+const STAT_SLIPS: StringName = &"slips"           # M14: slips in the tank puddle
+const STAT_CURED: StringName = &"cured"           # M14: cured bundles this worker deposited
 
 # --- M10: write-up reasons (GameState.server_write_up) ---
 const WRITE_UP_SKIMMING: String = "skimming"     # carrying product in the Boss's sight

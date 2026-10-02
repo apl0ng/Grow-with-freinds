@@ -128,6 +128,34 @@ extends Resource
 ## Supply shortage: seconds one strain is out of stock at the counter.
 @export var shortage_sec: float = 45.0
 
+@export_group("Lobby (M14)")
+## Seconds everyone has to stay in the van before the doors close.
+@export var van_countdown_sec: float = 2.0
+## Seconds of each half of the fade (to black, back in) around a teleport between the alley and the floor.
+@export var transition_fade_sec: float = 0.5
+
+@export_group("Mayhem (M14)")
+## The tank leaks for this long unless patched; holding E for leak_patch_sec patches it; unpatched, the tank is empty
+## for leak_empty_sec. The puddle stays puddle_sec after the event; a slip stuns for slip_stun_sec.
+@export var leak_sec: float = 45.0
+@export var leak_patch_sec: float = 2.5
+@export var leak_empty_sec: float = 60.0
+@export var puddle_sec: float = 30.0
+@export var slip_stun_sec: float = 0.8
+## Drive-by: seconds of warning, seconds of gunfire, stage progress a tray in a lane loses per hit, the fine afterwards.
+@export var driveby_warning_sec: float = 2.5
+@export var driveby_sec: float = 6.0
+@export var driveby_tray_loss: float = 0.35
+@export var driveby_fine: int = 30
+
+@export_group("Loop (M14)")
+## Seconds a bundle hangs on a drying rack before it is cured, and the extra value of a cured bundle (0.4 = +40%).
+@export var cure_sec: float = 20.0
+@export var cure_bonus: float = 0.4
+## Walking speed factor while carrying a heavy bundle (Floor Brick); the fine for losing a counted plant (Golden Kush).
+@export var heavy_speed_factor: float = 0.7
+@export var counted_fine: int = 25
+
 @export_group("Networking")
 @export var default_port: int = 7777
 @export var max_players: int = 4

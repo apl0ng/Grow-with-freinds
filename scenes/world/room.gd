@@ -458,3 +458,24 @@ func _to_global(room_local: Transform3D) -> Transform3D:
 	if is_inside_tree():
 		return global_transform * room_local
 	return room_local
+
+
+# --- M14 stubs (lead): the level agent replaces these with the real annexes --------------------------------------------
+
+## Where worker index stands after the van ride (the loading dock). Stub: the spawn transform.
+func get_arrival_transform(index: int) -> Transform3D:
+	return get_spawn_transform(index)
+
+
+## Drive-by lanes in global space: each {"from": Vector3, "to": Vector3} at chest height, from outside inwards. Stub:
+## three lanes across the main room from the south wall.
+func get_gunfire_lanes() -> Array:
+	var out: Array = []
+	for x: float in [-4.0, 0.5, 4.0]:
+		out.append({"from": global_transform * Vector3(x, 1.3, INTERIOR_SIZE.z * 0.5 - 0.3), "to": global_transform * Vector3(x * 0.6, 1.3, -INTERIOR_SIZE.z * 0.5 + 0.3)})
+	return out
+
+
+## Every walkable room as an AABB in global space. Stub: the main room only.
+func get_play_areas() -> Array[AABB]:
+	return [get_bounds()]

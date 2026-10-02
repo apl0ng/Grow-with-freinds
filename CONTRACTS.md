@@ -697,3 +697,106 @@ four-process suite `qa_m12_4p` (+65) lands with `m13/qa`.
 Not done: an uprooting plant still plays the harvest snip (READY to EMPTY is the harvest transition); a late joiner does
 not see a plant that is already dead for its last 1.5 s. Also: empty flamethrowers pile up until RETRY; the supply card shows the margin but not the mutation chance; no
 pathfinding (a worker outside the fence is unreachable: the plant drops the chase and eats instead).
+
+## M14 — the lobby and the van, a bigger floor, mayhem, strain traits (lead prep, 2026-10-02)
+Design: FRIENDSLOP.md section 8. Four agents in worktrees `.claude/worktrees/<agent>` on `m14/<agent>`: **lobby**,
+**level**, **mayhem**, **loop**; the lead does the footsteps. Lead-only files: project.godot, CONTRACTS.md, PLAN.md,
+README.md, tools/test_all.sh, const.gd, balance_config.gd, config.gd, sfx.gd (an agent may ADD a recipe branch inside
+a `# --- M14 <agent> ---` block). Files two agents touch are edited only inside `# --- M14 <agent> ---` regions.
+Test ports: lobby +66 / lobby_mp +67, level +68, mayhem +69 / mayhem_mp +70, loop +75 / loop_mp +76.
+
+### Prep already in place (lead)
+- `Config.lobby_enabled`: true in a windowed run, false under `--headless`; `--lobby` forces it on, `--no-lobby` off.
+  With it off NOTHING changes (workers spawn on the floor, Enter starts the shift): the 59 existing suites run that way.
+- `Const`: `STAT_SHOT`, `STAT_SLIPS`, `STAT_CURED`; `GROUP_DRYING_RACKS`.
+- `BalanceConfig` groups "Lobby (M14)" (`van_countdown_sec` 2, `transition_fade_sec` 0.5), "Mayhem (M14)" (`leak_sec`
+  45, `leak_patch_sec` 2.5, `leak_empty_sec` 60, `puddle_sec` 30, `slip_stun_sec` 0.8, `driveby_warning_sec` 2.5,
+  `driveby_sec` 6, `driveby_tray_loss` 0.35, `driveby_fine` 30), "Loop (M14)" (`cure_sec` 20, `cure_bonus` 0.4,
+  `heavy_speed_factor` 0.7, `counted_fine` 25).
+- `SeedDef` traits (defaults = no trait): `thirst_multiplier` 1.0, `dark_growth_multiplier` 0.0, `spread_chance` 0.0,
+  `heavy` false, `counted` false, `trait_text` "".
+- `Room` stubs the level agent replaces: `get_arrival_transform(index) -> Transform3D` (stub: the spawn transform),
+  `get_gunfire_lanes() -> Array` of `{"from": Vector3, "to": Vector3}` in global space (stub: three lanes across the
+  main room from the south wall), `get_play_areas() -> Array[AABB]` (stub: `[get_bounds()]`).
+- Sfx names with default blips: `step2`, `step3`, `land`, `van_door`, `leak` (loop), `slip`, `tires`, `gunshot`,
+  `ricochet`, `glass_shot`, `rack_hang`, `cured`.
+
+### Lobby + van (lobby agent)
+Files: scenes/world/lobby.tscn + scripts/world/lobby.gd (class `Lobby`), scenes/world/van.tscn + scripts/world/van.gd
+(class `Van`), one `Lobby` node in world.tscn at (0, 0, 80), game_state.gd / game.gd / world.gd / hud.gd in
+`# --- M14 lobby ---` regions, a `van.glb` model (MODELING.md recipe; a beat-up panel van, rear doors open, cargo floor
+about 1.8 x 2.8 m, a bumper step so walking in works), suites `lobby` (+66) and `lobby_mp` (+67), both with `--lobby`.
+- The alley: night, one street lamp, brick walls on every side (nobody leaves), bins, the van. `Lobby.get_spawn_transform
+  (index)`, `Lobby.get_van() -> Van`, `Lobby.get_bounds() -> AABB`.
+- With `Config.lobby_enabled`, `World.server_spawn_player` puts a worker in the alley while the phase is MENU or
+  WAITING; a worker who joins during a shift lands at `Room.get_arrival_transform(spawn_index)`.
+- `Van` (host): every 0.25 s counts the registered workers whose body is inside the cargo volume. When ALL of them are
+  in (at least one), a countdown of `van_countdown_sec` runs (synced: `Van.countdown_left`, -1 when idle; it resets
+  when anyone steps out); at zero `GameState.server_begin_shift_from_lobby()`.
+- `GameState.server_begin_shift_from_lobby()` (host): `_rpc_transition(&"to_floor", seconds)` on every peer (signal
+  `transition_started(kind: StringName, seconds: float)`; the HUD fades to black over `transition_fade_sec`, holds, fades
+  back in); after the fade-out the host teleports every worker to `Room.get_arrival_transform(spawn_index)`
+  (`Player.server_teleport`) and calls `server_start_round()`. The drive is never shown. `van_door` plays at the start.
+- The host's Enter (`request_start_round`) in the alley does the same thing without waiting for stragglers.
+- After a shift: `request_next_round` / `request_retry` with the lobby on bring everyone back to the alley through
+  `_rpc_transition(&"to_lobby", seconds)` and leave the game in WAITING with the money, the round number and the
+  upgrades as the old path would have them at the start of the next shift; the next shift starts from the van.
+- HUD in the alley: "Everyone in the van. 2 / 4 in." and "Doors closing 2" during the countdown.
+- A worker who leaves the session while the countdown runs is no longer counted; the countdown continues if the
+  rest are in.
+
+### Bigger floor (level agent)
+Files: scenes/world/room.tscn, scenes/world/room.gd, new scenes under scenes/world/props/, item_manager.gd (bounds),
+hostile_plant.gd (crossing rooms, in a `# --- M14 level ---` region), tests/world_test.gd where it pins geometry that
+changed on purpose, suite `level` (+68).
+- Every existing station, spawn point, marker, the pen and the Boss's booth stay where they are. `INTERIOR_SIZE` and
+  `get_bounds()` keep describing the main room.
+- **Grow hall**: east of the main room (x 10 to 22, the main room's z range), through two doorways cut in the east wall.
+  `Stations/GrowPlot7` to `GrowPlot10` (same scene and group as the six), room for two drying racks.
+- **Loading dock**: south of the main room (about x -9 to 3, z 7.5 to 15.5) through a wide opening. `Arrivals/Arrival0`
+  to `Arrival3` (`get_arrival_transform`), crates as cover (LAYER_WORLD), a roll-up door and windows to the outside,
+  a parked van as decor (a placeholder box until `van.glb` exists).
+- `get_play_areas() -> Array[AABB]` (main, hall, dock), `contains_point(point) -> bool`, `get_play_bounds() -> AABB`
+  (the union). Everything that clamps to the room (thrown item landing, out-of-bounds recovery, the plant's wander) uses
+  the play areas, so an item thrown into the hall stays there.
+- `get_gunfire_lanes()`: at least four lanes from outside the dock door and the west windows across the dock and the
+  main room, each blocked by the crates where they stand.
+- The hostile plant can walk between the pen, the hall and the dock: `Room.get_route(from, to) -> PackedVector3Array`
+  (a small hand-made waypoint graph through the doorways) and HostilePlant follows it when the straight line is blocked.
+- Lighting, decor and collision in the style of the existing room (STYLE.md); no new stations of its own.
+
+### Mayhem (mayhem agent)
+Files: scripts/core/events.gd, scripts/stations/well.gd, story.gd / hud.gd (its regions), sfx.gd (its block), suites
+`mayhem` (+69) and `mayhem_mp` (+70).
+- `Events.EVENT_LEAK` (`leak_sec`): `Well.server_set_leaking(true)` (synced `leaking`; a jet and a spreading puddle on
+  every peer, the `leak` loop). Holding E on the tank for `leak_patch_sec` (the fuse box's hold pattern) patches it:
+  event over, nothing lost. Not patched: `Well.server_set_pressure(false)` for `leak_empty_sec`, then back. The puddle
+  (radius about 2.2 m, `puddle_sec` after the event) makes a worker who moves faster than walking speed slip: a stagger
+  of `slip_stun_sec`, the held item released, `STAT_SLIPS`. Params `{seconds}`.
+- `Events.EVENT_DRIVEBY` (`driveby_warning_sec` + `driveby_sec`): `tires`, banner "DRIVE-BY" with the hint "Get
+  down."; then a shot every 0.15 s along a random `Room.get_gunfire_lanes()` lane, cut at the first LAYER_WORLD hit. A
+  worker within 0.45 m of the lane who is neither crouching nor in the back room is knocked down (stagger of twice
+  `hit_stun_sec`, item released, `STAT_SHOT`); a growing tray within 0.6 m loses `driveby_tray_loss` of stage progress;
+  every shot is a cosmetic RPC (tracer, `gunshot`, `ricochet` at the hit). Afterwards the floor is fined `driveby_fine`
+  (as far as cash on hand goes) and the Boss says so. Nobody dies. Params `{seconds, warning}`.
+- Weights: inspection 26, power_cut 16, audit 8, rat 8, headcount 12, water_off 8, shortage 6, leak 8, driveby 8.
+  Late-join replay through the existing path; `--first-event=leak|driveby` works.
+
+### Loop (loop agent)
+Files: data/balance.tres, tools/gen_balance.gd, seed_def.gd is prepared, grow_plot.gd / player.gd / story.gd (its
+regions), scripts/stations/drying_rack.gd + scenes/stations/drying_rack.tscn, turn_in_station.gd, the product item
+script, scenes/ui/shop_card.gd (trait line), two rack nodes under Room/Stations in the main room's north-west corner
+at (-7.5, 0, -6.6) and (-5.0, 0, -6.6) (the lead moves them into the hall after the level merge), suites `loop` (+75)
+and `loop_mp` (+76).
+- Traits: Purple Haze `thirst_multiplier` 1.6 (water drains that much faster); Golden Kush `counted` (a Golden plant
+  lost to the hostile plant, to fire or to gunfire costs the floor `counted_fine`, announced); Night Shift
+  `dark_growth_multiplier` 2.0 (grows at that speed while the power is off, when everything else is frozen); Creeper
+  `spread_chance` 0.33 (a harvest leaves a watered seedling of the same strain in the tray); Floor Brick `heavy` (the
+  carrier moves at `heavy_speed_factor` of walking speed and cannot sprint; enforced where movement is already
+  validated, cosmetic on the owner). `trait_text` on every card ("Thirsty.", "Counted.", "Grows in the dark.",
+  "Spreads.", "Heavy.").
+- `DryingRack` (Interactable, group `Const.GROUP_DRYING_RACKS`): three hooks. E with a product bundle hangs it on a
+  free hook (the item rests at the hook, props `rack: true`, `dry_left`); the rack counts `cure_sec` down on the host
+  and sets `cured: true` (`cured` sound, darker tint, label "Cured"); a bundle taken off early is not cured. The chute
+  pays `1 + cure_bonus` for a cured bundle (`STAT_CURED` for the seller). A hanging bundle is an ordinary item: it can
+  be taken, thrown at, eaten is not a thing, burnt by the flamethrower is not a thing (items do not burn), stolen is.

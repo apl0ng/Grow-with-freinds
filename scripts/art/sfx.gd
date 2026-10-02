@@ -84,11 +84,14 @@ const SOUNDS: Array[StringName] = [
 	# M12 (lead placeholders: hostile plant, flamethrower, disruptions; the audio pass refines them)
 	&"hostile_rise", &"hostile_bite", &"hostile_eat", &"hostile_die", &"flame", &"ignite", &"glass_break", &"scorch",
 	&"headcount", &"water_off", &"shortage",
+	# M14 (lead placeholders: footsteps, the van, the leak, the drive-by, the drying rack)
+	&"step2", &"step3", &"land", &"van_door", &"leak", &"slip", &"tires", &"gunshot", &"ricochet", &"glass_shot",
+	&"rack_hang", &"cured",
 ]
 
 ## Sounds synthesised as seamless loops (loop_mode FORWARD over the whole buffer): ambience and walking keys.
 ## Only these can be started with play_loop().
-const LOOPING: Array[StringName] = [&"hum", &"keys", &"hostile_eat", &"flame"]
+const LOOPING: Array[StringName] = [&"hum", &"keys", &"hostile_eat", &"flame", &"leak"]
 
 ## Per-sound playback settings: [volume_db, pitch_variation (+-fraction), 3D unit_size].
 const SETTINGS := {
@@ -142,6 +145,18 @@ const SETTINGS := {
 	&"headcount": [-10.0, 0.0, 12.0],
 	&"water_off": [-8.0, 0.0, 12.0],
 	&"shortage": [-10.0, 0.0, 12.0],
+	&"step2": [-12.0, 0.1, 4.0],
+	&"step3": [-12.0, 0.1, 4.0],
+	&"land": [-9.0, 0.08, 5.0],
+	&"van_door": [-4.0, 0.03, 10.0],
+	&"leak": [-14.0, 0.0, 6.0],
+	&"slip": [-6.0, 0.08, 6.0],
+	&"tires": [-5.0, 0.03, 14.0],
+	&"gunshot": [-3.0, 0.06, 16.0],
+	&"ricochet": [-9.0, 0.12, 8.0],
+	&"glass_shot": [-6.0, 0.08, 10.0],
+	&"rack_hang": [-8.0, 0.06, 5.0],
+	&"cured": [-9.0, 0.03, 6.0],
 }
 
 enum Wave { SINE, TRIANGLE, SQUARE, SAW, CHIP }

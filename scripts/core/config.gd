@@ -16,6 +16,9 @@ var balance: BalanceConfig
 ## Extra multiplier on growth speed applied on top of upgrades (test override, default 1.0).
 var growth_speed_override: float = 1.0
 var user_args: Dictionary = {}
+## M14: the alley and the van (FRIENDSLOP 8.1). On in a windowed run, off under --headless (the suites spawn workers on
+## the floor and start with Enter as before); --lobby forces it on, --no-lobby off.
+var lobby_enabled: bool = false
 
 func _ready() -> void:
 	balance = load(BALANCE_PATH) as BalanceConfig
@@ -61,6 +64,11 @@ func _load_audio_prefs() -> void:
 		AudioServer.set_bus_mute(0, true)
 
 func _apply_overrides() -> void:
+	lobby_enabled = DisplayServer.get_name() != "headless"
+	if user_args.has("lobby"):
+		lobby_enabled = true
+	if user_args.has("no-lobby"):
+		lobby_enabled = false
 	if user_args.has("mute"):
 		set_muted(true, false)
 	if user_args.has("fast"):
