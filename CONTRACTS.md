@@ -653,3 +653,40 @@ lead tool with a watchdog) checked the first-person flamethrower pose (fine as s
 "Something came out of GrowPlot N.", because Story lines are only a label over the Boss. A chain-link fence blocks the
 flame (the cone needs a clear LAYER_WORLD line): someone has to go into the pen. Known gaps:
 `Room.STATION_NAMES` does not list "EmergencyCabinet" (resolved by path).
+
+## M13 — hardening M12 (review + lead, merged 2026-10-02)
+Review branch `m13/review` (16 fixes, suites `review_m12` +63 and `review_m12_mp` +64) plus lead follow-ups. The
+four-process suite `qa_m12_4p` (+65) lands with `m13/qa`.
+- **Flamethrower:** a stunned holder cannot start the flame and a stagger puts it out; at most
+  `Flamethrower.MAX_STARTS_PER_FRAME` (2) starts per physics frame (stops are always granted); one cone pass stops once
+  its write-ups send the shooter to the back room. The cone needs a clear LAYER_WORLD line, so a chain-link fence blocks
+  it. The flame effect is `Visual/Nozzle/Flame` (150 particles).
+- **Back room:** the Boss keeps the flamethrower of a worker he sends to the back room: the host despawns it and every
+  peer gets `Events._rpc_flamethrower_kept(peer_id)` (the `confiscate` sound, the toast "The Boss keeps <Name>'s
+  flamethrower.", the Boss line "That's mine now."). Every other held item still goes back to the floor at the
+  worker's spawn.
+- **A turning tray is trouble on the floor:** breaking the glass while any tray `is_turning()` is not misuse;
+  scorching a turning plant is not arson and cancels the mutation. On every peer "GrowPlot N is moving." and
+  "Something came out of GrowPlot N." are also toasts (kind `error`), because Story lines are only a label over the Boss.
+- **hostile_max:** `Hostiles.has_room()` (live plants < `hostile_max`; a burnt body does not count). A tray that turns
+  with no room keeps twitching, stays harvestable, and uproots when a slot frees.
+- **HostilePlant:** 2x size (`Visual/Model` scaled; collider radius 0.64, `BITE_RANGE` 1.7, `CHASE_STOP` 1.3,
+  `EAT_DISTANCE` 1.3). A bite needs a clear LAYER_WORLD line (no bites through a fence). A chase with no movement for
+  `STUCK_SEC` (2 s) is dropped and the plant is calm for `CALM_SEC`. A tray it cannot reach sends it round by
+  `Decor/FenceGate`, then to a random spot. It never steps within `BODY_CLEARANCE` (1.1 m) of a worker on the floor.
+  After its two bites it retreats `RETREAT_DISTANCE` from that worker. A tray is eaten for at least `MIN_EAT_SEC` (4 s)
+  before the crop is lost; `stage_progress` is clamped at 0 meanwhile.
+- **Events:** `pick_shortage_strain()` ties go to the dearest strain the team can afford (the cheapest when none);
+  `server_headcount()` only counts workers who were on the floor when the count began (`_headcount_roster`).
+- **Room / ItemManager:** `Room.is_in_booth(point)`; a thrown item never comes to rest inside the Boss's booth.
+- **HUD / copy:** arson / misuse / absent write-up toasts name the reason ("Bob written up: arson."); cabinet denials
+  are "Cash short." / "Hands full."; the well's is "No pressure."; the supply window's footer says "More below: wheel
+  or arrows" while part of the seed page is below the fold.
+- **Shift report:** `Story.get_report_verdicts()` appends, when the stat is above zero, "<Name> dealt with it. Noted.
+  Not thanked." (most `STAT_BURNS`), "<Name> burnt stock. The fine came out of cash on hand." (most `STAT_SCORCHED`)
+  and "<Name> got bitten. No claim was filed." (most `STAT_BITTEN`).
+- **Numbers:** Night Shift deposits for 210 (at 170 it never beat Golden Kush even played perfectly).
+- **Tools:** `tools/tests/m12_shots_body.gd` (windowed screenshot pass with a watchdog; never captures the mouse);
+  `tools/dev/splice.pl <file> <old block> <new block>` (exact block replace, `<T>` = tab, keeps CRLF).
+Not done: empty flamethrowers pile up until RETRY; the supply card shows the margin but not the mutation chance; no
+pathfinding (a worker outside the fence is unreachable: the plant drops the chase and eats instead).
