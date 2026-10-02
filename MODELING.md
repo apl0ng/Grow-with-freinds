@@ -369,6 +369,33 @@ All paths are relative to `scenes/`. ✅ = shipped (in `art/models/manifest.json
 | ✅ `ball` | 0.24 × 0.17 × 0.24, floor (item, front -Z), 528 tris | `items/ball.tscn`, instanced **as** `Visual` (collider: sphere r 0.15 at y 0.1) | One mesh, no rig. A half-flat rubber ball resting on the flat it sagged into: `orange` rubber, two `dark` seams (painted faces), a `cream` patch over a puncture, a caved-in shoulder |
 | ✅ `alley_hoop` | 0.99 × 0.75 × 0.83, wall (origin = the centre of the board on the wall), 2564 tris | `world/lobby.tscn` `Hoop/Model` | One mesh, no rig, no collider. A scrap of ply 3° off level with a painted square half worn off, a steel flat, a rusted ring off a barrel: its centre 0.47 m out of the wall at the origin's height, radius 0.34 m (`AlleyHoop.RING_OUT` / `RING_RADIUS` mirror `RING_OUT` / `RING_R` in the script), drooping to the front, a little oval; three ends of a net |
 
+**M16 hats** (hats agent; built on Windows / Blender 5.2; one family script, `tools/blender/models/hats.py`, plus a change to `player.py`)
+
+The worker's stock hard hat is no longer part of `Body`: `player.glb` carries it as its own mesh `Hat` and an empty
+`HatSocket` on the hat's seat (the one node in the pipeline with a rest rotation: it leans as the hat leans; in Godot
+`Transform3D(Basis((0.98484, 0.13917, 0.10351), (-0.12689, 0.98499, -0.11706), (-0.11825, 0.10215, 0.98772)), (-0.01, 1.5311, -0.0895))`,
+printed by the build and mirrored in `Player.HAT_SOCKET_FALLBACK`). Same triangles and size as before (6266, 0.93 × 1.87 × 0.91).
+An issued hat is ONE mesh authored **in that socket's space**: origin on the seat, +Z up the hat's own axis, front -Y
+(`kind="item"` so the front lands on Godot -Z like the worker, `mount="free"`, budget 2500). `scripts/player/player.gd`
+hides `Visual/Model/Hat` and instances the issued hat (`Hats.make`, outline 0.025) under `Visual/Model/HatSocket`.
+What a hat must cover: under the stock hat the head is tucked 3.5 cm inside the dome and the body's ink hull follows
+it, so every hat encloses the stock dome less 1 cm (`check_cover` in hats.py casts 312 rays out of that surface and
+prints how many get through: all must be met) and is at least 0.322 m in radius at the seat.
+
+| Model | Size / mount | Scene | Notes |
+|---|---|---|---|
+| ✅ `hat_hairnet` | 0.70 × 0.35 × 0.71, socket, 998 tris | on a worker's `HatSocket` (issued: one shift worked) | A disposable bouffant cap in washed-out blue (custom `hairnet`), slumped to the back, an elastic rim with its gather, two stains |
+| ✅ `hat_paper_cap` | 0.65 × 0.40 × 0.65, socket, 780 tris | same (ten shifts) | A tall folded paper cap (`cream`), a faded `blue` stripe, the fold sagging and one end sat on, a cross of tape, grease |
+| ✅ `hat_hard_hat` | 0.74 × 0.35 × 0.81, socket, 1530 tris | same (best shift 3) | The stock hat's profile at 0.97 instead of 0.88 ("this one fits") in `caution` yellow, no sprout; a dead torch (`metal_dark`, grey lens) taped to the front, tape once round the dome |
+| ✅ `hat_cone` | 0.80 × 0.59 × 0.80, socket, 1114 tris | same (back room three times) | A traffic cone (`orange`), a `cream` collar, the tip bent over, a dent, a tyre mark, the base turned 9° with one corner driven over |
+| ✅ `hat_bucket` | 0.75 × 0.53 × 0.76, socket, 2398 tris | same (bitten five times) | A tin bucket upside down (`metal`), two ribs, rust creeping up from the rim, a bite out of the rim with five tooth marks, a dent, the wire handle hanging down behind |
+| ✅ `hat_welding_mask` | 0.70 × 0.38 × 0.83, socket, 1710 tris | same (five plants burnt) | A leather cap (`brown`), a headband with a strap over the top and two knobs, the mask swung up on them over the forehead (built hanging in front of the face, then turned -66°): a grey shield, a framed dark window, soot |
+| ✅ `hat_bandage` | 0.65 × 0.49 × 0.69, socket, 1322 tris | same (shot three times) | A head wrapped in gauze (`cream` + an older shade), three turns over the top, one old stain gone the colour of `rust`, a knot and two loose ends at the back |
+| ✅ `locker` | 0.87 × 1.88 × 0.57, floor (origin under the centre of the footprint; stand it 0.3 m off a wall), 2704 tris | `world/locker.tscn`, instanced **as** `Visual` (collider: box 0.88 × 1.88 × 0.54) | Rigged: `Body` (static: the shell, the shut left-hand door with its padlock, the dark inside) + `Door` (the right-hand door, pivot on its hinge edge at (0.41, 0, 0.258), rest = shut; `Door.rotation.y = deg_to_rad(6)` hangs it ajar, + swings it out). `TINT_paint` + `TINT_trim` (the alley's is faded blue `Color(0.31, 0.43, 0.56)`), rust along the foot, a dent in the side and the top, tape where the names were |
+
+To look at a hat on the worker without a window: build both into one scratch model (`player.py`'s parts, the hat's
+`make_*()` parts joined and placed with `hat.matrix_world = player.hat_matrix()`) with `--out DIR --preview`.
+
 ---
 
 ## 9. Gotchas

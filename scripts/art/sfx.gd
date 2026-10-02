@@ -963,6 +963,22 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_dc_block(b)
 			_fade_out(b, 0.04)
 		# --- end M15 alley ---
+		# --- M16 hats ---
+		&"locker":  # a dented steel locker door: the latch gives, the sheet booms once, the door falls back on its hinge
+			b = _buf(0.62)
+			_noise(b, rng, 0.0, 0.02, 0.5, 0.85, 0.3, 0.0005, 9.0)                 # the latch
+			_tone(b, 0.0, 0.05, 900.0, 700.0, 0.12, Wave.SQUARE, 0.001, 7.0)
+			_noise(b, rng, 0.03, 0.16, 0.8, 0.3, 0.03, 0.001, 8.0)                  # the sheet
+			_tone(b, 0.03, 0.34, 150.0, 96.0, 0.8, Wave.SINE, 0.002, 5.0)
+			_tone(b, 0.035, 0.3, 365.0, 340.0, 0.2, Wave.TRIANGLE, 0.002, 6.0, 27.0, 0.02)
+			_noise(b, rng, 0.33, 0.12, 0.45, 0.35, 0.04, 0.001, 8.0)                # it falls back
+			_tone(b, 0.33, 0.24, 118.0, 80.0, 0.45, Wave.SINE, 0.002, 5.0)
+			_tone(b, 0.34, 0.2, 520.0, 500.0, 0.07, Wave.TRIANGLE, 0.001, 8.0, 33.0, 0.02)
+			_lowpass(b, 0.5)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.05)
+		# --- end M16 hats ---
 		# --- M12 lead: the flamethrower and its consequences (dull and physical, nothing heroic) ------------------
 		&"flame":  # the loop while the trigger is held: a muffled roar with a slow rumble under it
 			b = _buf(0.8)

@@ -547,6 +547,131 @@
   ],
   "tris": 2580
  },
+ "hat_bandage": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "toon_cream",
+   "gauze_old",
+   "toon_rust"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/hats.py",
+  "size": [
+   0.646,
+   0.486,
+   0.687
+  ],
+  "tris": 1322
+ },
+ "hat_bucket": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "toon_metal",
+   "toon_rust",
+   "toon_dark",
+   "toon_metal_dark"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/hats.py",
+  "size": [
+   0.748,
+   0.533,
+   0.764
+  ],
+  "tris": 2398
+ },
+ "hat_cone": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "toon_orange",
+   "toon_cream",
+   "toon_dark"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/hats.py",
+  "size": [
+   0.798,
+   0.595,
+   0.798
+  ],
+  "tris": 1114
+ },
+ "hat_hairnet": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "hairnet",
+   "toon_white",
+   "grime"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/hats.py",
+  "size": [
+   0.704,
+   0.35,
+   0.709
+  ],
+  "tris": 998
+ },
+ "hat_hard_hat": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "toon_caution",
+   "tape",
+   "toon_metal_dark",
+   "toon_gray",
+   "grime"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/hats.py",
+  "size": [
+   0.741,
+   0.354,
+   0.811
+  ],
+  "tris": 1530
+ },
+ "hat_paper_cap": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "toon_cream",
+   "toon_blue",
+   "tape",
+   "grime"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/hats.py",
+  "size": [
+   0.654,
+   0.405,
+   0.654
+  ],
+  "tris": 780
+ },
+ "hat_welding_mask": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "toon_brown",
+   "toon_dark",
+   "toon_metal_dark",
+   "mask",
+   "soot"
+  ],
+  "mount": "free",
+  "script": "tools/blender/models/hats.py",
+  "size": [
+   0.698,
+   0.38,
+   0.83
+  ],
+  "tris": 1710
+ },
  "hole_rim": {
   "front": "+z",
   "kind": "part",
@@ -609,6 +734,26 @@
    0.765
   ],
   "tris": 3636
+ },
+ "locker": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "TINT_paint",
+   "toon_metal_dark",
+   "toon_rust",
+   "TINT_trim",
+   "toon_dark",
+   "tape"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/hats.py",
+  "size": [
+   0.866,
+   1.88,
+   0.565
+  ],
+  "tris": 2704
  },
  "oil_drum": {
   "front": "+z",
@@ -899,13 +1044,13 @@
    "toon_olive",
    "toon_metal_dark",
    "grime",
+   "TINT_legs",
+   "toon_brown",
+   "toon_dark",
    "toon_white",
    "toon_caution",
-   "toon_dark",
    "toon_leaf",
-   "toon_leaf_dry",
-   "TINT_legs",
-   "toon_brown"
+   "toon_leaf_dry"
   ],
   "mount": "floor",
   "script": "tools/blender/models/player.py",

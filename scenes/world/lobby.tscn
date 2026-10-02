@@ -21,6 +21,7 @@
 [ext_resource type="Script" path="res://scripts/world/alley_board.gd" id="19_board"]
 [ext_resource type="PackedScene" path="res://art/models/alley_hoop.glb" id="20_hoop_model"]
 [ext_resource type="Material" path="res://art/materials/toon_wood.tres" id="21_wood"]
+[ext_resource type="PackedScene" path="res://scenes/world/locker.tscn" id="22_locker"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(14, 1, 19)
@@ -410,3 +411,6 @@ text = ""
 board_size = Vector2(4, 1.8)
 board_material = ExtResource("9_dark")
 frame_material = ExtResource("21_wood")
+
+[node name="Locker" parent="." instance=ExtResource("22_locker")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.7, 0, 0.1)

@@ -285,6 +285,7 @@ func sync_record() -> void:
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART # the card keeps its width: a long line wraps
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		record_lines.add_child(label)
+	_hats_sync_record(career) # M16 hats
 	_career_place_record.call_deferred()
 
 
@@ -310,6 +311,26 @@ func _career_place_record() -> void:
 	record_card.position = Vector2(x, maxf(y, 0.0))
 
 # --- end M15 career ------------------------------------------------------------------------------------------------
+
+
+# --- M16 hats: one more line on the Record card ----------------------------------------------------------------------
+# "Issued: 3 of 7" (Hats.record_text) under the record's lines: %RecordIssued in pause_menu.tscn, a label of its own
+# below %RecordLines, so get_record_texts() (the title and the record's own lines) is what it was. Hidden while the
+# record has issued nothing (before the first shift).
+
+@onready var record_issued: Label = %RecordIssued
+
+
+func _hats_sync_record(career: Node) -> void:
+	record_issued.visible = not Hats.issued_for(career).is_empty()
+	record_issued.text = Hats.record_text(career)
+
+
+## The Record card's issued line ("" while the card or the line is hidden; tests).
+func get_record_issued_text() -> String:
+	return record_issued.text if record_card.visible and record_issued.visible else ""
+
+# --- end M16 hats ---------------------------------------------------------------------------------------------------
 
 
 static func _build_controls_text() -> String:
