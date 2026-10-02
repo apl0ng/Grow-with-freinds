@@ -617,6 +617,8 @@ func _event_title() -> String:
 			return TEXT_EVENT_SHORTAGE
 		&"leak", &"driveby":  # M14 mayhem
 			return _mayhem_event_title(_event_kind)
+		&"raid", &"sprinklers", &"collection":  # M15 mayhem2
+			return _mayhem2_event_title(_event_kind)
 	return String(_event_kind).to_upper().replace("_", " ")
 
 
@@ -639,6 +641,8 @@ func _event_hint() -> String:
 			return TEXT_EVENT_SHORTAGE_HINT % who
 		&"leak", &"driveby":  # M14 mayhem
 			return _mayhem_event_hint(_event_kind)
+		&"raid", &"sprinklers", &"collection":  # M15 mayhem2
+			return _mayhem2_event_hint(_event_kind)
 	return ""
 
 
@@ -658,6 +662,36 @@ func _mayhem_event_hint(kind: StringName) -> String:
 		return TEXT_EVENT_DRIVEBY_HINT
 	return TEXT_EVENT_LEAK_HINT % action_key_text(&"interact", "E")
 # --- end M14 mayhem ----------------------------------------------------------------------------------------------
+
+
+# --- M15 mayhem2: the raid, the sprinklers and the collector on the banner -----------------------------------------
+const TEXT_EVENT_RAID := "RAID"
+const TEXT_EVENT_RAID_HINT := "Get the product out of sight."
+const TEXT_EVENT_SPRINKLERS := "SPRINKLERS"
+const TEXT_EVENT_SPRINKLERS_HINT := "Wet floor. Do not run."
+const TEXT_EVENT_COLLECTION := "COLLECTION"
+const TEXT_EVENT_COLLECTION_HINT := "He wants $%d. Dock."
+
+
+func _mayhem2_event_title(kind: StringName) -> String:
+	match kind:
+		&"raid":
+			return TEXT_EVENT_RAID
+		&"sprinklers":
+			return TEXT_EVENT_SPRINKLERS
+	return TEXT_EVENT_COLLECTION
+
+
+## The hint under the title; the collection names the fee the event was started with.
+func _mayhem2_event_hint(kind: StringName) -> String:
+	match kind:
+		&"raid":
+			return TEXT_EVENT_RAID_HINT
+		&"sprinklers":
+			return TEXT_EVENT_SPRINKLERS_HINT
+	var fee: Variant = _event_params.get("fee", Config.balance.collector_fee)
+	return TEXT_EVENT_COLLECTION_HINT % (int(fee) if fee is int or fee is float else Config.balance.collector_fee)
+# --- end M15 mayhem2 ---------------------------------------------------------------------------------------------
 
 
 func _update_event_countdown() -> void:

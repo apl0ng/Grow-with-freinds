@@ -799,6 +799,7 @@ signal crop_lost(cause: StringName, strain: StringName, fine: int)
 const LOSS_EATEN: StringName = &"eaten"
 const LOSS_FIRE: StringName = &"fire"
 const LOSS_GUNFIRE: StringName = &"gunfire"
+const LOSS_COLLECTED: StringName = &"collected" # M15 mayhem2: the unpaid collector took the plant (Events.server_collect_unpaid)
 ## spread_force values: the dice decide / every harvest of a spreading strain leaves a seedling / none does.
 const SPREAD_ROLL: int = 0
 const SPREAD_ALWAYS: int = 1
