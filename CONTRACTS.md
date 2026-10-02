@@ -688,5 +688,12 @@ four-process suite `qa_m12_4p` (+65) lands with `m13/qa`.
 - **Numbers:** Night Shift deposits for 210 (at 170 it never beat Golden Kush even played perfectly).
 - **Tools:** `tools/tests/m12_shots_body.gd` (windowed screenshot pass with a watchdog; never captures the mouse);
   `tools/dev/splice.pl <file> <old block> <new block>` (exact block replace, `<T>` = tab, keeps CRLF).
-Not done: empty flamethrowers pile up until RETRY; the supply card shows the margin but not the mutation chance; no
+- **QA (`m13/qa`, merged):** `qa_m12_4p` (+65), a host and three client processes, 652 checks: mutation under load,
+  the chase, fire, events on top, churn; every scenario ends with `canonical_state()` and the M12 state equal on every
+  peer. Two fixes came with it: a stunned worker is not loitering (the loiter clock restarts while `is_stunned()`), and
+  a holder who was just sent to the back room sends no stop request for the flamethrower the host already despawned.
+  Decisions it pinned: a bite is the punishment (no loitering write-up for the stun); the plant blocks the Boss's view
+  like a crate; the Boss walks through a plant on his route; during a power cut the plant keeps eating.
+Not done: an uprooting plant still plays the harvest snip (READY to EMPTY is the harvest transition); a late joiner does
+not see a plant that is already dead for its last 1.5 s. Also: empty flamethrowers pile up until RETRY; the supply card shows the margin but not the mutation chance; no
 pathfinding (a worker outside the fence is unreachable: the plant drops the chase and eats instead).
