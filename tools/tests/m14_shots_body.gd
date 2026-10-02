@@ -88,15 +88,15 @@ func _run() -> void:
 
 	step("the drive-by")
 	check(Events.server_start_event(Events.EVENT_DRIVEBY), "a drive-by")
-	var lanes: Array = room.get_gunfire_lanes()
-	var lane: Dictionary = lanes[lanes.size() / 2] if not lanes.is_empty() else {"from": Vector3(0, 1.3, 7), "to": Vector3(0, 1.3, -7)}
-	var mid: Vector3 = ((lane["from"] as Vector3) + (lane["to"] as Vector3)) * 0.5
-	_face(Vector3(mid.x - 5.5, 0.0, mid.z + 1.0), Vector3(mid.x + 1.0, 1.2, mid.z))
+	# In the main room, off the lanes, looking at the dock passage the rounds come through.
+	_face(Vector3(0.6, 0.0, 0.4), Vector3(-5.0, 1.2, 10.5))
 	await wait_sec(1.2)
 	await _shot("6_driveby_warning")
 	await wait_until(func() -> bool: return Events.is_driveby_firing(), 5.0, "the shooting starts")
-	await wait_sec(1.5)
+	await wait_sec(1.0)
 	await _shot("7_driveby_fire")
+	await wait_sec(0.9)
+	await _shot("7b_driveby_fire")
 	await wait_until(func() -> bool: return not Events.is_event_active(), 9.0, "it ends")
 	await wait_sec(0.6)
 	await _shot("8_driveby_bill")

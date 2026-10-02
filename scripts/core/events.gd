@@ -1122,8 +1122,10 @@ const DRIVEBY_GLASS_PANES := 3
 const SHOT_FLAG_BLOCKED := 1   # stopped by LAYER_WORLD before the end of the lane
 const SHOT_FLAG_GLASS := 2     # it went through a pane of glass on the way
 const SHOT_FLAG_FIRST := 4     # the first round down this lane this drive-by: the pane it comes through breaks
-const TRACER_SEC := 0.16
-const TRACER_THICKNESS := 0.03
+const TRACER_SEC := 0.26
+const TRACER_THICKNESS := 0.06
+## Seconds a tracer stays at full brightness before it fades (M14 visual pass: 3 cm lines gone in 0.16 s were invisible).
+const TRACER_HOLD_SEC := 0.07
 const TRACER_MAX := 12
 ## Slips: the speed is averaged over this window of synced positions; one slip per worker per SLIP_COOLDOWN_SEC.
 const SLIP_WINDOW_SEC := 0.25
@@ -1586,6 +1588,7 @@ func _rpc_shot(from: Vector3, to: Vector3, flags: int, glass_at: Vector3) -> voi
 	Sfx.play(&"ricochet", to)
 	GrowPlot.juice_fx(&"puff", to, Toon.PEBBLE, 4)
 	_spawn_tracer(from, to)
+	_spawn_shot_fx(from, to)
 	shot_fired.emit(from, to)
 
 
@@ -1608,7 +1611,7 @@ func _spawn_tracer(from: Vector3, to: Vector3) -> void:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(Toon.lighter(Toon.SUNSHINE, 0.35), 0.9)
+	mat.albedo_color = Color(Toon.lighter(Toon.SUNSHINE, 0.5), 1.0)
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(TRACER_THICKNESS, TRACER_THICKNESS, length)
 	mesh.material = mat
@@ -1622,8 +1625,59 @@ func _spawn_tracer(from: Vector3, to: Vector3) -> void:
 	tracer.global_transform = Transform3D(Basis.looking_at(dir, up), (from + to) * 0.5)
 	_tracers.append(tracer)
 	var tw := tracer.create_tween()
+	tw.tween_interval(TRACER_HOLD_SEC)
 	tw.tween_property(mat, ^"albedo_color:a", 0.0, TRACER_SEC)
 	tw.tween_callback(tracer.queue_free)
+
+
+## M14 lead (visual pass): a muzzle flash where the round comes from and a dark pock where it stops, so the gunfire
+## reads in a still frame and leaves marks for a while. Plain children of the Room, capped; cosmetic only.
+const FLASH_SEC := 0.09
+const POCK_SEC := 25.0
+const POCK_MAX := 36
+var _pocks: Array[Node] = []
+
+func _spawn_shot_fx(from: Vector3, to: Vector3) -> void:
+	var room := _room()
+	if room == null or not room.is_inside_tree():
+		return
+	var flash := OmniLight3D.new()
+	flash.light_color = Toon.lighter(Toon.SUNSHINE, 0.2)
+	flash.light_energy = 2.4
+	flash.omni_range = 5.0
+	flash.shadow_enabled = false
+	room.add_child(flash)
+	flash.global_position = from
+	var ft := flash.create_tween()
+	ft.tween_property(flash, ^"light_energy", 0.0, FLASH_SEC)
+	ft.tween_callback(flash.queue_free)
+	var alive: Array[Node] = []
+	for p in _pocks:
+		if is_instance_valid(p) and not p.is_queued_for_deletion():
+			alive.append(p)
+	_pocks = alive
+	while _pocks.size() >= POCK_MAX:
+		var old: Node = _pocks.pop_front()
+		old.queue_free()
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Toon.darker(Toon.PEBBLE, 0.75)
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.07
+	mesh.height = 0.14
+	mesh.radial_segments = 8
+	mesh.rings = 4
+	mesh.material = mat
+	var pock := MeshInstance3D.new()
+	pock.name = "Pock"
+	pock.mesh = mesh
+	pock.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	room.add_child(pock)
+	pock.global_position = to
+	_pocks.append(pock)
+	get_tree().create_timer(POCK_SEC).timeout.connect(func() -> void:
+		if is_instance_valid(pock):
+			pock.queue_free())
 
 
 # --- resets --------------------------------------------------------------------------------------------------------
