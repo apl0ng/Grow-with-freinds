@@ -74,6 +74,7 @@ func _ready() -> void:
 	if voice != null and voice.has_signal(&"input_level_changed"):
 		voice.connect(&"input_level_changed", _on_input_level_changed)
 	sync_voice_controls()
+	_career_ready() # M15 career: the Record card
 
 
 func _exit_tree() -> void:
@@ -117,6 +118,7 @@ func open() -> void:
 		return
 	host_note.visible = GameState.is_local_host()
 	sync_voice_controls()
+	sync_record() # M15 career
 	visible = true
 	_set_locked(true)
 	Sfx.play(&"ui_open")
@@ -233,6 +235,81 @@ func _set_locked(locked: bool) -> void:
 		return
 	_locked = locked
 	Game.set_ui_lock(LOCK_SOURCE, locked)
+
+
+# --- M15 career: the Record card ------------------------------------------------------------------------------------
+# A second card (%Record in pause_menu.tscn, a child of the overlay itself, not of the centre container) to the right
+# of the ON BREAK card and level with its middle: "RECORD", the player's job title (Career.get_title()) and the lines of
+# Career.get_summary_lines(), or "Nothing on file." before the first shift. Shown with replay on (Config.replay_enabled);
+# the ON BREAK card keeps its place and size either way. Re-read every time the menu opens and when the record
+# changes. It takes no mouse and no focus.
+
+const TEXT_RECORD_EMPTY := "Nothing on file."
+## Gap between the ON BREAK card and the Record card.
+const RECORD_GAP: float = 16.0
+const RECORD_FONT_SIZE: int = 16
+
+@onready var record_card: Control = %Record
+@onready var record_job: Label = %RecordJob
+@onready var record_lines: VBoxContainer = %RecordLines
+
+
+func _career_ready() -> void:
+	var career: Node = Career
+	if career != null and career.has_signal(&"changed"):
+		career.connect(&"changed", sync_record)
+	card.resized.connect(_career_place_record)
+	record_card.resized.connect(_career_place_record)
+	sync_record()
+
+
+## Re-reads the Record card from the Career autoload (on open and when the record changes; public for tests).
+func sync_record() -> void:
+	var career: Node = Career
+	record_card.visible = Config.replay_enabled and career != null and career.has_method(&"get_summary_lines")
+	if not record_card.visible:
+		return
+	record_job.text = String(career.call(&"get_title")) if career.has_method(&"get_title") else ""
+	record_job.visible = record_job.text != ""
+	for child: Node in record_lines.get_children():
+		record_lines.remove_child(child)
+		child.queue_free()
+	var texts: Array = career.call(&"get_summary_lines")
+	if texts.is_empty():
+		texts = [TEXT_RECORD_EMPTY]
+	for text: Variant in texts:
+		var label := Label.new()
+		label.text = String(text)
+		label.theme_type_variation = &"SubtleLabel"
+		label.add_theme_font_size_override(&"font_size", RECORD_FONT_SIZE)
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART # the card keeps its width: a long line wraps
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		record_lines.add_child(label)
+	_career_place_record.call_deferred()
+
+
+## What the Record card shows, top to bottom: the job title, then the lines ([] while it is hidden; tests).
+func get_record_texts() -> PackedStringArray:
+	var out := PackedStringArray()
+	if not record_card.visible:
+		return out
+	out.append(record_job.text)
+	for child: Node in record_lines.get_children():
+		if child is Label and not child.is_queued_for_deletion():
+			out.append((child as Label).text)
+	return out
+
+
+## Right of the ON BREAK card, level with its middle (both cards live in the overlay's own full-rect space).
+func _career_place_record() -> void:
+	if record_card == null or not record_card.visible or not is_inside_tree():
+		return
+	record_card.reset_size()
+	var x := card.position.x + card.size.x + RECORD_GAP
+	var y := card.position.y + (card.size.y - record_card.size.y) * 0.5
+	record_card.position = Vector2(x, maxf(y, 0.0))
+
+# --- end M15 career ------------------------------------------------------------------------------------------------
 
 
 static func _build_controls_text() -> String:

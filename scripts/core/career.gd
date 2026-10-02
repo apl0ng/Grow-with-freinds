@@ -1,24 +1,425 @@
 extends Node
 ## Career (autoload, M15, owner: career agent). Each player's own record, kept in a local file and never synced: shifts
-## worked, best shift reached, total deposited, contracts met, plants burnt, times bitten / shot / sent to the back
-## room. It is what makes a second session worth starting (FRIENDSLOP.md section 9.3).
+## worked, best shift reached, total deposited, jobs done, plants burnt, times bitten / shot / sent to the back room,
+## bundles deposited per strain. It is what makes a second session worth starting (FRIENDSLOP.md section 9.3,
+## CONTRACTS.md "M15 / Career"). Do NOT add a class_name (it is an autoload).
 ##
-## This file is the LEAD'S STUB: every method has the agreed signature and does nothing, so other code (the alley
-## board, the pause menu, the HUD) can call it before the career branch merges. CONTRACTS.md "M15 / Career" is the
-## specification. Do NOT add a class_name (it is an autoload).
+## The file: `user://career.cfg`, or the path given with `--career-file=<path>` (tests always pass one: a temp file).
+## WITHOUT --career-file, a run under --headless or one started with `-s <script>` (the suites, the capture and
+## preview tools) reads nothing and writes nothing: the record lives in memory only, so no tool ever sees or touches
+## a player's real record. The format is a plain INI (a ConfigFile reads it too):
+##     [career]
+##     shifts=12
+##     best_round=4
+##     ...
+##     [strains]
+##     purple=14
+## read by a small tolerant parser of our own: a missing, empty, oversized or corrupt file is an empty record and
+## never an error line (ConfigFile.load prints one for a parse error). Written through a temp file and a rename.
+##
+## What is counted, all from THIS peer's own row of the shift ledger:
+##   at the end of every shift this peer was in (GameState.round_ended):
+##     shifts +1; best_round = the highest shift finished with the payment made; deposited, burns, bitten, shot from
+##     GameState.get_stat(me, STAT_*); backroom = times this peer was sent to the back room this shift; the bundles
+##     this peer deposited per strain (GameState.deposit_noted)
+##   when the floor's job is met while this peer is present (GameState.contract_met): contracts +1, saved at once
+## A shift this peer leaves before it ends counts for nothing.
+##
+## The job title follows best_round (TITLES). It is the one thing that is sent: with replay on, this autoload hands it
+## to Net (Net.send_title) once the peer is registered and whenever it changes, and the host passes the whole list to
+## a late joiner (Net.server_send_titles).
 
-## Emitted after any record changed (the end of a shift, a contract met).
+## Emitted after any record changed (the end of a shift, a job done, a reload).
 signal changed
 
-## One record by key ("shifts", "best_round", "deposited", "contracts", "burns", "bitten", "shot", "backroom", or a
-## strain id for that strain's deposits). 0 when unknown.
-func get_record(_key: String) -> int:
-	return 0
+const DEFAULT_PATH := "user://career.cfg"
+const SECTION_CAREER := "career"
+const SECTION_STRAINS := "strains"
+const KEY_SHIFTS := "shifts"
+const KEY_BEST_ROUND := "best_round"
+const KEY_DEPOSITED := "deposited"
+const KEY_CONTRACTS := "contracts"
+const KEY_BURNS := "burns"
+const KEY_BITTEN := "bitten"
+const KEY_SHOT := "shot"
+const KEY_BACKROOM := "backroom"
+const KEYS: PackedStringArray = [KEY_SHIFTS, KEY_BEST_ROUND, KEY_DEPOSITED, KEY_CONTRACTS, KEY_BURNS, KEY_BITTEN, KEY_SHOT, KEY_BACKROOM]
+## A file larger than this is not a career file.
+const MAX_FILE_BYTES: int = 16384
+## No record is allowed to grow past this (a damaged or edited file cannot overflow anything).
+const MAX_VALUE: int = 999999999
+## Strain rows kept at most (the game has six strains).
+const MAX_STRAINS: int = 32
 
-## A few flat lines for the alley board and the pause menu's Record page. Empty before the first shift.
+## The ladder: [best shift reached at least, title]. Flat job titles, in order.
+const TITLES: Array = [
+	[0, "New hire"],
+	[1, "Floor hand"],
+	[2, "Tray hand"],
+	[3, "Lead hand"],
+	[4, "Shift lead"],
+	[6, "The Boss's problem"],
+]
+
+const TEXT_SHIFTS := "Shifts worked: %d"
+const TEXT_BEST := "Best shift: %d"
+const TEXT_DEPOSITED := "Deposited: %s"
+const TEXT_CONTRACTS := "Jobs done: %d"
+const TEXT_BURNS := "Plants burnt: %d"
+const TEXT_TROUBLE := "Bitten: %d. Shot: %d. Back room: %d."
+
+## The file this peer's record lives in.
+var path: String = DEFAULT_PATH
+## False under --headless or `-s <script>` without --career-file: nothing is read or written.
+var persistent: bool = false
+
+var _record: Dictionary = {}
+## strain id (String) -> bundles deposited.
+var _strains: Dictionary = {}
+## This shift, not yet in the record: strain id -> bundles this peer deposited.
+var _shift_strains: Dictionary = {}
+## This shift: times this peer went into the back room.
+var _shift_backroom: int = 0
+var _in_backroom: bool = false
+## The title last handed to Net in this session ("" = none yet).
+var _sent_title: String = ""
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	var given: Variant = Config.get_arg("career-file", null)
+	if given is String and String(given).strip_edges() != "":
+		path = String(given).strip_edges()
+		persistent = true
+	else:
+		persistent = DisplayServer.get_name() != "headless" and not _is_scripted_run()
+	if persistent:
+		load_file(path)
+	GameState.round_started.connect(_on_round_started)
+	GameState.round_ended.connect(_on_round_ended)
+	GameState.phase_changed.connect(_on_phase_changed)
+	GameState.game_reset.connect(_clear_shift)
+	GameState.backroom_changed.connect(_on_backroom_changed)
+	GameState.contract_met.connect(_on_contract_met)
+	GameState.deposit_noted.connect(_on_deposit_noted)
+	Net.players_changed.connect(_sync_title)
+	Net.titles_changed.connect(_sync_title)
+	Net.peer_registered.connect(_on_peer_registered)
+	changed.connect(_sync_title)
+
+
+# ---------------------------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------------------------
+
+## One record by key ("shifts", "best_round", "deposited", "contracts", "burns", "bitten", "shot", "backroom", or a
+## strain id for the bundles of that strain this player deposited). 0 when unknown.
+func get_record(key: String) -> int:
+	if _record.has(key):
+		return int(_record[key])
+	return int(_strains.get(key, 0))
+
+
+## A few flat lines for the alley board and the pause menu's Record card. Empty before the first shift.
 func get_summary_lines() -> Array[String]:
-	return []
+	var out: Array[String] = []
+	if get_record(KEY_SHIFTS) <= 0:
+		return out
+	out.append(TEXT_SHIFTS % get_record(KEY_SHIFTS))
+	out.append(TEXT_BEST % get_record(KEY_BEST_ROUND))
+	out.append(TEXT_DEPOSITED % Contracts.format_money(get_record(KEY_DEPOSITED)))
+	out.append(TEXT_CONTRACTS % get_record(KEY_CONTRACTS))
+	out.append(TEXT_BURNS % get_record(KEY_BURNS))
+	out.append(TEXT_TROUBLE % [get_record(KEY_BITTEN), get_record(KEY_SHOT), get_record(KEY_BACKROOM)])
+	return out
+
 
 ## A flat job title that follows the best shift reached ("New hire", "Floor hand", ...).
 func get_title() -> String:
-	return ""
+	return title_for(get_record(KEY_BEST_ROUND))
+
+
+## The title for a best shift of `best_round`.
+static func title_for(best_round: int) -> String:
+	var out := String(TITLES[0][1])
+	for rung: Array in TITLES:
+		if best_round >= int(rung[0]):
+			out = String(rung[1])
+	return out
+
+
+## Every title of the ladder, lowest first.
+static func get_titles() -> PackedStringArray:
+	var out := PackedStringArray()
+	for rung: Array in TITLES:
+		out.append(String(rung[1]))
+	return out
+
+
+## True for a string of the ladder (what the host accepts as a title, and what a peer shows).
+static func is_known_title(text: String) -> bool:
+	for rung: Array in TITLES:
+		if String(rung[1]) == text:
+			return true
+	return false
+
+
+## Bundles deposited per strain: strain id (String) -> count. A copy.
+func get_strain_deposits() -> Dictionary:
+	return _strains.duplicate()
+
+
+## Reads `file_path` into the record, replacing what was there. A missing, empty, oversized or corrupt file gives an
+## empty record. Returns true when a file was read. Never logs an error. Emits `changed`.
+func load_file(file_path: String) -> bool:
+	_record = {}
+	_strains = {}
+	var text := _read_text(file_path)
+	var read := text != ""
+	if read:
+		_parse(text)
+	changed.emit()
+	return read
+
+
+## Writes the record to `file_path` (through "<file>.tmp" and a rename). False when the file could not be written.
+func save_file(file_path: String) -> bool:
+	var tmp := file_path + ".tmp"
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
+	if f == null:
+		push_warning("Career: could not write %s (%s)" % [tmp, error_string(FileAccess.get_open_error())])
+		return false
+	f.store_string(_serialize())
+	f.close()
+	if DirAccess.rename_absolute(tmp, file_path) != OK:
+		# The rename did not go through (a locked file): write in place and drop the temp file.
+		var direct := FileAccess.open(file_path, FileAccess.WRITE)
+		if direct == null:
+			push_warning("Career: could not write %s" % file_path)
+			return false
+		direct.store_string(_serialize())
+		direct.close()
+		DirAccess.remove_absolute(tmp)
+	return true
+
+
+## True when the engine was started with a main-loop script (`-s` / `--script`): a test body or a tool, not the game.
+static func _is_scripted_run() -> bool:
+	for arg in OS.get_cmdline_args():
+		if arg == "-s" or arg == "--script":
+			return true
+	return false
+
+
+## Writes the record to its file when this run keeps one (see `persistent`).
+func save() -> bool:
+	if not persistent:
+		return false
+	return save_file(path)
+
+
+## Tests: an empty record in memory (the file is not touched).
+func clear_record() -> void:
+	_record = {}
+	_strains = {}
+	_clear_shift()
+	changed.emit()
+
+
+# ---------------------------------------------------------------------------------------------
+# What is counted
+# ---------------------------------------------------------------------------------------------
+
+func _on_round_started(_round_number: int) -> void:
+	_clear_shift()
+	# A worker already in the back room when the count starts was sent there before this shift: not counted again.
+	_in_backroom = GameState.is_in_backroom(_local_id())
+
+
+func _on_round_ended(success: bool, round_number: int) -> void:
+	var me := _local_id()
+	if me <= 0 or not Net.players.has(me):
+		return
+	_add(KEY_SHIFTS, 1)
+	if success and round_number > get_record(KEY_BEST_ROUND):
+		_record[KEY_BEST_ROUND] = mini(round_number, MAX_VALUE)
+	_add(KEY_DEPOSITED, GameState.get_stat(me, Const.STAT_DEPOSITED))
+	_add(KEY_BURNS, GameState.get_stat(me, Const.STAT_BURNS))
+	_add(KEY_BITTEN, GameState.get_stat(me, Const.STAT_BITTEN))
+	_add(KEY_SHOT, GameState.get_stat(me, Const.STAT_SHOT))
+	_add(KEY_BACKROOM, _shift_backroom)
+	for strain: Variant in _shift_strains:
+		_add_strain(String(strain), int(_shift_strains[strain]))
+	_clear_shift()
+	save()
+	changed.emit()
+
+
+func _on_phase_changed(new_phase: int) -> void:
+	if new_phase == GameState.Phase.MENU:
+		_clear_shift()
+		_sent_title = ""
+
+
+func _on_backroom_changed(peer_id: int, active: bool) -> void:
+	if peer_id != _local_id():
+		return
+	# Counted on the way in only (a full resync repeats the signal for a worker who is already inside).
+	if active and not _in_backroom and GameState.is_playing():
+		_shift_backroom += 1
+	_in_backroom = active
+
+
+## The floor's job was met while this peer is in the session: it counts for everyone present.
+func _on_contract_met(_contract: Dictionary) -> void:
+	if not Net.players.has(_local_id()):
+		return
+	_add(KEY_CONTRACTS, 1)
+	save()
+	changed.emit()
+
+
+func _on_deposit_noted(strain: StringName, _amount: int, _cured: bool, _value: int, seller_peer: int) -> void:
+	if seller_peer != _local_id() or String(strain) == "":
+		return
+	_shift_strains[String(strain)] = int(_shift_strains.get(String(strain), 0)) + 1
+
+
+func _clear_shift() -> void:
+	_shift_strains = {}
+	_shift_backroom = 0
+	_in_backroom = false
+
+
+func _add(key: String, amount: int) -> void:
+	if amount <= 0:
+		return
+	_record[key] = mini(int(_record.get(key, 0)) + amount, MAX_VALUE)
+
+
+func _add_strain(strain: String, amount: int) -> void:
+	if amount <= 0 or not _is_key(strain) or KEYS.has(strain):
+		return
+	if not _strains.has(strain) and _strains.size() >= MAX_STRAINS:
+		return
+	_strains[strain] = mini(int(_strains.get(strain, 0)) + amount, MAX_VALUE)
+
+
+func _local_id() -> int:
+	if not multiplayer.has_multiplayer_peer():
+		return 0
+	return multiplayer.get_unique_id()
+
+
+# ---------------------------------------------------------------------------------------------
+# The title on the wire
+# ---------------------------------------------------------------------------------------------
+
+## Hands this peer's title to the host once it is registered, and again when it changes (replay on only).
+func _sync_title() -> void:
+	var me := _local_id()
+	if not Net.is_online() or not Net.players.has(me):
+		_sent_title = "" # between sessions: the next host has heard nothing yet
+		return
+	if not Config.replay_enabled:
+		return
+	var title := get_title()
+	if title == _sent_title or Net.get_player_title(me) == title:
+		_sent_title = title
+		return
+	_sent_title = title
+	Net.send_title(title)
+
+
+## HOST: a late joiner gets everyone's title.
+func _on_peer_registered(peer_id: int) -> void:
+	if Net.is_host:
+		Net.server_send_titles(peer_id)
+
+
+# ---------------------------------------------------------------------------------------------
+# The file
+# ---------------------------------------------------------------------------------------------
+
+## The file as plain printable ASCII ("" when it is missing, empty, too large or unreadable). Read as bytes: a text
+## read of a file that is not UTF-8 logs an error per bad sequence.
+static func _read_text(file_path: String) -> String:
+	if file_path == "" or not FileAccess.file_exists(file_path):
+		return ""
+	var f := FileAccess.open(file_path, FileAccess.READ)
+	if f == null:
+		return ""
+	var length := f.get_length()
+	if length <= 0 or length > MAX_FILE_BYTES:
+		f.close()
+		return ""
+	var bytes := f.get_buffer(length)
+	f.close()
+	var chars := PackedStringArray()
+	var line := ""
+	for b: int in bytes:
+		if b == 10:
+			chars.append(line)
+			line = ""
+		elif b >= 32 and b < 127:
+			line += String.chr(b)
+	chars.append(line)
+	return "\n".join(chars)
+
+
+## Takes what looks like the format and ignores the rest: "[section]" lines and "key=integer" lines.
+func _parse(text: String) -> void:
+	var section := ""
+	for raw_line: String in text.split("\n"):
+		var line := raw_line.strip_edges()
+		if line == "" or line.begins_with(";") or line.begins_with("#"):
+			continue
+		if line.begins_with("[") and line.ends_with("]"):
+			section = line.substr(1, line.length() - 2).strip_edges()
+			continue
+		var eq := line.find("=")
+		if eq <= 0:
+			continue
+		var key := line.substr(0, eq).strip_edges()
+		var value_text := line.substr(eq + 1).strip_edges()
+		if not _is_key(key) or not _is_count(value_text):
+			continue
+		var value := clampi(value_text.to_int(), 0, MAX_VALUE)
+		if section == SECTION_CAREER and KEYS.has(key):
+			_record[key] = value
+		elif section == SECTION_STRAINS and not KEYS.has(key) and value > 0 and _strains.size() < MAX_STRAINS:
+			_strains[key] = value
+
+
+func _serialize() -> String:
+	var out := "[%s]\n" % SECTION_CAREER
+	for key in KEYS:
+		out += "%s=%d\n" % [key, get_record(key)]
+	out += "\n[%s]\n" % SECTION_STRAINS
+	var ids := _strains.keys()
+	ids.sort()
+	for id: Variant in ids:
+		out += "%s=%d\n" % [String(id), int(_strains[id])]
+	return out
+
+
+## A value the file may hold: 1..10 digits, no sign (String.to_int logs an error for a number that overflows).
+static func _is_count(text: String) -> bool:
+	if text.length() == 0 or text.length() > 10:
+		return false
+	for i in text.length():
+		var c := text.unicode_at(i)
+		if c < 48 or c > 57:
+			return false
+	return true
+
+
+## A key the file may hold: 1..24 of a-z, 0-9 and "_".
+static func _is_key(text: String) -> bool:
+	if text.length() == 0 or text.length() > 24:
+		return false
+	for i in text.length():
+		var c := text.unicode_at(i)
+		if not ((c >= 97 and c <= 122) or (c >= 48 and c <= 57) or c == 95):
+			return false
+	return true

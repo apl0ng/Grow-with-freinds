@@ -372,3 +372,111 @@ func _reset_session_state() -> void:
 	_departed_names.clear()
 	_rejected_peers.clear()
 	_reject_reason = ""
+	_career_reset() # M15 career: job titles are per session
+
+
+# --- M15 career: job titles ------------------------------------------------------------------------------------
+# The one thing of a player's career file that is sent (CONTRACTS "Career"): the flat job title, shown under the
+# name in the HUD WORKERS list. It travels apart from the registration, so an older peer's `_rpc_register` stays valid:
+#   peer -> host   _rpc_set_title(title)        when it is registered and whenever its title changes (Career sends it)
+#   host -> all    _rpc_titles_sync(titles)     peer_id -> title, after every accepted change and to a late joiner
+# The host only takes a string of the known ladder (Career.is_known_title, at most MAX_TITLE_LENGTH characters) from
+# a registered peer, at most MAX_TITLE_CHANGES changes per peer and session; anything else is dropped and the peer
+# keeps the title it had. Every receiver checks the list against the same ladder again. A peer without a title has
+# none in the list ("" from get_player_title).
+
+## Any peer: somebody's job title changed.
+signal titles_changed
+
+## Longest title looked at (the ladder's longest is 18 characters).
+const MAX_TITLE_LENGTH: int = 24
+## Accepted title changes per peer and session (the ladder has six rungs).
+const MAX_TITLE_CHANGES: int = 16
+
+## peer_id -> job title. Authoritative on the host, replicated to every client.
+var titles: Dictionary = {}
+## HOST: peer_id -> title changes accepted this session.
+var _title_changes: Dictionary = {}
+
+
+## The job title of a registered worker ("" when they sent none).
+func get_player_title(peer_id: int) -> String:
+	if not players.has(peer_id):
+		return ""
+	return String(titles.get(peer_id, ""))
+
+
+## Tells the host this peer's job title (the host itself included). No-op while offline.
+func send_title(title: String) -> void:
+	if not is_online():
+		return
+	_rpc_set_title.rpc_id(Const.SERVER_PEER_ID, title)
+
+
+## HOST: the whole list to one peer (a late joiner; Career calls it on peer_registered).
+func server_send_titles(peer_id: int) -> void:
+	if not is_host or peer_id == multiplayer.get_unique_id() or not _is_peer_connected(peer_id):
+		return
+	var live := _live_titles()
+	if not live.is_empty():
+		_rpc_titles_sync.rpc_id(peer_id, live)
+
+
+## A title as it may be shown: a string of the known ladder, else "" (refused). Constant cost for any input.
+static func sanitize_title(raw: String) -> String:
+	if raw.length() == 0 or raw.length() > MAX_TITLE_LENGTH:
+		return ""
+	return raw if Career.is_known_title(raw) else ""
+
+
+## Peer -> host: "this is my job title".
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_set_title(title: String) -> void:
+	if not is_host:
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender == 0:
+		sender = Const.SERVER_PEER_ID
+	if not players.has(sender):
+		return
+	var clean := sanitize_title(title)
+	if clean == "" or String(titles.get(sender, "")) == clean:
+		return
+	var count := int(_title_changes.get(sender, 0))
+	if count >= MAX_TITLE_CHANGES:
+		return
+	_title_changes[sender] = count + 1
+	var next := _live_titles()
+	next[sender] = clean
+	_rpc_titles_sync.rpc(next)
+
+
+## Host -> everyone: the full list. Runs locally on the host too (call_local).
+@rpc("authority", "call_local", "reliable")
+func _rpc_titles_sync(new_titles: Dictionary) -> void:
+	var next: Dictionary = {}
+	for k: Variant in new_titles.keys():
+		var value: Variant = new_titles[k]
+		if not value is String or not (k is int or k is float):
+			continue
+		var clean := sanitize_title(value)
+		if clean != "":
+			next[int(k)] = clean
+	titles = next
+	titles_changed.emit()
+
+
+## HOST: the titles of the workers still registered.
+func _live_titles() -> Dictionary:
+	var out: Dictionary = {}
+	for k: Variant in titles.keys():
+		if players.has(k):
+			out[k] = titles[k]
+	return out
+
+
+func _career_reset() -> void:
+	titles = {}
+	_title_changes.clear()
+
+# --- end M15 career ----------------------------------------------------------------------------------------------
