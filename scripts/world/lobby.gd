@@ -9,6 +9,8 @@ extends Node3D
 ##   west  (x-) : the street lamp (the only real light), bins
 ##   east  (x+) : a pallet, a crate, an oil drum
 ##   south (z+) : $Spawns/Spawn1..4 (feet + 0.2 m, facing the van), the steel door the workers came out of
+##   M15 alley  : $Hoop on the south wall (west of the door), $ReportBoard on the east wall (south end), a lamp over
+##                the door, $BallSpot in front of the spawns: see the "M15 alley" region
 ## Solid geometry is on collision layer 1, mask 0 (like the room). The bricks, the skyline and the moon are built in
 ## _ready from the Toon palette (MultiMeshes: a few draw calls, no nodes per brick), the same on every peer (seeded).
 ##
@@ -52,6 +54,7 @@ func _process(delta: float) -> void:
 	if _poll_accum < AMBIENCE_POLL_SEC:
 		return
 	_poll_accum = 0.0
+	_alley_sync() # M15 alley
 	var me: Player = Game.local_player
 	_set_room_hum_muted(me != null and is_instance_valid(me) and me.is_inside_tree() and contains_point(me.global_position))
 
@@ -115,10 +118,112 @@ func is_in_use() -> bool:
 	return Config.lobby_enabled or (van != null and van.is_lobby_on())
 
 
+# --- M15 alley ----------------------------------------------------------------------------------------------------------
+# What there is to do out here between shifts (FRIENDSLOP 9.4, CONTRACTS "The alley"):
+#   $Hoop         AlleyHoop: a bent ring on the south wall, 2.6 m up, and a counter beside it (scripts/world/alley_hoop.gd)
+#   $ReportBoard  AlleyBoard: the notice board on the east wall: the last shift, the next one, your own record
+#                 (scripts/world/alley_board.gd)
+#   $BallSpot     where the ball lies when the alley comes into use
+# The ball (Const.ITEM_BALL, scenes/items/ball.tscn) is an ordinary item under World/Items. HOST: exactly one exists
+# while the game waits in the alley (phase WAITING with the lobby on); it is despawned the moment the shift starts,
+# so it never exists on the floor, and a fresh one lies at $BallSpot on every return. The hoop's counter goes back to
+# zero whenever the alley comes into use again. _alley_sync() is called on every phase change and from the 0.25 s
+# poll (a ball that got lost some other way is replaced; one that came to rest on the van's roof is put back at
+# $BallSpot after a second and a half). With the lobby off nothing here does anything.
+
+const HOOP_PATH := ^"Hoop"
+const BOARD_PATH := ^"ReportBoard"
+const BALL_SPOT_PATH := ^"BallSpot"
+
+## A ball at rest higher than this above the alley floor (the van's roof, a lamp) is out of reach ...
+const BALL_REACH_HEIGHT: float = 1.4
+## ... and after this many looks in a row (0.25 s apart) the host puts it back at $BallSpot.
+const BALL_LOST_LOOKS: int = 6
+
+## HOST: the alley was in use at the last look (the edge resets the hoop's counter).
+var _alley_live: bool = false
+var _alley_lost_looks: int = 0
+
+
+## The hoop (null if the scene lost it).
+func get_hoop() -> AlleyHoop:
+	return get_node_or_null(HOOP_PATH) as AlleyHoop
+
+
+## The notice board (null if the scene lost it).
+func get_board() -> AlleyBoard:
+	return get_node_or_null(BOARD_PATH) as AlleyBoard
+
+
+## The alley ball on this peer, or null (there is none during a shift, or with the lobby off).
+func get_ball() -> Item:
+	var items := ItemManager.find(self)
+	if items == null:
+		return null
+	for c in items.get_children():
+		var item := c as Item
+		if item != null and item.item_type == Const.ITEM_BALL and not item.is_queued_for_deletion():
+			return item
+	return null
+
+
+## Where a fresh ball lies (global, on the floor).
+func get_ball_spot() -> Vector3:
+	var spot := get_node_or_null(BALL_SPOT_PATH) as Node3D
+	var local := _local_transform_of(spot).origin if spot != null else Vector3(-1.6, 0.0, 0.4)
+	return _to_global(Transform3D(Basis.IDENTITY, local)).origin
+
+
+## True for a ball nobody can get at: at rest (not held, not in the air) outside the walls or above BALL_REACH_HEIGHT.
+func _alley_ball_lost(ball: Item) -> bool:
+	if ball.is_held() or ball.is_flying() or not ball.is_inside_tree():
+		return false
+	var at := ball.global_position
+	return at.y > global_position.y + BALL_REACH_HEIGHT or not get_bounds().grow(0.3).has_point(Vector3(at.x, global_position.y + 0.5, at.z))
+
+
+## HOST: one ball while the game waits out here, none otherwise; the counter starts over with the alley. A ball that
+## came to rest out of reach is put back at the ball spot.
+func _alley_sync() -> void:
+	if not Config.lobby_enabled:
+		return
+	if not (Net.is_host and is_inside_tree() and multiplayer.has_multiplayer_peer() and multiplayer.is_server()):
+		return
+	var items := ItemManager.find(self)
+	if items == null or items.spawner == null:
+		return
+	var live: bool = GameState.phase == GameState.Phase.WAITING
+	if live:
+		if not _alley_live:
+			var hoop := get_hoop()
+			if hoop != null:
+				hoop.server_reset()
+		var mine := get_ball()
+		if mine == null:
+			items.server_spawn_item(Const.ITEM_BALL, {}, get_ball_spot())
+			_alley_lost_looks = 0
+		elif _alley_ball_lost(mine):
+			_alley_lost_looks += 1
+			if _alley_lost_looks >= BALL_LOST_LOOKS:
+				items.server_drop_item(mine, get_ball_spot())
+				_alley_lost_looks = 0
+		else:
+			_alley_lost_looks = 0
+	else:
+		var ball := get_ball()
+		while ball != null:
+			items.server_despawn_item(ball)
+			ball = get_ball()
+	_alley_live = live
+
+# --- end M15 alley ------------------------------------------------------------------------------------------------------
+
+
 # --- cosmetics --------------------------------------------------------------------------------------------------------
 
 func _on_phase_changed(_phase: int) -> void:
 	_refresh_visibility()
+	_alley_sync() # M15 alley
 
 
 func _refresh_visibility() -> void:
