@@ -206,14 +206,14 @@ func pick_kind(previous: StringName = &"") -> StringName:
 	for k in KINDS:
 		if k == previous or (k == EVENT_RAT and not RAT_ENABLED):
 			continue
-		total += int(WEIGHTS.get(k, 0))
+		total += get_weight(k) # M15 replay: the weight x the conditions' event_weight:<kind>
 	if total <= 0:
 		return EVENT_INSPECTION
 	var roll := _rng.randi_range(1, total)
 	for k in KINDS:
 		if k == previous or (k == EVENT_RAT and not RAT_ENABLED):
 			continue
-		roll -= int(WEIGHTS.get(k, 0))
+		roll -= get_weight(k) # M15 replay
 		if roll <= 0:
 			return k
 	return EVENT_INSPECTION
@@ -240,7 +240,7 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 			p["seconds"] = seconds
 			p["speed"] = _walk_speed_for(seconds)
 		EVENT_POWER_CUT:
-			seconds = maxf(b.power_cut_max_sec, 1.0)
+			seconds = maxf(b.power_cut_max_sec, 1.0) * GameState.condition_value(&"power_cut_sec", 1.0) # M15 replay: * power_cut_sec
 			p["max_seconds"] = seconds
 		EVENT_AUDIT:
 			seconds = AUDIT_BANNER_SEC
@@ -323,7 +323,7 @@ func server_end_event() -> void:
 	_server_clear_disruption(kind)
 	_rpc_event_ended.rpc(kind)
 	var b: BalanceConfig = Config.balance
-	_next_in = _rng.randf_range(minf(b.event_gap_min_sec, b.event_gap_max_sec), maxf(b.event_gap_min_sec, b.event_gap_max_sec))
+	_next_in = _rng.randf_range(minf(b.event_gap_min_sec, b.event_gap_max_sec), maxf(b.event_gap_min_sec, b.event_gap_max_sec)) * GameState.get_event_gap_factor() # M15 replay: gaps shrink per shift, x the conditions' event_gap
 
 
 ## SERVER ONLY. Mains power on/off outside an event (the FuseBox uses it if the power is off with no event).
@@ -700,7 +700,7 @@ func _on_peer_left(peer_id: int) -> void:
 
 func _on_round_started(_round_number: int) -> void:
 	if _is_host():
-		_next_in = maxf(Config.balance.event_first_delay_sec, 0.0)
+		_next_in = maxf(Config.balance.event_first_delay_sec, 0.0) * GameState.get_event_gap_factor() # M15 replay: the first delay shrinks with the gaps
 		# Playtests / screenshots: `--event-delay=<sec>` overrides the first delay of every shift.
 		var raw: Variant = Config.get_arg("event-delay", null)
 		if raw is String and String(raw).is_valid_float():
@@ -939,7 +939,7 @@ func pick_shortage_strain() -> StringName:
 	var cash: int = GameState.money
 	var best: SeedDef = null
 	for s in Config.balance.seeds:
-		if s == null or int(_planted.get(s.id, 0)) != top:
+		if s == null or int(_planted.get(s.id, 0)) != top or not GameState.is_strain_unlocked(s.id): # M15 replay: never a strain that is not sold yet
 			continue
 		if best == null:
 			best = s
@@ -1279,7 +1279,7 @@ func _mayhem_tick(delta: float) -> void:
 		if _puddle_left <= 0.0:
 			_puddle_left = 0.0
 			well.server_clear_puddle()
-	if well.has_puddle():
+	if well.has_puddle() or is_floor_slick(): # M15 replay: the slick floor condition judges slips without a puddle
 		_judge_slips(delta, well)
 	elif not _slip_track.is_empty():
 		_slip_track.clear()
@@ -1326,7 +1326,7 @@ func _judge_slips(delta: float, well: Well) -> void:
 		e[3] = false
 		if void_window or not (speed > limit):
 			continue
-		if player.crouching or GameState.is_in_backroom(pid) or not well.is_in_puddle(pos):
+		if player.crouching or GameState.is_in_backroom(pid) or not (well.is_in_puddle(pos) or is_floor_slick_at(pos)): # M15 replay: or anywhere on a slick floor
 			continue
 		if _last_slip.has(pid) and _mayhem_clock - float(_last_slip[pid]) < SLIP_COOLDOWN_SEC:
 			continue
@@ -1714,3 +1714,34 @@ func _mayhem_reset_local() -> void:
 		if is_instance_valid(t):
 			t.queue_free()
 	_tracers.clear()
+
+
+# ------------------------------------------------------------------------------------------------------
+# --- M15 replay: shift conditions in the scheduler and the slip judge ---------------------------------
+# ------------------------------------------------------------------------------------------------------
+# GameState owns the conditions (CONTRACTS "M15", "Replay"); this file reads them through one-line hooks tagged
+# "# M15 replay": the picker's weights (get_weight), the gap and the first delay (GameState.get_event_gap_factor),
+# the length of a power cut (`power_cut_sec`), the shortage's strain (never one that is not sold yet) and the slip
+# judge (`floor_wet`). With replay off every one of them multiplies by 1.0 or is false.
+
+## The scheduler's weight of `kind` right now: WEIGHTS x the active conditions' `event_weight:<kind>` (looked up by
+## the kind's name, so it works for every kind in WEIGHTS, whoever added it). 0 for an unknown kind.
+func get_weight(kind: StringName) -> int:
+	var base := int(WEIGHTS.get(kind, 0))
+	if base <= 0:
+		return 0
+	return maxi(int(round(float(base) * GameState.condition_value(StringName("event_weight:%s" % kind), 1.0))), 0)
+
+
+## True while the "slick floor" condition makes the whole floor wet: a running shift with `floor_wet` above 0. The
+## slip judge then runs without a puddle and counts every point of the floor plan as wet.
+func is_floor_slick() -> bool:
+	return GameState.is_playing() and GameState.condition_value(&"floor_wet", 0.0) > 0.0
+
+
+## True when `pos` is wet because of the slick floor (anywhere on the floor plan; the alley is not the floor).
+func is_floor_slick_at(pos: Vector3) -> bool:
+	if not is_floor_slick():
+		return false
+	var room := _room()
+	return room != null and room.contains_point(pos)

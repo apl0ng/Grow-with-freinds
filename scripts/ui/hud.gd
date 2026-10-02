@@ -189,6 +189,7 @@ func _ready() -> void:
 			events.connect(&"event_ended", _on_event_ended)
 	Comms.ping_received.connect(_on_ping_received)
 	_lobby_ready() # M14 lobby
+	_replay_ready() # M15 replay: the condition chips under the payment bar
 
 	_ui_locked = Game.is_ui_locked()
 	_stats_ready = GameState.phase != GameState.Phase.MENU
@@ -873,6 +874,102 @@ func _on_transition_started(_kind: StringName, seconds: float) -> void:
 	_fade_tween.tween_callback(_fade_rect.hide)
 
 # --- end M14 lobby ------------------------------------------------------------------------------------------------
+
+
+# --- M15 replay ---------------------------------------------------------------------------------------------------
+# The shift's conditions as chips under the payment bar (replay agent, CONTRACTS "M15", "Replay"). One row of small
+# pills, title only ("Dry air", "Short clock"), in a container of its own: Root/Stats/QuotaColumn/ConditionChips,
+# built here in code and placed right under QuotaPanel (above EventPanel). It follows GameState.conditions_changed on
+# every peer, so in the alley it already shows the coming shift; hidden when there are none (always, with replay off).
+# The flat line behind each chip goes out as a toast when the shift starts, with one more for a strain that is sold
+# for the first time ("New at the window: Night Shift.").
+
+const CHIPS_NODE_NAME := "ConditionChips"
+const CHIP_FONT_SIZE: int = 15
+const TEXT_NEW_STRAIN := "New at the window: %s."
+
+var _chips: HBoxContainer
+
+
+func _replay_ready() -> void:
+	_chips = HBoxContainer.new()
+	_chips.name = CHIPS_NODE_NAME
+	_chips.alignment = BoxContainer.ALIGNMENT_CENTER
+	_chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_chips.add_theme_constant_override(&"separation", 8)
+	_chips.visible = false
+	var column := quota_panel.get_parent()
+	column.add_child(_chips)
+	column.move_child(_chips, quota_panel.get_index() + 1)
+	GameState.conditions_changed.connect(_replay_refresh_chips)
+	GameState.round_started.connect(_replay_on_round_started)
+	_replay_refresh_chips()
+
+
+## The chips' container (Root/Stats/QuotaColumn/ConditionChips).
+func get_condition_chips() -> Control:
+	return _chips
+
+
+## The titles on the chips, left to right (empty when the row is hidden).
+func get_condition_chip_texts() -> PackedStringArray:
+	var out := PackedStringArray()
+	if _chips == null or not _chips.visible:
+		return out
+	for chip: Node in _chips.get_children():
+		var label := chip.get_child(0) as Label if chip.get_child_count() > 0 and not chip.is_queued_for_deletion() else null
+		if label != null:
+			out.append(label.text)
+	return out
+
+
+func _replay_refresh_chips() -> void:
+	if _chips == null:
+		return
+	for child: Node in _chips.get_children():
+		_chips.remove_child(child)
+		child.queue_free()
+	var ids := GameState.get_conditions()
+	for id in ids:
+		_chips.add_child(_replay_make_chip(ShiftConditions.get_title(id)))
+	_chips.visible = not ids.is_empty()
+
+
+func _replay_make_chip(title: String) -> PanelContainer:
+	var chip := PanelContainer.new()
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(Toon.UI_PANEL_DARK, 0.92)
+	box.border_color = Toon.INK
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(11)
+	box.content_margin_left = 12.0
+	box.content_margin_right = 12.0
+	box.content_margin_top = 3.0
+	box.content_margin_bottom = 3.0
+	chip.add_theme_stylebox_override(&"panel", box)
+	var label := Label.new()
+	label.theme_type_variation = &"HudLabel"
+	label.add_theme_font_size_override(&"font_size", CHIP_FONT_SIZE)
+	label.add_theme_color_override(&"font_color", Toon.WARNING)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.text = title
+	chip.add_child(label)
+	return chip
+
+
+## Every peer, when a shift starts: each condition's flat line as a toast, and what is new at the window.
+func _replay_on_round_started(round_number: int) -> void:
+	for id in GameState.get_conditions():
+		Game.toast(ShiftConditions.get_line(id), &"info")
+	var fresh := PackedStringArray()
+	for strain in GameState.get_new_strains(round_number):
+		var def: SeedDef = Config.balance.get_seed(strain)
+		fresh.append(def.display_name if def != null else String(strain).capitalize())
+	if not fresh.is_empty():
+		Game.toast(TEXT_NEW_STRAIN % ", ".join(fresh), &"info")
+
+# --- end M15 replay -----------------------------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------------------------

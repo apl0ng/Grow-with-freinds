@@ -314,7 +314,7 @@ func tick(delta: float) -> void:
 		return
 	var pace := 1.0 # M14 loop: 1 with the power on; in the dark only a strain that grows in the dark keeps going
 	if not Events.is_power_on():
-		pace = get_dark_growth_factor() # M14 loop (every other strain: 0, frozen as before)
+		pace = get_dark_growth_factor() * GameState.condition_value(&"dark_growth", 1.0) # M14 loop (every other strain: 0, frozen as before); M15 replay: * dark_growth
 		if pace <= 0.0: # M14 loop
 			return
 	var b := Config.balance
@@ -324,7 +324,7 @@ func tick(delta: float) -> void:
 			stage_progress = 1.0
 		else:
 			stage_progress += delta * pace * GameState.get_growth_speed_multiplier() / duration # M14 loop: * pace
-	water = maxf(0.0, water - delta * b.water_drain_per_sec * GameState.get_water_drain_multiplier() * get_thirst_factor()) # M14 loop: * thirst
+	water = maxf(0.0, water - delta * b.water_drain_per_sec * GameState.get_water_drain_multiplier() * get_thirst_factor() * GameState.condition_value(&"water_drain", 1.0)) # M14 loop: * thirst; M15 replay: * water_drain
 	if stage_progress >= 1.0:
 		stage_progress = 0.0
 		stage = _next_stage(stage)
@@ -724,7 +724,7 @@ func server_roll_mutation() -> bool:
 	if stage != Stage.READY or turning:
 		return false
 	var s := get_seed()
-	var chance := clampf(s.mutation_chance, 0.0, 1.0) if s != null else 0.0
+	var chance := clampf(s.mutation_chance * GameState.condition_value(&"mutation_chance", 1.0), 0.0, 1.0) if s != null else 0.0 # M15 replay: * mutation_chance
 	if chance <= 0.0 or randf() >= chance:
 		return false
 	turn_left = maxf(Config.balance.mutation_warning_sec, 0.0)

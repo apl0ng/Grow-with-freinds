@@ -108,6 +108,91 @@ func get_tag_text() -> String:
 # --- end M14 loop --------------------------------------------------------------------------------------------------
 
 
+# --- M15 replay ----------------------------------------------------------------------------------------------------
+## The supply card on a day that is not like the others (replay agent, CONTRACTS "M15", "Replay"). Three things, all
+## read from GameState's synced state on every refresh, all absent with replay off:
+##   the day's numbers   "Deposits for" and "Margin" come from TurnInStation.compute_sale_value, the chute's own
+##                       formula (the market x the conditions are in it), so the card and the chute never differ by
+##                       a rounded dollar; the BUY price is GameState.get_seed_cost (the conditions' seed_cost)
+##   the value mark      a small triangle after the deposit line: up (Toon.SUCCESS) when the strain deposits for more
+##                       than its plain value today, down (Toon.ERROR) when for less, none at par. Drawn, not a glyph.
+##   the locked state    a strain whose SeedDef.unlock_round is still ahead: the button reads "FROM SHIFT 3" and is
+##                       disabled, the card is dimmed. It wins over OUT OF STOCK and HANDS FULL.
+const TEXT_LOCKED_BUTTON := "FROM SHIFT %d"
+const TEXT_LOCKED := "From shift %d"
+const TEXT_LOCKED_TIP := "Not sold before shift %d."
+const LOCKED_ALPHA := 0.55
+const MARK_SIZE := 12.0
+const MARK_GAP := 8.0
+
+var _locked: bool = false
+var _value_mark: int = 0
+var _mark: Control = null
+
+
+## True while this seed card's strain is not sold yet.
+func is_locked() -> bool:
+	return _locked
+
+
+## "From shift 3" while locked, "" otherwise.
+func get_lock_text() -> String:
+	return TEXT_LOCKED % GameState.get_unlock_round(item_id) if _locked else ""
+
+
+## +1 when the strain deposits for more than its plain value today, -1 for less, 0 at par (and on a favor card).
+func get_value_mark() -> int:
+	return _value_mark
+
+
+## The mark's node (null until a seed card was refreshed once): visible only while get_value_mark() is not 0.
+func get_value_mark_node() -> Control:
+	return _mark
+
+
+func _replay_refresh_seed() -> void:
+	_locked = not GameState.is_strain_unlocked(seed_def.id)
+	if _locked:
+		var from_round := GameState.get_unlock_round(seed_def.id)
+		_buy.text = TEXT_LOCKED_BUTTON % from_round
+		_buy.tooltip_text = TEXT_LOCKED_TIP % from_round
+		_buy.disabled = true
+	modulate.a = LOCKED_ALPHA if _locked else 1.0
+	var factor := GameState.get_deposit_factor(seed_def.id)
+	var mark := 0
+	if factor > 1.0005:
+		mark = 1
+	elif factor < 0.9995:
+		mark = -1
+	if _mark == null:
+		if mark == 0:
+			return
+		_mark = Control.new()
+		_mark.name = "ValueMark"
+		_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_mark.size = Vector2(MARK_SIZE, MARK_SIZE)
+		_mark.draw.connect(_on_mark_draw)
+		_stat2.add_child(_mark)
+	_value_mark = mark
+	_mark.visible = mark != 0
+	var text_size := _stat2.get_minimum_size()
+	_mark.position = Vector2(text_size.x + MARK_GAP, maxf((text_size.y - MARK_SIZE) * 0.5, 0.0))
+	_mark.queue_redraw()
+
+
+func _on_mark_draw() -> void:
+	if _value_mark == 0:
+		return
+	var s := MARK_SIZE
+	var points := PackedVector2Array([Vector2(0.0, s), Vector2(s, s), Vector2(s * 0.5, 0.0)])
+	if _value_mark < 0:
+		points = PackedVector2Array([Vector2(0.0, 0.0), Vector2(s, 0.0), Vector2(s * 0.5, s)])
+	_mark.draw_colored_polygon(points, Toon.SUCCESS if _value_mark > 0 else Toon.ERROR)
+	points.append(points[0])
+	_mark.draw_polyline(points, Toon.INK, 2.0, true)
+# --- end M15 replay ------------------------------------------------------------------------------------------------
+
+
 func is_buy_enabled() -> bool:
 	return not _buy.disabled
 
@@ -124,16 +209,17 @@ func _refresh_seed(money: int, hands_full: bool, out_of_stock: bool = false) -> 
 	var grow_sec := Config.balance.total_grow_time(seed_def) / grow_mult
 	_stat1.text = "Grows in ~%d s" % roundi(grow_sec)
 	var sale_mult := GameState.get_sale_multiplier()
-	var total := int(round(seed_def.yield_amount * seed_def.sale_value_per_unit * sale_mult))
+	var total := TurnInStation.compute_sale_value(seed_def, seed_def.yield_amount, sale_mult) # M15 replay: the chute's own formula, so the card shows what a deposit pays today (market and conditions included)
 	if seed_def.yield_amount > 1:
-		var per_unit := int(round(seed_def.sale_value_per_unit * sale_mult))
+		var per_unit := TurnInStation.compute_sale_value(seed_def, 1, sale_mult) # M15 replay
 		_stat2.text = "Deposits for $%d  (%d × $%d)" % [total, seed_def.yield_amount, per_unit]
 	else:
 		_stat2.text = "Deposits for $%d" % total
-	var profit := total - seed_def.cost
+	var cost := GameState.get_seed_cost(seed_def) # M15 replay: today's price
+	var profit := total - cost # M15 replay: cost
 	_stat3.text = "Margin %s$%d" % ["+" if profit >= 0 else "-", absi(profit)]
 	_stat3.theme_type_variation = &"SuccessLabel" if profit >= 0 else &"ErrorLabel"
-	var affordable := money >= seed_def.cost
+	var affordable := money >= cost # M15 replay: cost
 	if out_of_stock:
 		_buy.text = "OUT OF STOCK"
 		_buy.tooltip_text = "Out of stock this shift."
@@ -141,9 +227,10 @@ func _refresh_seed(money: int, hands_full: bool, out_of_stock: bool = false) -> 
 		_buy.text = "HANDS FULL"
 		_buy.tooltip_text = "Put down what you're carrying first."
 	else:
-		_buy.text = "BUY  $%d" % seed_def.cost
+		_buy.text = "BUY  $%d" % cost # M15 replay: cost
 		_buy.tooltip_text = "" if affordable else "Not enough cash."
 	_buy.disabled = out_of_stock or hands_full or not affordable
+	_replay_refresh_seed() # M15 replay: the locked state ("FROM SHIFT 3") and the day's value mark
 
 
 func _refresh_upgrade(money: int) -> void:

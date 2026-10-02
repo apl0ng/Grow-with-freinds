@@ -151,7 +151,7 @@ static func compute_sale_value(seed_def: SeedDef, amount: int, multiplier: float
 	if seed_def == null or amount <= 0:
 		return 0
 	var cure := 1.0 + maxf(Config.balance.cure_bonus, 0.0) if cured else 1.0
-	return int(round(amount * seed_def.sale_value_per_unit * multiplier * cure))
+	return int(round(amount * seed_def.sale_value_per_unit * multiplier * cure * GameState.get_deposit_factor(seed_def.id, cured))) # M15 replay: * today's market and conditions (1.0 with replay off)
 
 
 ## M14 loop: true for a product whose synced `cured` flag is set (duck-typed like the other product reads).
