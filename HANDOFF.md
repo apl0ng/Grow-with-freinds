@@ -8,9 +8,9 @@ and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of
    grow hall and a loading dock, the tank leak and the drive-by, strain traits and drying racks, new footsteps. A windowed
    run starts in the alley (--no-lobby for the old start). M12 (CONTRACTS "M12", FRIENDSLOP section 7) added six strains with
    mutation chances, the hostile plant (Hostiles autoload), the break-glass flamethrower (EmergencyCabinet + Flamethrower
-   item, `use_item` on LMB) and three disruption events (head count, water main off, shortage). 59 suites in
-   tools/test_all.sh, all green on this PC except the skipped X11 mouse suite (last full run 2026-10-02, 9891 checks,
-   about 12 minutes). The export templates are installed; `toolsxport.ps1` cuts exportGrowWithFriends-win64.zip. Next candidates: PLAN.md "M11" and "Things the user may ask
+   item, `use_item` on LMB) and three disruption events (head count, water main off, shortage). 66 suites in
+   tools/test_all.sh, all green on this PC except the skipped X11 mouse suite (last full run 2026-10-02, 11959 checks,
+   about 14 minutes). The export templates are installed; `toolsxport.ps1` cuts exportGrowWithFriends-win64.zip. Next candidates: PLAN.md "M11" and "Things the user may ask
    for next".
 1. On this PC the repo is cloned at `C:\Users\ap_lo\OneDrive\Desktop\Grow With Freinds` (branch
    `claude/quota-farming-game-lead-hcy18f`; the `C:\Games` path from the cloud session never existed here). `git pull`
@@ -22,7 +22,7 @@ and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of
 3. `launch.ps1` was rewritten 2026-09-29 (parameter sets, `-Mute`, `-Firewall`, `-NoDownload`, first-run `--import`);
    `launch.sh` is the Linux / macOS / Git Bash equivalent (`--host`, `--join ip[:port]`, `--players N`, `--mute`).
 4. Tests on Windows: Git Bash, `export GODOT="/c/Users/ap_lo/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe"`,
-   then `tools/test_all.sh` (59 suites, about 12 minutes; the X11 mouse suite is skipped) or `--only a,b`. NEVER run
+   then `tools/test_all.sh` (66 suites, about 14 minutes; the X11 mouse suite is skipped) or `--only a,b`. NEVER run
    Godot without `--headless` from a script (it opens the game on the user's screen). In PowerShell never name a
    function parameter `$args`.
 5. Models on this PC: Blender 5.2 through `"/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background
@@ -60,7 +60,7 @@ everything else is server-validated. Spawned nodes are never reparented. Held it
 socket; the local player's held item renders in a view-model layer (render layer 10) so it never clips walls.
 
 ## Testing
-- `tools/test_all.sh`: 59 suites, all green on this PC after M13 (2026-10-02). Includes multi-process ENet tests, a
+- `tools/test_all.sh`: 66 suites, all green on this PC after M14 (2026-10-02). Includes multi-process ENet tests, a
   4-player stress test, review regression suites, and the M10 suites (discipline, voice_test/voice_mp, physics/
   physics_mp, ui_m10/ui_m10_mp, events/events_mp).
 - `tools/check.sh` loads every resource; `tools/smoke.sh` runs a solo loop and a host+client pair.

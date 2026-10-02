@@ -285,4 +285,4 @@ Asked for by the user on 2026-10-02 (brainstorm + build): FRIENDSLOP.md section 
 | 14.3 | Events: the tank leak (patch it, puddle, slips) and the drive-by (lanes, cover, crouch, tray damage, the fine); mayhem + mayhem_mp suites | mayhem | done (210 + 87 checks) |
 | 14.4 | Strain traits (thirsty, counted, grows in the dark, spreads, heavy) on the six strains, drying racks with cured bundles; loop + loop_mp suites | loop | done (238 + 66 checks) |
 | 14.5 | Footsteps: one per human stride, three variants, crouch quieter, a landing thud | lead | done |
-| 14.6 | Integration: merges, racks moved into the hall, van model on the dock, test_all registration, README, a visual pass, full run, export | lead | pending |
+| 14.6 | Integration: merges, racks moved into the hall, van model on the dock, test_all registration, README, a visual pass, full run, export | lead | done (66 suites, 11959 checks green; export re-cut) |
