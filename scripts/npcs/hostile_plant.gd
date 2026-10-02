@@ -315,6 +315,7 @@ func host_step(delta: float) -> void:
 			_target_plot.stage_progress = maxf(_target_plot.stage_progress - b.hostile_eat_per_sec * delta, 0.0)
 			if _target_plot.stage_progress <= 0.0 and _eat_time >= MIN_EAT_SEC:
 				var idx := plot_index_of(_target_plot)
+				_target_plot.server_crop_lost(GrowPlot.LOSS_EATEN) # M14 loop: a counted strain eaten to nothing is fined
 				_target_plot.server_reset()
 				_target_plot = null
 				state = State.ROAM

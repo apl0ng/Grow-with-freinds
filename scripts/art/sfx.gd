@@ -929,6 +929,25 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_tone(b, 0.0, 0.5, 110.0, 60.0, 0.2, Wave.SINE, 0.01, 4.0)
 			_lowpass(b, 0.55)
 			_fade_out(b, 0.05)
+		# --- M14 loop --- the drying rack (dull and physical: a hook takes a bag's weight; later the bag is dry) ----
+		&"rack_hang":  # a bundle goes on a hook: the bag's weight lands, the wire ticks, the rail gives a little
+			b = _buf(0.36)
+			_noise(b, rng, 0.0, 0.08, 0.6, 0.2, 0.02, 0.003, 6.0)
+			_tone(b, 0.0, 0.13, 170.0, 85.0, 0.7, Wave.SINE, 0.004, 5.0)
+			_tone(b, 0.035, 0.2, 1250.0, 1235.0, 0.14, Wave.SINE, 0.001, 7.0, 9.0, 0.004)
+			_tone(b, 0.12, 0.22, 300.0, 285.0, 0.2, Wave.TRIANGLE, 0.005, 5.0)
+			_lowpass(b, 0.6)
+			_fade_out(b, 0.03)
+		&"cured":  # a bundle is dry: a papery rustle, then one flat low knock (no chime, nobody is pleased)
+			b = _buf(0.52)
+			_noise(b, rng, 0.0, 0.24, 0.4, 0.75, 0.35, 0.03, 3.0)
+			for t in [0.04, 0.09, 0.16]:
+				_noise(b, rng, t, 0.01, 0.4, 0.9, 0.5, 0.0005, 20.0)
+			_tone(b, 0.25, 0.25, 392.0, 388.0, 0.5, Wave.TRIANGLE, 0.005, 4.5)
+			_tone(b, 0.25, 0.22, 196.0, 194.0, 0.3, Wave.SINE, 0.005, 4.0)
+			_lowpass(b, 0.5)
+			_fade_out(b, 0.04)
+		# --- end M14 loop ----------------------------------------------------------------------------------------
 		_:
 			b = _buf(0.1)
 			_tone(b, 0.0, 0.08, 600.0, 600.0, 0.5, Wave.SINE, 0.002, 4.0)

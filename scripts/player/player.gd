@@ -717,6 +717,8 @@ func _input_enabled() -> bool:
 func _current_speed(can_move: bool) -> float:
 	if crouching:
 		return Config.balance.crouch_speed
+	if is_carrying_heavy(): # M14 loop: a heavy bundle slows the walk and rules out the sprint
+		return get_heavy_walk_speed() # M14 loop
 	if can_move and Input.is_action_pressed(&"sprint"):
 		return Config.balance.sprint_speed
 	return Config.balance.walk_speed
@@ -1128,3 +1130,26 @@ func _show_ignite_fx() -> void:
 	tw.tween_callback(func() -> void: fx.emitting = false)
 	tw.tween_interval(fx.lifetime + 0.1)
 	tw.tween_callback(fx.queue_free)
+
+
+# --- M14 loop: the heavy carry (Floor Brick) ----------------------------------------------------------------------
+## A bundle of a strain with SeedDef.heavy slows its carrier: walking speed times Config.balance.heavy_speed_factor
+## and no sprint (the hook is in _current_speed). Movement is the owner's own simulation in this game, so the rule
+## runs where the carrier moves; every other peer just sees the body follow. Crouching keeps the crouch speed (it is
+## slower still). Dropping or throwing the bundle lifts it at once: the held item is read every physics frame.
+
+## True while this worker holds a bundle of a heavy strain (any peer: the held item is synced).
+func is_carrying_heavy() -> bool:
+	var item := get_held_item()
+	return item != null and is_instance_valid(item) and item.has_method(&"is_heavy") and bool(item.call(&"is_heavy"))
+
+
+## Walking speed under a heavy bundle (m/s).
+func get_heavy_walk_speed() -> float:
+	return Config.balance.walk_speed * clampf(Config.balance.heavy_speed_factor, 0.05, 1.0)
+
+
+## The speed this worker's own simulation aims for right now (crouch / heavy / sprint / walk). For the HUD and tests;
+## it reads the local input, so it only means something for the local worker.
+func get_move_speed() -> float:
+	return _current_speed(_input_enabled() and not is_stunned())

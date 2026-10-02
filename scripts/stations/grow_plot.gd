@@ -188,7 +188,7 @@ func get_prompt(player: Player) -> String:
 			return harvest + " · Moving" if turning else harvest # --- M12 hostile --- (harvest it now or step back)
 	if item_is(held, Const.ITEM_WATERING_CAN):
 		return "Water plant (%s)" % _water_status()
-	return "%s · %s" % [get_strain_name(), get_status_text()]
+	return "%s · %s" % [get_strain_name(), get_status_text()] + get_trait_suffix(" · ") # M14 loop: "... · Thirsty."
 
 func can_interact(player: Player) -> bool:
 	if player == null:
@@ -221,7 +221,8 @@ func get_denied_reason(player: Player) -> String:
 	if item_is(held, Const.ITEM_SEED_PACKET):
 		return "Already planted."
 	# The Interactor shows this (greyed) instead of the prompt, so it carries the growth status too.
-	return "Dry. Needs water." if is_dry() else "Not ready. %d%%" % int(get_growth_fraction() * 100.0)
+	var status := "Dry. Needs water." if is_dry() else "Not ready. %d%%" % int(get_growth_fraction() * 100.0)
+	return status + get_trait_suffix(" · ") # M14 loop: the strain's trait rides on the status line ("Not ready. 40% · Thirsty.")
 
 ## SERVER ONLY (called by Interactable after distance + can_interact validation).
 func _server_interact(player: Player) -> void:
@@ -290,6 +291,8 @@ func server_harvest(player: Player) -> bool:
 	if product == null:
 		push_warning("GrowPlot.server_harvest: ItemManager did not spawn the product; harvest skipped")
 		return false
+	if _server_try_spread(s): # M14 loop: the yield is out; a strain that spreads may leave a watered seedling behind
+		return true
 	stage_progress = 0.0
 	stage = Stage.EMPTY
 	strain_id = &""
@@ -309,16 +312,19 @@ func server_reset() -> void:
 func tick(delta: float) -> void:
 	if delta <= 0.0 or not GameState.is_playing() or not is_growing():
 		return
+	var pace := 1.0 # M14 loop: 1 with the power on; in the dark only a strain that grows in the dark keeps going
 	if not Events.is_power_on():
-		return
+		pace = get_dark_growth_factor() # M14 loop (every other strain: 0, frozen as before)
+		if pace <= 0.0: # M14 loop
+			return
 	var b := Config.balance
 	if water >= b.dry_threshold:
 		var duration := get_stage_duration(stage)
 		if duration <= 0.0:
 			stage_progress = 1.0
 		else:
-			stage_progress += delta * GameState.get_growth_speed_multiplier() / duration
-	water = maxf(0.0, water - delta * b.water_drain_per_sec * GameState.get_water_drain_multiplier())
+			stage_progress += delta * pace * GameState.get_growth_speed_multiplier() / duration # M14 loop: * pace
+	water = maxf(0.0, water - delta * b.water_drain_per_sec * GameState.get_water_drain_multiplier() * get_thirst_factor()) # M14 loop: * thirst
 	if stage_progress >= 1.0:
 		stage_progress = 0.0
 		stage = _next_stage(stage)
@@ -361,6 +367,8 @@ func _on_stage_changed(old: Stage) -> void:
 	var natural_growth := old >= Stage.SEEDLING and old < Stage.READY and stage == old + 1
 	var planted := old == Stage.EMPTY and stage == Stage.SEEDLING
 	var harvested := old == Stage.READY and stage == Stage.EMPTY
+	var spread := old == Stage.READY and stage == Stage.SEEDLING # M14 loop: harvested, and a seedling was left behind
+	planted = planted or spread # M14 loop: the seedling pops in like a planting (its sound is the harvest's, below)
 	# Wilt state first: while no plant is on screen (planting) PlantVisual snaps it, so a seedling planted in
 	# dry soil pops in already wilted instead of crossfading; a live change on a shown plant crossfades.
 	_update_dry(fx)
@@ -375,7 +383,9 @@ func _on_stage_changed(old: Stage) -> void:
 	if not fx:
 		return
 	var sound_pos := global_position + Vector3.UP * 0.6
-	if planted:
+	if spread: # M14 loop: the harvest's snip and burst, then dirt where the new seedling stands
+		_play_spread_fx(sound_pos)
+	elif planted:
 		Sfx.play(&"plant", sound_pos)
 		juice_fx(&"puff", _soil_top(), DIRT_COLOR, 10)
 	elif natural_growth:
@@ -566,6 +576,7 @@ func server_scorch(by_peer: int) -> bool:
 		if arson:
 			GameState.server_write_up(by_peer, Const.WRITE_UP_ARSON)
 	_rpc_scorched.rpc(by_peer)
+	server_crop_lost(LOSS_FIRE) # M14 loop: a counted strain lost to fire costs the floor a fine (before the reset below)
 	if stage == Stage.READY:
 		_scorch_pending = true
 		stage_progress = 0.0
@@ -766,3 +777,120 @@ func _twitch_step() -> void:
 		return
 	var a := deg_to_rad(TWITCH_DEG)
 	_plant.rotation = Vector3(randf_range(-a, a), randf_range(-a * 0.5, a * 0.5), randf_range(-a, a))
+
+
+# --- M14 loop -----------------------------------------------------------------------------------------------------
+## Strain traits (loop agent, CONTRACTS.md "M14", "Loop"). A SeedDef carries at most one trait and the tray reads it:
+##   thirst_multiplier       the water drains that many times faster (tick)
+##   dark_growth_multiplier  while the mains are off the plant grows at that factor instead of freezing (tick); it
+##                           drinks at its usual rate while it does. Every other strain still freezes and keeps its water
+##   spread_chance           a harvest may leave a watered SEEDLING of the same strain (server_harvest ->
+##                           _server_try_spread); the harvester still gets the full yield. READY -> SEEDLING plays the
+##                           harvest snip plus a dirt puff on every peer (_on_stage_changed -> _play_spread_fx)
+##   counted                 a plant lost to the hostile plant, to fire or to gunfire costs the floor counted_fine:
+##                           whatever destroys a crop calls server_crop_lost(cause) BEFORE it resets the plot
+## `heavy` lives in Player (the carrier's speed). `trait_text` shows on the supply card and rides on the tray's status
+## line here ("Purple Haze · Growing 40% · Thirsty.").
+
+## Every peer: a counted plant was lost in this tray. `fine` is what the floor actually paid (0 when the cash was gone).
+signal crop_lost(cause: StringName, strain: StringName, fine: int)
+
+## Causes for server_crop_lost.
+const LOSS_EATEN: StringName = &"eaten"
+const LOSS_FIRE: StringName = &"fire"
+const LOSS_GUNFIRE: StringName = &"gunfire"
+## spread_force values: the dice decide / every harvest of a spreading strain leaves a seedling / none does.
+const SPREAD_ROLL: int = 0
+const SPREAD_ALWAYS: int = 1
+const SPREAD_NEVER: int = 2
+## Water in the tray under a seedling a harvest left behind.
+const SPREAD_WATER: float = 1.0
+const SPREAD_PUFF_COUNT: int = 6
+
+## Host: the dice for the spread roll, shared by every tray. Tests seed it (GrowPlot.spread_rng.seed = 7) ...
+static var spread_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## ... or force the outcome (SPREAD_ALWAYS / SPREAD_NEVER; a strain without a spread chance never spreads either way).
+static var spread_force: int = SPREAD_ROLL
+
+
+## How many times faster than normal this tray's water drains (1 for an empty tray or a strain without the trait).
+func get_thirst_factor() -> float:
+	var s := get_seed()
+	return maxf(s.thirst_multiplier, 0.0) if s != null else 1.0
+
+
+## Growth speed factor while the mains are off: 0 (frozen) for every strain that does not grow in the dark.
+func get_dark_growth_factor() -> float:
+	var s := get_seed()
+	return maxf(s.dark_growth_multiplier, 0.0) if s != null else 0.0
+
+
+## The planted strain's trait as the card words it ("Thirsty."), "" without a plant or a trait.
+func get_trait_text() -> String:
+	var s := get_seed()
+	return s.trait_text if s != null else ""
+
+
+## `separator` + the trait text, or "" when there is none (for status lines).
+func get_trait_suffix(separator: String) -> String:
+	var text := get_trait_text()
+	return "" if text == "" else separator + text
+
+
+## SERVER. Whatever is about to destroy the plant in this tray (the hostile plant, the flamethrower, gunfire) calls
+## this FIRST, while the tray still knows its strain. A counted strain costs the floor Config.balance.counted_fine, as
+## far as the cash on hand goes; every peer gets the toast, the Boss's line and `crop_lost`. Returns the fine taken
+## (0 for an empty tray or a strain nobody counts). The caller still resets the plot itself.
+func server_crop_lost(cause: StringName) -> int:
+	if not _check_server(&"server_crop_lost"):
+		return 0
+	var s := get_seed()
+	if stage == Stage.EMPTY or s == null or not s.counted:
+		return 0
+	var fine := mini(maxi(Config.balance.counted_fine, 0), maxi(GameState.money, 0))
+	if fine > 0:
+		GameState.server_add_money(-fine)
+	_rpc_crop_lost.rpc(String(cause), String(strain_id), fine)
+	return fine
+
+
+## The toast every peer shows for a counted plant that was lost.
+static func get_counted_toast(strain_name: String, fine: int) -> String:
+	if fine > 0:
+		return "%s lost. Fined $%d." % [strain_name, fine]
+	return "%s lost. No cash left to fine." % strain_name
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_crop_lost(cause: String, strain: String, fine: int) -> void:
+	if not is_inside_tree():
+		return
+	var s := Config.balance.get_seed(StringName(strain))
+	Game.toast(get_counted_toast(s.display_name if s != null else "Plant", fine), &"error")
+	if fine > 0:
+		Juice.float_text(_soil_top() + Vector3.UP * 0.9, "-$%d" % fine, Toon.ERROR)
+	var story: Node = Story
+	if story != null and story.has_method(&"loop_counted_fine"):
+		story.call(&"loop_counted_fine", fine)
+	crop_lost.emit(StringName(cause), StringName(strain), fine)
+
+
+## SERVER, from server_harvest once the product is out: rolls the strain's spread chance. On a hit the tray goes
+## READY -> SEEDLING with the same strain and SPREAD_WATER in the soil, and true is returned (the harvest is done).
+func _server_try_spread(s: SeedDef) -> bool:
+	if s == null or s.spread_chance <= 0.0 or spread_force == SPREAD_NEVER:
+		return false
+	if spread_force != SPREAD_ALWAYS and spread_rng.randf() >= s.spread_chance:
+		return false
+	turning = false # a twitching plant that was harvested in time leaves an ordinary seedling
+	stage_progress = 0.0
+	stage = Stage.SEEDLING
+	water = maxf(water, SPREAD_WATER)
+	return true
+
+
+## Every peer, READY -> SEEDLING: the harvest's snip and burst (the crop did leave), then dirt around the new seedling.
+func _play_spread_fx(sound_pos: Vector3) -> void:
+	Sfx.play(&"harvest", sound_pos)
+	Juice.burst(_soil_top() + Vector3.UP * 0.4, _tint_color(), HARVEST_BURST_COUNT)
+	juice_fx(&"puff", _soil_top(), DIRT_COLOR, SPREAD_PUFF_COUNT)

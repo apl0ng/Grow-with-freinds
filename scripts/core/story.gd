@@ -816,3 +816,62 @@ func get_report_verdicts() -> PackedStringArray:
 		if best_amount > 0:
 			out.append(line(String(entry[1])) % Net.get_player_name(best))
 	return out
+
+
+# --- M14 loop: strain traits and the drying rack -----------------------------------------------------------------
+## The fine for a counted plant (Golden Kush) that was eaten, burnt or shot: requested from GrowPlot's every-peer
+## cosmetic RPC (_rpc_crop_lost), so each peer shows its own copy without a Story RPC. MAJOR: cash left the floor, and
+## the line must not be swept out of the one-slot queue by "GrowPlot 2 is gone." / "GrowPlot 2 burnt." beside it.
+##   counted_fine    "He counted those. Twenty-five."   ("%s" = the fine in words)
+##   counted_broke   "He counted those. Nothing left to take."   (the cash on hand was already zero)
+
+const LOOP_LINES: Dictionary = {
+	"counted_fine": "He counted those. %s.",
+	"counted_broke": "He counted those. Nothing left to take.",
+}
+## The supply cards' one-liners now say what each strain's trait does (number-free like the rest; they replace the
+## M12 entries of `blurbs` when Story is built). Budget Bud has no trait and keeps its line.
+const LOOP_BLURBS: Dictionary = {
+	"purple": "Slower. Pays better. Drinks more than the rest.",
+	"golden": "Slow. Bigger yield. Lose one and it costs.",
+	"nightshift": "Pays the best. Grows in the dark. Some walk.",
+	"creeper": "Cheap. Quick. Some leave a seedling. Some walk.",
+	"brick": "Slow. Heavy yield. Slow to carry. Some walk off.",
+}
+const LOOP_ONES: PackedStringArray = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+		"eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+const LOOP_TENS: PackedStringArray = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+var _loop_lines_installed: bool = _install_loop_lines()
+
+
+func _install_loop_lines() -> bool:
+	for key in LOOP_LINES:
+		if not lines.has(key):
+			lines[key] = LOOP_LINES[key]
+	for id in LOOP_BLURBS:
+		blurbs[id] = LOOP_BLURBS[id]
+	return true
+
+
+## Every peer, from GrowPlot._rpc_crop_lost: the Boss names the fine (`fine` = what was actually taken).
+func loop_counted_fine(fine: int) -> void:
+	if not _in_session():
+		return
+	if fine > 0:
+		_request_named("counted_fine", loop_amount_words(fine), Weight.MAJOR)
+	else:
+		_request("counted_broke", Weight.MAJOR)
+
+
+## A dollar amount the way the Boss says it: "Twenty-five" for 25. Outside 0..99 it is the plain figure ("$140").
+func loop_amount_words(amount: int) -> String:
+	if amount < 0 or amount > 99:
+		return "$%d" % amount
+	var words: String
+	if amount < 20:
+		words = LOOP_ONES[amount]
+	else:
+		words = LOOP_TENS[int(floor(amount / 10.0))]
+		if amount % 10 != 0:
+			words += "-" + LOOP_ONES[amount % 10]
+	return words.substr(0, 1).to_upper() + words.substr(1)

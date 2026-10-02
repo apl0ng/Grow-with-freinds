@@ -22,15 +22,24 @@ properties/3/replication_mode = 2
 properties/4/path = NodePath(".:flight_serial")
 properties/4/spawn = true
 properties/4/replication_mode = 2
-properties/5/path = NodePath(".:holder_id")
+properties/5/path = NodePath(".:rack")
 properties/5/spawn = true
 properties/5/replication_mode = 2
-properties/6/path = NodePath(".:strain_id")
+properties/6/path = NodePath(".:holder_id")
 properties/6/spawn = true
 properties/6/replication_mode = 2
-properties/7/path = NodePath(".:amount")
+properties/7/path = NodePath(".:strain_id")
 properties/7/spawn = true
 properties/7/replication_mode = 2
+properties/8/path = NodePath(".:amount")
+properties/8/spawn = true
+properties/8/replication_mode = 2
+properties/9/path = NodePath(".:dry_left")
+properties/9/spawn = true
+properties/9/replication_mode = 2
+properties/10/path = NodePath(".:cured")
+properties/10/spawn = true
+properties/10/replication_mode = 2
 
 [node name="Product" type="Node3D"]
 script = ExtResource("1_script")

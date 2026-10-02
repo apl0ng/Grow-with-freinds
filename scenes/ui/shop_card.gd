@@ -50,7 +50,7 @@ func setup_seed(def: SeedDef) -> void:
 	name = "Seed_%s" % String(def.id)
 	_name_label.text = def.display_name
 	_desc_label.text = Story.get_blurb(def.id, def.description)
-	_tag_label.text = "SEED PACKET"
+	_tag_label.text = get_seed_tag(def) # M14 loop: a strain with a trait names it on the tag line ("THIRSTY")
 	_glyph.text = ""
 	_shine.visible = true
 	_swatch.add_theme_stylebox_override(&"panel", _make_swatch_box(def.color, 32))
@@ -88,6 +88,24 @@ func refresh(money: int, hands_full: bool, out_of_stock: bool = false) -> void:
 
 func get_buy_button() -> Button:
 	return _buy
+
+
+# --- M14 loop: the trait on the tag line ---------------------------------------------------------------------------
+## The small line under a seed's name. A strain with a trait (SeedDef.trait_text, "Thirsty.") shows it there in the
+## tag's own caps, in place of the old words: "THIRSTY", "GROWS IN THE DARK" (beside "SEED PACKET" the longest one
+## does not fit a card at its minimum width). The line was already on the card, so the card is no taller for it; a
+## strain without a trait reads "SEED PACKET" as before.
+const SEED_TAG := "SEED PACKET"
+
+static func get_seed_tag(def: SeedDef) -> String:
+	var words := def.trait_text.strip_edges().trim_suffix(".") if def != null else ""
+	return SEED_TAG if words == "" else words.to_upper()
+
+
+## The tag line as shown ("SEED PACKET", "HEAVY", "FAVOR  ·  LEVEL 1 / 3").
+func get_tag_text() -> String:
+	return _tag_label.text
+# --- end M14 loop --------------------------------------------------------------------------------------------------
 
 
 func is_buy_enabled() -> bool:

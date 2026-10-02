@@ -57,6 +57,7 @@
 [ext_resource type="PackedScene" path="res://scenes/stations/fuse_box.tscn" id="54_fuse_box"]
 [ext_resource type="PackedScene" path="res://art/models/backroom_door.glb" id="55_backroom_door"]
 [ext_resource type="PackedScene" path="res://scenes/stations/emergency_cabinet.tscn" id="56_emergency_cabinet"]
+[ext_resource type="PackedScene" path="res://scenes/stations/drying_rack.tscn" id="m14_drying_rack"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_pw_south"]
 size = Vector3(0.12, 3, 0.95)
@@ -964,3 +965,9 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.98, 1.2, -4)
 
 [node name="EmergencyCabinet" parent="Stations" instance=ExtResource("56_emergency_cabinet")]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.98, 1.35, -2.5)
+
+[node name="DryingRack1" parent="Stations" instance=ExtResource("m14_drying_rack")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0, -6.6)
+
+[node name="DryingRack2" parent="Stations" instance=ExtResource("m14_drying_rack")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, -6.6)
