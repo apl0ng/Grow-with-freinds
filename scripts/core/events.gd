@@ -8,8 +8,8 @@ extends Node
 ##   headless suite keeps its deterministic shifts. Tests that want events pass `--events`.
 ##
 ## Scheduler (host): the first event event_first_delay_sec into a shift, then a gap in [event_gap_min_sec,
-## event_gap_max_sec] after the previous one ended; one at a time; weighted pick (inspection 26 / power cut 16 /
-## audit 8 / rat 8 / head count 12 / water off 8 / shortage 6 / leak 8 / drive-by 8) that never repeats the previous kind. `tick(delta)`
+## event_gap_max_sec] after the previous one ended; one at a time; weighted pick (WEIGHTS: twelve kinds since M15,
+## listed under "M15" below) that never repeats the previous kind. `tick(delta)`
 ## drives it (public, so tests can advance time without waiting); `_process` feeds it real time on the host.
 ##
 ## Kinds:
@@ -52,6 +52,20 @@ extends Node
 ##               item released, STAT_SHOT); a growing tray within DRIVEBY_TRAY_RADIUS loses driveby_tray_loss of stage
 ##               progress, once per drive-by. Each shot is one cosmetic RPC. When the timer runs out the floor is
 ##               fined driveby_fine, as far as cash on hand goes. A force-ended drive-by bills nobody.
+## M15 (mayhem2 agent), three more (the region at the end of the file; weights for twelve kinds: inspection 22 /
+## power cut 13 / audit 7 / rat 7 / head count 10 / water off 6 / shortage 5 / leak 7 / drive-by 7 / raid 6 /
+## sprinklers 5 / collection 5):
+##   raid        raid_warning_sec of sirens outside (red and blue light at the roller door), then raid_sec of looking:
+##               every RAID_SWEEP_INTERVAL the HOST tests sight from the next of Room.get_raid_points() (the roller
+##               door, the dock passage, the middle of the main room). Every product bundle (held, on the floor, on a
+##               rack) within RAID_RANGE with a clear LAYER_WORLD line to that point is taken; a worker holding one is
+##               written up (WRITE_UP_RAID). The grow hall is out of sight, and so is anything behind a wall or a
+##               crate stack; trays are not touched.
+##   sprinklers  every tray's water goes to 1.0, water falls in every play area for sprinkler_sec, and the whole
+##               floor is wet for that long plus sprinkler_wet_sec: the leak's slip rule at every Room.contains_point.
+##   collection  a man (Collector, a plain child of the Room on every peer) stands on the dock for collector_sec.
+##               A worker's finished hold on him pays collector_fee from cash on hand and ends the event. Unpaid, he
+##               takes the dearest bundle on the floor plan, or with no bundle the most advanced planted tray.
 ## Back room: on GameState.backroom_changed the host moves the body (Player.server_teleport) to the room's
 ## BackRoomSpot and back to its spawn on release (the input lock + overlay are the ui agent's).
 ## Copy: none here (Story owns every line); this file only emits signals and plays placeholder sounds.
@@ -59,7 +73,8 @@ extends Node
 ## Every peer: an event began. params: inspection {"seconds", "speed"}, power_cut {"max_seconds"},
 ## audit {"raise"}, rat {"plot": int (GrowPlot index 1..6), "from": Vector3 (wall gap, global)},
 ## headcount {"seconds", "spot": Vector3 (the line, global), "speed"}, water_off {"seconds"},
-## shortage {"seconds", "strain": StringName}, leak {"seconds"}, driveby {"seconds", "warning"} (M14 mayhem).
+## shortage {"seconds", "strain": StringName}, leak {"seconds"}, driveby {"seconds", "warning"} (M14 mayhem),
+## raid {"seconds", "warning"}, sprinklers {"seconds"}, collection {"seconds", "fee"} (M15 mayhem2).
 signal event_started(kind: StringName, params: Dictionary)
 ## Every peer: the active event is over (timer, fixed, or the shift ended).
 signal event_ended(kind: StringName)
@@ -80,11 +95,17 @@ const EVENT_SHORTAGE: StringName = &"shortage"
 ## M14 (mayhem agent): the tank springs a leak, a drive-by.
 const EVENT_LEAK: StringName = &"leak"
 const EVENT_DRIVEBY: StringName = &"driveby"
+## M15 (mayhem2 agent): a raid, the sprinklers, the collector.
+const EVENT_RAID: StringName = &"raid"
+const EVENT_SPRINKLERS: StringName = &"sprinklers"
+const EVENT_COLLECTION: StringName = &"collection"
 const KINDS: Array[StringName] = [EVENT_INSPECTION, EVENT_POWER_CUT, EVENT_AUDIT, EVENT_RAT, EVENT_HEADCOUNT, EVENT_WATER_OFF, EVENT_SHORTAGE,
-		EVENT_LEAK, EVENT_DRIVEBY]
-## Scheduler weights (percent, sum 100). The rat only enters the pick while RAT_ENABLED. M14 mayhem rebalanced them.
-const WEIGHTS: Dictionary = {EVENT_INSPECTION: 26, EVENT_POWER_CUT: 16, EVENT_AUDIT: 8, EVENT_RAT: 8,
-		EVENT_HEADCOUNT: 12, EVENT_WATER_OFF: 8, EVENT_SHORTAGE: 6, EVENT_LEAK: 8, EVENT_DRIVEBY: 8}
+		EVENT_LEAK, EVENT_DRIVEBY, EVENT_RAID, EVENT_SPRINKLERS, EVENT_COLLECTION]  # M15 mayhem2: twelve kinds
+## Scheduler weights (percent, sum 100). The rat only enters the pick while RAT_ENABLED. M14 mayhem rebalanced them;
+## M15 mayhem2 rebalanced them again for twelve kinds.
+const WEIGHTS: Dictionary = {EVENT_INSPECTION: 22, EVENT_POWER_CUT: 13, EVENT_AUDIT: 7, EVENT_RAT: 7,
+		EVENT_HEADCOUNT: 10, EVENT_WATER_OFF: 6, EVENT_SHORTAGE: 5, EVENT_LEAK: 7, EVENT_DRIVEBY: 7,
+		EVENT_RAID: 6, EVENT_SPRINKLERS: 5, EVENT_COLLECTION: 5}  # M15 mayhem2
 const RAT_ENABLED := true
 
 const SIGHT_INTERVAL := 0.5
@@ -280,6 +301,10 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 			seconds = _mayhem_prepare(kind, p)
 			if seconds <= 0.0:
 				return false
+		EVENT_RAID, EVENT_SPRINKLERS, EVENT_COLLECTION:  # M15 mayhem2
+			seconds = _mayhem2_prepare(kind, p)
+			if seconds <= 0.0:
+				return false
 		EVENT_SHORTAGE:
 			if _counter() == null:
 				return false
@@ -305,6 +330,7 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 		_counter().server_set_shortage(StringName(p["strain"]))
 	elif kind == EVENT_LEAK:  # M14 mayhem
 		_well().server_set_leaking(true)
+	_mayhem2_server_begin(kind)  # M15 mayhem2: the sprinklers water every tray before the event packet
 	_rpc_event_started.rpc(kind, p, seconds)
 	if kind == EVENT_AUDIT:
 		# After the banner went out: raising the quota can end the shift at once (sales already cover it),
@@ -347,6 +373,7 @@ func tick(delta: float) -> void:
 		return
 	_track_plantings()
 	_mayhem_tick(delta)  # M14 mayhem: the puddle, the slips, the empty tank (they outlive the leak event)
+	_mayhem2_tick(delta)  # M15 mayhem2: the wet floor after the sprinklers
 	if active_event != &"":
 		_time_left = maxf(_time_left - delta, 0.0)
 		match active_event:
@@ -358,6 +385,10 @@ func tick(delta: float) -> void:
 				_tick_leak(delta)
 			EVENT_DRIVEBY:  # M14 mayhem
 				_tick_driveby(delta)
+			EVENT_RAID:  # M15 mayhem2
+				_tick_raid(delta)
+			EVENT_COLLECTION:  # M15 mayhem2
+				_tick_collection(delta)
 			EVENT_HEADCOUNT:
 				_clock += delta
 				if _time_left <= 0.0:
@@ -612,6 +643,7 @@ func _rpc_event_started(kind: StringName, params: Dictionary, seconds: float) ->
 		EVENT_HEADCOUNT:
 			_start_headcount_visuals(params, seconds)
 	_mayhem_on_started(kind, params, seconds)  # M14 mayhem
+	_mayhem2_on_started(kind, params, seconds)  # M15 mayhem2
 	_play_start_sound(kind)
 	event_started.emit(kind, params)
 
@@ -638,6 +670,7 @@ func _rpc_event_ended(kind: StringName) -> void:
 				rat.call(&"flee")
 		EVENT_HEADCOUNT:
 			_end_headcount_visuals(p)
+	_mayhem2_on_ended(kind)  # M15 mayhem2
 	event_ended.emit(kind)
 
 
@@ -682,6 +715,7 @@ func _on_peer_registered(peer_id: int) -> void:
 		return
 	if not power_on:
 		_rpc_power.rpc_id(peer_id, false)
+	_mayhem2_replay(peer_id)  # M15 mayhem2: the wet floor after the sprinklers (before the event packet, like its start)
 	if active_event != &"":
 		_rpc_event_started.rpc_id(peer_id, active_event, _params, _time_left)
 
@@ -764,6 +798,7 @@ func _reset_local() -> void:
 	_planted.clear()
 	_plot_strains.clear()
 	_mayhem_reset_local()  # M14 mayhem
+	_mayhem2_reset_local()  # M15 mayhem2
 	if not power_on:
 		power_on = true
 		if room != null:
@@ -1024,11 +1059,14 @@ func _server_clear_disruption(kind: StringName) -> void:
 				counter.server_set_shortage(&"")
 		EVENT_LEAK:  # M14 mayhem: the hole closes, the puddle starts to dry
 			_server_stop_leak()
+		EVENT_SPRINKLERS:  # M15 mayhem2: the water stops, the floor stays wet a while
+			_server_start_wet_tail()
 
 
 ## Host: the water main on and nothing out of stock, whatever turned them (shift end, reset). No-ops when so.
 func _server_restore_stations() -> void:
 	_mayhem_server_reset()  # M14 mayhem: no leak, no puddle, no empty-tank timer (the pressure is restored below)
+	_mayhem2_server_reset()  # M15 mayhem2: the floor is dry, no raid or collection bookkeeping
 	var well := _well()
 	if well != null and not well.has_pressure():
 		well.server_set_pressure(true)
@@ -1072,6 +1110,8 @@ func _play_start_sound(kind: StringName) -> void:
 			else:
 				Sfx.play(&"shortage")
 		EVENT_DRIVEBY:  # M14 mayhem: the tyres outside are its sound (_mayhem_on_started), no alarm
+			pass
+		EVENT_RAID, EVENT_COLLECTION:  # M15 mayhem2: the sirens / the knock on the door (_mayhem2_on_started)
 			pass
 		_:
 			Sfx.play(&"alarm")
@@ -1279,7 +1319,7 @@ func _mayhem_tick(delta: float) -> void:
 		if _puddle_left <= 0.0:
 			_puddle_left = 0.0
 			well.server_clear_puddle()
-	if well.has_puddle() or is_floor_slick(): # M15 replay: the slick floor condition judges slips without a puddle
+	if well.has_puddle() or is_floor_slick() or is_floor_wet(): # M15 replay: the slick floor condition; M15 mayhem2: the sprinklers
 		_judge_slips(delta, well)
 	elif not _slip_track.is_empty():
 		_slip_track.clear()
@@ -1326,7 +1366,7 @@ func _judge_slips(delta: float, well: Well) -> void:
 		e[3] = false
 		if void_window or not (speed > limit):
 			continue
-		if player.crouching or GameState.is_in_backroom(pid) or not (well.is_in_puddle(pos) or is_floor_slick_at(pos)): # M15 replay: or anywhere on a slick floor
+		if player.crouching or GameState.is_in_backroom(pid) or not (well.is_in_puddle(pos) or is_floor_slick_at(pos) or is_wet_at(pos)): # M15 replay / M15 mayhem2: or anywhere on a slick or wet floor
 			continue
 		if _last_slip.has(pid) and _mayhem_clock - float(_last_slip[pid]) < SLIP_COOLDOWN_SEC:
 			continue
@@ -1745,3 +1785,697 @@ func is_floor_slick_at(pos: Vector3) -> bool:
 		return false
 	var room := _room()
 	return room != null and room.contains_point(pos)
+
+
+# --- M15 mayhem2: a raid, the sprinklers, the collector -----------------------------------------------
+# ------------------------------------------------------------------------------------------------------
+# Decided on the host. The other peers get the event packets and the reliable RPCs below (what a raid took, whether
+# the floor is still wet, who paid the collector, what he took). The lights at the roller door, the falling water and
+# the collector are plain children of the Room, built on every peer from _rpc_event_started, so the late-join replay
+# builds them too. Story owns the copy: this file only emits signals and plays sounds.
+
+## Every peer: the raid looked in from Room.get_raid_points()[point_index] and took `taken` bundles.
+signal raid_swept(point_index: int, taken: int)
+## Every peer: the raid took a bundle. `item_name` is its node name under World/Items; `holder_peer` held it (0 = it
+## lay on the floor or hung on a rack).
+signal raid_took(item_name: String, holder_peer: int)
+## Every peer: the whole floor became wet (the sprinklers came on) / dried (sprinkler_wet_sec after they stopped).
+signal floor_wet_changed(wet: bool)
+## Every peer: `peer_id` paid the collector `fee` out of cash on hand.
+signal collector_paid(peer_id: int, fee: int)
+## Every peer: nobody paid. `what` is COLLECT_BUNDLE (`strain` = the bundle's, `where` = its node name), COLLECT_TRAY
+## (`strain` = the plant's, `where` = the tray's node name, "GrowPlot3") or COLLECT_NOTHING (nothing on the floor).
+signal collector_took(what: StringName, strain: StringName, where: String)
+
+## Seconds between two looks of a raid; the first comes the moment the warning ends.
+const RAID_SWEEP_INTERVAL := 1.5
+## A bundle further than this from the eye point is not seen (metres).
+const RAID_RANGE := 16.0
+## A bundle on the floor is looked at this far above its origin (the line must not graze the floor it lies on).
+const RAID_ITEM_LIFT := 0.15
+const RAID_LIGHTS_NAME := "RaidLights"
+## One turn of the red and blue beams, and one colour of the glow under the door (seconds).
+const RAID_LIGHT_TURN_SEC := 1.1
+const RAID_GLOW_SEC := 0.3
+## How far the two beams reach from the door (metres): the dock and, through the passage, a strip of the main room.
+const RAID_LIGHT_RANGE := 11.0
+## The white flash at the eye point when they look.
+const RAID_FLASH_SEC := 0.6
+const SPRINKLERS_NAME := "Sprinklers"
+## Falling drops per square metre of floor, and how long one falls (ceiling to floor).
+const SPRINKLER_DROPS_PER_M2 := 0.7
+const SPRINKLER_FALL_SEC := 0.8
+const COLLECTOR_NAME := "Collector"
+const COLLECTOR_SCENE_PATH := "res://scenes/npcs/collector.tscn"
+## The pay request is accepted within interact_distance plus this (metres), like every station's request.
+const COLLECTOR_RANGE_SLACK := 2.0
+const COLLECT_BUNDLE: StringName = &"bundle"
+const COLLECT_TRAY: StringName = &"tray"
+const COLLECT_NOTHING: StringName = &"nothing"
+const REASON_NO_COLLECTOR := "Nobody to pay."
+const REASON_COLLECTOR_TOO_FAR := "Too far."
+const REASON_CASH_SHORT := "Cash short."
+
+## Host: looks done / bundles taken in the running (or last) raid.
+var _raid_sweeps: int = 0
+var _raid_taken: int = 0
+## Host: seconds until the floor dries after the sprinklers stopped (0 = no countdown).
+var _wet_left: float = 0.0
+## Every peer (synced by _rpc_floor_wet): the floor is still wet after the sprinklers stopped.
+var _wet_tail: bool = false
+## Every peer: the value floor_wet_changed last carried.
+var _wet_shown: bool = false
+## Every peer: Sfx loop handles (0 = silent).
+var _raid_siren: int = 0
+var _sprinkler_loop: int = 0
+
+
+## True while the raid looks in (false during its sirens-only warning). Any peer.
+func is_raid_looking() -> bool:
+	if active_event != EVENT_RAID:
+		return false
+	var total := float(_params.get("seconds", 0.0))
+	return total - _time_left >= float(_params.get("warning", 0.0))
+
+
+## Host: looks done in the running (or last) raid.
+func get_raid_sweeps() -> int:
+	return _raid_sweeps
+
+
+## Host: bundles taken in the running (or last) raid.
+func get_raid_taken() -> int:
+	return _raid_taken
+
+
+## True while the whole floor is wet: the sprinklers run, or they stopped less than sprinkler_wet_sec ago. Any peer.
+func is_floor_wet() -> bool:
+	return active_event == EVENT_SPRINKLERS or _wet_tail
+
+
+## True when `point` (global) is on the wet floor: the floor is wet and the point lies in a play area.
+func is_wet_at(point: Vector3) -> bool:
+	if not is_floor_wet():
+		return false
+	var room := _room()
+	return room != null and room.contains_point(point)
+
+
+## Host: seconds until the floor dries after the sprinklers stopped (0 when no countdown runs).
+func get_wet_left() -> float:
+	return _wet_left
+
+
+## The collector standing on the dock, null when there is none (or he is already leaving). Any peer.
+func get_collector() -> Collector:
+	var room := _room()
+	if room == null:
+		return null
+	var man := room.get_node_or_null(NodePath(COLLECTOR_NAME)) as Collector
+	if man == null or man.is_queued_for_deletion() or man.is_leaving():
+		return null
+	return man
+
+
+## Host: fills `p` for a raid, the sprinklers or a collection and returns its length in seconds (0 = not now).
+func _mayhem2_prepare(kind: StringName, p: Dictionary) -> float:
+	var b: BalanceConfig = Config.balance
+	var room := _room()
+	if room == null:
+		return 0.0
+	if kind == EVENT_RAID:
+		if room.get_raid_points().is_empty():
+			return 0.0
+		var warning := maxf(b.raid_warning_sec, 0.0)
+		var raid_seconds := warning + maxf(b.raid_sec, 0.5)
+		p["seconds"] = raid_seconds
+		p["warning"] = warning
+		_raid_sweeps = 0
+		_raid_taken = 0
+		return raid_seconds
+	if kind == EVENT_SPRINKLERS:
+		var water_seconds := maxf(b.sprinkler_sec, 1.0)
+		p["seconds"] = water_seconds
+		return water_seconds
+	if kind == EVENT_COLLECTION:
+		var wait_seconds := maxf(b.collector_sec, 1.0)
+		p["seconds"] = wait_seconds
+		p["fee"] = maxi(b.collector_fee, 0)
+		return wait_seconds
+	return 0.0
+
+
+## Host, right before the event packet goes out: the sprinklers fill every tray to the top (the trays sync it).
+func _mayhem2_server_begin(kind: StringName) -> void:
+	if kind != EVENT_SPRINKLERS:
+		return
+	_wet_left = 0.0   # a tail still running is taken over by the new event
+	var room := _room()
+	if room == null:
+		return
+	for i in range(1, Room.GROW_PLOT_COUNT + 1):
+		var plot := room.get_station("GrowPlot%d" % i) as GrowPlot
+		if plot != null:
+			plot.water = 1.0
+
+
+## Host, every tick whatever the event: the wet floor dries sprinkler_wet_sec after the sprinklers stopped.
+func _mayhem2_tick(delta: float) -> void:
+	if _wet_left <= 0.0 or active_event == EVENT_SPRINKLERS:
+		return
+	_wet_left -= delta
+	if _wet_left <= 0.0:
+		_wet_left = 0.0
+		_rpc_floor_wet.rpc(false)
+
+
+# --- the raid ----------------------------------------------------------------------------------------------------------
+
+func _tick_raid(delta: float) -> void:
+	var warning := float(_params.get("warning", 0.0))
+	var total := float(_params.get("seconds", warning))
+	_clock += delta
+	# Look k is due RAID_SWEEP_INTERVAL * k into the looking, the first the moment the warning ends.
+	while active_event == EVENT_RAID:
+		var due := RAID_SWEEP_INTERVAL * _raid_sweeps
+		if due >= total - warning - 0.000001 or _clock < warning + due - 0.000001:
+			break
+		var done := _raid_sweeps
+		server_raid_sweep(_raid_sweeps)
+		if _raid_sweeps == done:
+			break   # no floor to look at (the world is going)
+	if active_event == EVENT_RAID and _time_left <= 0.0:
+		server_end_event()
+
+
+## SERVER ONLY. One look of the raid from Room.get_raid_points()[point_index] (wrapped): every product bundle within
+## RAID_RANGE with a clear LAYER_WORLD line to that point is taken (despawned). A held bundle is judged at its holder's
+## chest, and the holder is written up (WRITE_UP_RAID; at most one write-up per worker per WRITE_UP_COOLDOWN_SEC, the
+## bundle goes every time). Never seen: a bundle in the grow hall (Room.is_in_hall), off the floor plan, or in the
+## hands of a back-room worker. Trays are not touched. Returns {"index": int, "point": Vector3, "taken": Array of
+## item names, "holders": Array of peer ids}. Public for tests (tick() does the raid's looks).
+func server_raid_sweep(point_index: int) -> Dictionary:
+	var out := {"index": 0, "point": Vector3.ZERO, "taken": [], "holders": []}
+	var w: World = Game.world
+	var room := _room()
+	if not _is_host() or w == null or not is_instance_valid(w) or not w.is_inside_tree() or room == null or w.items == null:
+		return out
+	var points := room.get_raid_points()
+	if points.is_empty():
+		return out
+	var index := posmod(point_index, points.size())
+	var eye: Vector3 = points[index]
+	out["index"] = index
+	out["point"] = eye
+	var space := w.get_world_3d().direct_space_state
+	var taken: Array = out["taken"]
+	var holders: Array = out["holders"]
+	for item in w.items.get_items_of_type(Const.ITEM_PRODUCT):
+		var target := _bundle_position(item, w)
+		if not target.is_finite() or not room.contains_point(target) or room.is_in_hall(target):
+			continue
+		if item.holder_id == 0:
+			target += Vector3.UP * RAID_ITEM_LIFT
+		if not (eye.distance_to(target) <= RAID_RANGE):
+			continue
+		if not space.intersect_ray(PhysicsRayQueryParameters3D.create(eye, target, Const.LAYER_WORLD)).is_empty():
+			continue
+		var holder: int = item.holder_id
+		var item_name := String(item.name)
+		w.items.server_despawn_item(item)
+		taken.append(item_name)
+		_raid_taken += 1
+		if holder != 0:
+			holders.append(holder)
+			if _can_write_up(holder):
+				_write_up(holder, Const.WRITE_UP_RAID)
+		_rpc_raid_took.rpc(item_name, holder, target)
+	_raid_sweeps += 1
+	_rpc_raid_swept.rpc(index, taken.size())
+	return out
+
+
+## Where a bundle is for whoever looks for it (global): its holder's chest when it is carried, the bundle itself
+## otherwise. Vector3.INF when the holder has no body on the floor (gone, or in the back room).
+func _bundle_position(item: Item, w: World) -> Vector3:
+	if item == null or not is_instance_valid(item) or not item.is_inside_tree():
+		return Vector3.INF
+	if item.holder_id == 0:
+		return item.global_position
+	var holder := w.get_player(item.holder_id)
+	if holder == null or not holder.is_inside_tree() or GameState.is_in_backroom(item.holder_id):
+		return Vector3.INF
+	return holder.get_chest_position()
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_raid_took(item_name: String, holder_peer: int, position: Vector3) -> void:
+	if position.is_finite() and _room() != null:
+		Sfx.play(&"confiscate", position)
+		GrowPlot.juice_fx(&"puff", position, Toon.PEBBLE, 5)
+	raid_took.emit(item_name, holder_peer)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_raid_swept(point_index: int, taken: int) -> void:
+	_raid_flash(point_index)
+	raid_swept.emit(point_index, taken)
+
+
+## Every peer: the red and blue beams turning at the roller door, the glow under it, the `siren` loop outside. Built
+## again from scratch on a replay (a late joiner, a repeated packet).
+func _start_raid_visuals() -> void:
+	_stop_raid_visuals()
+	var room := _room()
+	if room == null or not room.is_inside_tree():
+		return
+	var points := room.get_raid_points()
+	var door := room.get_roller_door_position()
+	var eye: Vector3 = points[0] if not points.is_empty() else door + Vector3.UP * Room.RAID_EYE_HEIGHT
+	var root := Node3D.new()
+	root.name = RAID_LIGHTS_NAME
+	room.add_child(root)
+	root.global_position = eye + Vector3.UP * 0.6
+	var pivot := Node3D.new()
+	pivot.name = "Pivot"
+	root.add_child(pivot)
+	for entry: Array in [["Red", Toon.TOMATO, 0.0], ["Blue", Toon.SKY, PI]]:
+		var beam := SpotLight3D.new()
+		beam.name = String(entry[0])
+		beam.light_color = entry[1]
+		beam.light_energy = 7.0
+		beam.spot_range = RAID_LIGHT_RANGE
+		beam.spot_angle = 34.0
+		beam.shadow_enabled = false
+		beam.rotation = Vector3(deg_to_rad(-14.0), float(entry[2]), 0.0)
+		pivot.add_child(beam)
+	var glow := OmniLight3D.new()
+	glow.name = "Glow"
+	glow.light_color = Toon.TOMATO
+	glow.light_energy = 1.8
+	glow.omni_range = 6.0
+	glow.shadow_enabled = false
+	root.add_child(glow)
+	glow.global_position = door + (eye - door) * 0.5 + Vector3.UP * 0.2
+	# The gap under the door: a thin strip of light on the floor that changes colour with the glow.
+	var strip_mat := StandardMaterial3D.new()
+	strip_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	strip_mat.albedo_color = Toon.TOMATO
+	var strip_mesh := BoxMesh.new()
+	strip_mesh.size = Vector3(2.8, 0.05, 0.06)
+	strip_mesh.material = strip_mat
+	var strip := MeshInstance3D.new()
+	strip.name = "Strip"
+	strip.mesh = strip_mesh
+	strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(strip)
+	var inward := Vector3(eye.x - door.x, 0.0, eye.z - door.z)
+	strip.global_position = door + (inward.normalized() * 0.12 if inward.length_squared() > 0.0001 else Vector3.ZERO) + Vector3.UP * 0.03
+	# Tweens on the lights' own root: they die with it.
+	var turn := root.create_tween().set_loops()
+	turn.tween_property(pivot, ^"rotation:y", TAU, RAID_LIGHT_TURN_SEC).as_relative()
+	var swap := root.create_tween().set_loops()
+	swap.tween_interval(RAID_GLOW_SEC)
+	swap.tween_property(glow, ^"light_color", Toon.SKY, 0.04)
+	swap.parallel().tween_property(strip_mat, ^"albedo_color", Toon.SKY, 0.04)
+	swap.tween_interval(RAID_GLOW_SEC)
+	swap.tween_property(glow, ^"light_color", Toon.TOMATO, 0.04)
+	swap.parallel().tween_property(strip_mat, ^"albedo_color", Toon.TOMATO, 0.04)
+	_raid_siren = Sfx.play_loop(&"siren", door + Vector3.UP * 1.5)
+
+
+## Every peer: the lights go, the sirens stop.
+func _stop_raid_visuals() -> void:
+	if _raid_siren != 0:
+		Sfx.stop_loop(_raid_siren)
+		_raid_siren = 0
+	_free_room_child(RAID_LIGHTS_NAME)
+
+
+## Every peer: a short white flash at the eye point a look comes from (a torch through the gap).
+func _raid_flash(point_index: int) -> void:
+	var room := _room()
+	if room == null or not room.is_inside_tree():
+		return
+	var points := room.get_raid_points()
+	if points.is_empty():
+		return
+	var flash := OmniLight3D.new()
+	flash.name = "RaidFlash"
+	flash.light_color = Toon.lighter(Toon.CREAM, 0.4)
+	flash.light_energy = 4.0
+	flash.omni_range = 9.0
+	flash.shadow_enabled = false
+	room.add_child(flash)
+	flash.global_position = points[posmod(point_index, points.size())]
+	var tw := flash.create_tween()
+	tw.tween_property(flash, ^"light_energy", 0.0, RAID_FLASH_SEC)
+	tw.tween_callback(flash.queue_free)
+
+
+# --- the sprinklers ----------------------------------------------------------------------------------------------------
+
+## Host: the water stopped (the event ended, however): the floor stays wet for sprinkler_wet_sec.
+func _server_start_wet_tail() -> void:
+	_wet_left = maxf(Config.balance.sprinkler_wet_sec, 0.0)
+	if _wet_left > 0.0:
+		if not _wet_tail:
+			_rpc_floor_wet.rpc(true)
+	elif _wet_tail:
+		_rpc_floor_wet.rpc(false)
+
+
+## Every peer: the floor is (still) wet after the sprinklers, or it dried. Idempotent (the late-join replay).
+@rpc("authority", "call_local", "reliable")
+func _rpc_floor_wet(wet: bool) -> void:
+	_wet_tail = wet
+	_emit_floor_wet()
+
+
+func _emit_floor_wet() -> void:
+	var wet := is_floor_wet()
+	if wet == _wet_shown:
+		return
+	_wet_shown = wet
+	floor_wet_changed.emit(wet)
+
+
+## Every peer: water falls in every play area (one CPUParticles3D per area, hung under its ceiling) and the
+## `sprinkler` loop plays everywhere.
+func _start_sprinkler_visuals() -> void:
+	_stop_sprinkler_visuals()
+	var room := _room()
+	if room == null or not room.is_inside_tree():
+		return
+	var root := Node3D.new()
+	root.name = SPRINKLERS_NAME
+	room.add_child(root)
+	var drop_mat := StandardMaterial3D.new()
+	drop_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	drop_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	drop_mat.albedo_color = Color(Toon.lighter(Toon.WATER, 0.3), 0.7)
+	var drop := BoxMesh.new()
+	drop.size = Vector3(0.025, 0.3, 0.025)
+	drop.material = drop_mat
+	var areas := room.get_play_areas()
+	for i in areas.size():
+		var area: AABB = areas[i]
+		var rain := CPUParticles3D.new()
+		rain.name = "Area%d" % i
+		rain.amount = clampi(int(area.size.x * area.size.z * SPRINKLER_DROPS_PER_M2), 24, 260)
+		rain.lifetime = SPRINKLER_FALL_SEC
+		rain.preprocess = SPRINKLER_FALL_SEC   # already falling when it appears
+		rain.local_coords = false
+		rain.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		rain.emission_box_extents = Vector3(maxf(area.size.x * 0.5 - 0.3, 0.1), 0.05, maxf(area.size.z * 0.5 - 0.3, 0.1))
+		rain.direction = Vector3.DOWN
+		rain.spread = 3.0
+		rain.initial_velocity_min = 4.2
+		rain.initial_velocity_max = 5.0
+		rain.gravity = Vector3(0.0, -6.0, 0.0)
+		rain.mesh = drop
+		rain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(rain)
+		var centre := area.get_center()
+		rain.global_position = Vector3(centre.x, area.end.y - 0.4, centre.z)
+		rain.emitting = true
+	_sprinkler_loop = Sfx.play_loop(&"sprinkler")
+
+
+## Every peer: the water stops; the last drops fall, then the emitters go.
+func _stop_sprinkler_visuals() -> void:
+	if _sprinkler_loop != 0:
+		Sfx.stop_loop(_sprinkler_loop, 0.6)
+		_sprinkler_loop = 0
+	var room := _room()
+	if room == null:
+		return
+	var root := room.get_node_or_null(NodePath(SPRINKLERS_NAME)) as Node3D
+	if root == null or root.is_queued_for_deletion():
+		return
+	root.name = SPRINKLERS_NAME + "_gone"
+	for c in root.get_children():
+		if c is CPUParticles3D:
+			(c as CPUParticles3D).emitting = false
+	if not root.is_inside_tree():
+		root.queue_free()
+		return
+	var tw := root.create_tween()
+	tw.tween_interval(SPRINKLER_FALL_SEC + 0.2)
+	tw.tween_callback(root.queue_free)
+
+
+# --- the collector -----------------------------------------------------------------------------------------------------
+
+func _tick_collection(delta: float) -> void:
+	_clock += delta
+	if _time_left <= 0.0:
+		server_collect_unpaid()
+		if active_event == EVENT_COLLECTION:
+			server_end_event()
+
+
+## Any peer (local): asks the host to pay the collector for the local worker (the Collector's finished hold calls
+## this). Validated on the host: _rpc_request_pay_collector.
+func request_pay_collector() -> void:
+	var peer := multiplayer.multiplayer_peer
+	if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return
+	_rpc_request_pay_collector.rpc_id(Const.SERVER_PEER_ID)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_request_pay_collector() -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender == 0:
+		sender = Const.SERVER_PEER_ID
+	var player: Player = Game.get_player(sender)
+	if player == null or not player.is_inside_tree():
+		return
+	if GameState.is_in_backroom(sender):
+		_rpc_collector_denied.rpc_id(sender, Interactable.REASON_BACKROOM)
+		return
+	var man := get_collector()
+	if active_event != EVENT_COLLECTION or man == null:
+		_rpc_collector_denied.rpc_id(sender, REASON_NO_COLLECTOR)
+		return
+	var max_dist: float = Config.balance.interact_distance + COLLECTOR_RANGE_SLACK
+	# `not <=` rather than `>`: a non-finite synced position is never in range.
+	if not (player.global_position.distance_to(man.global_position) <= max_dist):
+		_rpc_collector_denied.rpc_id(sender, REASON_COLLECTOR_TOO_FAR)
+		return
+	if not server_pay_collector(sender):
+		_rpc_collector_denied.rpc_id(sender, REASON_CASH_SHORT)
+
+
+## SERVER ONLY. `peer_id` pays the collector: the fee leaves cash on hand, every peer hears who paid, the event ends
+## and he leaves. False when no collection runs or the cash on hand does not cover the fee (nothing happens then).
+func server_pay_collector(peer_id: int) -> bool:
+	if not _is_host() or active_event != EVENT_COLLECTION:
+		return false
+	var fee := maxi(int(_params.get("fee", 0)), 0)
+	if not GameState.server_try_spend(fee, peer_id, "collector"):
+		return false
+	_rpc_collector_paid.rpc(peer_id, fee)
+	server_end_event()
+	return true
+
+
+## SERVER ONLY. Nobody paid: he takes the dearest product bundle on the floor plan (held, lying or hanging; the value
+## is what the chute would pay right now); with no bundle, the most advanced planted tray is lost
+## (GrowPlot.server_crop_lost(LOSS_COLLECTED): a counted strain is fined on top; then the tray is reset); with neither
+## he leaves with nothing. Returns {"what": COLLECT_*, "strain": StringName, "where": String}. Public for tests
+## (tick() calls it when the timer runs out; a force-ended collection takes nothing).
+func server_collect_unpaid() -> Dictionary:
+	var out := {"what": COLLECT_NOTHING, "strain": &"", "where": ""}
+	var w: World = Game.world
+	var room := _room()
+	if not _is_host() or w == null or not is_instance_valid(w) or room == null:
+		return out
+	var at := room.get_collector_spot().origin + Vector3.UP * 1.0
+	var best: Item = null
+	var best_value := -1
+	var chute := room.get_station("TurnInStation") as TurnInStation
+	if w.items != null and chute != null:
+		for item in w.items.get_items_of_type(Const.ITEM_PRODUCT):
+			var where := _bundle_position(item, w)
+			if not where.is_finite() or not room.contains_point(where):
+				continue
+			var value := chute.get_sale_value(item)
+			if value > best_value:
+				best = item
+				best_value = value
+	if best != null:
+		out["what"] = COLLECT_BUNDLE
+		out["strain"] = StringName(str(best.get(&"strain_id")))
+		out["where"] = String(best.name)
+		at = _bundle_position(best, w)
+		w.items.server_despawn_item(best)
+	else:
+		var plot := _most_advanced_plot(room)
+		if plot != null:
+			out["what"] = COLLECT_TRAY
+			out["strain"] = plot.strain_id
+			out["where"] = String(plot.name)
+			at = plot.global_position + Vector3.UP * 0.6
+			plot.server_crop_lost(GrowPlot.LOSS_COLLECTED)
+			plot.server_reset()
+	_rpc_collector_took.rpc(out["what"], out["strain"], out["where"], at)
+	return out
+
+
+## The planted tray furthest along (READY before FLOWERING before ...; then the stage progress), null when every
+## tray is empty.
+func _most_advanced_plot(room: Room) -> GrowPlot:
+	var best: GrowPlot = null
+	var best_score := -1.0
+	for i in range(1, Room.GROW_PLOT_COUNT + 1):
+		var plot := room.get_station("GrowPlot%d" % i) as GrowPlot
+		if plot == null or plot.is_empty():
+			continue
+		var score := float(int(plot.stage)) + clampf(plot.stage_progress, 0.0, 0.999)
+		if score > best_score:
+			best = plot
+			best_score = score
+	return best
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_collector_denied(reason: String) -> void:
+	if reason != "":
+		Game.toast(reason, &"error")
+	Sfx.play(&"error")
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_collector_paid(peer_id: int, fee: int) -> void:
+	var man := get_collector()
+	if man != null:
+		man.set_paid()
+		Sfx.play(&"buy", man.global_position + Vector3.UP * 1.1)
+	collector_paid.emit(peer_id, fee)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_collector_took(what: StringName, strain: StringName, where: String, position: Vector3) -> void:
+	if what != COLLECT_NOTHING and position.is_finite() and _room() != null:
+		Sfx.play(&"confiscate", position)
+		GrowPlot.juice_fx(&"puff", position, Toon.PEBBLE, 6)
+	collector_took.emit(what, strain, where)
+
+
+## Every peer: the collector comes in at the roller door and stands at Room.get_collector_spot(). A late joiner
+## finds him where he is by now.
+func _spawn_collector(params: Dictionary, seconds_left: float) -> void:
+	_free_room_child(COLLECTOR_NAME)
+	var room := _room()
+	if room == null or not room.is_inside_tree():
+		return
+	var scene := load(COLLECTOR_SCENE_PATH) as PackedScene
+	if scene == null:
+		return
+	var man := scene.instantiate() as Collector
+	if man == null:
+		return
+	man.name = COLLECTOR_NAME
+	room.add_child(man)
+	var total := float(params.get("seconds", seconds_left))
+	var elapsed := maxf(total - seconds_left, 0.0)
+	var door := room.get_roller_door_position()
+	var spot := room.get_collector_spot()
+	man.setup(int(params.get("fee", 0)), _collector_door_point(room), spot, elapsed)
+	if elapsed < 1.0:
+		Sfx.play(&"collector_knock", door + Vector3.UP * 1.2)
+
+
+## Global floor point just inside the roller door, on the collector's side of it.
+func _collector_door_point(room: Room) -> Vector3:
+	var door := room.get_roller_door_position()
+	var inward := room.get_collector_spot().origin - door
+	inward.y = 0.0
+	return door + (inward.normalized() * 0.6 if inward.length_squared() > 0.0001 else Vector3.ZERO)
+
+
+## Every peer: the collection is over (paid, unpaid or cut short): he walks back to the door and is gone.
+func _dismiss_collector() -> void:
+	var room := _room()
+	if room == null:
+		return
+	var man := room.get_node_or_null(NodePath(COLLECTOR_NAME)) as Collector
+	if man == null or man.is_queued_for_deletion():
+		return
+	man.name = COLLECTOR_NAME + "_gone"
+	man.leave(_collector_door_point(room))
+
+
+# --- every peer: start / end / late join / resets --------------------------------------------------------------------
+
+## Every peer, from _rpc_event_started (the start and the late-join replay alike).
+func _mayhem2_on_started(kind: StringName, params: Dictionary, seconds_left: float) -> void:
+	match kind:
+		EVENT_RAID:
+			_start_raid_visuals()
+		EVENT_SPRINKLERS:
+			_start_sprinkler_visuals()
+			_emit_floor_wet()
+		EVENT_COLLECTION:
+			_spawn_collector(params, seconds_left)
+
+
+## Every peer, from _rpc_event_ended (active_event is already cleared).
+func _mayhem2_on_ended(kind: StringName) -> void:
+	match kind:
+		EVENT_RAID:
+			_stop_raid_visuals()
+		EVENT_SPRINKLERS:
+			_stop_sprinkler_visuals()
+			_emit_floor_wet()
+		EVENT_COLLECTION:
+			_dismiss_collector()
+
+
+## Host: a late joiner learns that the floor is still wet (the running event itself is replayed by the caller).
+func _mayhem2_replay(peer_id: int) -> void:
+	if _wet_tail:
+		_rpc_floor_wet.rpc_id(peer_id, true)
+
+
+## Host (shift end, game reset): the floor is dry. The running event was ended by the caller (its lights, water and
+## collector go with _rpc_event_ended).
+func _mayhem2_server_reset() -> void:
+	_wet_left = 0.0
+	if _wet_tail:
+		_rpc_floor_wet.rpc(false)
+
+
+## Any peer, back to the menu: forget it all (the lights, the water and the collector go with the scene; the loops
+## are stopped here).
+func _mayhem2_reset_local() -> void:
+	_raid_sweeps = 0
+	_raid_taken = 0
+	_wet_left = 0.0
+	_wet_tail = false
+	_wet_shown = false
+	if _raid_siren != 0:
+		Sfx.stop_loop(_raid_siren)
+		_raid_siren = 0
+	if _sprinkler_loop != 0:
+		Sfx.stop_loop(_sprinkler_loop)
+		_sprinkler_loop = 0
+	for child_name: String in [RAID_LIGHTS_NAME, SPRINKLERS_NAME, COLLECTOR_NAME]:
+		_free_room_child(child_name)
+
+
+## Frees the Room's child `child_name` now (renamed first, so a new one can take the name in the same frame).
+func _free_room_child(child_name: String) -> void:
+	var room := _room()
+	if room == null:
+		return
+	var node := room.get_node_or_null(NodePath(child_name))
+	if node == null or node.is_queued_for_deletion():
+		return
+	node.name = child_name + "_gone"
+	node.queue_free()
+# --- end M15 mayhem2 ---------------------------------------------------------------------------------------------

@@ -1060,6 +1060,39 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_lowpass(b, 0.5)
 			_fade_out(b, 0.04)
 		# --- end M14 loop ----------------------------------------------------------------------------------------
+		# --- M15 mayhem2 --- the raid, the sprinklers, the collector (heard through a steel door, or dull and wet) --
+		&"siren":  # loop: two cars outside, heard through the door: one slow wail, one quicker, never in step
+			b = _buf(2.4)
+			var siren_n := b.size()
+			var slow := 0.0
+			var quick := 0.0
+			for i in siren_n:
+				# Each voice turns a whole number of cycles over the buffer (means 560 Hz and 475 Hz over 2.4 s, whole
+				# wails), and both start at phase 0: the loop wraps without a step and the first sample is silent.
+				b[i] = 0.5 * sin(TAU * slow) + 0.14 * sin(2.0 * TAU * slow) + 0.3 * sin(TAU * quick) + 0.07 * sin(2.0 * TAU * quick)
+				var t := float(i) / siren_n
+				slow += (560.0 - 170.0 * cos(TAU * t)) / MIX_RATE
+				quick += (475.0 - 120.0 * cos(TAU * 3.0 * t)) / MIX_RATE
+		&"sprinkler":  # loop: water from the ceiling onto concrete, everywhere: a broad hiss, a low patter, heads ticking
+			b = _buf(1.2)
+			_noise(b, rng, 0.0, 1.2, 0.5, 0.75, 0.3, 0.0, 0.0)                     # the spray
+			_noise(b, rng, 0.0, 1.2, 0.35, 0.15, 0.03, 0.0, 0.0)                   # on the floor
+			_cycles(b, 54, 0.05, 6, 0.6)                                             # 45 Hz patter, whole cycles = seamless
+			for t: float in [0.05, 0.25, 0.45, 0.65, 0.85, 1.05]:                    # the heads tick round; each dies before the next
+				_noise(b, rng, t, 0.03, 0.22, 0.9, 0.5, 0.0005, 9.0)
+			_lowpass(b, 0.55)
+		&"collector_knock":  # a fist on the steel roller door, three times, unhurried; the slats rattle after each
+			b = _buf(1.1)
+			for t: float in [0.0, 0.3, 0.6]:
+				_noise(b, rng, t, 0.035, 0.9, 0.5, 0.05, 0.001, 7.0)                 # knuckles
+				_tone(b, t, 0.2, 135.0, 70.0, 0.9, Wave.SINE, 0.002, 5.0)           # the sheet gives
+				_tone(b, t + 0.01, 0.22, 410.0, 380.0, 0.16, Wave.TRIANGLE, 0.002, 6.0, 31.0, 0.02)   # the slats
+				_noise(b, rng, t + 0.03, 0.2, 0.18, 0.6, 0.25, 0.004, 5.0)          # the rattle
+			_lowpass(b, 0.5)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.05)
+		# --- end M15 mayhem2 -------------------------------------------------------------------------------------
 		_:
 			b = _buf(0.1)
 			_tone(b, 0.0, 0.08, 600.0, 600.0, 0.5, Wave.SINE, 0.002, 4.0)

@@ -1,0 +1,23 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/npcs/collector.gd" id="1_collector"]
+[ext_resource type="PackedScene" path="res://scenes/world/shopkeeper_npc.tscn" id="2_body"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_hit"]
+radius = 0.42
+height = 1.9
+
+[node name="Collector" type="Node3D"]
+script = ExtResource("1_collector")
+
+[node name="Body" parent="." instance=ExtResource("2_body")]
+auto_bark = false
+look_radius = 9.0
+
+[node name="Hit" type="StaticBody3D" parent="."]
+collision_layer = 4
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Hit"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_hit")

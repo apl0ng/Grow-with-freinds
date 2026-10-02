@@ -157,6 +157,7 @@ func _ready() -> void:
 	_m13_setup()  # M13 lead: report verdicts for burns / scorched / bitten (region at the end of the file)
 	_mayhem_setup()  # M14 mayhem: the leak and the drive-by (region at the end of the file)
 	_replay_setup()  # M15 replay: the shift conditions (region at the end of the file)
+	_mayhem2_setup()  # M15 mayhem2: the raid, the sprinklers, the collector (region after the M14 mayhem one)
 
 
 func _process(delta: float) -> void:
@@ -438,6 +439,8 @@ func _on_worker_written_up(peer_id: int, reason: String, count: int) -> void:
 		key = "loitering"
 	elif reason == Const.WRITE_UP_ABSENT:  # M12 disrupt: missed the head count
 		key = "absent"
+	elif reason == Const.WRITE_UP_RAID:  # M15 mayhem2: held a bundle when the raid looked
+		key = "raid_caught"
 	_request_named(key, Net.get_player_name(peer_id), Weight.MAJOR)
 
 
@@ -975,6 +978,178 @@ func mayhem_amount_words(amount: int) -> String:
 	@warning_ignore("integer_division")
 	var tens: String = MAYHEM_TENS[amount / 10]
 	return tens if amount % 10 == 0 else "%s-%s" % [tens, MAYHEM_ONES[amount % 10]]
+
+
+# --- M15 mayhem2: a raid, the sprinklers, the collector ----------------------------------------------------------
+# Lines and hooks for the three M15 events (Events emits on every peer; Story owns the copy). _ready() calls
+# _mayhem2_setup(); _on_worker_written_up maps the reason WRITE_UP_RAID to "raid_caught". As in M14, what the whole
+# floor has to know also goes out as a toast, because the Boss only speaks at his window.
+#   raid starts                       raid                MAJOR     + toast (error)
+#   the first look                    (toast only)        "They are looking in."
+#   a worker caught holding           raid_caught         MAJOR     ("%s" = the worker; from the write-up)
+#   raid over, after at least a look  mayhem2_raid_line() MAJOR / PROGRESS + toast: "They took three. Dale was
+#                                     holding one." / "They looked. They found nothing."
+#   sprinklers start                  sprinklers          MAJOR     + toast (error)
+#   sprinklers stop, the floor wet    sprinklers_end      PROGRESS  + toast (info)
+#   the floor dried                   (toast only)        "The floor is dry."
+#   collection starts                 collection          MAJOR     + toast (error); the collector says "Forty. Now."
+#   paid (Events.collector_paid)      collector_paid      PROGRESS  + toast (info, names the worker)
+#   unpaid (Events.collector_took)    collector_took_bundle / _tray / _nothing   MAJOR + toast (error)
+
+## Copy for the three events, merged into `lines` at start-up. "%s" = a worker, a strain, a tray or an amount in
+## words; "%d" = dollars.
+const MAYHEM2_LINES: Dictionary = {
+	"raid": "They are outside. Get it out of sight.",
+	"raid_caught": "%s was holding. Written up.",
+	"raid_clean": "They looked. They found nothing.",
+	"raid_took": "They took %s.",
+	"raid_held_one": "%s was holding one.",
+	"raid_held_many": "%s were holding.",
+	"sprinklers": "Sprinklers. Everything is watered. Do not run.",
+	"sprinklers_end": "Sprinklers are off. The floor is still wet.",
+	"collection": "He wants %s. He is on the dock.",
+	"collector_ask": "%s. Now.",
+	"collector_paid": "Paid. He left.",
+	"collector_took_bundle": "Not paid. He took the %s.",
+	"collector_took_tray": "Not paid. He took the plant in %s.",
+	"collector_took_nothing": "Not paid. Nothing to take. He will be back.",
+	"toast_raid": "Raid. Get the product out of sight.",
+	"toast_raid_look": "They are looking in.",
+	"toast_sprinklers": "Sprinklers. Everything is watered. Do not run.",
+	"toast_sprinklers_end": "Sprinklers are off. The floor is still wet.",
+	"toast_floor_dry": "The floor is dry.",
+	"toast_collection": "Collection. He wants $%d. He is on the dock.",
+	"toast_collector_paid": "%s paid the collector $%d.",
+}
+
+## This peer's count of the running raid: bundles taken, the workers who held one (in the order they were caught),
+## and whether anybody looked in yet (a raid cut short during the sirens says nothing at its end).
+var _mayhem2_raid_taken: int = 0
+var _mayhem2_raid_holders: Array[int] = []
+var _mayhem2_raid_looked: bool = false
+
+
+func _mayhem2_setup() -> void:
+	for k in MAYHEM2_LINES:
+		if not lines.has(k):
+			lines[k] = MAYHEM2_LINES[k]
+	var events: Node = get_node_or_null(^"/root/Events")
+	if events == null:
+		return
+	for entry: Array in [[&"event_started", _mayhem2_on_event_started], [&"event_ended", _mayhem2_on_event_ended],
+			[&"raid_swept", _mayhem2_on_raid_swept], [&"raid_took", _mayhem2_on_raid_took],
+			[&"floor_wet_changed", _mayhem2_on_floor_wet_changed], [&"collector_paid", _mayhem2_on_collector_paid],
+			[&"collector_took", _mayhem2_on_collector_took]]:
+		if events.has_signal(entry[0]):
+			events.connect(entry[0], entry[1])
+
+
+func _mayhem2_on_event_started(kind: StringName, params: Dictionary) -> void:
+	if kind == &"raid":
+		_mayhem2_raid_taken = 0
+		_mayhem2_raid_holders.clear()
+		_mayhem2_raid_looked = false
+	if not _in_session():
+		return
+	match kind:
+		&"raid":
+			Game.toast(line("toast_raid"), &"error")
+			_request("raid", Weight.MAJOR)
+		&"sprinklers":
+			Game.toast(line("toast_sprinklers"), &"error")
+			_request("sprinklers", Weight.MAJOR)
+		&"collection":
+			var fee_v: Variant = params.get("fee", 0)
+			var fee: int = int(fee_v) if fee_v is int or fee_v is float else 0
+			Game.toast(line("toast_collection") % fee, &"error")
+			_request_named("collection", mayhem_amount_words(fee), Weight.MAJOR)
+			var events: Node = get_node_or_null(^"/root/Events")
+			var man: Variant = events.call(&"get_collector") if events != null and events.has_method(&"get_collector") else null
+			if is_instance_valid(man) and (man as Object).has_method(&"bark"):
+				(man as Object).call(&"bark", line("collector_ask") % loop_amount_words(fee), 4.0)
+
+
+func _mayhem2_on_event_ended(kind: StringName) -> void:
+	if not _in_session():
+		return
+	match kind:
+		&"raid":
+			if not _mayhem2_raid_looked:
+				return
+			var names := PackedStringArray()
+			for id in _mayhem2_raid_holders:
+				names.append(Net.get_player_name(id))
+			var text := mayhem2_raid_line(_mayhem2_raid_taken, names)
+			Game.toast(text, &"error" if _mayhem2_raid_taken > 0 else &"info")
+			_show(text, Weight.MAJOR if _mayhem2_raid_taken > 0 else Weight.PROGRESS)
+		&"sprinklers":
+			# The shift end stops the water and dries the floor in one go: nothing to say then.
+			var events: Node = get_node_or_null(^"/root/Events")
+			if GameState.is_playing() and events != null and events.has_method(&"is_floor_wet") and bool(events.call(&"is_floor_wet")):
+				Game.toast(line("toast_sprinklers_end"), &"info")
+				_request("sprinklers_end", Weight.PROGRESS)
+
+
+func _mayhem2_on_raid_swept(_point_index: int, _taken: int) -> void:
+	var first := not _mayhem2_raid_looked
+	_mayhem2_raid_looked = true
+	if first and _in_session():
+		Game.toast(line("toast_raid_look"), &"error")
+
+
+func _mayhem2_on_raid_took(_item_name: String, holder_peer: int) -> void:
+	_mayhem2_raid_taken += 1
+	if holder_peer > 0 and not _mayhem2_raid_holders.has(holder_peer):
+		_mayhem2_raid_holders.append(holder_peer)
+
+
+func _mayhem2_on_floor_wet_changed(wet: bool) -> void:
+	if not wet and _in_session() and GameState.is_playing():
+		Game.toast(line("toast_floor_dry"), &"info")
+
+
+func _mayhem2_on_collector_paid(peer_id: int, fee: int) -> void:
+	if not _in_session():
+		return
+	Game.toast(line("toast_collector_paid") % [Net.get_player_name(peer_id), fee], &"info")
+	_request("collector_paid", Weight.PROGRESS)
+
+
+func _mayhem2_on_collector_took(what: StringName, strain: StringName, where: String) -> void:
+	if not _in_session():
+		return
+	var text := mayhem2_collector_line(what, strain, where)
+	Game.toast(text, &"error")
+	_show(text, Weight.MAJOR)
+
+
+## What the floor hears when a raid is over: "They took three. Dale was holding one.", "They took two. Dale and Kim
+## were holding.", "They took one.", "They looked. They found nothing." (`holders` = the names of the workers caught).
+func mayhem2_raid_line(taken: int, holders: PackedStringArray) -> String:
+	if taken <= 0:
+		return line("raid_clean")
+	var text := line("raid_took") % mayhem_amount_words(taken)
+	if holders.size() == 1:
+		text += " " + line("raid_held_one") % holders[0]
+	elif holders.size() > 1:
+		var all_but_last := ", ".join(holders.slice(0, holders.size() - 1))
+		text += " " + line("raid_held_many") % ("%s and %s" % [all_but_last, holders[holders.size() - 1]])
+	return text
+
+
+## What the floor hears when the collector was not paid: the bundle's strain, the tray ("GrowPlot 3"), or nothing.
+func mayhem2_collector_line(what: StringName, strain: StringName, where: String) -> String:
+	match what:
+		&"bundle":
+			return line("collector_took_bundle") % _disrupt_strain_name(strain)
+		&"tray":
+			var digits := ""
+			for ch in where:
+				if ch.is_valid_int():
+					digits += ch
+			return line("collector_took_tray") % (HOSTILE_PLOT_NAME % int(digits) if digits != "" else "a tray")
+	return line("collector_took_nothing")
+# --- end M15 mayhem2 ---------------------------------------------------------------------------------------------
 
 
 # --- M14 loop: strain traits and the drying rack -----------------------------------------------------------------

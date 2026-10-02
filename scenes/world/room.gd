@@ -775,3 +775,59 @@ static func _segment_hits_rect(a: Vector2, b: Vector2, r: Rect2) -> bool:
 		if t0 > t1:
 			return false
 	return true
+
+
+# --- M15 mayhem2: where the raid looks in from, where the collector stands ------------------------------------------
+
+## The eye point just inside the roller door (a Marker3D at eye height) and where the collector stands (a Marker3D
+## on the floor; he faces along its -Z). The fallbacks are Room-local and match the markers.
+const RAID_DOOR_EYE_PATH := ^"Dock/RaidEye"
+const RAID_DOOR_EYE_FALLBACK := Vector3(-2.5, 1.6, 15.0)
+const COLLECTOR_SPOT_PATH := ^"Dock/CollectorSpot"
+const COLLECTOR_SPOT_FALLBACK := Vector3(-2.5, 0.0, 13.6)
+## The roll-up door on the dock's outer wall (whatever comes from outside comes through it).
+const ROLLER_DOOR_PATH := ^"Decor/RollerDoor"
+const ROLLER_DOOR_FALLBACK := Vector3(-2.5, 0.0, 15.6)
+## How high above the floor a raid looks from.
+const RAID_EYE_HEIGHT := 1.6
+## The main room's eye point (Room-local floor position): the middle of the open floor.
+const RAID_MIDDLE := Vector3(0.0, 0.0, 0.0)
+## Index into get_play_areas() of the grow hall: the one room a raid never looks into.
+const HALL_AREA_INDEX := 1
+
+
+## Where a raid looks from, in the order it looks (global, RAID_EYE_HEIGHT above the floor): just inside the roller
+## door, the dock passage, the middle of the main room. Events tests a LAYER_WORLD line from each to every bundle.
+func get_raid_points() -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var door := get_node_or_null(RAID_DOOR_EYE_PATH) as Marker3D
+	out.append(_to_global(_room_transform_of(door)).origin if door != null else _to_global(Transform3D(Basis.IDENTITY, RAID_DOOR_EYE_FALLBACK)).origin)
+	var passage := RAID_MIDDLE
+	for d: Dictionary in DOORWAYS:
+		if String(d["name"]) == "dock_passage":
+			passage = d["center"]
+	for local: Vector3 in [passage, RAID_MIDDLE]:
+		out.append(_to_global(Transform3D(Basis.IDENTITY, Vector3(local.x, RAID_EYE_HEIGHT, local.z))).origin)
+	return out
+
+
+## Where the collector stands on the loading dock (global; origin on the floor, he faces along -Z).
+func get_collector_spot() -> Transform3D:
+	var spot := get_node_or_null(COLLECTOR_SPOT_PATH) as Marker3D
+	if spot != null:
+		return _to_global(_room_transform_of(spot))
+	return _to_global(Transform3D(Basis.IDENTITY, COLLECTOR_SPOT_FALLBACK))
+
+
+## Global floor point at the foot of the roller door (the sirens, the knock and the collector come from there).
+func get_roller_door_position() -> Vector3:
+	var door := get_node_or_null(ROLLER_DOOR_PATH) as Node3D
+	if door != null:
+		return _to_global(_room_transform_of(door)).origin
+	return _to_global(Transform3D(Basis.IDENTITY, ROLLER_DOOR_FALLBACK)).origin
+
+
+## True when `point` (global) is in the grow hall: out of a raid's sight whatever the doorways show of it.
+func is_in_hall(point: Vector3) -> bool:
+	return get_area_index(point) == HALL_AREA_INDEX
+# --- end M15 mayhem2 ---------------------------------------------------------------------------------------------

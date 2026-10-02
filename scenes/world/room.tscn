@@ -1494,6 +1494,12 @@ transform = Transform3D(0.34202, 0, 0.939693, 0, 1, 0, -0.939693, 0, 0.34202, -8
 [node name="DrumEast" parent="Dock" instance=ExtResource("25_oil_drum")]
 transform = Transform3D(0.766044, 0, 0.642788, 0, 1, 0, -0.642788, 0, 0.766044, 4.3, 0, 14.6)
 
+[node name="RaidEye" type="Marker3D" parent="Dock"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 1.6, 15)
+
+[node name="CollectorSpot" type="Marker3D" parent="Dock"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0, 13.6)
+
 [node name="Arrivals" type="Node3D" parent="."]
 
 [node name="Arrival0" type="Marker3D" parent="Arrivals"]
