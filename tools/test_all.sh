@@ -37,6 +37,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
   review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline lan firewall voice_test voice_mp physics physics_mp ui_m10 ui_m10_mp events events_mp hostile hostile_mp strains flame flame_mp disrupt disrupt_mp
   review_m10 review_m10_mp review_m12 review_m12_mp qa_m10_4p qa_m12_4p lobby lobby_mp mayhem mayhem_mp loop loop_mp level alley alley_mp
+  replay replay_off replay_mp
   qa_mouse_x11)
 
 ONLY=""
@@ -55,7 +56,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 80 81 82 91 92 95 96; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 80 81 82 83 84 91 92 95 96; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -324,6 +325,12 @@ run_suite level           200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/level_body
 run_suite alley           200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/alley_body.gd --port=$((BASE + 81)) --lobby --timeout=180
 rm -rf "$LOGDIR/alleymp"; mkdir -p "$LOGDIR/alleymp"
 run_suite alley_mp        260 "$LOGDIR/alleymp/*.log" env ALLEY_MP_PORT=$((BASE + 82)) ALLEY_MP_LOGS="$LOGDIR/alleymp" tools/tests/alley_mp.sh
+# M15 replay: shift conditions, the market, unlocks, chips / card / briefing (solo host + fake workers, --replay) on +83;
+# the same body with --no-replay (all of it inert); host + client + late joiner on +84.
+run_suite replay          200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/replay_body.gd --port=$((BASE + 83)) --replay --timeout=180
+run_suite replay_off      120 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/replay_body.gd --port=$((BASE + 83)) --no-replay
+rm -rf "$LOGDIR/replaymp"; mkdir -p "$LOGDIR/replaymp"
+run_suite replay_mp       240 "$LOGDIR/replaymp/*.log" env REPLAY_MP_PORT=$((BASE + 84)) REPLAY_MP_LOGS="$LOGDIR/replaymp" tools/tests/replay_mp.sh
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120
