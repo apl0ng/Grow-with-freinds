@@ -197,7 +197,9 @@ func _test_scenes_and_sync_configs() -> void:
 	var expected := {
 		can: [^".:rest_position", ^".:rest_rotation"] + flight + [^".:holder_id", ^".:charges"],
 		packet: [^".:rest_position", ^".:rest_rotation"] + flight + [^".:holder_id", ^".:strain_id"],
-		product: [^".:rest_position", ^".:rest_rotation"] + flight + [^".:holder_id", ^".:strain_id", ^".:amount"],
+		# M14 loop: the drying state (`rack` before holder_id: a hang's release already knows it is a hang; see Product).
+		product: [^".:rest_position", ^".:rest_rotation"] + flight + [^".:rack", ^".:holder_id", ^".:strain_id", ^".:amount",
+				^".:dry_left", ^".:cured"],
 	}
 	for item: Item in expected:
 		var sync := item.get_node_or_null(^"Sync") as MultiplayerSynchronizer

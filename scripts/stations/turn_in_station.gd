@@ -58,7 +58,8 @@ func get_prompt(player: Player) -> String:
 		return "Deposit product"
 	var seed_def := _get_product_seed(product)
 	var strain := seed_def.display_name if seed_def != null else str(product.get(&"strain_id"))
-	return "Deposit %s x%d (+$%d)" % [strain, _get_product_amount(product), get_sale_value(product)]
+	var cured_tag := ", cured" if is_cured(product) else "" # M14 loop: "Deposit Purple Haze x1, cured (+$182)"
+	return "Deposit %s x%d%s (+$%d)" % [strain, _get_product_amount(product), cured_tag, get_sale_value(product)]
 
 
 func can_interact(player: Player) -> bool:
@@ -107,6 +108,8 @@ func _server_sell(product: Item, seller_peer: int) -> bool:
 		return false
 	# Mark first: a second sell request processed before the despawn lands can never pay twice.
 	product.set_meta(SOLD_META, true)
+	if is_cured(product) and seller_peer > 0: # M14 loop: the seller's cured count (before the sale: it may end the shift)
+		GameState.server_add_stat(seller_peer, Const.STAT_CURED)
 	GameState.server_add_sale(value, seller_peer)
 	items.server_despawn_item(product)
 	_rpc_sold_fx.rpc(value, seed_def.color if seed_def != null else Color.WHITE)
@@ -143,10 +146,17 @@ func accepts_flight_point(point: Vector3, mouth_radius: float) -> bool:
 # --- Value helpers --------------------------------------------------------------------------------------------------
 
 ## Pure sale formula: round(amount * seed.sale_value_per_unit * multiplier). 0 for unknown seeds / empty stacks.
-static func compute_sale_value(seed_def: SeedDef, amount: int, multiplier: float) -> int:
+## M14 loop: a cured bundle (it hung on a DryingRack for the whole cure time) pays 1 + Config.balance.cure_bonus.
+static func compute_sale_value(seed_def: SeedDef, amount: int, multiplier: float, cured: bool = false) -> int:
 	if seed_def == null or amount <= 0:
 		return 0
-	return int(round(amount * seed_def.sale_value_per_unit * multiplier))
+	var cure := 1.0 + maxf(Config.balance.cure_bonus, 0.0) if cured else 1.0
+	return int(round(amount * seed_def.sale_value_per_unit * multiplier * cure))
+
+
+## M14 loop: true for a product whose synced `cured` flag is set (duck-typed like the other product reads).
+static func is_cured(product: Item) -> bool:
+	return product != null and is_instance_valid(product) and product.get(&"cured") == true
 
 
 ## Value of `product` right now, including the team's sale upgrades.
@@ -154,7 +164,7 @@ func get_sale_value(product: Item) -> int:
 	if product == null:
 		return 0
 	return compute_sale_value(_get_product_seed(product), _get_product_amount(product),
-			GameState.get_sale_multiplier())
+			GameState.get_sale_multiplier(), is_cured(product)) # M14 loop: cured
 
 
 ## The product `player` is holding (null if empty hands, not a product, or already sold).

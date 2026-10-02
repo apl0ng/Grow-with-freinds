@@ -17,6 +17,15 @@ const EXPECTED := {
 	"creeper": ["Creeper", 30, 0.8, 1, 70, 0.12],
 	"brick": ["Floor Brick", 120, 2.0, 3, 110, 0.2],
 }
+## M14 loop: id -> [thirst_multiplier, dark_growth_multiplier, spread_chance, heavy, counted, trait_text, card tag]
+const TRAITS := {
+	"budget": [1.0, 0.0, 0.0, false, false, "", "SEED PACKET"],
+	"purple": [1.6, 0.0, 0.0, false, false, "Thirsty.", "THIRSTY"],
+	"golden": [1.0, 0.0, 0.0, false, true, "Counted.", "COUNTED"],
+	"nightshift": [1.0, 2.0, 0.0, false, false, "Grows in the dark.", "GROWS IN THE DARK"],
+	"creeper": [1.0, 0.0, 0.33, false, false, "Spreads.", "SPREADS"],
+	"brick": [1.0, 0.0, 0.0, true, false, "Heavy.", "HEAVY"],
+}
 const WORKER := 2
 
 var _world: World
@@ -59,10 +68,14 @@ func _run() -> void:
 	await wait_frames(1)
 
 	step("every strain through the stations")
+	# M14 loop: Creeper spreads on one harvest in three; this loop pins "the plot is empty again", so the dice are held
+	# (tools/tests/loop_body.gd covers both outcomes of the roll).
+	GrowPlot.spread_force = GrowPlot.SPREAD_NEVER
 	var i := 0
 	for seed_def: SeedDef in b.seeds:
 		i += 1
 		await _test_strain_loop(b, seed_def, i)
+	GrowPlot.spread_force = GrowPlot.SPREAD_ROLL
 
 	step("supply window")
 	await _test_shop_ui(b)
@@ -130,6 +143,33 @@ func _test_data(b: BalanceConfig) -> void:
 	var br := b.get_seed(&"brick")
 	check(br.sale_value_per_unit * br.yield_amount - br.cost == 210, "Floor Brick margin is $210 (3 x $110 - $120)")
 	check(b.get_seed(&"budget").mutation_chance == 0.0, "Budget Bud never turns")
+	_test_traits(b)
+
+
+# --- M14 loop: one trait per strain ---------------------------------------------------------------------------------
+
+func _test_traits(b: BalanceConfig) -> void:
+	for id: String in TRAITS:
+		var want: Array = TRAITS[id]
+		var s: SeedDef = b.get_seed(StringName(id))
+		if s == null:
+			continue
+		check(is_equal_approx(s.thirst_multiplier, want[0]), "%s thirst x%.1f (got %.2f)" % [id, want[0], s.thirst_multiplier])
+		check(is_equal_approx(s.dark_growth_multiplier, want[1]), "%s dark growth x%.1f (got %.2f)" % [id, want[1], s.dark_growth_multiplier])
+		check(is_equal_approx(s.spread_chance, want[2]), "%s spread chance %.2f (got %.2f)" % [id, want[2], s.spread_chance])
+		check(s.heavy == want[3], "%s heavy %s (got %s)" % [id, want[3], s.heavy])
+		check(s.counted == want[4], "%s counted %s (got %s)" % [id, want[4], s.counted])
+		check(s.trait_text == want[5], "%s trait text '%s' (got '%s')" % [id, want[5], s.trait_text])
+		check(not s.trait_text.contains("!") and (s.trait_text == "" or s.trait_text.ends_with(".")), "%s trait text is flat (no '!', a full stop)" % id)
+		check(ShopCard.get_seed_tag(s) == want[6], "%s card tag '%s' (got '%s')" % [id, want[6], ShopCard.get_seed_tag(s)])
+		var traits := 0
+		for on: bool in [not is_equal_approx(s.thirst_multiplier, 1.0), s.dark_growth_multiplier > 0.0, s.spread_chance > 0.0, s.heavy, s.counted]:
+			if on:
+				traits += 1
+		check(traits == (0 if id == "budget" else 1), "%s carries %s (%d)" % [id, "no trait: the control group" if id == "budget" else "exactly one trait", traits])
+		check((s.trait_text == "") == (traits == 0), "%s names its trait on the card exactly when it has one" % id)
+	check(is_equal_approx(b.cure_sec, 20.0) and is_equal_approx(b.cure_bonus, 0.4), "drying: %.0f s on the rack for +%d%%" % [b.cure_sec, roundi(b.cure_bonus * 100.0)])
+	check(is_equal_approx(b.heavy_speed_factor, 0.7) and b.counted_fine == 25, "heavy carry x%.1f, counted fine $%d" % [b.heavy_speed_factor, b.counted_fine])
 
 
 # --- the loop, per strain -------------------------------------------------------------------------------------------
@@ -227,6 +267,15 @@ func _test_shop_ui(b: BalanceConfig) -> void:
 		var sells := seed_def.yield_amount * seed_def.sale_value_per_unit
 		check(stats.contains("Deposits for $%d" % sells) and not stats.contains("!"), "%s card deposits for $%d, no '!'" % [seed_def.id, sells])
 		check(card.is_buy_enabled(), "%s card is buyable with the cash on hand" % seed_def.id)
+		# M14 loop: the trait sits on the tag line that was already there, whole (no ellipsis), and the blurb names it.
+		var want_tag: String = TRAITS[String(seed_def.id)][6]
+		check(card.get_tag_text() == want_tag, "%s card tag reads '%s' (got '%s')" % [seed_def.id, want_tag, card.get_tag_text()])
+		var tag := card.find_child("TagLabel", true, false) as Label
+		if check(tag != null, "%s card has its tag label" % seed_def.id):
+			var need := tag.get_theme_font(&"font").get_string_size(tag.text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, tag.get_theme_font_size(&"font_size")).x
+			check(need <= tag.size.x + 0.5, "%s tag fits its line (%.0f px of %.0f)" % [seed_def.id, need, tag.size.x])
+		var desc := card.find_child("DescLabel", true, false) as Label
+		check(desc != null and desc.get_line_count() <= 2, "%s blurb still fits two lines (%d)" % [seed_def.id, desc.get_line_count() if desc != null else -1])
 	var grid := ui.find_child("SeedGrid", true, false) as GridContainer
 	check(grid != null and grid.columns == 3 and grid.get_child_count() == 6, "seed grid: 3 columns, 2 rows of cards")
 	var panel := ui.find_child("Panel", true, false) as Control

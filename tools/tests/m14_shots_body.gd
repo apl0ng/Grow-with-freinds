@@ -1,10 +1,10 @@
 extends "res://tools/tests/smoke_base.gd"
 ## M14 in-game screenshots on the REAL renderer (lead tool, not a suite): the alley, the van, the pile-in countdown and
-## the arrival on the floor. Needs a window (about 20 s) and the lobby on (the default in a windowed run):
+## the arrival on the floor. Needs a window (about 40 s) and the lobby on (the default in a windowed run):
 ##   godot --rendering-method forward_plus --resolution 1280x720 --position 1400,800 --path . \
 ##       -s res://tools/tests/run_test.gd -- --body=res://tools/tests/m14_shots_body.gd --out=<abs dir> \
 ##       --port=7971 --mute --no-mic
-## Under --headless it prints a hint and exits 0. The mouse is never captured; a watchdog ends the run after 45 s.
+## Under --headless it prints a hint and exits 0. The mouse is never captured; a watchdog ends the run after 70 s.
 
 var _out := "user://m14_shots"
 var _me: Player
@@ -17,7 +17,7 @@ func _process(_delta: float) -> void:
 
 func _run() -> void:
 	_label = "m14_shots"
-	get_tree().create_timer(45.0).timeout.connect(func() -> void:
+	get_tree().create_timer(70.0).timeout.connect(func() -> void:
 		print("m14_shots: watchdog, quitting")
 		get_tree().quit(2))
 	if DisplayServer.get_name() == "headless":
@@ -75,6 +75,31 @@ func _run() -> void:
 	await wait_sec(1.6)
 	await _shot("4_arrival")
 	check(not lobby.contains_point(_me.global_position), "on the floor after the ride")
+
+	step("the leak")
+	var room := Game.world.room
+	var well := room.get_station("Well") as Node3D
+	check(Events.server_start_event(Events.EVENT_LEAK), "the tank leaks")
+	_face(well.global_position + Vector3(3.6, 0.0, 2.4), well.global_position + Vector3(0.4, 0.7, 1.0))
+	await wait_sec(5.0)
+	await _shot("5_leak")
+	Events.server_end_event()
+	await wait_sec(0.4)
+
+	step("the drive-by")
+	check(Events.server_start_event(Events.EVENT_DRIVEBY), "a drive-by")
+	var lanes: Array = room.get_gunfire_lanes()
+	var lane: Dictionary = lanes[lanes.size() / 2] if not lanes.is_empty() else {"from": Vector3(0, 1.3, 7), "to": Vector3(0, 1.3, -7)}
+	var mid: Vector3 = ((lane["from"] as Vector3) + (lane["to"] as Vector3)) * 0.5
+	_face(Vector3(mid.x - 5.5, 0.0, mid.z + 1.0), Vector3(mid.x + 1.0, 1.2, mid.z))
+	await wait_sec(1.2)
+	await _shot("6_driveby_warning")
+	await wait_until(func() -> bool: return Events.is_driveby_firing(), 5.0, "the shooting starts")
+	await wait_sec(1.5)
+	await _shot("7_driveby_fire")
+	await wait_until(func() -> bool: return not Events.is_event_active(), 9.0, "it ends")
+	await wait_sec(0.6)
+	await _shot("8_driveby_bill")
 	finish()
 
 

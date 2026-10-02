@@ -1,0 +1,161 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/stations/drying_rack.gd" id="1_rack"]
+[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="2_metal_dark"]
+[ext_resource type="Material" path="res://art/materials/toon_metal.tres" id="3_metal"]
+[ext_resource type="Material" path="res://art/materials/toon_chainlink.tres" id="4_screen"]
+[ext_resource type="Material" path="res://art/materials/toon_rust.tres" id="5_rust"]
+[ext_resource type="Material" path="res://art/materials/toon_outline_thin.tres" id="6_outline"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_post"]
+material = ExtResource("2_metal_dark")
+top_radius = 0.045
+bottom_radius = 0.045
+height = 1.75
+radial_segments = 24
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_rail"]
+material = ExtResource("2_metal_dark")
+top_radius = 0.04
+bottom_radius = 0.04
+height = 1.76
+radial_segments = 24
+rings = 1
+
+[sub_resource type="BoxMesh" id="BoxMesh_foot"]
+material = ExtResource("2_metal_dark")
+size = Vector3(0.14, 0.06, 0.7)
+
+[sub_resource type="BoxMesh" id="BoxMesh_screen"]
+material = ExtResource("4_screen")
+size = Vector3(1.6, 1.3, 0.02)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_arm"]
+material = ExtResource("3_metal")
+top_radius = 0.018
+bottom_radius = 0.018
+height = 0.3
+radial_segments = 24
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_drop"]
+material = ExtResource("3_metal")
+top_radius = 0.014
+bottom_radius = 0.014
+height = 0.12
+radial_segments = 24
+rings = 1
+
+[sub_resource type="SphereMesh" id="SphereMesh_tip"]
+material = ExtResource("5_rust")
+radius = 0.032
+height = 0.064
+radial_segments = 24
+rings = 12
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_frame"]
+size = Vector3(1.76, 1.75, 0.1)
+
+[node name="DryingRack" type="Node3D"]
+script = ExtResource("1_rack")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="PostL" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.84, 0.875, -0.12)
+mesh = SubResource("CylinderMesh_post")
+material_overlay = ExtResource("6_outline")
+
+[node name="PostR" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.84, 0.875, -0.12)
+mesh = SubResource("CylinderMesh_post")
+material_overlay = ExtResource("6_outline")
+
+[node name="Rail" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 1.72, -0.12)
+mesh = SubResource("CylinderMesh_rail")
+material_overlay = ExtResource("6_outline")
+
+[node name="FootL" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.84, 0.03, -0.12)
+mesh = SubResource("BoxMesh_foot")
+
+[node name="FootR" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.84, 0.03, -0.12)
+mesh = SubResource("BoxMesh_foot")
+
+[node name="Screen" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.03, -0.12)
+mesh = SubResource("BoxMesh_screen")
+
+[node name="Arm1" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.5, 1.62, 0.03)
+mesh = SubResource("CylinderMesh_arm")
+material_overlay = ExtResource("6_outline")
+
+[node name="Drop1" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 1.56, 0.18)
+mesh = SubResource("CylinderMesh_drop")
+
+[node name="Tip1" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 1.5, 0.18)
+mesh = SubResource("SphereMesh_tip")
+material_overlay = ExtResource("6_outline")
+
+[node name="Arm2" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 1.62, 0.03)
+mesh = SubResource("CylinderMesh_arm")
+material_overlay = ExtResource("6_outline")
+
+[node name="Drop2" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.56, 0.18)
+mesh = SubResource("CylinderMesh_drop")
+
+[node name="Tip2" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0.18)
+mesh = SubResource("SphereMesh_tip")
+material_overlay = ExtResource("6_outline")
+
+[node name="Arm3" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.5, 1.62, 0.03)
+mesh = SubResource("CylinderMesh_arm")
+material_overlay = ExtResource("6_outline")
+
+[node name="Drop3" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1.56, 0.18)
+mesh = SubResource("CylinderMesh_drop")
+
+[node name="Tip3" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1.5, 0.18)
+mesh = SubResource("SphereMesh_tip")
+material_overlay = ExtResource("6_outline")
+
+[node name="Sign" type="Label3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.9, -0.12)
+cast_shadow = 0
+pixel_size = 0.004
+double_sided = false
+text = "DRYING"
+font_size = 40
+outline_size = 12
+outline_modulate = Color(0.18, 0.16, 0.24, 1)
+
+[node name="Hooks" type="Node3D" parent="."]
+
+[node name="Hook1" type="Marker3D" parent="Hooks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 1.1, 0.18)
+
+[node name="Hook2" type="Marker3D" parent="Hooks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0.18)
+
+[node name="Hook3" type="Marker3D" parent="Hooks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1.1, 0.18)
+
+[node name="Body" type="StaticBody3D" parent="."]
+collision_layer = 5
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, -0.12)
+shape = SubResource("BoxShape3D_frame")
