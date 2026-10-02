@@ -8,8 +8,8 @@ extends Node
 ##   headless suite keeps its deterministic shifts. Tests that want events pass `--events`.
 ##
 ## Scheduler (host): the first event event_first_delay_sec into a shift, then a gap in [event_gap_min_sec,
-## event_gap_max_sec] after the previous one ended; one at a time; weighted pick (WEIGHTS: twelve kinds since M15,
-## listed under "M15" below) that never repeats the previous kind. `tick(delta)`
+## event_gap_max_sec] after the previous one ended; one at a time; weighted pick (WEIGHTS: fourteen kinds since M17,
+## the two M17 ones in the region at the end of the file) that never repeats the previous kind. `tick(delta)`
 ## drives it (public, so tests can advance time without waiting); `_process` feeds it real time on the host.
 ##
 ## Kinds:
@@ -75,6 +75,7 @@ extends Node
 ## headcount {"seconds", "spot": Vector3 (the line, global), "speed"}, water_off {"seconds"},
 ## shortage {"seconds", "strain": StringName}, leak {"seconds"}, driveby {"seconds", "warning"} (M14 mayhem),
 ## raid {"seconds", "warning"}, sprinklers {"seconds"}, collection {"seconds", "fee"} (M15 mayhem2).
+## scale {"seconds", "cut"}, phone {"seconds"} (M17 mayhem3).
 signal event_started(kind: StringName, params: Dictionary)
 ## Every peer: the active event is over (timer, fixed, or the shift ended).
 signal event_ended(kind: StringName)
@@ -100,12 +101,12 @@ const EVENT_RAID: StringName = &"raid"
 const EVENT_SPRINKLERS: StringName = &"sprinklers"
 const EVENT_COLLECTION: StringName = &"collection"
 const KINDS: Array[StringName] = [EVENT_INSPECTION, EVENT_POWER_CUT, EVENT_AUDIT, EVENT_RAT, EVENT_HEADCOUNT, EVENT_WATER_OFF, EVENT_SHORTAGE,
-		EVENT_LEAK, EVENT_DRIVEBY, EVENT_RAID, EVENT_SPRINKLERS, EVENT_COLLECTION]  # M15 mayhem2: twelve kinds
+		EVENT_LEAK, EVENT_DRIVEBY, EVENT_RAID, EVENT_SPRINKLERS, EVENT_COLLECTION, EVENT_SCALE, EVENT_PHONE]  # M15 mayhem2: twelve kinds; M17 mayhem3: fourteen
 ## Scheduler weights (percent, sum 100). The rat only enters the pick while RAT_ENABLED. M14 mayhem rebalanced them;
-## M15 mayhem2 rebalanced them again for twelve kinds.
-const WEIGHTS: Dictionary = {EVENT_INSPECTION: 22, EVENT_POWER_CUT: 13, EVENT_AUDIT: 7, EVENT_RAT: 7,
-		EVENT_HEADCOUNT: 10, EVENT_WATER_OFF: 6, EVENT_SHORTAGE: 5, EVENT_LEAK: 7, EVENT_DRIVEBY: 7,
-		EVENT_RAID: 6, EVENT_SPRINKLERS: 5, EVENT_COLLECTION: 5}  # M15 mayhem2
+## M15 mayhem2 rebalanced them again for twelve kinds, M17 mayhem3 for fourteen (the scale 3, the phone 2).
+const WEIGHTS: Dictionary = {EVENT_INSPECTION: 20, EVENT_POWER_CUT: 12, EVENT_AUDIT: 7, EVENT_RAT: 6,
+		EVENT_HEADCOUNT: 9, EVENT_WATER_OFF: 6, EVENT_SHORTAGE: 5, EVENT_LEAK: 7, EVENT_DRIVEBY: 7,
+		EVENT_RAID: 6, EVENT_SPRINKLERS: 5, EVENT_COLLECTION: 5, EVENT_SCALE: 3, EVENT_PHONE: 2}  # M15 mayhem2; M17 mayhem3: fourteen kinds
 const RAT_ENABLED := true
 
 const SIGHT_INTERVAL := 0.5
@@ -305,6 +306,10 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 			seconds = _mayhem2_prepare(kind, p)
 			if seconds <= 0.0:
 				return false
+		EVENT_SCALE, EVENT_PHONE:  # M17 mayhem3
+			seconds = _mayhem3_prepare(kind, p)
+			if seconds <= 0.0:
+				return false
 		EVENT_SHORTAGE:
 			if _counter() == null:
 				return false
@@ -331,6 +336,7 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 	elif kind == EVENT_LEAK:  # M14 mayhem
 		_well().server_set_leaking(true)
 	_mayhem2_server_begin(kind)  # M15 mayhem2: the sprinklers water every tray before the event packet
+	_mayhem3_server_begin(kind)  # M17 mayhem3: the kind the phone decided has come
 	_rpc_event_started.rpc(kind, p, seconds)
 	if kind == EVENT_AUDIT:
 		# After the banner went out: raising the quota can end the shift at once (sales already cover it),
@@ -374,6 +380,7 @@ func tick(delta: float) -> void:
 	_track_plantings()
 	_mayhem_tick(delta)  # M14 mayhem: the puddle, the slips, the empty tank (they outlive the leak event)
 	_mayhem2_tick(delta)  # M15 mayhem2: the wet floor after the sprinklers
+	_mayhem3_tick(delta)  # M17 mayhem3: the phone's favor runs out
 	if active_event != &"":
 		_time_left = maxf(_time_left - delta, 0.0)
 		match active_event:
@@ -389,6 +396,8 @@ func tick(delta: float) -> void:
 				_tick_raid(delta)
 			EVENT_COLLECTION:  # M15 mayhem2
 				_tick_collection(delta)
+			EVENT_PHONE:  # M17 mayhem3
+				_tick_phone(delta)
 			EVENT_HEADCOUNT:
 				_clock += delta
 				if _time_left <= 0.0:
@@ -404,7 +413,7 @@ func tick(delta: float) -> void:
 	_next_in -= delta
 	if _next_in <= 0.0:
 		_next_in = -1.0
-		var kind := pick_kind(_last_kind)
+		var kind := _mayhem3_pick_next()  # M17 mayhem3: the kind the phone already decided, else pick_kind(_last_kind)
 		# Playtests / screenshots: `--first-event=<kind>` forces the first event of the session.
 		var forced := StringName(String(Config.get_arg("first-event", "")))
 		if not _forced_first_used and forced in KINDS:
@@ -644,6 +653,7 @@ func _rpc_event_started(kind: StringName, params: Dictionary, seconds: float) ->
 			_start_headcount_visuals(params, seconds)
 	_mayhem_on_started(kind, params, seconds)  # M14 mayhem
 	_mayhem2_on_started(kind, params, seconds)  # M15 mayhem2
+	_mayhem3_on_started(kind, params, seconds)  # M17 mayhem3
 	_play_start_sound(kind)
 	event_started.emit(kind, params)
 
@@ -671,6 +681,7 @@ func _rpc_event_ended(kind: StringName) -> void:
 		EVENT_HEADCOUNT:
 			_end_headcount_visuals(p)
 	_mayhem2_on_ended(kind)  # M15 mayhem2
+	_mayhem3_on_ended(kind)  # M17 mayhem3
 	event_ended.emit(kind)
 
 
@@ -716,6 +727,7 @@ func _on_peer_registered(peer_id: int) -> void:
 	if not power_on:
 		_rpc_power.rpc_id(peer_id, false)
 	_mayhem2_replay(peer_id)  # M15 mayhem2: the wet floor after the sprinklers (before the event packet, like its start)
+	_mayhem3_replay(peer_id)  # M17 mayhem3: a running favor on the seeds
 	if active_event != &"":
 		_rpc_event_started.rpc_id(peer_id, active_event, _params, _time_left)
 
@@ -799,6 +811,7 @@ func _reset_local() -> void:
 	_plot_strains.clear()
 	_mayhem_reset_local()  # M14 mayhem
 	_mayhem2_reset_local()  # M15 mayhem2
+	_mayhem3_reset_local()  # M17 mayhem3
 	if not power_on:
 		power_on = true
 		if room != null:
@@ -1067,6 +1080,7 @@ func _server_clear_disruption(kind: StringName) -> void:
 func _server_restore_stations() -> void:
 	_mayhem_server_reset()  # M14 mayhem: no leak, no puddle, no empty-tank timer (the pressure is restored below)
 	_mayhem2_server_reset()  # M15 mayhem2: the floor is dry, no raid or collection bookkeeping
+	_mayhem3_server_reset()  # M17 mayhem3: no favor on the seeds, no kind decided by the phone
 	var well := _well()
 	if well != null and not well.has_pressure():
 		well.server_set_pressure(true)
@@ -1112,6 +1126,8 @@ func _play_start_sound(kind: StringName) -> void:
 		EVENT_DRIVEBY:  # M14 mayhem: the tyres outside are its sound (_mayhem_on_started), no alarm
 			pass
 		EVENT_RAID, EVENT_COLLECTION:  # M15 mayhem2: the sirens / the knock on the door (_mayhem2_on_started)
+			pass
+		EVENT_PHONE:  # M17 mayhem3: the ring is its sound (_mayhem3_on_started)
 			pass
 		_:
 			Sfx.play(&"alarm")
@@ -2522,3 +2538,610 @@ func _card() -> RandomNumberGenerator:
 	return _card_rng if _card_rng != null else _rng
 
 # --- end M16 variety -----------------------------------------------------------------------------------------------
+
+
+# --- M17 mayhem3: the scale reads light, the phone rings -----------------------------------------------------------
+# CONTRACTS "M17", "Mayhem 3"; FRIENDSLOP 11.3. Decided on the host; the other peers get the event packets and the
+# reliable RPCs below (who hit the scale, who took the call and what it was, the fine, the favor on the seeds). Story
+# owns the copy and the HUD the banner; this region only emits signals and plays sounds.
+#   scale  every deposit pays `scale_cut` less while it runs: TurnInStation.get_sale_value multiplies by
+#          get_scale_factor() (one tagged hook), so the chute's prompt, the sale, a chute shot and the collector's pick
+#          all see it. It is over when somebody hits the chute: F (the shove key) aimed at it within reach (`_input` on
+#          the local peer; the request is validated on the host like a shove: the back room, a stun, the range), or a
+#          thrown item whose flight strikes it (`_physics_process` on the host follows every item in the air along the
+#          same arc ItemManager steps, in the same physics frame just before it, and casts the same ray). Unfixed, the
+#          timer ends it.
+#   phone  the wall phone in the main room (Room.get_wall_phone(), a WallPhone) rings on every peer (`phone_ring` at the
+#          phone, the handset rattling in its cradle). A worker's finished hold (WallPhone, phone_hold_sec) asks the host
+#          through request_answer_phone(). What the call is was rolled from the card dice when the phone started to ring
+#          (`_card()`, so a run code gives the same call whether or not anybody picks up): a tip (the kind of the next
+#          event, rolled at the same moment, is told to the floor), a favor (the seeds cost phone_discount less for
+#          phone_discount_sec: GameState.get_seed_cost multiplies by get_phone_discount(), one tagged hook) or a wrong
+#          number. Nobody answers within phone_sec: phone_fine out of cash on hand, as far as it goes, through
+#          GameState.server_try_spend (the collector's path).
+#          The kind after a phone is always rolled at its start, so answering never moves the card; the scheduler
+#          starts that kind next (_mayhem3_pick_next). A kind that was told is tried again until it can start (a rat
+#          waits for a growing tray); one nobody was told that cannot start is rolled again, as any failed start was.
+
+## Every peer: `peer_id` hit the scale (0 = a thrown item with no thrower on record). The event ends right after.
+signal scale_fixed(peer_id: int)
+## Every peer: `peer_id` took the call. `outcome` is PHONE_TIP (get_phone_tip() is the kind told), PHONE_FAVOR or
+## PHONE_WRONG. The event ends right after (and a favor's discount packet comes before that).
+signal phone_answered(peer_id: int, outcome: StringName)
+## Every peer: nobody took the call and the floor was billed `fine` (get_phone_fine_taken(): what cash on hand covered).
+signal phone_missed(fine: int)
+## Every peer: the favor on the seeds started (`factor` < 1) or ran out (1.0).
+signal phone_discount_changed(factor: float)
+
+const EVENT_SCALE: StringName = &"scale"
+const EVENT_PHONE: StringName = &"phone"
+const PHONE_TIP: StringName = &"tip"
+const PHONE_FAVOR: StringName = &"favor"
+const PHONE_WRONG: StringName = &"wrong_number"
+## The three calls, in the order the card's die picks them.
+const PHONE_OUTCOMES: Array[StringName] = [PHONE_TIP, PHONE_FAVOR, PHONE_WRONG]
+## A hit on the scale is accepted this far beyond shove_range from the chute's collider (the shove's own slack).
+const SCALE_REACH_SLACK := 1.0
+## Local: F counts when the chute's collider is within shove_range of the chest and either under the crosshair or
+## within this many degrees of where the camera looks (flat).
+const SCALE_FACING_DEG := 60.0
+## Local: after a hit request the key does not send another for this long (milliseconds).
+const SCALE_RESEND_MSEC := 500
+## The answer request is accepted within interact_distance plus this (metres), like the collector's pay request.
+const PHONE_RANGE_SLACK := 2.0
+const REASON_SCALE_TOO_FAR := "Too far."
+const REASON_PHONE_TOO_FAR := "Too far."
+const REASON_PHONE_QUIET := "It stopped ringing."
+
+## Host: the call rolled when the phone started to ring, the kind that comes after it, whether a tip told it, and how
+## often the scheduler has offered it.
+var _phone_outcome: StringName = &""
+var _phone_next_kind: StringName = &""
+var _phone_next_told: bool = false
+var _phone_next_tries: int = 0
+## Every peer: the kind the last tip told (&"" = none), what cash on hand covered of the last fine.
+var _phone_tip: StringName = &""
+var _phone_fine_taken: int = 0
+## Every peer: the favor on the seeds (1.0 = none) and its seconds left (the host's tick ends it; elsewhere the local
+## clock only feeds get_phone_discount_left()).
+var _phone_discount: float = 1.0
+var _phone_discount_left: float = 0.0
+var _phone_discount_until_msec: int = 0
+## Every peer: the ring loop's Sfx handle (0 = silent).
+var _phone_ring: int = 0
+## Host: the items in the air while the scale is off: instance id -> [flight serial, arc time checked up to].
+var _scale_flights: Dictionary = {}
+## Local: no hit request before this tick (milliseconds).
+var _scale_resend_at_msec: int = 0
+
+
+# --- queries (any peer) ----------------------------------------------------------------------------------------------
+
+## True while the scale reads light (an EVENT_SCALE runs). Any peer.
+func is_scale_off() -> bool:
+	return active_event == EVENT_SCALE
+
+
+## What the chute pays of a deposit's value right now: 1 - the running scale event's cut, 1.0 when the scale is fine.
+## TurnInStation.get_sale_value multiplies by it inside its rounding. Any peer (the cut is in the event's params).
+func get_scale_factor() -> float:
+	if active_event != EVENT_SCALE:
+		return 1.0
+	var cut_v: Variant = _params.get("cut", Config.balance.scale_cut)
+	var cut: float = float(cut_v) if (cut_v is float or cut_v is int) else Config.balance.scale_cut
+	return 1.0 - clampf(cut, 0.0, 0.95)
+
+
+## What a seed packet costs of its price right now: 1 - phone_discount while a favor runs, 1.0 otherwise. Any peer.
+## GameState.get_seed_cost multiplies by it.
+func get_phone_discount() -> float:
+	return _phone_discount
+
+
+## Seconds the favor on the seeds still runs (0 when none). The host's own clock; elsewhere counted down locally.
+func get_phone_discount_left() -> float:
+	if _phone_discount >= 1.0:
+		return 0.0
+	if _is_host():
+		return _phone_discount_left
+	return maxf(float(_phone_discount_until_msec - Time.get_ticks_msec()) / 1000.0, 0.0)
+
+
+## The kind the last tip told the floor (&"" when the last call was no tip, or none came this session). Any peer.
+func get_phone_tip() -> StringName:
+	return _phone_tip
+
+
+## What cash on hand covered of the last phone fine (dollars). Any peer.
+func get_phone_fine_taken() -> int:
+	return _phone_fine_taken
+
+
+## Host: the kind the scheduler starts next because a phone decided it (&"" = none), and whether a tip told it.
+func get_phone_next_kind() -> StringName:
+	return _phone_next_kind
+
+
+func is_phone_next_told() -> bool:
+	return _phone_next_told
+
+
+## The wall phone in the main room, null without a room or a phone. Any peer.
+func get_wall_phone() -> WallPhone:
+	var room := _room()
+	if room == null:
+		return null
+	var phone := room.get_wall_phone() as WallPhone
+	if phone == null or phone.is_queued_for_deletion():
+		return null
+	return phone
+
+
+## How far `player`'s chest is from the chute's collider (metres; INF without a chute or a body). The host accepts a
+## hit within shove_range + SCALE_REACH_SLACK, the local key asks within shove_range.
+func get_scale_reach(player: Player) -> float:
+	var chute := _scale_chute()
+	if chute == null or player == null or not is_instance_valid(player) or not player.is_inside_tree():
+		return INF
+	var box := chute.get_collider_aabb()
+	if box.size == Vector3.ZERO:
+		box = AABB(chute.global_position, Vector3.ZERO)
+	var chest := player.get_chest_position()
+	if not chest.is_finite():
+		return INF
+	var near := Vector3(clampf(chest.x, box.position.x, box.end.x), clampf(chest.y, box.position.y, box.end.y),
+			clampf(chest.z, box.position.z, box.end.z))
+	return chest.distance_to(near)
+
+
+## True when F from `player` would hit the scale: the chute within shove_range and under the crosshair or in front of
+## the camera (SCALE_FACING_DEG). Pure; the local key reads it.
+func is_aiming_at_scale(player: Player) -> bool:
+	var chute := _scale_chute()
+	if chute == null or not (get_scale_reach(player) <= Config.balance.shove_range):
+		return false
+	var interactor := player.get_interactor()
+	if interactor != null and interactor.current_target == chute:
+		return true
+	var cam: Camera3D = interactor.get_camera() if interactor != null else null
+	var forward: Vector3 = -cam.global_transform.basis.z if cam != null and cam.is_inside_tree() else -player.global_transform.basis.z
+	var box := chute.get_collider_aabb()
+	var centre: Vector3 = box.get_center() if box.size != Vector3.ZERO else chute.global_position
+	var to := centre - player.get_chest_position()
+	var flat_to := Vector2(to.x, to.z)
+	var flat_fwd := Vector2(forward.x, forward.z)
+	if flat_to.length_squared() < 0.0001 or flat_fwd.length_squared() < 0.0001:
+		return true
+	return flat_fwd.normalized().dot(flat_to.normalized()) >= cos(deg_to_rad(SCALE_FACING_DEG))
+
+
+# --- the scale: a hit ------------------------------------------------------------------------------------------------
+
+## Local: the shove key while the scale is off. F at a worker stays a shove (the Interactor sends it); F at the chute
+## asks the host to count a hit. `_input`, not `_unhandled_input`: the Interactor marks the key handled.
+func _input(event: InputEvent) -> void:
+	if active_event != EVENT_SCALE or event == null or event.is_echo() or not InputMap.has_action(&"shove"):
+		return
+	if not event.is_action_pressed(&"shove"):
+		return
+	if event is InputEventMouseButton and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return
+	try_hit_scale()
+
+
+## Local: the local worker hits the scale if F would (is_aiming_at_scale; nobody else under the crosshair, not stunned,
+## no UI open). Sends the request and returns true; false when it did not. Public for tests.
+func try_hit_scale() -> bool:
+	if active_event != EVENT_SCALE or Game.is_ui_locked():
+		return false
+	var me: Player = Game.local_player
+	if me == null or not is_instance_valid(me) or not me.is_inside_tree() or me.is_stunned():
+		return false
+	if Time.get_ticks_msec() < _scale_resend_at_msec:
+		return false
+	var interactor := me.get_interactor()
+	if interactor != null and is_instance_valid(interactor.shove_target):
+		return false   # a worker stands in the way: F shoves him
+	if not is_aiming_at_scale(me):
+		return false
+	_scale_resend_at_msec = Time.get_ticks_msec() + SCALE_RESEND_MSEC
+	request_hit_scale()
+	return true
+
+
+## Any peer (local): asks the host to count a hit on the scale by the local worker. Validated on the host.
+func request_hit_scale() -> void:
+	var peer := multiplayer.multiplayer_peer
+	if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return
+	_rpc_request_hit_scale.rpc_id(Const.SERVER_PEER_ID)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_request_hit_scale() -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender == 0:
+		sender = Const.SERVER_PEER_ID
+	var player: Player = Game.get_player(sender)
+	if player == null or not player.is_inside_tree():
+		return
+	if active_event != EVENT_SCALE:
+		return   # somebody fixed it a moment ago: nothing to say
+	if GameState.is_in_backroom(sender):
+		_rpc_mayhem3_denied.rpc_id(sender, Interactable.REASON_BACKROOM)
+		return
+	if player.is_stunned():
+		return
+	# `not <=` rather than `>`: a non-finite synced position is never in reach.
+	if not (get_scale_reach(player) <= Config.balance.shove_range + SCALE_REACH_SLACK):
+		_rpc_mayhem3_denied.rpc_id(sender, REASON_SCALE_TOO_FAR)
+		return
+	server_hit_scale(sender)
+
+
+## SERVER ONLY. `peer_id` hit the scale (0 = nobody on record): every peer hears it, the event ends, deposits pay in
+## full again. False when the scale is not off.
+func server_hit_scale(peer_id: int) -> bool:
+	if not _is_host() or active_event != EVENT_SCALE:
+		return false
+	_rpc_scale_fixed.rpc(peer_id)
+	server_end_event()
+	return true
+
+
+## Host, every physics frame while the scale is off: a thrown item whose arc strikes the chute hits the scale. Runs
+## before ItemManager's step in the same frame (autoloads come first in the tree), on the same segment of the same
+## arc (Item.get_flight_point over [last checked, now]) with the same ray (LAYER_WORLD | LAYER_INTERACTABLE), so the
+## item is still in the air here when its flight is about to end on the chute. A product that strikes it is sold by
+## ItemManager right after, at the full price.
+func _physics_process(_delta: float) -> void:
+	if active_event != EVENT_SCALE or not _is_host():
+		return
+	_scale_watch_flights()
+
+
+func _scale_watch_flights() -> void:
+	var w: World = Game.world
+	if w == null or not is_instance_valid(w) or not w.is_inside_tree() or w.items == null:
+		return
+	var chute := _scale_chute()
+	if chute == null or not chute.is_inside_tree():
+		return
+	var space := w.get_world_3d().direct_space_state
+	var seen: Dictionary = {}
+	for item in w.items.get_items():
+		if not is_instance_valid(item) or item.is_queued_for_deletion() or not item.is_flying():
+			continue
+		var key := item.get_instance_id()
+		seen[key] = true
+		var t1 := item.get_flight_time()
+		var t0 := 0.0
+		var rec: Variant = _scale_flights.get(key)
+		if rec is Array and int((rec as Array)[0]) == item.flight_serial:
+			t0 = float((rec as Array)[1])
+		_scale_flights[key] = [item.flight_serial, t1]
+		if not (t1 > t0):
+			continue
+		var a := w.items.to_global(item.get_flight_point(t0))
+		var b := w.items.to_global(item.get_flight_point(t1))
+		if not a.is_finite() or not b.is_finite():
+			continue
+		var exclude: Array[RID] = []
+		var collider := item.get_collider()
+		if collider != null:
+			exclude.append(collider.get_rid())
+		var query := PhysicsRayQueryParameters3D.create(a, b, Const.LAYER_WORLD | Const.LAYER_INTERACTABLE, exclude)
+		query.hit_from_inside = true
+		var hit := space.intersect_ray(query)
+		if not hit.is_empty() and _is_under(hit.get("collider") as Node, chute):
+			server_hit_scale(item.thrower_id)
+			return
+	for key: Variant in _scale_flights.keys():
+		if not seen.has(key):
+			_scale_flights.erase(key)
+
+
+## Host, when the scale goes off: whatever is already in the air is followed from where it is now.
+func _scale_note_flights() -> void:
+	_scale_flights.clear()
+	var w: World = Game.world
+	if w == null or not is_instance_valid(w) or w.items == null:
+		return
+	for item in w.items.get_items():
+		if is_instance_valid(item) and item.is_flying():
+			_scale_flights[item.get_instance_id()] = [item.flight_serial, item.get_flight_time()]
+
+
+## True when `node` is `ancestor` or below it.
+static func _is_under(node: Node, ancestor: Node) -> bool:
+	var n := node
+	while n != null:
+		if n == ancestor:
+			return true
+		n = n.get_parent()
+	return false
+
+
+func _scale_chute() -> TurnInStation:
+	var room := _room()
+	return room.get_station("TurnInStation") as TurnInStation if room != null else null
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_scale_fixed(peer_id: int) -> void:
+	var chute := _scale_chute()
+	if chute != null and chute.is_inside_tree():
+		Sfx.play(&"scale_hit", chute.global_position + Vector3.UP * 0.8)
+		var visual := chute.get_node_or_null(^"Visual") as Node3D
+		if visual != null:
+			Juice.bounce(visual, 0.2)
+	else:
+		Sfx.play(&"scale_hit")
+	scale_fixed.emit(peer_id)
+
+
+# --- the phone -------------------------------------------------------------------------------------------------------
+
+func _tick_phone(delta: float) -> void:
+	_clock += delta
+	if _time_left <= 0.0:
+		_server_phone_missed()
+		if active_event == EVENT_PHONE:
+			server_end_event()
+
+
+## Host: nobody picked up. phone_fine out of cash on hand, as far as it goes (GameState.server_try_spend, as the
+## collector is paid), and every peer hears the bill.
+func _server_phone_missed() -> void:
+	var fine := maxi(Config.balance.phone_fine, 0)
+	var taken := mini(fine, maxi(GameState.money, 0))
+	if taken > 0 and not GameState.server_try_spend(taken, 0, "phone"):
+		taken = 0
+	_rpc_phone_missed.rpc(fine, taken)
+
+
+## Any peer (local): asks the host to put the local worker on the phone (the WallPhone's finished hold calls this).
+## Validated on the host: _rpc_request_answer_phone.
+func request_answer_phone() -> void:
+	var peer := multiplayer.multiplayer_peer
+	if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return
+	_rpc_request_answer_phone.rpc_id(Const.SERVER_PEER_ID)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_request_answer_phone() -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender == 0:
+		sender = Const.SERVER_PEER_ID
+	var player: Player = Game.get_player(sender)
+	if player == null or not player.is_inside_tree():
+		return
+	if GameState.is_in_backroom(sender):
+		_rpc_mayhem3_denied.rpc_id(sender, Interactable.REASON_BACKROOM)
+		return
+	var phone := get_wall_phone()
+	if active_event != EVENT_PHONE or phone == null:
+		_rpc_mayhem3_denied.rpc_id(sender, REASON_PHONE_QUIET)
+		return
+	var max_dist: float = Config.balance.interact_distance + PHONE_RANGE_SLACK
+	if not (player.global_position.distance_to(phone.global_position) <= max_dist):
+		_rpc_mayhem3_denied.rpc_id(sender, REASON_PHONE_TOO_FAR)
+		return
+	server_answer_phone(sender)
+
+
+## SERVER ONLY. `peer_id` takes the call: the outcome rolled when it started to ring (a tip tells the floor the next
+## kind, a favor puts the seeds on discount), every peer hears it, the event ends. Returns the outcome, &"" when no
+## phone rings.
+func server_answer_phone(peer_id: int) -> StringName:
+	if not _is_host() or active_event != EVENT_PHONE:
+		return &""
+	var outcome: StringName = _phone_outcome if PHONE_OUTCOMES.has(_phone_outcome) else PHONE_WRONG
+	var tip: StringName = &""
+	if outcome == PHONE_TIP:
+		if _phone_next_kind != &"":
+			tip = _phone_next_kind
+			_phone_next_told = true
+		else:
+			outcome = PHONE_WRONG
+	_rpc_phone_answered.rpc(peer_id, outcome, tip)
+	if outcome == PHONE_FAVOR:
+		_server_start_discount()
+	server_end_event()
+	return outcome
+
+
+## Host: the favor. Every peer's seeds cost phone_discount less for phone_discount_sec (_mayhem3_tick ends it).
+func _server_start_discount() -> void:
+	var b: BalanceConfig = Config.balance
+	var factor := 1.0 - clampf(b.phone_discount, 0.0, 0.95)
+	var seconds := maxf(b.phone_discount_sec, 0.0)
+	if factor >= 1.0 or seconds <= 0.0:
+		return
+	_rpc_phone_discount.rpc(factor, seconds)
+
+
+## Host: the kind the scheduler starts now. The one a phone decided while there is one (see the region header), else a
+## fresh pick_kind(_last_kind).
+func _mayhem3_pick_next() -> StringName:
+	if _phone_next_kind != &"" and KINDS.has(_phone_next_kind):
+		_phone_next_tries += 1
+		if _phone_next_told or _phone_next_tries <= 1:
+			return _phone_next_kind
+		_phone_next_kind = &""   # nobody was told and it could not start: rolled again, as before
+		_phone_next_told = false
+		_phone_next_tries = 0
+	return pick_kind(_last_kind)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_phone_answered(peer_id: int, outcome: StringName, tip: StringName) -> void:
+	_phone_tip = tip if outcome == PHONE_TIP else &""
+	_stop_phone_ring()
+	var phone := get_wall_phone()
+	if phone != null and phone.is_inside_tree():
+		phone.pick_up()
+		Sfx.play(&"phone_pickup", phone.global_position + Vector3.UP * 0.35)
+	else:
+		Sfx.play(&"phone_pickup")
+	phone_answered.emit(peer_id, outcome)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_phone_missed(fine: int, taken: int) -> void:
+	_phone_fine_taken = maxi(taken, 0)
+	phone_missed.emit(fine)
+
+
+## Every peer: the favor on the seeds is `factor` for `seconds` (1.0 / 0 = over). Idempotent (the late-join replay).
+@rpc("authority", "call_local", "reliable")
+func _rpc_phone_discount(factor: float, seconds: float) -> void:
+	var f := clampf(factor, 0.05, 1.0) if is_finite(factor) else 1.0
+	var changed := not is_equal_approx(f, _phone_discount)
+	_phone_discount = f
+	_phone_discount_left = maxf(seconds, 0.0) if f < 1.0 and is_finite(seconds) else 0.0
+	_phone_discount_until_msec = Time.get_ticks_msec() + int(_phone_discount_left * 1000.0)
+	_refresh_seed_prices()
+	if changed:
+		phone_discount_changed.emit(f)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_mayhem3_denied(reason: String) -> void:
+	if reason != "":
+		Game.toast(reason, &"error")
+	Sfx.play(&"error")
+
+
+## Every peer: the price tags on the supply window's jars follow the favor (the window itself refreshes on its own
+## timer through GameState.get_seed_cost). ShopCounter repaints them from its decoration pass, the one it runs when the
+## day's conditions change.
+func _refresh_seed_prices() -> void:
+	var counter := _counter()
+	if counter != null and counter.is_inside_tree() and counter.has_method(&"_decorate_from_balance"):
+		counter.call(&"_decorate_from_balance")
+
+
+## Every peer: the phone rings (a late joiner hears it from the replay). The loop follows the phone node.
+func _start_phone_ring() -> void:
+	_stop_phone_ring()
+	var phone := get_wall_phone()
+	if phone == null or not phone.is_inside_tree():
+		return
+	phone.set_ringing(true)
+	_phone_ring = Sfx.play_loop(&"phone_ring", phone)
+
+
+## Every peer: the ringing stops (answered, missed, cut short). No-op when it is quiet.
+func _stop_phone_ring() -> void:
+	if _phone_ring != 0:
+		Sfx.stop_loop(_phone_ring, 0.05)
+		_phone_ring = 0
+	var phone := get_wall_phone()
+	if phone != null:
+		phone.set_ringing(false)
+
+
+# --- the hooks: start / tick / end / late join / resets --------------------------------------------------------------
+
+## Host: fills `p` for the scale or the phone and returns its length in seconds (0 = it cannot start now). The phone
+## rolls its call and the kind after it here, from the card dice.
+func _mayhem3_prepare(kind: StringName, p: Dictionary) -> float:
+	var b: BalanceConfig = Config.balance
+	if kind == EVENT_SCALE:
+		if _scale_chute() == null:
+			return 0.0
+		var scale_seconds := maxf(b.scale_sec, 1.0)
+		p["seconds"] = scale_seconds
+		p["cut"] = clampf(b.scale_cut, 0.0, 0.95)
+		_scale_note_flights()
+		return scale_seconds
+	if kind == EVENT_PHONE:
+		if get_wall_phone() == null:
+			return 0.0
+		var ring_seconds := maxf(b.phone_sec, 1.0)
+		p["seconds"] = ring_seconds
+		_phone_outcome = PHONE_OUTCOMES[_card().randi_range(0, PHONE_OUTCOMES.size() - 1)]
+		_phone_next_kind = pick_kind(EVENT_PHONE)
+		_phone_next_told = false
+		_phone_next_tries = 0
+		return ring_seconds
+	return 0.0
+
+
+## Host, right before any event packet goes out: the kind a phone decided has come.
+func _mayhem3_server_begin(kind: StringName) -> void:
+	if _phone_next_kind != &"" and kind == _phone_next_kind:
+		_phone_next_kind = &""
+		_phone_next_told = false
+		_phone_next_tries = 0
+
+
+## Host, every tick whatever the event: the favor on the seeds runs out.
+func _mayhem3_tick(delta: float) -> void:
+	if _phone_discount >= 1.0 or _phone_discount_left <= 0.0:
+		return
+	_phone_discount_left -= delta
+	if _phone_discount_left <= 0.0:
+		_phone_discount_left = 0.0
+		_rpc_phone_discount.rpc(1.0, 0.0)
+
+
+## Every peer, from _rpc_event_started (the start and the late-join replay alike).
+func _mayhem3_on_started(kind: StringName, _params_in: Dictionary, _seconds_left: float) -> void:
+	if kind == EVENT_PHONE:
+		_phone_tip = &""
+		_start_phone_ring()
+
+
+## Every peer, from _rpc_event_ended (active_event is already cleared).
+func _mayhem3_on_ended(kind: StringName) -> void:
+	if kind == EVENT_PHONE:
+		_stop_phone_ring()
+	elif kind == EVENT_SCALE:
+		_scale_flights.clear()
+
+
+## Host: a late joiner gets a running favor (the running event itself is replayed by the caller).
+func _mayhem3_replay(peer_id: int) -> void:
+	if _phone_discount < 1.0 and _phone_discount_left > 0.0:
+		_rpc_phone_discount.rpc_id(peer_id, _phone_discount, _phone_discount_left)
+
+
+## Host (shift end, game reset): no favor on the seeds, no kind decided by a phone, nothing followed in the air.
+func _mayhem3_server_reset() -> void:
+	_phone_outcome = &""
+	_phone_next_kind = &""
+	_phone_next_told = false
+	_phone_next_tries = 0
+	_scale_flights.clear()
+	if _phone_discount < 1.0:
+		_rpc_phone_discount.rpc(1.0, 0.0)
+	_phone_discount_left = 0.0
+
+
+## Any peer, back to the menu: forget it all (the phone goes with the scene; the loop is stopped here).
+func _mayhem3_reset_local() -> void:
+	if _phone_ring != 0:
+		Sfx.stop_loop(_phone_ring)
+		_phone_ring = 0
+	_phone_outcome = &""
+	_phone_next_kind = &""
+	_phone_next_told = false
+	_phone_next_tries = 0
+	_phone_tip = &""
+	_phone_fine_taken = 0
+	_scale_flights.clear()
+	_scale_resend_at_msec = 0
+	var had_favor := _phone_discount < 1.0
+	_phone_discount = 1.0
+	_phone_discount_left = 0.0
+	_phone_discount_until_msec = 0
+	if had_favor:
+		phone_discount_changed.emit(1.0)
+# --- end M17 mayhem3 -----------------------------------------------------------------------------------------------

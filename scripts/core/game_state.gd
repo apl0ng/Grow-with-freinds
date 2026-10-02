@@ -669,6 +669,7 @@ func get_seed_cost(seed_def: SeedDef) -> int:
 	if seed_def == null:
 		return 0
 	var factor := condition_value(&"seed_cost", 1.0)
+	factor *= Events.get_phone_discount() # M17 mayhem3: the phone's favor (1.0 without one)
 	return seed_def.cost if factor == 1.0 else maxi(int(round(seed_def.cost * factor)), 1)
 
 

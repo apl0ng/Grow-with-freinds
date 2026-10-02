@@ -33,20 +33,21 @@ func _run() -> void:
 
 	step("kinds + weights")
 	check(Config.has_arg("events") and Events.are_events_enabled(), "this suite runs with --events")
-	check(Events.KINDS.size() == 12 and Events.KINDS.has(Events.EVENT_HEADCOUNT) and Events.KINDS.has(Events.EVENT_WATER_OFF) and Events.KINDS.has(Events.EVENT_SHORTAGE), "KINDS: the four M10 kinds + headcount, water_off, shortage (+ the two M14 mayhem kinds + the three M15 mayhem2 kinds)")
+	check(Events.KINDS.size() == 14 and Events.KINDS.has(Events.EVENT_HEADCOUNT) and Events.KINDS.has(Events.EVENT_WATER_OFF) and Events.KINDS.has(Events.EVENT_SHORTAGE), "KINDS: the four M10 kinds + headcount, water_off, shortage (+ the two M14 mayhem kinds + the three M15 mayhem2 kinds + the two M17 mayhem3 kinds)")
 	var total := 0
 	for k in Events.KINDS:
 		total += int(Events.WEIGHTS.get(k, 0))
 	check(total == 100, "weights sum to 100 (%d)" % total)
 	# M14 mayhem rebalanced the weights to make room for the leak and the drive-by (tools/tests/mayhem_body.gd); M15
-	# mayhem2 did it again for the raid, the sprinklers and the collection (tools/tests/mayhem2_body.gd pins all twelve).
-	var expected := {Events.EVENT_INSPECTION: 22, Events.EVENT_POWER_CUT: 13, Events.EVENT_AUDIT: 7, Events.EVENT_RAT: 7,
-			Events.EVENT_HEADCOUNT: 10, Events.EVENT_WATER_OFF: 6, Events.EVENT_SHORTAGE: 5}
+	# mayhem2 did it again for the raid, the sprinklers and the collection, M17 mayhem3 for the scale and the phone
+	# (tools/tests/mayhem3_body.gd pins all fourteen).
+	var expected := {Events.EVENT_INSPECTION: 20, Events.EVENT_POWER_CUT: 12, Events.EVENT_AUDIT: 7, Events.EVENT_RAT: 6,
+			Events.EVENT_HEADCOUNT: 9, Events.EVENT_WATER_OFF: 6, Events.EVENT_SHORTAGE: 5}
 	var weights_ok := true
 	for k in expected:
 		if int(Events.WEIGHTS.get(k, -1)) != int(expected[k]):
 			weights_ok = false
-	check(weights_ok, "weights: inspection 22 / power_cut 13 / audit 7 / rat 7 / headcount 10 / water_off 6 / shortage 5")
+	check(weights_ok, "weights: inspection 20 / power_cut 12 / audit 7 / rat 6 / headcount 9 / water_off 6 / shortage 5")
 	var kinds_seen: Dictionary = {}
 	var repeats := 0
 	for k in Events.KINDS:

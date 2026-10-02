@@ -1120,6 +1120,52 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_fade_in(b, 0.002)
 			_fade_out(b, 0.05)
 		# --- end M15 mayhem2 -------------------------------------------------------------------------------------
+		# --- M17 mayhem3 --- the wall phone and the scale (an old bell in a cracked box; a fist on sheet steel) ----
+		&"phone_ring":  # loop: an old wall set's bell, the clapper between two gongs; 1.4 s of it, then the line's quiet
+			b = _buf(3.0)
+			var ring_strikes := 28
+			for i in ring_strikes:
+				var ring_t := i * 0.05
+				var gong: float = 1240.0 if i % 2 == 0 else 1465.0                      # the two gongs, one gone flat
+				var ring_amp := 0.55 if i < ring_strikes - 2 else 0.4
+				_tone(b, ring_t, 0.2, gong, gong * 0.996, ring_amp, Wave.SINE, 0.001, 6.0)
+				_tone(b, ring_t, 0.09, gong * 2.71, gong * 2.7, ring_amp * 0.25, Wave.SINE, 0.001, 9.0)
+				_noise(b, rng, ring_t, 0.008, 0.22, 0.9, 0.4, 0.0003, 10.0)        # the clapper
+			_noise(b, rng, 0.0, 1.45, 0.07, 0.35, 0.12, 0.02, 0.8)                    # the cracked housing buzzes along
+			_lowpass(b, 0.72)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.4)                                                         # the quiet between two rings
+		&"phone_pickup":  # the handset comes off the hook: the switch clicks up, the bell catches once, plastic, the line
+			b = _buf(0.5)
+			_noise(b, rng, 0.0, 0.006, 0.8, 0.95, 0.5, 0.0003, 10.0)                # the hook switch
+			_tone(b, 0.0, 0.05, 2100.0, 1900.0, 0.2, Wave.SINE, 0.0005, 8.0)
+			_tone(b, 0.012, 0.22, 1240.0, 1236.0, 0.3, Wave.SINE, 0.001, 7.0)       # the bell catches a last half ring
+			_tone(b, 0.03, 0.1, 230.0, 150.0, 0.7, Wave.SINE, 0.002, 5.0)           # the handset knocks the box
+			_noise(b, rng, 0.03, 0.05, 0.35, 0.4, 0.08, 0.001, 6.0)
+			_noise(b, rng, 0.12, 0.34, 0.07, 0.55, 0.25, 0.04, 2.0)                 # the open line, faintly
+			_lowpass(b, 0.65)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.05)
+		&"scale_hit":  # a fist on the chute's sheet steel; the scale's needle rattles in its window and settles
+			b = _buf(0.9)
+			_noise(b, rng, 0.0, 0.03, 0.8, 0.6, 0.1, 0.001, 8.0)                    # knuckles
+			_tone(b, 0.0, 0.18, 115.0, 58.0, 1.0, Wave.SINE, 0.002, 5.0)            # the panel gives
+			_tone(b, 0.004, 0.6, 342.0, 336.0, 0.32, Wave.TRIANGLE, 0.002, 5.0)     # sheet steel, inharmonic
+			_tone(b, 0.004, 0.45, 563.0, 559.0, 0.22, Wave.SINE, 0.002, 6.0)
+			_tone(b, 0.004, 0.35, 917.0, 909.0, 0.15, Wave.SINE, 0.002, 7.0)
+			_tone(b, 0.06, 0.5, 620.0, 600.0, 0.1, Wave.SINE, 0.005, 4.0, 7.0, 0.05)   # the needle's spring
+			var needle_ticks: Array[float] = [0.08, 0.15, 0.21, 0.26, 0.3, 0.335, 0.365, 0.39, 0.41, 0.43]
+			for i in needle_ticks.size():
+				var tick_amp := 0.35 * (1.0 - float(i) / needle_ticks.size()) + 0.05
+				_noise(b, rng, needle_ticks[i], 0.006, tick_amp, 0.95, 0.5, 0.0003, 12.0)
+				_tone(b, needle_ticks[i], 0.03, 2400.0, 2300.0, tick_amp * 0.3, Wave.SINE, 0.0005, 8.0)
+			_lowpass(b, 0.6)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.05)
+		# --- end M17 mayhem3 -------------------------------------------------------------------------------------
 		# --- M16 polish ---
 		&"uproot":  # a plant pulls itself out of a wet tray: the soil gives, roots tear, the clod comes free, dirt falls back
 			b = _buf(0.52)

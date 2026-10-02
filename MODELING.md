@@ -356,6 +356,12 @@ All paths are relative to `scenes/`. ✅ = shipped (in `art/models/manifest.json
 | ✅ `clipboard` | 0.25 × 0.36 × 0.07, floor (item, front -Z: the sheets face -Z), budget 1500 | the Boss's `Visual/Torso/ArmRight/Hand` during inspections | One mesh, no rig. Standing upright on its bottom edge; in a palm-down hand rotate it -90° about X (sheets up) |
 | ✅ `rat` | 0.13 × 0.07 × 0.35 (nose at -Z), floor, budget 2000 | `world/props/rat.tscn`, instanced **as** `Visual` | Rigged: `Body` (static, one unioned part so it gets the thin outline) + `Tail` (pivot at the rump (0, 0.046, 0.06), rest identity; `Tail.rotation.y` swishes). Thin, head hanging, heavy lids, bald patches, tail dragging |
 
+**M17 mayhem3** (mayhem3 agent; built on Windows / Blender 5.2; `tools/blender/models/wall_phone.py`)
+
+| Model | Size / mount | Scene | Notes |
+|---|---|---|---|
+| ✅ `wall_phone` | 0.34 × 0.59 × 0.11, wall (origin = the bottom centre of the housing on the wall; the node hangs 1.15 m up, so the earpiece sits at ~1.55 m), 2992 tris (budget 3000) | `world/props/wall_phone.tscn`, instanced **as** `Visual` (collider: box 0.32 × 0.48 × 0.13 on the interactable layer); room `Decor/WallPhone` | Rigged: `Body` (static: the yellowed housing with its hood, the keypad, the speaker slots, the crack, the taped note above it, grease on the wall, the coiled cord) + `Handset` (pivot on the hook at (-0.105, 0.40, 0.06), rest identity, hanging straight down; `wall_phone.gd` rattles `Handset.rotation.z` ±4° while it rings and lifts it off the hook when the call is taken). Custom `phone_plastic` (beige gone yellow), `phone_grease`, `phone_tape` |
+
 **M14 lobby** (lobby agent; built on Windows / Blender 5.2)
 
 | Model | Size / mount | Scene | Notes |

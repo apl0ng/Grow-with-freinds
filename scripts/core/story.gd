@@ -158,6 +158,7 @@ func _ready() -> void:
 	_mayhem_setup()  # M14 mayhem: the leak and the drive-by (region at the end of the file)
 	_replay_setup()  # M15 replay: the shift conditions (region at the end of the file)
 	_mayhem2_setup()  # M15 mayhem2: the raid, the sprinklers, the collector (region after the M14 mayhem one)
+	_mayhem3_setup()  # M17 mayhem3: the scale, the phone (region after the M15 mayhem2 one)
 	_career_setup()  # M15 career: the shift's job (region at the end of the file)
 
 
@@ -1151,6 +1152,163 @@ func mayhem2_collector_line(what: StringName, strain: StringName, where: String)
 			return line("collector_took_tray") % (HOSTILE_PLOT_NAME % int(digits) if digits != "" else "a tray")
 	return line("collector_took_nothing")
 # --- end M15 mayhem2 ---------------------------------------------------------------------------------------------
+
+
+# --- M17 mayhem3 --- the scale reads light, the phone rings --------------------------------------------------------
+# Lines and hooks for the two M17 events (Events emits on every peer; Story owns the copy). _ready() calls
+# _mayhem3_setup(). As in M14 and M15, what the whole floor has to know also goes out as a toast.
+#   scale starts                     scale             MAJOR     + toast (error): the cut and how to fix it (the key)
+#   somebody hit it (scale_fixed)    scale_fixed       PROGRESS  + toast (info, names the worker)
+#   it ran out unfixed               scale_back        PROGRESS  + toast (info); nothing at the end of a shift
+#   phone starts                     phone             MAJOR     + toast (error)
+#   taken, a tip (phone_answered)    mayhem3_tip_line  MAJOR     + toast (info): "Dale took the call. Next: a raid."
+#   taken, a favor                   phone_favor       PROGRESS  + toast (info): the discount and how long it runs
+#   taken, a wrong number            phone_wrong       PROGRESS  + toast (info)
+#   the favor ran out                (toast only)      "Seeds are back to full price."
+#   nobody picked up (phone_missed)  mayhem3_missed_line  MAJOR  + toast (error): "He called. Nobody picked up. Thirty."
+
+## Copy for the two events, merged into `lines` at start-up. "%s" = an amount in words, a worker, or what a tip names;
+## "%d" = dollars, a percentage or seconds.
+const MAYHEM3_LINES: Dictionary = {
+	"scale": "The scale reads light. Somebody hit it.",
+	"scale_fixed": "Scale reads right. Back to work.",
+	"scale_back": "Scale came back by itself. You paid for the wait.",
+	"phone": "That's the phone. Pick it up.",
+	"phone_tip": "Next: %s.",
+	"phone_favor": "A favor. Seeds are cheap. Not for long.",
+	"phone_wrong": "Wrong number.",
+	"phone_missed": "He called. Nobody picked up. %s.",
+	"phone_missed_short": "He called. Nobody picked up. %s. You had %s. I took it.",
+	"phone_missed_broke": "He called. Nobody picked up. %s. Nothing to take.",
+	"toast_scale": "The scale reads light: deposits pay %d%% less. Hit the chute (%s) or throw something at it.",
+	"toast_scale_fixed": "%s hit the scale. It reads right.",
+	"toast_scale_fixed_nobody": "The scale took a hit. It reads right.",
+	"toast_scale_back": "The scale reads right again.",
+	"toast_phone": "The phone is ringing. Somebody pick that up.",
+	"toast_phone_taken": "%s took the call. %s",
+	"toast_phone_favor": "Seeds %d%% off for %d seconds.",
+	"toast_favor_over": "Seeds are back to full price.",
+	"toast_phone_missed": "Nobody picked up. $%d out of cash on hand.",
+	"toast_phone_missed_broke": "Nobody picked up. Nothing left to take.",
+}
+## What a tip calls the next event, by kind ("Next: a raid."). An unknown kind is "trouble".
+const MAYHEM3_TIP_WORDS: Dictionary = {
+	"inspection": "an inspection", "power_cut": "a power cut", "audit": "an audit", "rat": "a rat",
+	"headcount": "a head count", "water_off": "no water", "shortage": "a shortage", "leak": "a leak",
+	"driveby": "a drive-by", "raid": "a raid", "sprinklers": "the sprinklers", "collection": "a collection",
+	"scale": "a bad scale", "phone": "another call",
+}
+
+## This peer's view of the running scale event / phone: somebody hit the scale (its end then says nothing more).
+var _mayhem3_scale_fixed: bool = false
+
+
+func _mayhem3_setup() -> void:
+	for k in MAYHEM3_LINES:
+		if not lines.has(k):
+			lines[k] = MAYHEM3_LINES[k]
+	var events: Node = get_node_or_null(^"/root/Events")
+	if events == null:
+		return
+	for entry: Array in [[&"event_started", _mayhem3_on_event_started], [&"event_ended", _mayhem3_on_event_ended],
+			[&"scale_fixed", _mayhem3_on_scale_fixed], [&"phone_answered", _mayhem3_on_phone_answered],
+			[&"phone_missed", _mayhem3_on_phone_missed], [&"phone_discount_changed", _mayhem3_on_discount_changed]]:
+		if events.has_signal(entry[0]):
+			events.connect(entry[0], entry[1])
+
+
+func _mayhem3_on_event_started(kind: StringName, params: Dictionary) -> void:
+	if kind == &"scale":
+		_mayhem3_scale_fixed = false
+	if not _in_session():
+		return
+	match kind:
+		&"scale":
+			var cut_v: Variant = params.get("cut", Config.balance.scale_cut)
+			var cut: float = float(cut_v) if (cut_v is float or cut_v is int) else Config.balance.scale_cut
+			Game.toast(line("toast_scale") % [roundi(cut * 100.0), HUD.action_key_text(&"shove", "F")], &"error")
+			_request("scale", Weight.MAJOR)
+		&"phone":
+			Game.toast(line("toast_phone"), &"error")
+			_request("phone", Weight.MAJOR)
+
+
+func _mayhem3_on_event_ended(kind: StringName) -> void:
+	# The shift end closes a running event too: nothing to say then.
+	if kind != &"scale" or _mayhem3_scale_fixed or not _in_session() or not GameState.is_playing():
+		return
+	Game.toast(line("toast_scale_back"), &"info")
+	_request("scale_back", Weight.PROGRESS)
+
+
+func _mayhem3_on_scale_fixed(peer_id: int) -> void:
+	_mayhem3_scale_fixed = true
+	if not _in_session():
+		return
+	if peer_id > 0:
+		Game.toast(line("toast_scale_fixed") % Net.get_player_name(peer_id), &"info")
+	else:
+		Game.toast(line("toast_scale_fixed_nobody"), &"info")
+	_request("scale_fixed", Weight.PROGRESS)
+
+
+func _mayhem3_on_phone_answered(peer_id: int, outcome: StringName) -> void:
+	if not _in_session():
+		return
+	var who := Net.get_player_name(peer_id)
+	match outcome:
+		&"tip":
+			var events: Node = get_node_or_null(^"/root/Events")
+			var kind: StringName = StringName(str(events.call(&"get_phone_tip"))) if events != null and events.has_method(&"get_phone_tip") else &""
+			var text := mayhem3_tip_line(kind)
+			Game.toast(line("toast_phone_taken") % [who, text], &"info")
+			_show(text, Weight.MAJOR)
+		&"favor":
+			var b: BalanceConfig = Config.balance
+			var favor := line("toast_phone_favor") % [roundi(clampf(b.phone_discount, 0.0, 0.95) * 100.0), roundi(maxf(b.phone_discount_sec, 0.0))]
+			Game.toast(line("toast_phone_taken") % [who, favor], &"info")
+			_request("phone_favor", Weight.PROGRESS)
+		_:
+			Game.toast(line("toast_phone_taken") % [who, line("phone_wrong")], &"info")
+			_request("phone_wrong", Weight.PROGRESS)
+
+
+func _mayhem3_on_phone_missed(fine: int) -> void:
+	if not _in_session():
+		return
+	var events: Node = get_node_or_null(^"/root/Events")
+	var taken: int = int(events.call(&"get_phone_fine_taken")) if events != null and events.has_method(&"get_phone_fine_taken") else 0
+	if taken > 0:
+		Game.toast(line("toast_phone_missed") % taken, &"error")
+	else:
+		Game.toast(line("toast_phone_missed_broke"), &"error")
+	var text := mayhem3_missed_line(fine, taken)
+	if text != "":
+		_show(text, Weight.MAJOR)
+
+
+func _mayhem3_on_discount_changed(factor: float) -> void:
+	if factor >= 1.0 and _in_session() and GameState.is_playing():
+		Game.toast(line("toast_favor_over"), &"info")
+
+
+## What the floor hears from a tip: "Next: a raid." (`kind` = the event kind it names).
+func mayhem3_tip_line(kind: StringName) -> String:
+	return line("phone_tip") % String(MAYHEM3_TIP_WORDS.get(String(kind), "trouble"))
+
+
+## The Boss's line when nobody picked up: the whole fine in words, what cash on hand covered of it, or nothing
+## ("He called. Nobody picked up. Thirty."). "" when nothing was billed.
+func mayhem3_missed_line(fine: int, taken: int) -> String:
+	if fine <= 0:
+		return ""
+	var said := loop_amount_words(fine)
+	if taken >= fine:
+		return line("phone_missed") % said
+	if taken > 0:
+		return line("phone_missed_short") % [said, mayhem_amount_words(taken)]
+	return line("phone_missed_broke") % said
+# --- end M17 mayhem3 ---------------------------------------------------------------------------------------------
 
 
 # --- M14 loop: strain traits and the drying rack -----------------------------------------------------------------
