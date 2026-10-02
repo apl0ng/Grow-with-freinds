@@ -78,7 +78,7 @@ const CATALOG: Dictionary = {
 	},
 	ID_TWITCHY: {
 		"title": "Twitchy batch",
-		"line": "A twitchy batch. Twice as many get up and walk.",
+		"line": "A twitchy batch. More of them get up and walk.",
 		"effects": {&"mutation_chance": 2.0},
 		"mutating": true,
 	},

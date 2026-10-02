@@ -39,6 +39,9 @@ func _run() -> void:
 	_test_dice(b)
 
 	step("hosting")
+	# M16 lead: the shift's job is rolled from an unseeded dice and pays on the spot; this suite counts money to the
+	# dollar (a deposit that happened to finish the job failed "a quiet night" once), so its jobs pay nothing.
+	b.contract_reward = 0
 	check(replay_run == Config.has_arg("replay") or Config.has_arg("no-replay"), "Config.replay_enabled follows --replay / --no-replay (%s)" % replay_run)
 	Game.start_host("Tester", port_arg(7983))
 	await wait_until(func() -> bool: return Game.world != null and Game.local_player != null, 5.0, "world + local player exist")
