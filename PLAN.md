@@ -310,3 +310,14 @@ section 10, CONTRACTS.md "M16".
 | 16.2 | Hats issued from the record, the locker in the alley, hat sync, six models; hats + hats_mp suites | hats | done (seven hats, the stock hard hat split out of the worker model; 230 + 74 checks; the lead raised the change limit to 160) |
 | 16.3 | Three more jobs, the mutation cap, the uproot sound, empty flamethrowers cleared, the sound audition tool; polish suite | polish | done (twelve jobs; 167 checks) |
 | 16.4 | Integration: merges, test_all registration, captures in the real renderer (hats, locker, four layouts, the menu row), README, full run, export | lead | done (81 suites, 14622 checks; the full run failed two old timing races, mayhem_mp and qa_m12_4p, fixed in the tests and rerun green; export re-cut) |
+
+## M17 A run has an end, a hand truck, two more events (in progress, 2026-10-02)
+The user said "keep going" after M16 (2026-10-02); the lead chose this scope from FRIENDSLOP 10.4: FRIENDSLOP.md
+section 11, CONTRACTS.md "M17".
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 17.0 | Prep: Const.ITEM_HAND_TRUCK, BalanceConfig group M17, Sfx names (phone, scale, truck, paid in full) | lead | done |
+| 17.1 | The final notice (a run's last shift by team size), its half-time look, PAID IN FULL, the cleared record and its hat; finale + finale_mp suites | finale | in progress |
+| 17.2 | The hand truck: heavy carry, four bundles, deposit all at the chute, the raid takes its load; cart + cart_mp suites | cart | in progress |
+| 17.3 | Events: the scale that reads light, the phone; weights for fourteen kinds; mayhem3 + mayhem3_mp suites | mayhem3 | in progress |
+| 17.4 | Integration: merges, test_all registration, captures in the real renderer, README, full run, export | lead | pending |

@@ -220,3 +220,28 @@ M15 made the card different every shift. Two things were still the same every ru
 
 ### 10.4 Next
 - A second way the rooms join; a "final notice" shift with its own event; a hand truck; the scale that lies.
+
+## 11. M17: a run has an end (2026-10-02)
+After M16 a run could be different every time and still had no shape: it went on until a payment was missed, so
+every session ended in a failure. A run needs a last shift.
+
+### 11.1 The final notice (now)
+- A run has a last shift: the fourth for one worker, the fifth for two, the sixth for three or four (what the
+  economy model has a careful crew of that size reach). It is posted as the final notice. It always has two
+  conditions, and at half time the Boss looks at the number: under 40% deposited and the payment rises by a tenth.
+- Pay it and the debt is cleared: "PAID IN FULL. He will find another." The record counts debts cleared and issues
+  one more hat for the first. Nobody is happy about it. The next run is a new run.
+
+### 11.2 A hand truck (now)
+- One stands on the dock. It is heavy to carry, it takes four bundles, and whoever holds it at the chute deposits
+  all of them. The racks are in the hall and the chute is in the main room: somebody is going to make that walk
+  with four cured bundles while the raid sirens start.
+
+### 11.3 Two small things that go wrong (now)
+- **The scale is off.** Every deposit pays 15% less until somebody hits the chute.
+- **The phone.** It rings. Whoever picks up gets a tip about what comes next, a minute of cheap seeds, or a wrong
+  number. Nobody picks up and the floor is fined.
+
+### 11.4 Next
+- A second way the rooms join; a per-shift payment table for full crews (the middle of a run is slack for four);
+  more to do in the alley; the scale and the phone as things workers can break.

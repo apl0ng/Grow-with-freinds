@@ -1173,3 +1173,76 @@ reset); an empty flamethrower lying on the floor is despawned by the host after 
 **Known gaps.** `qa_m12_4p` has a race of its own (the cabinet's whole-second restock countdown can tick between
 two snapshots: "host 78, peer 77"); it passed on re-run. A flamethrower lying on a cover piece at START OVER is not
 re-rested when the cover moves. The uproot sound's arrival order on a client is proven only by an ad hoc run.
+
+## M17 — a run has an end, a hand truck, two more events (lead prep, 2026-10-02)
+Design: FRIENDSLOP.md section 11. Three agents in worktrees `.claude/worktrees/<agent>17` on `m17/<agent>`:
+**finale**, **cart**, **mayhem3**. Lead-only files as before (project.godot, CONTRACTS.md, PLAN.md, README.md,
+HANDOFF.md, FRIENDSLOP.md, tools/test_all.sh, const.gd, balance_config.gd, config.gd, the tables of sfx.gd). Shared
+files are edited only inside `# --- M17 <agent> ---` regions plus tagged one-line hooks (`# M17 <agent>`).
+Test ports: finale +93 / finale_mp +94, cart +98 / cart_mp +99, mayhem3 +33 / mayhem3_mp +34. Every suite that runs
+with `--replay` passes `--run=B5VP` (cover layout 0, one fixed card).
+
+### Prep already in place (lead)
+- `Const.ITEM_HAND_TRUCK` (&"hand_truck").
+- `BalanceConfig` group "M17": `final_shift_by_team` [4, 5, 6, 6], `final_interim_share` 0.4, `final_interim_raise`
+  0.1, `hand_truck_capacity` 4, `scale_sec` 40, `scale_cut` 0.15, `phone_sec` 14, `phone_hold_sec` 1.2,
+  `phone_fine` 30, `phone_discount` 0.2, `phone_discount_sec` 60.
+- Sfx names with default blips: `phone_ring` (loop), `phone_pickup`, `scale_hit`, `truck_load`, `paid_in_full`.
+
+### Finale (finale agent) — game_state.gd region, round_end / shift report, story / hud regions, career.gd, hats
+- **The final notice.** With replay on, a run has a last shift: `Config.balance.final_shift_by_team[size - 1]` for
+  the largest team seen in this run (4 for one worker, 5 for two, 6 for three or four: the shifts the economy model
+  has a careful crew of that size reach). `GameState.get_final_shift() -> int` (0 with replay off: the run never
+  ends, as today), `is_final_shift() -> bool`, `is_run_cleared() -> bool`, signal `run_cleared`; synced in the
+  state dictionary under `"final"` (`{"shift": int, "cleared": bool}`), type-checked and clamped on receive.
+- **That shift is different.** The payment panel's title reads "FINAL NOTICE" instead of "THIS SHIFT"; the alley
+  board's NEXT column starts with "Final notice. Pay it and the debt is cleared."; it always has two conditions; at
+  half time the host looks at the payment: under `final_interim_share` of it deposited, the payment due rises by
+  `final_interim_raise` (the audit's own raise path) with a flat Boss line ("Half the clock. Not half the money.");
+  at or over it, one line and nothing else ("On schedule. Keep it there.").
+- **Clearing it.** Paying the final notice ends the run: ROUND_SUCCESS with `cleared`; the round-end overlay reads
+  "PAID IN FULL" / "The debt is cleared. He will find another."; the host's button is "NEW RUN" (a full reset: a
+  new run code unless one was typed) and NEXT SHIFT is not offered; sound `paid_in_full` (flat, not a fanfare).
+  Missing it is a missed payment like any other.
+- **On file.** Career record `cleared` (runs cleared), a summary line "Debts cleared: 1", and one more hat issued
+  for the first clear (an accountant's eyeshade or the like: catalog row, model in hats.py, MODELING.md row).
+- Suites `finale` (+93) and `finale_mp` (+94), with `--replay --run=B5VP --career-file=<temp>`.
+
+### Cart (cart agent) — a hand truck item, its model, room.tscn marker, player carry, the chute, the raid hook
+- **A hand truck** (`Const.ITEM_HAND_TRUCK`, scenes/items/hand_truck.tscn + script, model `hand_truck.glb` by the
+  Blender pipeline). One stands at `Dock/HandTruckSpot` (a marker this agent adds) from the start of a run; the host
+  puts it back there at the start of every shift.
+- **Carried like something heavy.** Held in both hands with the heavy-carry rules Floor Brick already has (no
+  sprint, slower); it can be dropped, not thrown.
+- **It carries bundles.** Up to `hand_truck_capacity` product bundles. Loading: a worker holding the truck presses
+  E on a bundle lying on the floor, or a worker holding a bundle presses E on a standing truck. Unloading: E on a
+  standing truck with empty hands takes the top bundle. Items are never reparented: loading despawns the bundle
+  through the item system and keeps its data (`strain_id`, `amount`, `cured`) in the truck's synced `load`
+  (host-owned, sent to every peer and to late joiners); unloading spawns a bundle with that data. The load is
+  drawn on the truck on every peer.
+- **At the chute.** Interacting with the chute while holding the truck deposits every loaded bundle, one deposit
+  each for the holder, through the chute's own sale path (so the market, the buyer, cured, the job hooks and the
+  stats all apply).
+- **Trouble.** A raid that sees the truck takes its whole load (`Events.raid_took` once per bundle; the holder is
+  written up like any holder). The collector, the rat and the hostile plant ignore the load.
+- API: `HandTruck.get_load() -> Array[Dictionary]`, `server_load(bundle: Item, peer_id: int) -> bool`,
+  `server_unload(peer_id: int) -> Item`, `server_clear_load() -> int`, signal `load_changed`.
+- Suites `cart` (+98) and `cart_mp` (+99).
+
+### Mayhem 3 (mayhem3 agent) — events.gd region, a wall phone (model, room.tscn), story / hud regions, sfx recipes
+- `Events.EVENT_SCALE` (`scale_sec`): the chute's scale reads light: every deposit pays `scale_cut` less until
+  somebody hits it (a shove, F, within reach of the chute, or any thrown item that strikes it); then the event is
+  over with `scale_hit`. Banner "SCALE IS OFF", hint "It reads light. Hit it." Unfixed, it ends with the timer.
+  Params `{seconds, cut}`. The cut goes through the sale value the chute already computes (one tagged hook).
+- `Events.EVENT_PHONE` (`phone_sec`): the wall phone rings (`phone_ring` loop at the phone; a model by the Blender
+  pipeline, hung in the main room by this agent). Holding E on it for `phone_hold_sec` answers; the host rolls one
+  of three from the card dice (`_card()`): a tip (the kind of the next event is told to the whole floor: "Next:
+  a raid."), a favor (seeds `phone_discount` off for `phone_discount_sec`), or a wrong number ("Wrong number.").
+  Nobody answers: `phone_fine` from cash on hand (as far as there is cash) and a flat Boss line ("He called.
+  Nobody picked up. Thirty."). Banner "PHONE", hint "Somebody pick that up." Params `{seconds}`. Signals
+  `phone_answered(peer_id, outcome)`, `phone_missed(fine)`.
+- Weights for fourteen kinds: inspection 20, power_cut 12, audit 7, rat 6, headcount 9, water_off 6, shortage 5,
+  leak 7, driveby 7, raid 6, sprinklers 5, collection 5, scale 3, phone 2. Late-join replay through the existing
+  path; `--first-event=scale|phone`. The suites and the economy model that pin twelve kinds and their weights
+  (`disrupt`, `mayhem`, `mayhem2`, `economy` / `tools/tests/econ_sim.gd`) follow.
+- Suites `mayhem3` (+33) and `mayhem3_mp` (+34), with `--events`.

@@ -185,6 +185,26 @@ extends Resource
 ## An empty flamethrower left lying on the floor is cleared after this many seconds.
 @export var empty_flamethrower_sec: float = 30.0
 
+@export_group("M17")
+## The run's last shift by the largest team seen in it (index = workers - 1): what the economy model has a careful
+## crew of that size reach. Paying that shift clears the debt.
+@export var final_shift_by_team: Array[int] = [4, 5, 6, 6]
+## The final notice's half-time look: under this share of the payment deposited, the payment rises by the raise.
+@export var final_interim_share: float = 0.4
+@export var final_interim_raise: float = 0.1
+## Bundles a hand truck takes.
+@export var hand_truck_capacity: int = 4
+## The scale that reads light: seconds, and the share every deposit loses until somebody hits the chute.
+@export var scale_sec: float = 40.0
+@export var scale_cut: float = 0.15
+## The phone: seconds it rings, seconds of holding E to answer, the fine when nobody does, and the favor it can
+## give (seeds this much off for this many seconds).
+@export var phone_sec: float = 14.0
+@export var phone_hold_sec: float = 1.2
+@export var phone_fine: int = 30
+@export var phone_discount: float = 0.2
+@export var phone_discount_sec: float = 60.0
+
 @export_group("Networking")
 @export var default_port: int = 7777
 @export var max_players: int = 4
