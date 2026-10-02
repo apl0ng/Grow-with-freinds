@@ -22,7 +22,7 @@ extends RefCounted
 ##   early    "make the payment with a minute on the clock"   deposits cover the payment with 60 s left   on the spot
 ##   clean    "no write-ups this shift"                 fails on the first write-up          when the shift ends, paid
 ##   cash     "end the shift with more than $360 on hand"     cash on hand                   when the shift ends, paid
-##   burn     "burn a hostile plant"                    Hostiles.hostile_died with a worker  on the spot   needs a hostile plant
+##   burn     "burn one that walks"                     Hostiles.hostile_died with a worker  on the spot   needs a hostile plant
 ##   leak     "patch a leak inside ten seconds"         Events.leak_resolved(patched) in time on the spot  needs a leak
 ##   driveby  "nobody knocked down in a drive-by"       a drive-by ends with nobody shot     when it ends  needs a drive-by
 ## Goals of the counted jobs grow with the team: base + one per extra worker.
@@ -74,7 +74,7 @@ const CATALOG: Array[Dictionary] = [
 	{"id": ID_EARLY, "text": "make the payment with a minute on the clock", "base": 1, "per_extra": 0, "judge": JUDGE_SPOT, "need": NEED_NONE, "weight": 2},
 	{"id": ID_CLEAN, "text": "no write-ups this shift", "base": 1, "per_extra": 0, "judge": JUDGE_END, "need": NEED_NONE, "weight": 3},
 	{"id": ID_CASH, "text": "end the shift with more than %s on hand", "base": 1, "per_extra": 0, "judge": JUDGE_END, "need": NEED_NONE, "weight": 3},
-	{"id": ID_BURN, "text": "burn a hostile plant", "base": 1, "per_extra": 0, "judge": JUDGE_SPOT, "need": NEED_HOSTILE, "weight": 2},
+	{"id": ID_BURN, "text": "burn one that walks", "base": 1, "per_extra": 0, "judge": JUDGE_SPOT, "need": NEED_HOSTILE, "weight": 2},
 	{"id": ID_LEAK, "text": "patch a leak inside ten seconds", "base": 1, "per_extra": 0, "judge": JUDGE_SPOT, "need": NEED_LEAK, "weight": 2},
 	{"id": ID_DRIVEBY, "text": "nobody knocked down in a drive-by", "base": 1, "per_extra": 0, "judge": JUDGE_SPOT, "need": NEED_DRIVEBY, "weight": 2},
 ]
