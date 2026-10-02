@@ -19,6 +19,9 @@ var user_args: Dictionary = {}
 ## M14: the alley and the van (FRIENDSLOP 8.1). On in a windowed run, off under --headless (the suites spawn workers on
 ## the floor and start with Enter as before); --lobby forces it on, --no-lobby off.
 var lobby_enabled: bool = false
+## M15: shift conditions, the market, strain unlocks, contracts (FRIENDSLOP 9). On in a windowed run, off under
+## --headless (the suites play a plain, deterministic game); --replay forces it on, --no-replay off.
+var replay_enabled: bool = false
 
 func _ready() -> void:
 	balance = load(BALANCE_PATH) as BalanceConfig
@@ -69,6 +72,11 @@ func _apply_overrides() -> void:
 		lobby_enabled = true
 	if user_args.has("no-lobby"):
 		lobby_enabled = false
+	replay_enabled = DisplayServer.get_name() != "headless"
+	if user_args.has("replay"):
+		replay_enabled = true
+	if user_args.has("no-replay"):
+		replay_enabled = false
 	if user_args.has("mute"):
 		set_muted(true, false)
 	if user_args.has("fast"):

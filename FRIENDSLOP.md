@@ -160,3 +160,38 @@ Rule: each one takes the floor's attention for under a minute, has a physical an
 The complaint is fair: at walking speed the game plays six steps a second, almost twelve when sprinting, all the same
 sample. Fix: one step per human stride (about three a second), three variants, a heavier heel and less hiss, quieter
 when crouched, a landing thud after a jump.
+
+## 9. M15: why you would play it again (2026-10-02)
+The user: "refine gameplay, I want to be able to have good replayability." A session is replayable when the same
+people can start again and not know how it will go. Four things do that here; each is marked **now** (M15) or **next**.
+
+### 9.1 No two shifts alike (now)
+- **Shift conditions.** From the second shift on, the board in the alley shows what is different today, before anyone
+  gets in the van: dry air, a twitchy batch, a buyer for one strain, clearance at the window, inspection week, bad
+  wiring, a short clock, overtime, a slick floor, thin walls. One per shift, two from shift five. The plan is made in
+  the alley and the plan is different every time.
+- **A market.** Every strain's deposit value moves up to a quarter either way each shift. The best strain yesterday
+  is not the best strain today, and the supply card says so.
+- **More that can go wrong.** A raid (hide or sell every bundle before they look in), the sprinklers (everything
+  watered, the whole floor slippery), the collector (pay him at the dock or he takes the dearest thing). Twelve event
+  kinds now, and they come faster each shift.
+
+### 9.2 A run that builds (now)
+- Strains open up by shift: the plain ones first, Golden Kush at two, Night Shift at three, Floor Brick at four. A run
+  has a beginning that is simple and a late game that is not.
+- The payment due is retuned for ten trays and cured bundles, from a model of the loop rather than by feel: a careful
+  solo player makes the first shift, four who split up make the third, nobody makes the sixth without favors and the
+  racks.
+
+### 9.3 Something to chase (now)
+- **Contracts.** One optional job a shift from the Boss: three cured bundles, no write-ups, burn the plant, nobody
+  shot. Cash on the spot when it is met.
+- **A record.** Each player's own file: shifts worked, best shift reached, total deposited, plants burnt, times
+  bitten. The alley board shows it; a flat job title follows the best shift and sits next to your name.
+
+### 9.4 The room between runs (now)
+- The alley has a ball, a hoop with a counter, and the board with the last shift and today's briefing.
+
+### 9.5 Next
+- A second layout (the same rooms joined differently, picked per run); crate cover shuffled per run; a weekly seed so
+  friends can compare the same run; hats bought with career cash; a "final notice" shift with a boss-level event.

@@ -156,6 +156,29 @@ extends Resource
 @export var heavy_speed_factor: float = 0.7
 @export var counted_fine: int = 25
 
+@export_group("Mayhem 2 (M15)")
+## Raid: seconds of sirens before they look in, seconds of looking (one sweep every 1.5 s).
+@export var raid_warning_sec: float = 20.0
+@export var raid_sec: float = 6.0
+## Sprinklers: seconds of water, seconds the floor stays wet afterwards.
+@export var sprinkler_sec: float = 25.0
+@export var sprinkler_wet_sec: float = 10.0
+## The collector: seconds he waits on the dock, what he wants, seconds of holding E to pay him.
+@export var collector_sec: float = 25.0
+@export var collector_fee: int = 40
+@export var collector_hold_sec: float = 1.5
+
+@export_group("Replay (M15)")
+## Shift conditions start with this shift; how many are rolled per shift (two from shift 5 on).
+@export var conditions_from_round: int = 2
+@export var conditions_per_shift: int = 1
+## Each strain's deposit value moves by up to this fraction either way each shift (rounded to 5%).
+@export var market_swing: float = 0.25
+## Event gaps shrink by this fraction per shift (never below half).
+@export var event_gap_shrink_per_round: float = 0.08
+## Cash paid on the spot for a contract met.
+@export var contract_reward: int = 60
+
 @export_group("Networking")
 @export var default_port: int = 7777
 @export var max_players: int = 4

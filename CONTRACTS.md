@@ -853,3 +853,114 @@ canonical_state()` covers `Room.GROW_PLOT_COUNT` trays; footsteps and the drive-
 Known gaps: economy not retuned for ten trays and cured bundles; `STAT_CURED`, `STAT_SHOT`, `STAT_SLIPS` are counted
 but the shift report shows only the two mayhem verdicts; no lamp goes out in a drive-by; the alley has no items to
 play with while waiting.
+
+## M15 — three more events, the economy, the alley (lead prep, 2026-10-02)
+Design: FRIENDSLOP.md section 8.5 (raid, sprinklers, the collector) and the M14 balance notes. Three agents in
+worktrees `.claude/worktrees/<agent>` on `m15/<agent>`: **mayhem2**, **economy**, **alley**. Lead-only files as in
+M14 (project.godot, CONTRACTS.md, PLAN.md, README.md, tools/test_all.sh, const.gd, balance_config.gd, config.gd, the
+tables of sfx.gd). Shared files are edited only inside `# --- M15 <agent> ---` regions plus tagged one-line hooks.
+Test ports: mayhem2 +77 / mayhem2_mp +78, economy +79, alley +81 / alley_mp +82.
+
+### Prep already in place (lead)
+- `Const`: `WRITE_UP_RAID` ("raid": holding a bundle when the raid looks at you), `ITEM_BALL` (&"ball").
+- `BalanceConfig` group "Mayhem 2 (M15)": `raid_warning_sec` 20, `raid_sec` 6, `sprinkler_sec` 25,
+  `sprinkler_wet_sec` 10, `collector_sec` 25, `collector_fee` 40, `collector_hold_sec` 1.5.
+- Sfx names with default blips: `siren` (loop), `sprinkler` (loop), `collector_knock`, `ball`.
+
+### Mayhem 2 (mayhem2 agent) — events.gd, room.gd / room.tscn (its markers), story.gd / hud.gd regions, sfx recipes
+- `Events.EVENT_RAID` (`raid_warning_sec` + `raid_sec`): the `siren` loop outside and a banner "RAID" with the hint
+  "Get the product out of sight."; red and blue light sweeping in through the roller door during the warning. Then
+  the look: every 1.5 s for `raid_sec` the host tests sight from the next of `Room.get_raid_points()` (three eye
+  points: the roller door, the dock passage, the middle of the main room; the agent adds them). Every product bundle
+  (held, on the floor or on a rack) with a clear LAYER_WORLD line to that point and within 16 m is taken (despawned,
+  `confiscate`), and a worker holding one gets `Const.WRITE_UP_RAID`. Out of sight means behind a wall, a crate stack,
+  in the hall, or deposited. Trays are not touched. Params `{seconds, warning}`. Signals `raid_swept(point_index,
+  taken)`, `raid_took(item_name, holder_peer)`.
+- `Events.EVENT_SPRINKLERS` (`sprinkler_sec`): every tray's water goes to 1.0 at the start, water falls in every play
+  area (cheap particles per area), the `sprinkler` loop; the whole floor is wet for the event plus
+  `sprinkler_wet_sec`: the leak's slip rule (faster than `Events.get_slip_speed()`, not crouched, not in the back
+  room, one slip per 3 s) applies at every `Room.contains_point` position. Params `{seconds}`.
+- `Events.EVENT_COLLECTION` (`collector_sec`): a man stands at `Room.get_collector_spot()` on the dock (a reskin of
+  the Boss scene with another tint and no booth; a plain child of the Room on every peer, like the rat), banner
+  "COLLECTION" with the hint "He wants $40. Dock."; `collector_knock` at the start. Holding E on him for
+  `collector_hold_sec` pays `collector_fee` from cash on hand (prompt "Pay $40"; "Cash short." when it is not there):
+  he leaves, event over. Unpaid when the time runs out: he takes the dearest product bundle on the floor plan
+  (despawned); with no bundle, the most advanced growing tray is lost (`GrowPlot.server_crop_lost` with a new cause
+  `LOSS_COLLECTED`, then reset). Params `{seconds, fee}`.
+- Weights for twelve kinds: inspection 22, power_cut 13, audit 7, rat 7, headcount 10, water_off 6, shortage 5,
+  leak 7, driveby 7, raid 6, sprinklers 5, collection 5. Late-join replay through the existing path;
+  `--first-event=raid|sprinklers|collection`. Suites `mayhem2` (+77) and `mayhem2_mp` (+78).
+
+### Economy (economy agent) — data/balance.tres, tools/gen_balance.gd, a simulation tool, the suites that pin numbers
+The floor went from six trays to ten and a cured bundle pays 40% more, but the payment due did not move.
+- A deterministic model of a shift (`tools/tests/econ_sim.gd`, plain GDScript, no physics): workers, trays, real
+  travel distances between the stations (from the Room's station positions and doorways), action times, strain
+  numbers, curing, an expected cost of events and mutations. It prints the expected deposit per shift for 1 to 4
+  workers at three skill levels.
+- From it: `base_quota`, the growth of the payment due across shifts, the per-player multiplier, `cure_sec`
+  (target: curing is a real choice, not always right), Purple Haze (weakest per unit of labour today) and Golden
+  Kush (its trait is a pure penalty) get retuned. Target: a careful solo player makes shift 1 with a margin of about
+  a quarter; four players who split up make shift 3; nobody makes shift 6 without upgrades and cured bundles.
+- Every changed number is pinned in the suites that own it (strains, econ, flow) and listed in the report with the
+  model's before / after table. Suite `economy` (+79) pins the model's own invariants.
+
+### The alley (alley agent) — lobby.tscn / lobby.gd, a ball item, the alley's report board
+- A ball (`Const.ITEM_BALL`, scenes/items/ball.tscn + script, a small model): an ordinary carryable, throwable item
+  that lives in the alley (spawned there by the host when the alley is in use, removed when the shift starts).
+  A thrown ball that hits a worker staggers them like any thrown item.
+- A board on the alley wall showing the last shift's result (paid or missed, the payment due, the three top verdict
+  lines), fed from GameState / Story on every peer; blank before the first shift.
+- A hoop or a bin on the wall: the ball going through it plays a dull sound and counts on a small counter next to it
+  (host-counted, synced). Nothing more.
+- Suites `alley` (+81) and `alley_mp` (+82), both with `--lobby`.
+
+### Replayability (asked for by the user on 2026-10-02: "I want to be able to have good replayability")
+Two more agents, **replay** and **career** (ports replay +83 / replay_mp +84, career +85 / career_mp +86). Everything
+below is behind `Config.replay_enabled` (lead prep: true in a windowed run, false under `--headless`; `--replay` /
+`--no-replay` force it), so the existing suites keep running a plain, deterministic game.
+More prep in place: `SeedDef.unlock_round` (1 = always), `BalanceConfig` group "Replay (M15)"
+(`conditions_from_round` 2, `conditions_per_shift` 1, `market_swing` 0.25, `event_gap_shrink_per_round` 0.08,
+`contract_reward` 60), `Const.STAT_CONTRACTS`, autoload `Career` (scripts/core/career.gd, a stub the career agent
+fills).
+
+### Replay (replay agent) — scripts/core/shift_conditions.gd, game_state.gd region, the consumers' one-line hooks
+- **Shift conditions.** A catalog of at least ten (`ShiftConditions`: id, title, one flat line, effect keys), for
+  example dry air (trays dry 50% faster), a twitchy batch (mutation chances doubled), a buyer for one strain (it pays
+  50% more), clearance (seeds 30% off), inspection week (the Boss walks twice as often), bad wiring (power cuts last
+  twice as long and Night Shift likes it), a short clock (the shift is 40 s shorter, the payment due 15% lower),
+  overtime (40 s longer, 15% more due), a slick floor (the whole floor is wet), thin walls (drive-bys more likely).
+  From shift `conditions_from_round` on the host rolls `conditions_per_shift` of them (two from shift 5) when the
+  game enters WAITING for that shift, so the alley can show them before boarding; with the lobby off they are rolled
+  at the start. Synced to every peer and to late joiners.
+  API: `GameState.get_conditions() -> Array[StringName]`, `GameState.condition_value(key: StringName, default:
+  float) -> float` (the product of the active conditions' values for that key), `GameState.server_set_conditions(ids)`
+  for tests, signal `conditions_changed`. Consumers read `condition_value` (grow_plot water drain / mutation roll,
+  shop prices, sale value, round length and quota at shift start, event weights and gaps, slip rule): each consumer
+  hook is one tagged line.
+- **Market.** Each shift every strain's deposit value is multiplied by a rolled factor in `1 - market_swing ..
+  1 + market_swing` (rounded to 5%), synced like the conditions. `GameState.get_market_multiplier(strain_id)`,
+  `server_set_market(dict)`, signal `market_changed`. The supply card shows the day's deposit value with an arrow.
+- **A run that builds.** Strains unlock by shift (`SeedDef.unlock_round`: Budget, Purple, Creeper at 1; Golden at 2;
+  Night Shift at 3; Floor Brick at 4): a locked card reads "From shift 3". Event gaps shrink by
+  `event_gap_shrink_per_round` per shift (floor at half).
+- HUD: the active conditions as short chips under the payment bar; `GameState.get_shift_briefing() -> Array[String]`
+  (conditions, the market's best and worst strain, new unlocks) for the alley board.
+- Suites `replay` (+83) and `replay_mp` (+84), both with `--replay`.
+
+### Career (career agent) — scripts/core/career.gd (autoload), game_state.gd region, hud.gd region
+- **Contracts.** One optional job per shift from a catalog of at least eight (deposit N cured bundles, deposit N of
+  one strain, finish with no write-ups on the floor, burn a hostile plant, patch a leak within ten seconds, nobody
+  knocked down in a drive-by, harvest N trays in the grow hall, finish with more than X cash on hand). Rolled by the
+  host with the conditions, synced (`GameState.contract: Dictionary` with id, text, goal, progress, reward, done),
+  progress counted on the host from existing signals and stats, paid `contract_reward` into cash on hand the moment
+  it is met (`Const.STAT_CONTRACTS` for the floor), a toast and a flat Boss line. A HUD line shows it with progress.
+  `GameState.server_set_contract(id)` for tests, signal `contract_changed`.
+- **Career file** (local, per player, `user://career.cfg`; `--career-file=<path>` for tests; never synced): shifts
+  worked, best shift reached, total deposited, contracts met, plants burnt, times bitten / shot / sent to the back
+  room, each strain's deposits. Updated at the end of every shift from this peer's own stats. `Career.get_record(key)`,
+  `Career.get_summary_lines() -> Array[String]`, `Career.get_title() -> String` (a flat job title that follows the
+  best shift reached: "New hire", "Floor hand", "Lead hand", ...; shown next to the player's name in the WORKERS list
+  to everyone: the title is the one thing that is sent, with the name registration or a small RPC).
+- The pause menu gets a "Record" page listing the career lines; `Career.get_summary_lines()` is also what the alley
+  board shows under the last shift (the alley agent reads it through `has_method` guards).
+- Suites `career` (+85) and `career_mp` (+86), both with `--replay`.

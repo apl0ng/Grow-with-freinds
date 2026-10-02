@@ -22,6 +22,7 @@ const ITEM_WATERING_CAN: StringName = &"watering_can"
 const ITEM_SEED_PACKET: StringName = &"seed_packet"
 const ITEM_PRODUCT: StringName = &"product"
 const ITEM_FLAMETHROWER: StringName = &"flamethrower"   # M12: the emergency cabinet's weapon, props {"fuel": float, "firing": bool}
+const ITEM_BALL: StringName = &"ball"                   # M15: the alley ball (an ordinary throwable item)
 
 # --- Upgrade effect keys (UpgradeDef.effect_key) ---
 const EFFECT_GROWTH_SPEED: StringName = &"growth_speed"   # multiplier bonus: growth rate *= 1 + total
@@ -45,6 +46,7 @@ const STAT_BURNS: StringName = &"burns"           # M12: hostile plants this wor
 const STAT_SHOT: StringName = &"shot"             # M14: times knocked down by gunfire in a drive-by
 const STAT_SLIPS: StringName = &"slips"           # M14: slips in the tank puddle
 const STAT_CURED: StringName = &"cured"           # M14: cured bundles this worker deposited
+const STAT_CONTRACTS: StringName = &"contracts"   # M15: contracts met this shift (counted for the host peer: the floor)
 
 # --- M10: write-up reasons (GameState.server_write_up) ---
 const WRITE_UP_SKIMMING: String = "skimming"     # carrying product in the Boss's sight
@@ -53,6 +55,7 @@ const WRITE_UP_OTHER: String = "other"
 const WRITE_UP_ARSON: String = "arson"           # M12: burnt a crop or a worker with no hostile plant near
 const WRITE_UP_MISUSE: String = "misuse"         # M12: broke the emergency cabinet with nothing on the floor
 const WRITE_UP_ABSENT: String = "absent"         # M12: missed the head count
+const WRITE_UP_RAID: String = "raid"             # M15: holding a bundle when the raid looks at you
 
 # --- M10: UI lock source used while a worker sits in the back room (Game.set_ui_lock) ---
 const UI_LOCK_BACKROOM: StringName = &"backroom"

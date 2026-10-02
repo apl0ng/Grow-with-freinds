@@ -32,6 +32,7 @@ Hostiles="*res://scripts/core/hostiles.gd"
 Comms="*res://scripts/core/comms.gd"
 Lan="*res://scripts/core/lan.gd"
 WindowsFirewall="*res://scripts/core/windows_firewall.gd"
+Career="*res://scripts/core/career.gd"
 
 [audio]
 

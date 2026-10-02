@@ -30,3 +30,5 @@ extends Resource
 @export var counted: bool = false
 ## One or two words for the supply card ("Thirsty.", "Heavy."); "" = no trait.
 @export var trait_text: String = ""
+## M15: the first shift this strain is sold in (1 = always; a locked card reads "From shift N"). Only with replay on.
+@export var unlock_round: int = 1

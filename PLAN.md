@@ -286,3 +286,16 @@ Asked for by the user on 2026-10-02 (brainstorm + build): FRIENDSLOP.md section 
 | 14.4 | Strain traits (thirsty, counted, grows in the dark, spreads, heavy) on the six strains, drying racks with cured bundles; loop + loop_mp suites | loop | done (238 + 66 checks) |
 | 14.5 | Footsteps: one per human stride, three variants, crouch quieter, a landing thud | lead | done |
 | 14.6 | Integration: merges, racks moved into the hall, van model on the dock, test_all registration, README, a visual pass, full run, export | lead | done (66 suites, 11959 checks green; export re-cut) |
+
+## M15 Replayability: conditions and a market, contracts and a career, three more events, the economy, the alley (in progress, 2026-10-02)
+Asked for by the user on 2026-10-02 ("keep going", then "refine gameplay, I want good replayability"):
+FRIENDSLOP.md section 9, CONTRACTS.md "M15".
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 15.0 | Prep: Config.replay_enabled, Const (raid write-up, ball, contracts stat), BalanceConfig groups (Mayhem 2, Replay), SeedDef.unlock_round, Sfx names, Career autoload stub | lead | done |
+| 15.1 | Events: the raid, the sprinklers, the collector; weights for twelve kinds; mayhem2 + mayhem2_mp suites | mayhem2 | in progress |
+| 15.2 | A model of a shift (econ_sim), the payment due / cure time / Purple Haze / Golden Kush retuned from it; economy suite | economy | in progress |
+| 15.3 | The alley: a ball, a hoop with a counter, the board (last shift, briefing, career); alley + alley_mp suites | alley | in progress |
+| 15.4 | Shift conditions (ten or more), the market, strains unlocking by shift, event gaps shrinking; replay + replay_mp suites | replay | in progress |
+| 15.5 | Contracts (eight or more), the career file, job titles, the Record page; career + career_mp suites | career | in progress |
+| 15.6 | Integration: merges, test_all registration, captures in the real renderer, README, full run, export | lead | pending |
