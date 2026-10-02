@@ -1,0 +1,84 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/van.gd" id="1_van"]
+[ext_resource type="PackedScene" path="res://art/models/van.glb" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(2, 0.45, 2.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall"]
+size = Vector3(0.1, 2.07, 2.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_roof"]
+size = Vector3(2, 0.1, 2.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cab"]
+size = Vector3(2.1, 2.52, 2.04)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ramp"]
+size = Vector3(1.8, 0.1, 0.918)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_door"]
+size = Vector3(0.06, 1.95, 0.9)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cargo"]
+size = Vector3(1.8, 2.2, 2.8)
+
+[node name="Van" type="Node3D"]
+script = ExtResource("1_van")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+tint = Color(0.79, 0.78, 0.74, 1)
+outline_width = 0.02
+
+[node name="Body" type="StaticBody3D" parent="."]
+collision_mask = 0
+
+[node name="Floor" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.225, -0.65)
+shape = SubResource("BoxShape3D_floor")
+
+[node name="WallLeft" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.95, 1.485, -0.65)
+shape = SubResource("BoxShape3D_wall")
+
+[node name="WallRight" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 1.485, -0.65)
+shape = SubResource("BoxShape3D_wall")
+
+[node name="Roof" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.47, -0.65)
+shape = SubResource("BoxShape3D_roof")
+
+[node name="Cab" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.26, -3.07)
+shape = SubResource("BoxShape3D_cab")
+
+[node name="Ramp" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 0.871576, -0.490261, 0, 0.490261, 0.871576, 0, 0.181421, 1.125487)
+shape = SubResource("BoxShape3D_ramp")
+
+[node name="DoorLeft" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, -1.046, 1.445, 1.215)
+shape = SubResource("BoxShape3D_door")
+
+[node name="DoorRight" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 1.046, 1.445, 1.215)
+shape = SubResource("BoxShape3D_door")
+
+[node name="CargoVolume" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+
+[node name="Shape" type="CollisionShape3D" parent="CargoVolume"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, -0.65)
+shape = SubResource("BoxShape3D_cargo")
+
+[node name="DomeLight" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.15, -0.7)
+light_color = Color(1, 0.823529, 0.603922, 1)
+light_energy = 0.9
+light_specular = 0.1
+omni_range = 3.4

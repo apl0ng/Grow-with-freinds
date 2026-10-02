@@ -1,0 +1,331 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/lobby.gd" id="1_lobby"]
+[ext_resource type="PackedScene" path="res://scenes/world/van.tscn" id="2_van"]
+[ext_resource type="Script" path="res://scenes/world/props/segment_run.gd" id="3_segment_run"]
+[ext_resource type="PackedScene" path="res://art/models/floor_slab.glb" id="4_floor_a"]
+[ext_resource type="PackedScene" path="res://art/models/floor_slab_b.glb" id="5_floor_b"]
+[ext_resource type="PackedScene" path="res://art/models/floor_slab_drain.glb" id="6_floor_drain"]
+[ext_resource type="Material" path="res://art/materials/toon_concrete_dark.tres" id="7_concrete_dark"]
+[ext_resource type="Material" path="res://art/materials/toon_olive.tres" id="8_olive"]
+[ext_resource type="Material" path="res://art/materials/toon_dark.tres" id="9_dark"]
+[ext_resource type="Material" path="res://art/materials/toon_metal_dark.tres" id="10_metal_dark"]
+[ext_resource type="Material" path="res://art/materials/toon_caution.tres" id="11_caution"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/oil_drum.tscn" id="12_oil_drum"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/crate.tscn" id="13_crate"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/pallet.tscn" id="14_pallet"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/sign_board.tscn" id="15_sign_board"]
+[ext_resource type="PackedScene" path="res://art/models/backroom_door.glb" id="16_door"]
+[ext_resource type="Material" path="res://art/materials/toon_rust.tres" id="17_rust"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(14, 1, 19)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall_ns"]
+size = Vector3(12, 14, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall_ew"]
+size = Vector3(1, 14, 17)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wall_ns"]
+size = Vector3(10.8, 6, 0.4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wall_ew"]
+size = Vector3(0.4, 6, 15)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_pole"]
+top_radius = 0.07
+bottom_radius = 0.09
+height = 5
+radial_segments = 12
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_pole_base"]
+top_radius = 0.13
+bottom_radius = 0.2
+height = 0.7
+radial_segments = 12
+rings = 1
+
+[sub_resource type="BoxMesh" id="BoxMesh_arm"]
+size = Vector3(1.5, 0.08, 0.08)
+
+[sub_resource type="BoxMesh" id="BoxMesh_head"]
+size = Vector3(0.66, 0.14, 0.32)
+
+[sub_resource type="BoxMesh" id="BoxMesh_glow"]
+size = Vector3(0.52, 0.02, 0.22)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_glow"]
+shading_mode = 0
+albedo_color = Color(1, 0.78, 0.5, 1)
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_pole"]
+height = 5
+radius = 0.14
+
+[sub_resource type="BoxMesh" id="BoxMesh_bin"]
+size = Vector3(0.7, 1.05, 0.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_bin_lid"]
+size = Vector3(0.78, 0.07, 0.88)
+
+[sub_resource type="BoxMesh" id="BoxMesh_bin_band"]
+size = Vector3(0.72, 0.12, 0.82)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_bin"]
+size = Vector3(0.74, 1.12, 0.84)
+
+[node name="Lobby" type="Node3D"]
+script = ExtResource("1_lobby")
+
+[node name="Floor" type="StaticBody3D" parent="."]
+collision_mask = 0
+
+[node name="SlabsNorth" type="MultiMeshInstance3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0, -5)
+cast_shadow = 0
+script = ExtResource("3_segment_run")
+model = ExtResource("5_floor_b")
+count = 2
+step = 5.0
+flip_alternate = true
+
+[node name="SlabDrain" type="MultiMeshInstance3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0, 0)
+cast_shadow = 0
+script = ExtResource("3_segment_run")
+model = ExtResource("6_floor_drain")
+count = 1
+step = 5.0
+
+[node name="SlabMid" type="MultiMeshInstance3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0, 0)
+cast_shadow = 0
+script = ExtResource("3_segment_run")
+model = ExtResource("4_floor_a")
+count = 1
+step = 5.0
+
+[node name="SlabsSouth" type="MultiMeshInstance3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0, 5)
+cast_shadow = 0
+script = ExtResource("3_segment_run")
+model = ExtResource("4_floor_a")
+count = 2
+step = 5.0
+flip_alternate = true
+
+[node name="Shape" type="CollisionShape3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+shape = SubResource("BoxShape3D_floor")
+
+[node name="Walls" type="StaticBody3D" parent="."]
+collision_mask = 0
+
+[node name="North" type="MeshInstance3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, -7.7)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_wall_ns")
+material_override = ExtResource("7_concrete_dark")
+
+[node name="South" type="MeshInstance3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 7.7)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_wall_ns")
+material_override = ExtResource("7_concrete_dark")
+
+[node name="West" type="MeshInstance3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.2, 3, 0)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_wall_ew")
+material_override = ExtResource("7_concrete_dark")
+
+[node name="East" type="MeshInstance3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.2, 3, 0)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_wall_ew")
+material_override = ExtResource("7_concrete_dark")
+
+[node name="Bricks" type="MultiMeshInstance3D" parent="Walls"]
+cast_shadow = 0
+
+[node name="ShapeNorth" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7, -8)
+shape = SubResource("BoxShape3D_wall_ns")
+
+[node name="ShapeSouth" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7, 8)
+shape = SubResource("BoxShape3D_wall_ns")
+
+[node name="ShapeWest" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 7, 0)
+shape = SubResource("BoxShape3D_wall_ew")
+
+[node name="ShapeEast" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 7, 0)
+shape = SubResource("BoxShape3D_wall_ew")
+
+[node name="Sky" type="Node3D" parent="."]
+
+[node name="Spawns" type="Node3D" parent="."]
+
+[node name="Spawn1" type="Marker3D" parent="Spawns"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0.2, 4.4)
+
+[node name="Spawn2" type="Marker3D" parent="Spawns"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.2, 4.4)
+
+[node name="Spawn3" type="Marker3D" parent="Spawns"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.8, 0.2, 4.4)
+
+[node name="Spawn4" type="Marker3D" parent="Spawns"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.8, 0.2, 4.4)
+
+[node name="Van" parent="." instance=ExtResource("2_van")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.9, 0, -3.3)
+
+[node name="Lights" type="Node3D" parent="."]
+
+[node name="MoonFill" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 4.2, 4)
+light_color = Color(0.72549, 0.784314, 0.901961, 1)
+light_energy = 0.55
+light_specular = 0
+omni_range = 9
+
+[node name="Decor" type="Node3D" parent="."]
+
+[node name="StreetLamp" type="StaticBody3D" parent="Decor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.4, 0, -1.4)
+collision_mask = 0
+
+[node name="Pole" type="MeshInstance3D" parent="Decor/StreetLamp"]
+transform = Transform3D(0.999391, -0.034899, 0, 0.034899, 0.999391, 0, 0, 0, 1, 0, 2.5, 0)
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_pole")
+material_override = ExtResource("10_metal_dark")
+
+[node name="Base" type="MeshInstance3D" parent="Decor/StreetLamp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_pole_base")
+material_override = ExtResource("17_rust")
+
+[node name="Arm" type="MeshInstance3D" parent="Decor/StreetLamp"]
+transform = Transform3D(0.997564, 0.069756, 0, -0.069756, 0.997564, 0, 0, 0, 1, 0.6, 4.93, 0)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_arm")
+material_override = ExtResource("10_metal_dark")
+
+[node name="Head" type="MeshInstance3D" parent="Decor/StreetLamp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.42, 4.84, 0)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_head")
+material_override = ExtResource("10_metal_dark")
+
+[node name="Glow" type="MeshInstance3D" parent="Decor/StreetLamp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.42, 4.762, 0)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_glow")
+material_override = SubResource("StandardMaterial3D_glow")
+
+[node name="Light" type="SpotLight3D" parent="Decor/StreetLamp"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 1.42, 4.7, 0)
+light_color = Color(1, 0.74, 0.44, 1)
+light_energy = 4.2
+light_specular = 0.2
+spot_range = 10.5
+spot_attenuation = 0.8
+spot_angle = 58
+spot_angle_attenuation = 0.7
+
+[node name="Shape" type="CollisionShape3D" parent="Decor/StreetLamp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+shape = SubResource("CylinderShape3D_pole")
+
+[node name="Bin1" type="StaticBody3D" parent="Decor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.4, 0, 1.6)
+collision_mask = 0
+
+[node name="Body" type="MeshInstance3D" parent="Decor/Bin1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.525, 0)
+mesh = SubResource("BoxMesh_bin")
+material_override = ExtResource("8_olive")
+
+[node name="Band" type="MeshInstance3D" parent="Decor/Bin1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.92, 0)
+mesh = SubResource("BoxMesh_bin_band")
+material_override = ExtResource("10_metal_dark")
+
+[node name="Lid" type="MeshInstance3D" parent="Decor/Bin1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.085, 0)
+mesh = SubResource("BoxMesh_bin_lid")
+material_override = ExtResource("9_dark")
+
+[node name="Shape" type="CollisionShape3D" parent="Decor/Bin1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+shape = SubResource("BoxShape3D_bin")
+
+[node name="Bin2" type="StaticBody3D" parent="Decor"]
+transform = Transform3D(0.978148, 0, 0.207912, 0, 1, 0, -0.207912, 0, 0.978148, -4.3, 0, 2.75)
+collision_mask = 0
+
+[node name="Body" type="MeshInstance3D" parent="Decor/Bin2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.525, 0)
+mesh = SubResource("BoxMesh_bin")
+material_override = ExtResource("8_olive")
+
+[node name="Band" type="MeshInstance3D" parent="Decor/Bin2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.92, 0)
+mesh = SubResource("BoxMesh_bin_band")
+material_override = ExtResource("17_rust")
+
+[node name="Lid" type="MeshInstance3D" parent="Decor/Bin2"]
+transform = Transform3D(1, 0, 0, 0, 0.906308, -0.422618, 0, 0.422618, 0.906308, 0, 1.26, -0.2)
+mesh = SubResource("BoxMesh_bin_lid")
+material_override = ExtResource("9_dark")
+
+[node name="Shape" type="CollisionShape3D" parent="Decor/Bin2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+shape = SubResource("BoxShape3D_bin")
+
+[node name="Bin3" type="StaticBody3D" parent="Decor"]
+transform = Transform3D(0.34202, -0.939693, 0, 0, 0, -1, 0.939693, 0.34202, 0, -3.2, 0.4, 5.9)
+collision_mask = 0
+
+[node name="Body" type="MeshInstance3D" parent="Decor/Bin3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.525, 0)
+mesh = SubResource("BoxMesh_bin")
+material_override = ExtResource("8_olive")
+
+[node name="Band" type="MeshInstance3D" parent="Decor/Bin3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.92, 0)
+mesh = SubResource("BoxMesh_bin_band")
+material_override = ExtResource("10_metal_dark")
+
+[node name="Shape" type="CollisionShape3D" parent="Decor/Bin3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+shape = SubResource("BoxShape3D_bin")
+
+[node name="OilDrum" parent="Decor" instance=ExtResource("12_oil_drum")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.4, 0, 0.4)
+
+[node name="Pallet" parent="Decor" instance=ExtResource("14_pallet")]
+transform = Transform3D(0.939693, 0, 0.34202, 0, 1, 0, -0.34202, 0, 0.939693, 4.1, 0, 2.3)
+
+[node name="Crate" parent="Decor" instance=ExtResource("13_crate")]
+transform = Transform3D(0.984808, 0, -0.173648, 0, 1, 0, 0.173648, 0, 0.984808, 4.25, 0.15, 2.35)
+
+[node name="VanSign" parent="Decor" instance=ExtResource("15_sign_board")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.6, 2.7, -7.43)
+text = "EVERYONE
+IN THE VAN"
+board_size = Vector2(2.6, 1.5)
+font_size = 110
+text_color = Color(0.18, 0.165, 0.24, 1)
+outline_color = Color(0.97, 0.9, 0.62, 1)
+board_material = ExtResource("11_caution")
+
+[node name="BackDoor" parent="Decor" instance=ExtResource("16_door")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.6, 0, 7.44)

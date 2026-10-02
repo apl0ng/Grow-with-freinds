@@ -420,19 +420,149 @@ func request_start_round() -> void:
 	if not is_local_host():
 		return
 	if phase == Phase.WAITING or phase == Phase.MENU:
+		if Config.lobby_enabled: # M14 lobby: the host's Enter leaves without waiting for stragglers
+			server_begin_shift_from_lobby() # M14 lobby
+			return # M14 lobby
 		server_start_round()
 
 func request_next_round() -> void:
 	if not is_local_host():
 		return
 	if phase == Phase.ROUND_SUCCESS:
+		if Config.lobby_enabled: # M14 lobby: back to the alley, the next shift starts from the van
+			server_return_to_lobby(false) # M14 lobby
+			return # M14 lobby
 		server_start_round()
 
 func request_retry() -> void:
 	if not is_local_host():
 		return
 	if phase != Phase.MENU:
+		if Config.lobby_enabled: # M14 lobby: the reset happens in the dark, everyone wakes up in the alley
+			server_return_to_lobby(true) # M14 lobby
+			return # M14 lobby
 		server_reset_game()
+
+
+# --- M14 lobby -----------------------------------------------------------------------------------------------
+# The van ride and the way back (FRIENDSLOP 8.1, CONTRACTS "Lobby + van"). With Config.lobby_enabled workers wait in
+# the alley (World/Lobby) while the phase is WAITING. A transition is: the host tells every peer (_rpc_transition ->
+# transition_started: the HUD fades to black over `seconds`, holds TRANSITION_HOLD_SEC, fades back in), waits until
+# the screens are black (`seconds` + half the hold), then does the work in the dark:
+#   to_floor  every worker to Room.get_arrival_transform(spawn_index), then server_start_round()
+#   to_lobby  what the workers carry stays on the floor; the state becomes what the old path would have at the start
+#             of the next shift (NEXT SHIFT: round + 1, its payment, the money carried over or not, a fresh ledger;
+#             START OVER: server_reset_game()) but in WAITING; every worker to the alley
+# One transition at a time: requests made while one runs are ignored. reset_local() cancels a pending one.
+
+## Every peer: the screen goes black for a ride. `kind` is TRANSITION_TO_FLOOR or TRANSITION_TO_LOBBY, `seconds` the
+## length of the fade to black (the same again back in, with TRANSITION_HOLD_SEC of black in between).
+signal transition_started(kind: StringName, seconds: float)
+
+const TRANSITION_TO_FLOOR: StringName = &"to_floor"
+const TRANSITION_TO_LOBBY: StringName = &"to_lobby"
+## Seconds every screen stays black between the fade out and the fade in (the host moves the workers half way in).
+const TRANSITION_HOLD_SEC: float = 0.3
+
+## HOST: the transition that is running (&"" = none).
+var _transition: StringName = &""
+var _transition_token: int = 0
+
+## True on the host while a ride is under way (between _rpc_transition and the work done in the dark).
+func is_transitioning() -> bool:
+	return _transition != &""
+
+## HOST. The van leaves: fade, every worker to the loading dock, then server_start_round(). WAITING only (from MENU
+## the session is initialised first); ignored while another transition runs. The van calls it when everyone is in;
+## the host's Enter (request_start_round) calls it without waiting for stragglers.
+func server_begin_shift_from_lobby() -> void:
+	if not _require_server("server_begin_shift_from_lobby"):
+		return
+	if phase == Phase.MENU:
+		server_reset_game()
+	if phase != Phase.WAITING or _transition != &"":
+		return
+	_begin_transition(TRANSITION_TO_FLOOR, false)
+
+## HOST. After a shift: fade, then everyone is back in the alley and the game waits (WAITING) for the van again.
+## reset = false (NEXT SHIFT, ROUND_SUCCESS only): the next shift's round number / payment / money, as
+## server_start_round() would set them. reset = true (START OVER, any live phase): server_reset_game().
+func server_return_to_lobby(reset: bool) -> void:
+	if not _require_server("server_return_to_lobby"):
+		return
+	if phase == Phase.MENU or _transition != &"":
+		return
+	if not reset and phase != Phase.ROUND_SUCCESS:
+		push_warning("GameState.server_return_to_lobby: ignored in phase %s" % get_phase_name())
+		return
+	_begin_transition(TRANSITION_TO_LOBBY, reset)
+
+func _begin_transition(kind: StringName, reset: bool) -> void:
+	var seconds := maxf(Config.balance.transition_fade_sec, 0.0)
+	_transition = kind
+	_transition_token += 1
+	_rpc_transition.rpc(kind, seconds)
+	get_tree().create_timer(seconds + TRANSITION_HOLD_SEC * 0.5, true).timeout.connect(
+			_finish_transition.bind(kind, reset, _transition_token))
+
+## HOST, in the dark: the work of a transition (see the region header).
+func _finish_transition(kind: StringName, reset: bool, token: int) -> void:
+	if token != _transition_token or _transition != kind:
+		return # cancelled (back to the menu) or superseded
+	_transition = &""
+	if phase == Phase.MENU or not (multiplayer.has_multiplayer_peer() and multiplayer.is_server()):
+		return
+	var w: World = Game.world
+	if w != null and not (is_instance_valid(w) and w.is_inside_tree()):
+		w = null
+	if kind == TRANSITION_TO_FLOOR:
+		if phase != Phase.WAITING and phase != Phase.PLAYING:
+			return
+		if w != null:
+			w.server_move_players_to_floor()
+		if phase == Phase.WAITING:
+			server_start_round()
+		return
+	if reset:
+		# The reset first: it empties the back room, and Events walks a released worker to a room spawn. The move to
+		# the alley has to be the last word.
+		server_reset_game()
+		if w != null:
+			w.server_move_players_to_lobby()
+	elif phase == Phase.ROUND_SUCCESS:
+		if w != null:
+			w.server_move_players_to_lobby()
+		_server_wait_for_next_shift()
+
+## HOST: ROUND_SUCCESS -> WAITING with everything server_start_round() would set for the next shift except the
+## phase, so the shift the van starts later (WAITING -> PLAYING, round number kept) is exactly the old next shift.
+func _server_wait_for_next_shift() -> void:
+	var s := _snapshot()
+	var next_round := round_number + 1
+	s["phase"] = Phase.WAITING
+	s["round"] = next_round
+	if not Config.balance.carry_over_money:
+		s["money"] = Config.balance.starting_money
+	s["quota"] = get_quota_for(next_round)
+	s["sales"] = 0
+	s["time"] = Config.balance.round_length_sec
+	s["serial"] = _serial + 1
+	s["stats"] = {}
+	s["write_ups"] = {}
+	s["backroom"] = {}
+	_time_sync_accum = 0.0
+	_rpc_state.rpc(s)
+
+func _cancel_transition() -> void:
+	_transition = &""
+	_transition_token += 1
+
+## Host -> every peer (the host through call_local): a ride begins.
+@rpc("authority", "call_local", "reliable")
+func _rpc_transition(kind: StringName, seconds: float) -> void:
+	transition_started.emit(kind, clampf(seconds, 0.0, 10.0) if is_finite(seconds) else 0.0)
+
+# --- end M14 lobby ---------------------------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------------------------
@@ -445,6 +575,7 @@ func reset_local() -> void:
 	_serial = 0
 	_time_sync_accum = 0.0
 	_has_state = false
+	_cancel_transition() # M14 lobby
 	var s := {
 		"phase": Phase.MENU, "money": 0, "round": 1, "quota": 0, "sales": 0,
 		"time": 0.0, "upgrades": {}, "serial": 0, "stats": {}, "write_ups": {}, "backroom": {},
