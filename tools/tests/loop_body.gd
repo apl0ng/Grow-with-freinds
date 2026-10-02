@@ -501,11 +501,17 @@ func _test_rack(b: BalanceConfig) -> void:
 	check(bundle.get_label_text() == "Purple Haze x1", "its label is the plain one ('%s')" % bundle.get_label_text())
 
 	step("drying rack: hang through the interact request")
+	var at_release := {"seen": false, "rack": false}
+	bundle.holder_changed.connect(func(_old: int, new_holder: int) -> void:
+		if new_holder == 0 and not at_release["seen"]:
+			at_release["seen"] = true
+			at_release["rack"] = bundle.rack)
 	rack1.interact(me)
 	await wait_until(func() -> bool: return bundle.holder_id == 0, 2.0, "the bundle left my hands")
 	await wait_frames(1)
 	var hook0 := rack1.get_hook_position(0)
 	check(bundle.rack and is_equal_approx(bundle.dry_left, b.cure_sec) and not bundle.cured, "rack = true, dry_left = %.1f" % bundle.dry_left)
+	check(at_release["seen"] and at_release["rack"], "`rack` was set before the hand let go (the release plays rack_hang, not the floor thud)")
 	check(bundle.global_position.distance_to(hook0) < 0.001 and bundle.rest_position.distance_to(hook0) < 0.001, "it rests exactly at hook 1 (%s)" % bundle.global_position)
 	check(absf(bundle.rotation.x) < 0.001 and absf(bundle.rotation.z) < 0.001 and absf(angle_difference(bundle.rotation.y, rack1.global_rotation.y)) < 0.001,
 			"upright, turned to the rack's front (%s)" % bundle.rotation)

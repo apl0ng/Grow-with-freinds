@@ -77,6 +77,7 @@ func _host_main() -> void:
 	var r := await await_ack(seq, 30.0)
 	check(bool(r.get("prompt_ok", false)), "Alpha saw the 'Hang to dry' prompt")
 	check(bool(r.get("hung", false)) and bool(r.get("on_hook", false)), "Alpha saw the bundle on hook 1 (its own rack reads the hook as taken)")
+	check(bool(r.get("rack_at_release", false)), "on Alpha's copy `rack` was set before the hand let go (the hang sound, not the floor thud)")
 	var seen: Array = r.get("dry_seen", [])
 	check(seen.size() >= 3, "Alpha saw dry_left change at least three times %s" % [seen])
 	var falling := true
@@ -195,9 +196,17 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 				info["prompt_ok"] = rack.can_interact(me) and rack.get_prompt(me) == "Hang to dry"
 				check(bool(info["prompt_ok"]), "prompt 'Hang to dry' with the bundle in hand")
 				var fresh: Color = (bundle.get(&"_tint") as StandardMaterial3D).albedo_color
+				# What this peer knew at the instant the bundle left the hand: `rack` must already be set (it is synced
+				# ahead of holder_id), or the release would sound like a drop on the floor.
+				var at_release := {"seen": false, "rack": false}
+				bundle.holder_changed.connect(func(_old: int, new_holder: int) -> void:
+					if new_holder == 0 and not at_release["seen"]:
+						at_release["seen"] = true
+						at_release["rack"] = bundle.rack)
 				rack.interact(me)
 				info["hung"] = await wait_until_quiet(func() -> bool: return bundle.rack and bundle.holder_id == 0, 8.0)
 				check(bool(info["hung"]), "the bundle hangs on my copy")
+				info["rack_at_release"] = bool(at_release["seen"]) and bool(at_release["rack"])
 				info["on_hook"] = rack.get_hook_item(0) == bundle and bundle.global_position.distance_to(rack.get_hook_position(0)) < 0.001 \
 						and rack.get_free_hook() == 1
 				var tag := bundle.get_node(^"AmountLabel") as Label3D
