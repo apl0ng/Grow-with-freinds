@@ -169,6 +169,19 @@ func _test_eat(b: BalanceConfig) -> void:
 	check(plot2.stage == GrowPlot.Stage.EMPTY and plot2.strain_id == &"", "at zero the crop is lost")
 	check(_ate.size() == 1 and _ate[0] == [h.id, 2], "hostile_ate(id, 2) %s" % [_ate])
 	check(h.state == HostilePlant.State.ROAM, "back to roaming")
+	# M13: a fresh seedling (progress 0) is not gone on the first tick: the plant eats for at least MIN_EAT_SEC.
+	check(plot2.server_plant(_strain.id) and plot2.server_water(1.0), "GrowPlot2 replanted")
+	plot2.stage_progress = 0.0
+	var waited := 0.0
+	while h.state != HostilePlant.State.EAT and waited < 6.0:
+		Hostiles.tick(0.2)
+		waited += 0.2
+	check(h.state == HostilePlant.State.EAT and h.get_target_plot() == plot2, "it eats the seedling (after %.1f s)" % waited)
+	Hostiles.tick(1.0)
+	check(plot2.stage != GrowPlot.Stage.EMPTY and _ate.size() == 1, "a seedling with no progress is still there after 1 s of eating (MIN_EAT_SEC %.0f s)" % HostilePlant.MIN_EAT_SEC)
+	Hostiles.tick(HostilePlant.MIN_EAT_SEC)
+	await wait_frames(1)
+	check(plot2.stage == GrowPlot.Stage.EMPTY and _ate.size() == 2 and _ate[1] == [h.id, 2], "gone after MIN_EAT_SEC %s" % [_ate])
 	Hostiles.tick(1.5)
 	check(h.state == HostilePlant.State.ROAM and h.is_inside_tree() and _room.get_bounds().grow(0.1).has_point(h.global_position + Vector3.UP), "wanders inside the room with nothing to eat")
 
