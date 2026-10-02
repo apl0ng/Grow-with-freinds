@@ -614,6 +614,8 @@ func _event_title() -> String:
 			return TEXT_EVENT_WATER_OFF
 		&"shortage":
 			return TEXT_EVENT_SHORTAGE
+		&"leak", &"driveby":  # M14 mayhem
+			return _mayhem_event_title(_event_kind)
 	return String(_event_kind).to_upper().replace("_", " ")
 
 
@@ -634,7 +636,27 @@ func _event_hint() -> String:
 			var def: SeedDef = Config.balance.get_seed(strain) if strain != &"" else null
 			var who := def.display_name if def != null else (String(strain).capitalize() if strain != &"" else "Stock")
 			return TEXT_EVENT_SHORTAGE_HINT % who
+		&"leak", &"driveby":  # M14 mayhem
+			return _mayhem_event_hint(_event_kind)
 	return ""
+
+
+# --- M14 mayhem: the leak and the drive-by on the banner ----------------------------------------------------------
+const TEXT_EVENT_LEAK := "LEAK"
+const TEXT_EVENT_LEAK_HINT := "Hold %s on the tank."
+const TEXT_EVENT_DRIVEBY := "DRIVE-BY"
+const TEXT_EVENT_DRIVEBY_HINT := "Get down."
+
+
+func _mayhem_event_title(kind: StringName) -> String:
+	return TEXT_EVENT_DRIVEBY if kind == &"driveby" else TEXT_EVENT_LEAK
+
+
+func _mayhem_event_hint(kind: StringName) -> String:
+	if kind == &"driveby":
+		return TEXT_EVENT_DRIVEBY_HINT
+	return TEXT_EVENT_LEAK_HINT % action_key_text(&"interact", "E")
+# --- end M14 mayhem ----------------------------------------------------------------------------------------------
 
 
 func _update_event_countdown() -> void:

@@ -929,6 +929,57 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_tone(b, 0.0, 0.5, 110.0, 60.0, 0.2, Wave.SINE, 0.01, 4.0)
 			_lowpass(b, 0.55)
 			_fade_out(b, 0.05)
+		# --- M14 mayhem --- the leak and the drive-by (dull, from outside or from the floor; nothing heroic) ------
+		&"leak":   # loop: water under pressure through a small hole: a thin hiss, a low drumming on the concrete
+			b = _buf(0.8)
+			_noise(b, rng, 0.0, 0.8, 0.5, 0.65, 0.25, 0.0, 0.0)                    # the jet
+			_noise(b, rng, 0.0, 0.8, 0.3, 0.2, 0.04, 0.0, 0.0)                     # where it lands
+			_cycles(b, 56, 0.08, 4, 0.5)                                             # 70 Hz drumming, whole cycles = seamless
+			for t: float in [0.11, 0.37, 0.58]:                                      # drips that die before the join
+				_tone(b, t, 0.05, 520.0, 1100.0, 0.12, Wave.SINE, 0.004, 3.0)
+			_lowpass(b, 0.6)
+		&"slip":   # a sole losing the floor: a short wet squeak, then the worker arrives
+			b = _buf(0.5)
+			_tone(b, 0.0, 0.12, 700.0, 1500.0, 0.35, Wave.TRIANGLE, 0.01, 2.0, 40.0, 0.04)   # squeak
+			_noise(b, rng, 0.0, 0.14, 0.3, 0.5, 0.15, 0.01, 3.0)                    # water
+			_tone(b, 0.2, 0.25, 110.0, 50.0, 0.9, Wave.SINE, 0.002, 5.0)            # the floor
+			_noise(b, rng, 0.2, 0.1, 0.4, 0.15, 0.02, 0.002, 6.0)
+			_lowpass(b, 0.5)
+			_fade_out(b, 0.03)
+		&"tires":  # outside, through a wall: an engine coming up fast, the tyres let go, it rocks to a stop
+			b = _buf(2.2)
+			_tone(b, 0.0, 1.6, 55.0, 95.0, 0.5, Wave.SAW, 0.3, 0.6, 9.0, 0.04)     # the engine
+			_noise(b, rng, 0.0, 1.6, 0.25, 0.1, 0.01, 0.4, 1.0)                     # the road
+			_tone(b, 1.0, 0.9, 1250.0, 820.0, 0.35, Wave.SAW, 0.05, 2.5, 23.0, 0.03)   # tyres
+			_tone(b, 1.0, 0.9, 1320.0, 880.0, 0.2, Wave.TRIANGLE, 0.05, 2.5, 19.0, 0.03)
+			_noise(b, rng, 1.0, 0.9, 0.3, 0.6, 0.3, 0.05, 2.5)
+			_tone(b, 1.85, 0.2, 80.0, 45.0, 0.5, Wave.SINE, 0.003, 4.0)             # it stops
+			_lowpass(b, 0.3)
+			_fade_out(b, 0.05)
+		&"gunshot":  # from outside: a flat crack, a low thump under it, a short tail off the walls
+			b = _buf(0.45)
+			_noise(b, rng, 0.0, 0.03, 1.0, 0.9, 0.2, 0.0003, 7.0)
+			_tone(b, 0.0, 0.12, 160.0, 50.0, 0.9, Wave.SINE, 0.001, 5.0)
+			_noise(b, rng, 0.02, 0.4, 0.35, 0.25, 0.03, 0.002, 6.0)
+			_lowpass(b, 0.6)
+			_fade_out(b, 0.03)
+		&"ricochet":  # a round into concrete or steel: a tick, a short whine going down, grit
+			b = _buf(0.35)
+			_noise(b, rng, 0.0, 0.015, 0.8, 0.9, 0.4, 0.0003, 8.0)
+			_tone(b, 0.005, 0.28, 2600.0, 900.0, 0.3, Wave.SINE, 0.002, 5.0, 35.0, 0.02)
+			_noise(b, rng, 0.01, 0.15, 0.3, 0.4, 0.1, 0.002, 6.0)
+			_lowpass(b, 0.7)
+			_fade_out(b, 0.03)
+		&"glass_shot":  # a pane takes a round: one crack, a few shards, shorter than the cabinet's glass
+			b = _buf(0.5)
+			_noise(b, rng, 0.0, 0.02, 1.0, 0.95, 0.45, 0.0003, 10.0)
+			var pane_hz := [3900.0, 5200.0, 3100.0, 4500.0]
+			for i in pane_hz.size():
+				var f: float = pane_hz[i]
+				_tone(b, 0.02 + i * 0.05, 0.1, f, f * 0.97, 0.2, Wave.SINE, 0.0008, 9.0)
+			_noise(b, rng, 0.02, 0.3, 0.25, 0.9, 0.55, 0.004, 7.0)
+			_fade_out(b, 0.04)
+		# --- end M14 mayhem ---------------------------------------------------------------------------------------
 		_:
 			b = _buf(0.1)
 			_tone(b, 0.0, 0.08, 600.0, 600.0, 0.5, Wave.SINE, 0.002, 4.0)

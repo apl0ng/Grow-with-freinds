@@ -8,8 +8,8 @@ extends Node
 ##   headless suite keeps its deterministic shifts. Tests that want events pass `--events`.
 ##
 ## Scheduler (host): the first event event_first_delay_sec into a shift, then a gap in [event_gap_min_sec,
-## event_gap_max_sec] after the previous one ended; one at a time; weighted pick (inspection 30 / power cut 20 /
-## audit 10 / rat 10 / head count 15 / water off 10 / shortage 5) that never repeats the previous kind. `tick(delta)`
+## event_gap_max_sec] after the previous one ended; one at a time; weighted pick (inspection 26 / power cut 16 /
+## audit 8 / rat 8 / head count 12 / water off 8 / shortage 6 / leak 8 / drive-by 8) that never repeats the previous kind. `tick(delta)`
 ## drives it (public, so tests can advance time without waiting); `_process` feeds it real time on the host.
 ##
 ## Kinds:
@@ -37,6 +37,21 @@ extends Node
 ##               reads OUT OF STOCK and server_buy_seed refuses it; cleared at the end. The strain is the one planted
 ##               most this shift (GrowPlot has no signal, so the host tick watches the plots turn from EMPTY), the
 ##               most expensive strain when nothing was planted yet.
+## M14 (mayhem agent), the what-the-hell moments (the region at the end of the file):
+##   leak        Well.server_set_leaking(true) on the host: a jet, a spreading puddle, the `leak` loop, the prompt
+##               "Hold E · Patch the leak". A worker's finished hold (Well validates it) ends the event with nothing
+##               lost. When leak_sec runs out unpatched the tank is empty: Well.server_set_pressure(false) for
+##               leak_empty_sec, then the pressure returns by itself; the event ends when the leak ends either way.
+##               The puddle stays puddle_sec after the event. While it lies there the HOST judges every worker's
+##               speed from the synced position: faster than get_slip_speed() on the floor inside it = a slip
+##               (stagger slip_stun_sec, the held item released, STAT_SLIPS), at most one per worker per 3 s.
+##   driveby     driveby_warning_sec of warning (the `tires` sound outside), then driveby_sec of gunfire: every
+##               DRIVEBY_SHOT_INTERVAL the HOST picks a random Room.get_gunfire_lanes() lane, cuts it at the first
+##               LAYER_WORLD hit that is not glass and resolves it (server_fire_lane): a worker within DRIVEBY_WORKER_RADIUS of it who
+##               is not crouching, not in the back room and not stagger-immune is knocked down (twice hit_stun_sec,
+##               item released, STAT_SHOT); a growing tray within DRIVEBY_TRAY_RADIUS loses driveby_tray_loss of stage
+##               progress, once per drive-by. Each shot is one cosmetic RPC. When the timer runs out the floor is
+##               fined driveby_fine, as far as cash on hand goes. A force-ended drive-by bills nobody.
 ## Back room: on GameState.backroom_changed the host moves the body (Player.server_teleport) to the room's
 ## BackRoomSpot and back to its spawn on release (the input lock + overlay are the ui agent's).
 ## Copy: none here (Story owns every line); this file only emits signals and plays placeholder sounds.
@@ -44,7 +59,7 @@ extends Node
 ## Every peer: an event began. params: inspection {"seconds", "speed"}, power_cut {"max_seconds"},
 ## audit {"raise"}, rat {"plot": int (GrowPlot index 1..6), "from": Vector3 (wall gap, global)},
 ## headcount {"seconds", "spot": Vector3 (the line, global), "speed"}, water_off {"seconds"},
-## shortage {"seconds", "strain": StringName}.
+## shortage {"seconds", "strain": StringName}, leak {"seconds"}, driveby {"seconds", "warning"} (M14 mayhem).
 signal event_started(kind: StringName, params: Dictionary)
 ## Every peer: the active event is over (timer, fixed, or the shift ended).
 signal event_ended(kind: StringName)
@@ -62,10 +77,14 @@ const EVENT_RAT: StringName = &"rat"
 const EVENT_HEADCOUNT: StringName = &"headcount"
 const EVENT_WATER_OFF: StringName = &"water_off"
 const EVENT_SHORTAGE: StringName = &"shortage"
-const KINDS: Array[StringName] = [EVENT_INSPECTION, EVENT_POWER_CUT, EVENT_AUDIT, EVENT_RAT, EVENT_HEADCOUNT, EVENT_WATER_OFF, EVENT_SHORTAGE]
-## Scheduler weights (percent, sum 100). The rat only enters the pick while RAT_ENABLED.
-const WEIGHTS: Dictionary = {EVENT_INSPECTION: 30, EVENT_POWER_CUT: 20, EVENT_AUDIT: 10, EVENT_RAT: 10,
-		EVENT_HEADCOUNT: 15, EVENT_WATER_OFF: 10, EVENT_SHORTAGE: 5}
+## M14 (mayhem agent): the tank springs a leak, a drive-by.
+const EVENT_LEAK: StringName = &"leak"
+const EVENT_DRIVEBY: StringName = &"driveby"
+const KINDS: Array[StringName] = [EVENT_INSPECTION, EVENT_POWER_CUT, EVENT_AUDIT, EVENT_RAT, EVENT_HEADCOUNT, EVENT_WATER_OFF, EVENT_SHORTAGE,
+		EVENT_LEAK, EVENT_DRIVEBY]
+## Scheduler weights (percent, sum 100). The rat only enters the pick while RAT_ENABLED. M14 mayhem rebalanced them.
+const WEIGHTS: Dictionary = {EVENT_INSPECTION: 26, EVENT_POWER_CUT: 16, EVENT_AUDIT: 8, EVENT_RAT: 8,
+		EVENT_HEADCOUNT: 12, EVENT_WATER_OFF: 8, EVENT_SHORTAGE: 6, EVENT_LEAK: 8, EVENT_DRIVEBY: 8}
 const RAT_ENABLED := true
 
 const SIGHT_INTERVAL := 0.5
@@ -74,6 +93,8 @@ const SIGHT_CONE_DEG := 120.0
 const CHEST_STANDING := 1.0
 const CHEST_CROUCHED := 0.6
 const LOITER_MOVE := 0.3
+## Slack on the loiter clock (seconds): see _judge.
+const LOITER_EPSILON := 0.001
 const WRITE_UP_COOLDOWN_SEC := 5.0
 const BOSS_WALK_SPEED := 1.6
 const KEYS_INTERVAL := 0.5
@@ -251,10 +272,14 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 					if not GameState.is_in_backroom(player.peer_id):
 						_headcount_roster[player.peer_id] = true
 		EVENT_WATER_OFF:
-			if _well() == null:
+			if _well() == null or _leak_empty_left > 0.0:  # M14 mayhem: an empty tank has no main to turn off
 				return false
 			seconds = maxf(b.water_off_sec, 1.0)
 			p["seconds"] = seconds
+		EVENT_LEAK, EVENT_DRIVEBY:  # M14 mayhem
+			seconds = _mayhem_prepare(kind, p)
+			if seconds <= 0.0:
+				return false
 		EVENT_SHORTAGE:
 			if _counter() == null:
 				return false
@@ -278,6 +303,8 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 		_well().server_set_pressure(false)
 	elif kind == EVENT_SHORTAGE:
 		_counter().server_set_shortage(StringName(p["strain"]))
+	elif kind == EVENT_LEAK:  # M14 mayhem
+		_well().server_set_leaking(true)
 	_rpc_event_started.rpc(kind, p, seconds)
 	if kind == EVENT_AUDIT:
 		# After the banner went out: raising the quota can end the shift at once (sales already cover it),
@@ -319,6 +346,7 @@ func tick(delta: float) -> void:
 	if not _is_host() or delta <= 0.0:
 		return
 	_track_plantings()
+	_mayhem_tick(delta)  # M14 mayhem: the puddle, the slips, the empty tank (they outlive the leak event)
 	if active_event != &"":
 		_time_left = maxf(_time_left - delta, 0.0)
 		match active_event:
@@ -326,6 +354,10 @@ func tick(delta: float) -> void:
 				_tick_inspection(delta)
 			EVENT_RAT:
 				_tick_rat(delta)
+			EVENT_LEAK:  # M14 mayhem
+				_tick_leak(delta)
+			EVENT_DRIVEBY:  # M14 mayhem
+				_tick_driveby(delta)
 			EVENT_HEADCOUNT:
 				_clock += delta
 				if _time_left <= 0.0:
@@ -436,7 +468,9 @@ func _judge(player: Player, w: World) -> void:
 	if pos.distance_to(entry[1]) > LOITER_MOVE:
 		_seen_since[pid] = [_clock, pos]
 		return
-	if _clock - float(entry[0]) >= Config.balance.loiter_sec and _can_write_up(pid):
+	# M14 mayhem (flake fix): the clock is a sum of float steps, so the half-second passes can add up to a hair under
+	# loiter_sec and miss it by one pass (tools/tests/events_body.gd "loitering" failed about one run in three).
+	if _clock - float(entry[0]) >= Config.balance.loiter_sec - LOITER_EPSILON and _can_write_up(pid):
 		_write_up(pid, Const.WRITE_UP_LOITERING)
 		_rpc_spotted.rpc(pid, Const.WRITE_UP_LOITERING)
 		_seen_since[pid] = [_clock, pos]
@@ -577,6 +611,7 @@ func _rpc_event_started(kind: StringName, params: Dictionary, seconds: float) ->
 			_spawn_rat(params, seconds)
 		EVENT_HEADCOUNT:
 			_start_headcount_visuals(params, seconds)
+	_mayhem_on_started(kind, params, seconds)  # M14 mayhem
 	_play_start_sound(kind)
 	event_started.emit(kind, params)
 
@@ -655,6 +690,8 @@ func _on_peer_left(peer_id: int) -> void:
 	_seen_since.erase(peer_id)
 	_last_write_up.erase(peer_id)
 	_backroom_slots.erase(peer_id)
+	_slip_track.erase(peer_id)  # M14 mayhem
+	_last_slip.erase(peer_id)
 
 
 # ------------------------------------------------------------------------------------------------------
@@ -726,6 +763,7 @@ func _reset_local() -> void:
 			boss.return_home()
 	_planted.clear()
 	_plot_strains.clear()
+	_mayhem_reset_local()  # M14 mayhem
 	if not power_on:
 		power_on = true
 		if room != null:
@@ -984,10 +1022,13 @@ func _server_clear_disruption(kind: StringName) -> void:
 			var counter := _counter()
 			if counter != null:
 				counter.server_set_shortage(&"")
+		EVENT_LEAK:  # M14 mayhem: the hole closes, the puddle starts to dry
+			_server_stop_leak()
 
 
 ## Host: the water main on and nothing out of stock, whatever turned them (shift end, reset). No-ops when so.
 func _server_restore_stations() -> void:
+	_mayhem_server_reset()  # M14 mayhem: no leak, no puddle, no empty-tank timer (the pressure is restored below)
 	var well := _well()
 	if well != null and not well.has_pressure():
 		well.server_set_pressure(true)
@@ -1030,6 +1071,8 @@ func _play_start_sound(kind: StringName) -> void:
 				Sfx.play(&"shortage", counter.global_position + Vector3.UP * 1.2)
 			else:
 				Sfx.play(&"shortage")
+		EVENT_DRIVEBY:  # M14 mayhem: the tyres outside are its sound (_mayhem_on_started), no alarm
+			pass
 		_:
 			Sfx.play(&"alarm")
 
@@ -1042,3 +1085,576 @@ func _well() -> Well:
 func _counter() -> ShopCounter:
 	var room := _room()
 	return room.get_station("ShopCounter") as ShopCounter if room != null else null
+
+
+# ------------------------------------------------------------------------------------------------------
+# --- M14 mayhem: the tank springs a leak, a drive-by --------------------------------------------------
+# ------------------------------------------------------------------------------------------------------
+# Everything here is decided on the host. The other peers see the Well's synced leak state, the event packets and
+# the RPCs below (the reliable ones carry what matters: who patched, who slipped, who went down, the bill; a shot's
+# tracer and sounds travel unreliably). Story owns the copy: this file only emits signals and plays sounds.
+
+## Every peer: the leak is over. patched = `by_peer` held the hole shut; not patched = it ran out, the tank is empty.
+signal leak_resolved(patched: bool, by_peer: int)
+## Every peer: the tank has water again after an unpatched leak.
+signal tank_refilled
+## Every peer: `peer_id` slipped in the puddle.
+signal worker_slipped(peer_id: int)
+## Every peer (cosmetic, unreliable): one round went down a lane from `from` to where it stopped, `to` (global).
+signal shot_fired(from: Vector3, to: Vector3)
+## Every peer: gunfire knocked `peer_id` down.
+signal worker_shot(peer_id: int)
+## Every peer: a growing tray took a round (`plot_name` = its node name, "GrowPlot3").
+signal tray_shot(plot_name: String)
+## Every peer: the drive-by ran its course and the floor was billed `fine`; cash on hand covered `taken` of it.
+signal driveby_billed(fine: int, taken: int)
+
+## Seconds between two rounds of a drive-by.
+const DRIVEBY_SHOT_INTERVAL := 0.15
+## A worker whose chest is within this flat distance of the lane is in it (metres).
+const DRIVEBY_WORKER_RADIUS := 0.45
+## A tray whose centre is within this flat distance of the lane takes the round (metres).
+const DRIVEBY_TRAY_RADIUS := 0.6
+## The lane must pass between a worker's feet and the top of a standing body, with this margin (metres).
+const DRIVEBY_BODY_MARGIN := 0.1
+## A round goes through at most this many panes of glass.
+const DRIVEBY_GLASS_PANES := 3
+const SHOT_FLAG_BLOCKED := 1   # stopped by LAYER_WORLD before the end of the lane
+const SHOT_FLAG_GLASS := 2     # it went through a pane of glass on the way
+const SHOT_FLAG_FIRST := 4     # the first round down this lane this drive-by: the pane it comes through breaks
+const TRACER_SEC := 0.16
+const TRACER_THICKNESS := 0.03
+const TRACER_MAX := 12
+## Slips: the speed is averaged over this window of synced positions; one slip per worker per SLIP_COOLDOWN_SEC.
+const SLIP_WINDOW_SEC := 0.25
+const SLIP_COOLDOWN_SEC := 3.0
+## The slip speed sits this far from walk_speed towards sprint_speed (0.4: 5.5 m/s with 4.5 / 7.0).
+const SLIP_SPEED_BLEND := 0.4
+## A worker higher than this above the puddle is in the air (a jump clears it).
+const SLIP_FLOOR_TOLERANCE := 0.3
+## A step faster than this many times sprint_speed is a teleport or a sync snap, not a run.
+const SLIP_TELEPORT_FACTOR := 2.5
+
+## Host: simulated seconds since the session began (advanced by tick(), so tests can drive the slip cooldown).
+var _mayhem_clock: float = 0.0
+## Host: seconds until an emptied tank has pressure again (0 = it is not empty because of a leak).
+var _leak_empty_left: float = 0.0
+## Host: seconds until the puddle dries (counts only while the tank no longer leaks; 0 = no countdown).
+var _puddle_left: float = 0.0
+## Host: peer_id -> [last position, metres moved, seconds, void window, last step direction].
+var _slip_track: Dictionary = {}
+## Host: peer_id -> _mayhem_clock of the last slip.
+var _last_slip: Dictionary = {}
+## Host: gunfire seconds not yet turned into rounds.
+var _shot_accum: float = 0.0
+## Host: trays that already took their round this drive-by (instance id -> true).
+var _driveby_trays_hit: Dictionary = {}
+## Host: lanes that already carried a round this drive-by (lane index -> true).
+var _driveby_lanes_used: Dictionary = {}
+## Host: rounds fired this drive-by.
+var _driveby_shots: int = 0
+## Every peer: tracer meshes still fading.
+var _tracers: Array[Node] = []
+
+
+## The speed (m/s) above which a worker in the puddle slips: between walking and sprinting.
+func get_slip_speed() -> float:
+	var b: BalanceConfig = Config.balance
+	return lerpf(b.walk_speed, maxf(b.sprint_speed, b.walk_speed), SLIP_SPEED_BLEND)
+
+
+## Host: seconds until the emptied tank fills again (0 when it is not empty because of a leak).
+func get_leak_empty_left() -> float:
+	return _leak_empty_left
+
+
+## Host: seconds until the puddle dries (0 when none is drying).
+func get_puddle_left() -> float:
+	return _puddle_left
+
+
+## True while the drive-by's guns are going (false during its warning). Any peer.
+func is_driveby_firing() -> bool:
+	if active_event != EVENT_DRIVEBY:
+		return false
+	var total := float(_params.get("seconds", 0.0))
+	return total - _time_left >= float(_params.get("warning", 0.0))
+
+
+## Host: rounds fired in the running (or last) drive-by.
+func get_driveby_shots() -> int:
+	return _driveby_shots
+
+
+## Host: fills `p` for a leak or a drive-by and returns its length in seconds (0 = it cannot start now).
+func _mayhem_prepare(kind: StringName, p: Dictionary) -> float:
+	var b: BalanceConfig = Config.balance
+	if kind == EVENT_LEAK:
+		var well := _well()
+		# A tank that already leaks, has no pressure or stands empty has nothing to lose.
+		if well == null or well.is_leaking() or not well.has_pressure() or _leak_empty_left > 0.0:
+			return 0.0
+		var leak_seconds := maxf(b.leak_sec, 1.0)
+		p["seconds"] = leak_seconds
+		return leak_seconds
+	if kind == EVENT_DRIVEBY:
+		var room := _room()
+		if room == null or room.get_gunfire_lanes().is_empty():
+			return 0.0
+		var warning := maxf(b.driveby_warning_sec, 0.0)
+		var seconds := warning + maxf(b.driveby_sec, 0.5)
+		p["seconds"] = seconds
+		p["warning"] = warning
+		_shot_accum = 0.0
+		_driveby_trays_hit.clear()
+		_driveby_lanes_used.clear()
+		_driveby_shots = 0
+		return seconds
+	return 0.0
+
+
+# --- the leak ------------------------------------------------------------------------------------------------------
+
+func _tick_leak(delta: float) -> void:
+	_clock += delta
+	if _time_left <= 0.0:
+		_server_leak_ran_out()
+		server_end_event()
+
+
+## Host: nobody patched it. The tank is empty for leak_empty_sec; _mayhem_tick turns the pressure back on.
+func _server_leak_ran_out() -> void:
+	var well := _well()
+	if well == null or not well.is_leaking():
+		return
+	well.server_set_leaking(false)
+	well.server_set_pressure(false)
+	_leak_empty_left = maxf(Config.balance.leak_empty_sec, 0.01)
+	_rpc_leak_resolved.rpc(false, 0)
+
+
+## SERVER ONLY. A worker's patch is on (Well.server_patch calls this after closing the hole): every peer hears who,
+## the leak event ends, nothing is lost.
+func server_leak_patched(by_peer: int) -> void:
+	if not _is_host():
+		return
+	_rpc_leak_resolved.rpc(true, by_peer)
+	if active_event == EVENT_LEAK:
+		server_end_event()
+	else:
+		_server_stop_leak()
+
+
+## Host: the hole is shut (whoever shut it) and the puddle starts to dry.
+func _server_stop_leak() -> void:
+	var well := _well()
+	if well == null:
+		return
+	if well.is_leaking():
+		well.server_set_leaking(false)
+	if well.has_puddle():
+		_puddle_left = maxf(Config.balance.puddle_sec, 0.01)
+
+
+## Host, every tick whatever the event: the puddle spreads while the tank leaks and dries puddle_sec after, the
+## emptied tank fills again, and workers running through the puddle slip.
+func _mayhem_tick(delta: float) -> void:
+	_mayhem_clock += delta
+	var well := _well()
+	if well == null:
+		return
+	if well.is_leaking():
+		well.tick_puddle(delta)
+	if _leak_empty_left > 0.0:
+		_leak_empty_left -= delta
+		if _leak_empty_left <= 0.0:
+			_leak_empty_left = 0.0
+			if not well.has_pressure():
+				well.server_set_pressure(true)
+				_rpc_tank_refilled.rpc()
+	if _puddle_left > 0.0 and not well.is_leaking():
+		_puddle_left -= delta
+		if _puddle_left <= 0.0:
+			_puddle_left = 0.0
+			well.server_clear_puddle()
+	if well.has_puddle():
+		_judge_slips(delta, well)
+	elif not _slip_track.is_empty():
+		_slip_track.clear()
+
+
+## Host: movement is owner-authoritative, so the speed is judged from where each body is, tick after tick. A window of
+## SLIP_WINDOW_SEC averages it (sync packets arrive in steps); a window with a jump or a teleport in it is void.
+func _judge_slips(delta: float, well: Well) -> void:
+	var w: World = Game.world
+	if w == null or not is_instance_valid(w):
+		return
+	var b: BalanceConfig = Config.balance
+	var limit := get_slip_speed()
+	var too_fast := maxf(b.sprint_speed, b.walk_speed) * SLIP_TELEPORT_FACTOR
+	var floor_y := well.get_puddle_center().y
+	for player in w.get_players():
+		var pid: int = player.peer_id
+		if not player.is_inside_tree():
+			continue
+		var pos: Vector3 = player.global_position
+		if not pos.is_finite():
+			_slip_track.erase(pid)
+			continue
+		if not _slip_track.has(pid):
+			_slip_track[pid] = [pos, 0.0, 0.0, false, Vector3.ZERO]
+			continue
+		var e: Array = _slip_track[pid]
+		var last: Vector3 = e[0]
+		var step := Vector3(pos.x - last.x, 0.0, pos.z - last.z)
+		var moved := step.length()
+		e[0] = pos
+		e[1] = float(e[1]) + moved
+		e[2] = float(e[2]) + delta
+		if moved > 0.0001:
+			e[4] = step / moved
+		if pos.y - floor_y > SLIP_FLOOR_TOLERANCE or moved / delta > too_fast:
+			e[3] = true
+		if float(e[2]) < SLIP_WINDOW_SEC:
+			continue
+		var speed := float(e[1]) / float(e[2])
+		var void_window := bool(e[3])
+		e[1] = 0.0
+		e[2] = 0.0
+		e[3] = false
+		if void_window or not (speed > limit):
+			continue
+		if player.crouching or GameState.is_in_backroom(pid) or not well.is_in_puddle(pos):
+			continue
+		if _last_slip.has(pid) and _mayhem_clock - float(_last_slip[pid]) < SLIP_COOLDOWN_SEC:
+			continue
+		if not player.can_be_staggered():
+			continue
+		_server_slip(player, e[4])
+
+
+## Host: `player` goes down in the puddle, sliding on the way they ran; whatever they carried lands in front of them.
+func _server_slip(player: Player, direction: Vector3) -> void:
+	var pid: int = player.peer_id
+	_last_slip[pid] = _mayhem_clock
+	Player.server_stagger(player, direction, true, 0, maxf(Config.balance.slip_stun_sec, 0.0), false)
+	GameState.server_add_stat(pid, Const.STAT_SLIPS)
+	_rpc_worker_slipped.rpc(pid, player.global_position)
+
+
+# --- the drive-by --------------------------------------------------------------------------------------------------
+
+func _tick_driveby(delta: float) -> void:
+	var warning := float(_params.get("warning", 0.0))
+	var total := float(_params.get("seconds", warning))
+	var before := _clock
+	_clock += delta
+	# The part of this step that lies inside the gunfire turns into rounds, DRIVEBY_SHOT_INTERVAL apart.
+	var fire_from := maxf(before, warning)
+	var fire_to := minf(_clock, total)
+	if fire_to > fire_from:
+		_shot_accum += fire_to - fire_from
+		while _shot_accum >= DRIVEBY_SHOT_INTERVAL - 0.000001:
+			_shot_accum -= DRIVEBY_SHOT_INTERVAL
+			server_fire_random_lane()
+			if active_event != EVENT_DRIVEBY:
+				return
+	if _time_left <= 0.0:
+		_server_driveby_bill()
+		server_end_event()
+
+
+## SERVER ONLY. One round down a random Room.get_gunfire_lanes() lane (see server_fire_lane). {} without lanes.
+func server_fire_random_lane() -> Dictionary:
+	var room := _room()
+	if not _is_host() or room == null:
+		return {}
+	var lanes: Array = room.get_gunfire_lanes()
+	if lanes.is_empty():
+		return {}
+	var index := _rng.randi_range(0, lanes.size() - 1)
+	var lane: Variant = lanes[index]
+	if not (lane is Dictionary):
+		return {}
+	var first := not _driveby_lanes_used.has(index)
+	_driveby_lanes_used[index] = true
+	return server_fire_lane(lane, first)
+
+
+## SERVER ONLY. One round down `lane` ({"from": Vector3, "to": Vector3}, global): cut at the first LAYER_WORLD hit;
+## every worker in it who is not crouching, not in the back room and not stagger-immune goes down (twice hit_stun_sec,
+## the held item released, STAT_SHOT); every growing tray in it loses driveby_tray_loss of stage progress, once per
+## drive-by (a READY plant is not harmed); one cosmetic RPC for the tracer and the sounds. Distances are flat: the
+## lane passes at chest height and a tray sits on the floor. A LAYER_WORLD collider that is glass (_is_glass: named
+## "...glass..." or in the group "glass") does not stop the round; it goes on to the next hit. Returns {"end": Vector3,
+## "blocked": bool, "glass": bool, "workers": Array of peer ids, "trays": Array of plot names}. Public for tests
+## (tick() fires the drive-by's rounds).
+func server_fire_lane(lane: Dictionary, first: bool = false) -> Dictionary:
+	var out := {"end": Vector3.ZERO, "blocked": false, "glass": false, "workers": [], "trays": []}
+	var w: World = Game.world
+	if not _is_host() or w == null or not is_instance_valid(w) or not w.is_inside_tree():
+		return out
+	var from_v: Variant = lane.get("from")
+	var to_v: Variant = lane.get("to")
+	if not (from_v is Vector3) or not (to_v is Vector3):
+		return out
+	var from: Vector3 = from_v
+	var end: Vector3 = to_v
+	if not from.is_finite() or not end.is_finite():
+		return out
+	var flags := SHOT_FLAG_FIRST if first else 0
+	var glass_at := from
+	var space := w.get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(from, end, Const.LAYER_WORLD)
+	var through: Array[RID] = []
+	for pane in DRIVEBY_GLASS_PANES + 1:
+		query.exclude = through
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			break
+		if pane < DRIVEBY_GLASS_PANES and _is_glass(hit.get("collider") as Node):
+			# A pane does not stop a round: it goes on (the first one it meets is where the glass sound plays).
+			if not (flags & SHOT_FLAG_GLASS):
+				glass_at = hit["position"]
+			flags |= SHOT_FLAG_GLASS
+			through.append(hit["rid"])
+			continue
+		end = hit["position"]
+		flags |= SHOT_FLAG_BLOCKED
+		out["blocked"] = true
+		break
+	out["end"] = end
+	out["glass"] = (flags & SHOT_FLAG_GLASS) != 0
+	var b: BalanceConfig = Config.balance
+	var along := Vector3(end.x - from.x, 0.0, end.z - from.z)
+	var workers: Array = out["workers"]
+	for player in w.get_players():
+		var pid: int = player.peer_id
+		if not player.is_inside_tree() or GameState.is_in_backroom(pid) or player.crouching:
+			continue
+		if not player.can_be_staggered():
+			continue   # already down, or just got up
+		var chest := player.get_chest_position()
+		var near := _lane_closest(from, end, chest)
+		if not (Vector2(near.x - chest.x, near.z - chest.z).length() <= DRIVEBY_WORKER_RADIUS):
+			continue
+		var feet_y: float = player.global_position.y
+		if near.y < feet_y - DRIVEBY_BODY_MARGIN or near.y > feet_y + Player.STAND_HEIGHT + DRIVEBY_BODY_MARGIN:
+			continue   # the lane passes under the floor he stands on or over his head
+		Player.server_stagger(player, along, true, 0, maxf(b.hit_stun_sec, 0.0) * 2.0, true)
+		GameState.server_add_stat(pid, Const.STAT_SHOT)
+		_rpc_worker_shot.rpc(pid)
+		workers.append(pid)
+	var trays: Array = out["trays"]
+	for node in get_tree().get_nodes_in_group(Const.GROUP_GROW_PLOTS):
+		var plot := node as GrowPlot
+		if plot == null or not plot.is_inside_tree() or not plot.is_growing():
+			continue
+		var id := plot.get_instance_id()
+		if _driveby_trays_hit.has(id):
+			continue
+		var centre: Vector3 = plot.global_position
+		var near_tray := _lane_closest(from, end, centre)
+		if not (Vector2(near_tray.x - centre.x, near_tray.z - centre.z).length() <= DRIVEBY_TRAY_RADIUS):
+			continue
+		_driveby_trays_hit[id] = true
+		plot.stage_progress = maxf(plot.stage_progress - maxf(b.driveby_tray_loss, 0.0), 0.0)
+		_rpc_tray_shot.rpc(String(plot.name), centre)
+		trays.append(String(plot.name))
+	_driveby_shots += 1
+	_rpc_shot.rpc(from, end, flags, glass_at)
+	return out
+
+
+## The point of the segment `from`..`end` nearest to `point` on the floor plan (x / z); its y is the lane's height there.
+static func _lane_closest(from: Vector3, end: Vector3, point: Vector3) -> Vector3:
+	var ab := Vector2(end.x - from.x, end.z - from.z)
+	var len2 := ab.length_squared()
+	var t := 0.0
+	if len2 > 0.000001:
+		t = clampf(Vector2(point.x - from.x, point.z - from.z).dot(ab) / len2, 0.0, 1.0)
+	return from.lerp(end, t)
+
+
+## True when `node` or one of its near ancestors is glass: its name contains "glass", or it is in the group "glass".
+## The level marks its panes this way; anything else on LAYER_WORLD stops a round.
+static func _is_glass(node: Node) -> bool:
+	var n := node
+	for i in 3:
+		if n == null:
+			return false
+		if n.is_in_group(&"glass") or String(n.name).to_lower().contains("glass"):
+			return true
+		n = n.get_parent()
+	return false
+
+
+## Host: the drive-by ran its course. The floor pays driveby_fine, as far as cash on hand goes.
+func _server_driveby_bill() -> void:
+	var fine := maxi(Config.balance.driveby_fine, 0)
+	var taken := mini(fine, maxi(GameState.money, 0))
+	if taken > 0:
+		GameState.server_add_money(-taken)
+	_rpc_driveby_billed.rpc(fine, taken)
+
+
+## Where the cars are: the middle of the lanes' outer ends (Vector3.INF without lanes).
+func _driveby_origin() -> Vector3:
+	var room := _room()
+	if room == null:
+		return Vector3.INF
+	var sum := Vector3.ZERO
+	var count := 0
+	for lane: Variant in room.get_gunfire_lanes():
+		if lane is Dictionary and (lane as Dictionary).get("from") is Vector3:
+			sum += (lane as Dictionary)["from"]
+			count += 1
+	return sum / float(count) if count > 0 else Vector3.INF
+
+
+## Every peer, from _rpc_event_started: a drive-by announces itself with tyres outside. A late joiner who lands in
+## the gunfire hears no tyres.
+func _mayhem_on_started(kind: StringName, params: Dictionary, seconds_left: float) -> void:
+	if kind != EVENT_DRIVEBY:
+		return
+	var total := float(params.get("seconds", seconds_left))
+	if total - seconds_left >= float(params.get("warning", 0.0)):
+		return
+	var origin := _driveby_origin()
+	if origin.is_finite():
+		Sfx.play(&"tires", origin)
+	else:
+		Sfx.play(&"tires")
+
+
+# --- every peer ----------------------------------------------------------------------------------------------------
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_leak_resolved(patched: bool, by_peer: int) -> void:
+	leak_resolved.emit(patched, by_peer)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_tank_refilled() -> void:
+	var well := _well()
+	if well != null and well.is_inside_tree():
+		Sfx.play(&"refill", well.global_position + Vector3.UP * 0.6)
+	tank_refilled.emit()
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_worker_slipped(peer_id: int, position: Vector3) -> void:
+	if position.is_finite() and _room() != null:
+		var local := multiplayer.has_multiplayer_peer() and peer_id == multiplayer.get_unique_id()
+		if local:
+			Sfx.play(&"slip")
+		else:
+			Sfx.play(&"slip", position + Vector3.UP * 0.2)
+		GrowPlot.juice_fx(&"splash", position + Vector3.UP * 0.05, Toon.WATER, 10)
+	worker_slipped.emit(peer_id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_worker_shot(peer_id: int) -> void:
+	worker_shot.emit(peer_id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_tray_shot(plot_name: String, position: Vector3) -> void:
+	if position.is_finite() and _room() != null:
+		GrowPlot.juice_fx(&"burst", position + Vector3.UP * 0.6, Toon.LEAF, 8)
+	tray_shot.emit(plot_name)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_driveby_billed(fine: int, taken: int) -> void:
+	driveby_billed.emit(fine, taken)
+
+
+## Cosmetic, every peer: the tracer and the sounds of one round. Unreliable on purpose (forty of them in six seconds;
+## a lost one is a shot nobody saw).
+## The first round down a lane breaks the pane it comes through (`glass_shot` at the pane when the level has one,
+## at the lane's start otherwise); every round ends in a `ricochet` where it stops.
+@rpc("authority", "call_local", "unreliable")
+func _rpc_shot(from: Vector3, to: Vector3, flags: int, glass_at: Vector3) -> void:
+	# A peer still loading the floor (a late joiner in the middle of a drive-by) has nothing to draw it on.
+	if not from.is_finite() or not to.is_finite() or _room() == null:
+		return
+	Sfx.play(&"gunshot", from)
+	if flags & SHOT_FLAG_FIRST:
+		Sfx.play(&"glass_shot", glass_at if (flags & SHOT_FLAG_GLASS) and glass_at.is_finite() else from)
+	Sfx.play(&"ricochet", to)
+	GrowPlot.juice_fx(&"puff", to, Toon.PEBBLE, 4)
+	_spawn_tracer(from, to)
+	shot_fired.emit(from, to)
+
+
+## A thin pale line from `from` to `to` that fades in TRACER_SEC (a plain child of the Room; at most TRACER_MAX alive).
+func _spawn_tracer(from: Vector3, to: Vector3) -> void:
+	var room := _room()
+	if room == null or not room.is_inside_tree():
+		return
+	var length := from.distance_to(to)
+	if not (length > 0.05):
+		return
+	var alive: Array[Node] = []
+	for t in _tracers:
+		if is_instance_valid(t) and not t.is_queued_for_deletion():
+			alive.append(t)
+	_tracers = alive
+	while _tracers.size() >= TRACER_MAX:
+		var old: Node = _tracers.pop_front()
+		old.queue_free()
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(Toon.lighter(Toon.SUNSHINE, 0.35), 0.9)
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(TRACER_THICKNESS, TRACER_THICKNESS, length)
+	mesh.material = mat
+	var tracer := MeshInstance3D.new()
+	tracer.name = "Tracer"
+	tracer.mesh = mesh
+	tracer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	room.add_child(tracer)
+	var dir := (to - from) / length
+	var up := Vector3.UP if absf(dir.y) < 0.99 else Vector3.RIGHT
+	tracer.global_transform = Transform3D(Basis.looking_at(dir, up), (from + to) * 0.5)
+	_tracers.append(tracer)
+	var tw := tracer.create_tween()
+	tw.tween_property(mat, ^"albedo_color:a", 0.0, TRACER_SEC)
+	tw.tween_callback(tracer.queue_free)
+
+
+# --- resets --------------------------------------------------------------------------------------------------------
+
+## Host (shift end, game reset): no leak, no puddle, no plate, no empty-tank timer, nobody tracked. The pressure
+## itself is restored by _server_restore_stations right after.
+func _mayhem_server_reset() -> void:
+	_leak_empty_left = 0.0
+	_puddle_left = 0.0
+	_slip_track.clear()
+	_last_slip.clear()
+	_shot_accum = 0.0
+	_driveby_trays_hit.clear()
+	_driveby_lanes_used.clear()
+	var well := _well()
+	if well != null:
+		well.server_reset_leak()
+
+
+## Any peer, back to the menu: forget it all (the world, the Well and the tracers go with the scene).
+func _mayhem_reset_local() -> void:
+	_mayhem_clock = 0.0
+	_leak_empty_left = 0.0
+	_puddle_left = 0.0
+	_slip_track.clear()
+	_last_slip.clear()
+	_shot_accum = 0.0
+	_driveby_trays_hit.clear()
+	_driveby_lanes_used.clear()
+	_driveby_shots = 0
+	for t in _tracers:
+		if is_instance_valid(t):
+			t.queue_free()
+	_tracers.clear()
