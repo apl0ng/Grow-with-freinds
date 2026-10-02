@@ -649,6 +649,7 @@ func _case_fire() -> void:
 	var ft := items.get_held_by(_ids["a"]) as Flamethrower
 	if not check(ft != null and is_equal_approx(ft.fuel, 20.0) and not ft.firing, "host: Alpha holds a full flamethrower"):
 		return
+	var ft_name := String(ft.name)
 	check(cabinet.broken and cabinet.restock_left > 0, "host: cabinet broken, restock in %d s" % cabinet.restock_left)
 	check(GameState.money == money0 - b.cabinet_deposit, "the deposit was taken and nothing else ($%d -> $%d)" % [money0, GameState.money])
 	check(_count_written(_ids["a"], "") == 0 and GameState.get_write_ups(_ids["a"]) == 0, "a plant is alive: no misuse write-up")
@@ -691,7 +692,6 @@ func _case_fire() -> void:
 	check(GameState.get_write_ups(_ids["a"]) == 0 and _count_written(_ids["a"], Const.WRITE_UP_ARSON) == 3, "three arson write-ups, strikes cleared")
 	# The rule (M13 review): the Boss keeps the flamethrower of a worker he sends to the back room. It is gone on
 	# every peer, not waiting at the worker's spawn with its fuel.
-	var ft_name := String(ft.name)
 	await wait_until(func() -> bool: return item_named(ft_name) == null and items_of(FLAME).is_empty(), 3.0, "host: the flame is out and the flamethrower is gone (the Boss keeps it)")
 	var kept_toast := Events.TOAST_FLAMETHROWER_KEPT % NAMES["a"]
 	var kept_line := Story.line("confiscated")
@@ -739,7 +739,7 @@ func _case_fire() -> void:
 	money0 = GameState.money
 	r = await run_cmd(_ids["b"], "break_glass", {}, 25.0)
 	var ft2 := items.get_held_by(_ids["b"]) as Flamethrower
-	if not check(bool(r.get("ok", false)) and ft2 != null and ft2 != ft and is_equal_approx(ft2.fuel, fuel0), "Bravo holds a second flamethrower, %.0f s of fuel" % fuel0):
+	if not check(bool(r.get("ok", false)) and ft2 != null and String(ft2.name) != ft_name and is_equal_approx(ft2.fuel, fuel0), "Bravo holds a second flamethrower, %.0f s of fuel" % fuel0):
 		return
 	check(GameState.money == money0 - b.cabinet_deposit - b.write_up_fine, "deposit + fine taken")
 	check(_count_written(_ids["b"], Const.WRITE_UP_MISUSE) == 1 and GameState.get_write_ups(_ids["b"]) == 1, "no plant alive: misuse of emergency equipment, strike 1 for Bravo")
@@ -775,7 +775,7 @@ func _case_fire() -> void:
 	var s_rj := cmd(old_b, "leave_rejoin", {"delay": 1.0})
 	await wait_until(func() -> bool: return not Net.players.has(old_b), 10.0, "Bravo left while firing")
 	await wait_until(func() -> bool: return is_instance_valid(ft2) and not ft2.firing and ft2.holder_id == 0, 3.0, "host: the flame is out, nobody holds it")
-	check(items_of(FLAME).size() == 2 and ft2.rest_position.distance_to(stood) < 2.0, "it lies where he stood (%s, he was at %s)" % [ft2.rest_position, stood])
+	check(items_of(FLAME).size() == 1 and ft2.rest_position.distance_to(stood) < 2.0, "it lies where he stood (%s, he was at %s)" % [ft2.rest_position, stood])
 	await wait_sec(0.3)
 	logs = await _logs(["a", "c"])
 	for k in ["a", "c"]:

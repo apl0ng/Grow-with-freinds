@@ -360,6 +360,13 @@ func _poll_local_fire() -> void:
 		_want_sent = false
 		_empty_click_played = false
 		return
+	# M13 QA: a holder who was just sent to the back room says nothing more about this flamethrower. The server has
+	# already put the flame out and the Boss keeps the item (Events despawns it on the host), so the "stop" that a
+	# held trigger sent the moment the back-room lock landed reached the host for a node that no longer exists there:
+	# three engine errors on the host per stay ("Node not found: World/Items/item_N", "Invalid packet received").
+	if GameState.is_in_backroom(holder.peer_id):
+		_want_sent = false
+		return
 	var pressed := Input.is_action_pressed(&"use_item") and not Game.is_ui_locked()
 	if pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
 		pressed = false # a click that recaptures the mouse is not a trigger pull
