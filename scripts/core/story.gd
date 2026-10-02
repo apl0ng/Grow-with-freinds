@@ -155,6 +155,7 @@ func _ready() -> void:
 	_connect_hostile_signals() # --- M12 hostile --- (lines + handlers live in the region at the end of this file)
 	_disrupt_setup()  # M12 disrupt: its lines + event hooks (region at the end of the file)
 	_m13_setup()  # M13 lead: report verdicts for burns / scorched / bitten (region at the end of the file)
+	_mayhem_setup()  # M14 mayhem: the leak and the drive-by (region at the end of the file)
 
 
 func _process(delta: float) -> void:
@@ -815,4 +816,160 @@ func get_report_verdicts() -> PackedStringArray:
 				best_amount = amount
 		if best_amount > 0:
 			out.append(line(String(entry[1])) % Net.get_player_name(best))
+	out.append_array(_mayhem_report_verdicts(peers))  # M14 mayhem: shot / slips (region below)
 	return out
+
+
+# --- M14 mayhem: the tank springs a leak, a drive-by ------------------------------------------------------------
+# Lines and hooks for the two M14 events (Events emits on every peer; Story owns the copy). _ready() calls
+# _mayhem_setup(). The Boss only speaks at his window, so what the whole floor has to know also goes out as a toast
+# (the M13 pattern): the leak, who patched it, the empty tank, the drive-by warning, the bill.
+#   leak starts                      leak            MAJOR     + toast (error)
+#   patched (Events.leak_resolved)   leak_patched    PROGRESS  + toast (info, names the worker)
+#   ran out unpatched                leak_empty      MAJOR     + toast (error)
+#   the tank fills again             tank_refilled   PROGRESS  + toast (info)
+#   a worker slips                   slipped         CHATTER   ("%s" = the worker)
+#   drive-by starts                  driveby         MAJOR     + toast (error)
+#   a worker is knocked down         driveby_hit     PROGRESS  ("%s" = the worker)
+#   the bill                         driveby_bill / _short / _broke   MAJOR + toast (error)
+
+## Copy for the two events, merged into `lines` at start-up. "%s" = a worker's name or an amount in words.
+const MAYHEM_LINES: Dictionary = {
+	"leak": "The tank is leaking. Somebody hold it shut.",
+	"leak_patched": "Patched. It will not hold forever.",
+	"leak_empty": "Tank's empty. That one is on the floor.",
+	"tank_refilled": "Tank's full. Keep it in there this time.",
+	"slipped": "Wet floor, %s.",
+	"driveby": "Get down.",
+	"driveby_hit": "%s got hit. Still on the clock.",
+	"driveby_bill": "Glass and holes: %s. It comes out of cash on hand.",
+	"driveby_bill_short": "Glass and holes: %s. You had %s. I took it.",
+	"driveby_bill_broke": "Glass and holes: %s. Nothing to take. Noted.",
+	"toast_leak": "The tank is leaking. Hold it shut.",
+	"toast_leak_patched": "%s patched the tank.",
+	"toast_leak_empty": "The tank is empty.",
+	"toast_tank_refilled": "The tank has water again.",
+	"toast_driveby": "Drive-by. Get down.",
+	"toast_driveby_bill": "Drive-by: $%d out of cash on hand.",
+	"toast_driveby_bill_broke": "Drive-by: nothing left to take.",
+	"verdict_shot": "%s stood in the way. The holes are on the bill.",
+	"verdict_slips": "%s kept falling over. The floor was wet. Noted.",
+}
+
+const MAYHEM_ONES: PackedStringArray = ["nothing", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+		"eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+const MAYHEM_TENS: PackedStringArray = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+
+
+func _mayhem_setup() -> void:
+	for k in MAYHEM_LINES:
+		if not lines.has(k):
+			lines[k] = MAYHEM_LINES[k]
+	var events: Node = get_node_or_null(^"/root/Events")
+	if events == null:
+		return
+	if events.has_signal(&"event_started"):
+		events.connect(&"event_started", _mayhem_on_event_started)
+	if events.has_signal(&"leak_resolved"):
+		events.connect(&"leak_resolved", _mayhem_on_leak_resolved)
+	if events.has_signal(&"tank_refilled"):
+		events.connect(&"tank_refilled", _mayhem_on_tank_refilled)
+	if events.has_signal(&"worker_slipped"):
+		events.connect(&"worker_slipped", _mayhem_on_worker_slipped)
+	if events.has_signal(&"worker_shot"):
+		events.connect(&"worker_shot", _mayhem_on_worker_shot)
+	if events.has_signal(&"driveby_billed"):
+		events.connect(&"driveby_billed", _mayhem_on_driveby_billed)
+
+
+func _mayhem_on_event_started(kind: StringName, _params: Dictionary) -> void:
+	if not _in_session():
+		return
+	match kind:
+		&"leak":
+			Game.toast(line("toast_leak"), &"error")
+			_request("leak", Weight.MAJOR)
+		&"driveby":
+			Game.toast(line("toast_driveby"), &"error")
+			_request("driveby", Weight.MAJOR)
+
+
+func _mayhem_on_leak_resolved(patched: bool, by_peer: int) -> void:
+	if not _in_session():
+		return
+	if patched:
+		if by_peer > 0:
+			Game.toast(line("toast_leak_patched") % Net.get_player_name(by_peer), &"info")
+		_request("leak_patched", Weight.PROGRESS)
+	else:
+		Game.toast(line("toast_leak_empty"), &"error")
+		_request("leak_empty", Weight.MAJOR)
+
+
+func _mayhem_on_tank_refilled() -> void:
+	if not _in_session():
+		return
+	Game.toast(line("toast_tank_refilled"), &"info")
+	_request("tank_refilled", Weight.PROGRESS)
+
+
+func _mayhem_on_worker_slipped(peer_id: int) -> void:
+	if _in_session():
+		_request_named("slipped", Net.get_player_name(peer_id), Weight.CHATTER)
+
+
+func _mayhem_on_worker_shot(peer_id: int) -> void:
+	if _in_session():
+		_request_named("driveby_hit", Net.get_player_name(peer_id), Weight.PROGRESS)
+
+
+## Shift report lines (get_report_verdicts appends them, each only when somebody's stat is above zero): the worker
+## gunfire knocked down most, the one who slipped most.
+func _mayhem_report_verdicts(peers: Array) -> PackedStringArray:
+	var out := PackedStringArray()
+	for entry: Array in [[Const.STAT_SHOT, "verdict_shot"], [Const.STAT_SLIPS, "verdict_slips"]]:
+		var best: int = 0
+		var best_amount: int = 0
+		for id: int in peers:
+			var amount: int = GameState.get_stat(id, entry[0])
+			if amount > best_amount:
+				best = id
+				best_amount = amount
+		if best_amount > 0:
+			out.append(line(String(entry[1])) % Net.get_player_name(best))
+	return out
+
+
+## The bill after a drive-by: the whole fine, what cash on hand covered of it, or nothing at all.
+func _mayhem_on_driveby_billed(fine: int, taken: int) -> void:
+	if not _in_session():
+		return
+	var text := mayhem_bill_line(fine, taken)
+	if taken > 0:
+		Game.toast(line("toast_driveby_bill") % taken, &"error")
+	else:
+		Game.toast(line("toast_driveby_bill_broke"), &"error")
+	if text != "":
+		_show(text, Weight.MAJOR)
+
+
+## The Boss's line for a bill of `fine` of which `taken` was paid ("" when nothing was owed).
+func mayhem_bill_line(fine: int, taken: int) -> String:
+	if fine <= 0:
+		return ""
+	if taken >= fine:
+		return line("driveby_bill") % mayhem_amount_words(fine)
+	if taken > 0:
+		return line("driveby_bill_short") % [mayhem_amount_words(fine), mayhem_amount_words(taken)]
+	return line("driveby_bill_broke") % mayhem_amount_words(fine)
+
+
+## An amount the way the Boss says it: "thirty", "twenty-five"; "$120" from a hundred up.
+func mayhem_amount_words(amount: int) -> String:
+	if amount < 0 or amount >= 100:
+		return "$%d" % amount
+	if amount < 20:
+		return MAYHEM_ONES[amount]
+	@warning_ignore("integer_division")
+	var tens: String = MAYHEM_TENS[amount / 10]
+	return tens if amount % 10 == 0 else "%s-%s" % [tens, MAYHEM_ONES[amount % 10]]

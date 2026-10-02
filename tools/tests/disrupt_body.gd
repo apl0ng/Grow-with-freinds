@@ -33,18 +33,19 @@ func _run() -> void:
 
 	step("kinds + weights")
 	check(Config.has_arg("events") and Events.are_events_enabled(), "this suite runs with --events")
-	check(Events.KINDS.size() == 7 and Events.KINDS.has(Events.EVENT_HEADCOUNT) and Events.KINDS.has(Events.EVENT_WATER_OFF) and Events.KINDS.has(Events.EVENT_SHORTAGE), "KINDS: the four M10 kinds + headcount, water_off, shortage")
+	check(Events.KINDS.size() == 9 and Events.KINDS.has(Events.EVENT_HEADCOUNT) and Events.KINDS.has(Events.EVENT_WATER_OFF) and Events.KINDS.has(Events.EVENT_SHORTAGE), "KINDS: the four M10 kinds + headcount, water_off, shortage (+ the two M14 mayhem kinds)")
 	var total := 0
 	for k in Events.KINDS:
 		total += int(Events.WEIGHTS.get(k, 0))
 	check(total == 100, "weights sum to 100 (%d)" % total)
-	var expected := {Events.EVENT_INSPECTION: 30, Events.EVENT_POWER_CUT: 20, Events.EVENT_AUDIT: 10, Events.EVENT_RAT: 10,
-			Events.EVENT_HEADCOUNT: 15, Events.EVENT_WATER_OFF: 10, Events.EVENT_SHORTAGE: 5}
+	# M14 mayhem rebalanced the weights to make room for the leak and the drive-by (8 each; tools/tests/mayhem_body.gd).
+	var expected := {Events.EVENT_INSPECTION: 26, Events.EVENT_POWER_CUT: 16, Events.EVENT_AUDIT: 8, Events.EVENT_RAT: 8,
+			Events.EVENT_HEADCOUNT: 12, Events.EVENT_WATER_OFF: 8, Events.EVENT_SHORTAGE: 6}
 	var weights_ok := true
 	for k in expected:
 		if int(Events.WEIGHTS.get(k, -1)) != int(expected[k]):
 			weights_ok = false
-	check(weights_ok, "weights: inspection 30 / power_cut 20 / audit 10 / rat 10 / headcount 15 / water_off 10 / shortage 5")
+	check(weights_ok, "weights: inspection 26 / power_cut 16 / audit 8 / rat 8 / headcount 12 / water_off 8 / shortage 6")
 	var kinds_seen: Dictionary = {}
 	var repeats := 0
 	for k in Events.KINDS:
@@ -54,7 +55,7 @@ func _run() -> void:
 			if pick == k or not Events.KINDS.has(pick):
 				repeats += 1
 	check(repeats == 0, "pick_kind() never repeats the previous kind and stays in KINDS")
-	check(kinds_seen.size() == 7, "pick_kind() reaches every kind (%d seen)" % kinds_seen.size())
+	check(kinds_seen.size() == Events.KINDS.size(), "pick_kind() reaches every kind (%d seen)" % kinds_seen.size())
 	check(Story.line("headcount") == "Head count. The line. Now." and Story.line("water_off") == "Water main is off." and Story.line("shortage").contains("%s") and Story.line("absent").contains("%s"), "Story has the interruption lines")
 
 	step("hosting")
