@@ -25,11 +25,16 @@ extends RefCounted
 ##   burn     "burn one that walks"                     Hostiles.hostile_died with a worker  on the spot   needs a hostile plant
 ##   leak     "patch a leak inside ten seconds"         Events.leak_resolved(patched) in time on the spot  needs a leak
 ##   driveby  "nobody knocked down in a drive-by"       a drive-by ends with nobody shot     when it ends  needs a drive-by
-## Goals of the counted jobs grow with the team: base + one per extra worker.
+## M16 polish, three more (twelve in all):
+##   variety  "one bundle each of three strains"        distinct strains deposited (any worker)   on the spot
+##   keep     "lose no plant this shift"                fails on the first crop lost in a tray     when the shift ends, paid
+##   raid     "a raid that takes nothing"               a raid ends having taken no bundle         when it ends  needs a raid
+## Goals of the counted jobs grow with the team: base + one per extra worker ("variety" stays at three strains).
 ##
-## Jobs that need something the shift may never bring ("burn", "leak", "driveby") are only offered when it can happen
-## at all (events on in this session; a strain on sale that can turn hostile); "clean" is only offered with events on
-## as well (without inspections it could not be lost). When half the shift has gone
+## Jobs that need something the shift may never bring ("burn", "leak", "driveby", "raid") are only offered when it can
+## happen at all (events on in this session; a strain on sale that can turn hostile); "clean" is only offered with
+## events on as well (without inspections it could not be lost), "keep" only when something can take a plant (events
+## on, or a strain on sale that walks), "variety" only with VARIETY_STRAINS strains on sale. When half the shift has gone
 ## without it the host swaps the job for one that needs nothing (fallback_id: "clean" while nobody has been written
 ## up, else "cash"), so the reward is never out of reach because of the dice.
 
@@ -39,6 +44,7 @@ const NEED_NONE: StringName = &""
 const NEED_HOSTILE: StringName = &"hostile"
 const NEED_LEAK: StringName = &"leak"
 const NEED_DRIVEBY: StringName = &"driveby"
+const NEED_RAID: StringName = &"raid" # M16 polish
 
 const ID_CURED: StringName = &"cured"
 const ID_STRAIN: StringName = &"strain"
@@ -49,6 +55,14 @@ const ID_CASH: StringName = &"cash"
 const ID_BURN: StringName = &"burn"
 const ID_LEAK: StringName = &"leak"
 const ID_DRIVEBY: StringName = &"driveby"
+# --- M16 polish ---
+const ID_VARIETY: StringName = &"variety"
+const ID_KEEP: StringName = &"keep"
+const ID_RAID: StringName = &"raid"
+
+## "variety": this many different strains, one bundle of each; offered only when that many are on sale this shift.
+const VARIETY_STRAINS: int = 3
+# --- end M16 polish ---
 
 ## "leak": the patch has to be on within this many seconds of the leak starting.
 const LEAK_SECONDS: float = 10.0
@@ -77,6 +91,11 @@ const CATALOG: Array[Dictionary] = [
 	{"id": ID_BURN, "text": "burn one that walks", "base": 1, "per_extra": 0, "judge": JUDGE_SPOT, "need": NEED_HOSTILE, "weight": 2},
 	{"id": ID_LEAK, "text": "patch a leak inside ten seconds", "base": 1, "per_extra": 0, "judge": JUDGE_SPOT, "need": NEED_LEAK, "weight": 2},
 	{"id": ID_DRIVEBY, "text": "nobody knocked down in a drive-by", "base": 1, "per_extra": 0, "judge": JUDGE_SPOT, "need": NEED_DRIVEBY, "weight": 2},
+	# --- M16 polish --- (the event job is the rarest: a raid is one event in sixteen)
+	{"id": ID_VARIETY, "text": "one bundle each of %s strains", "base": VARIETY_STRAINS, "per_extra": 0, "judge": JUDGE_SPOT, "need": NEED_NONE, "weight": 2},
+	{"id": ID_KEEP, "text": "lose no plant this shift", "base": 1, "per_extra": 0, "judge": JUDGE_END, "need": NEED_NONE, "weight": 2},
+	{"id": ID_RAID, "text": "a raid that takes nothing", "base": 1, "per_extra": 0, "judge": JUDGE_SPOT, "need": NEED_RAID, "weight": 1},
+	# --- end M16 polish ---
 ]
 
 const NUMBER_WORDS: PackedStringArray = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
@@ -117,7 +136,7 @@ static func get_judge(id: StringName) -> StringName:
 	return get_def(id).get("judge", &"")
 
 
-## What the job needs before it can be met at all: &"" (nothing), &"hostile", &"leak", &"driveby".
+## What the job needs before it can be met at all: &"" (nothing), &"hostile", &"leak", &"driveby", &"raid".
 static func get_need(id: StringName) -> StringName:
 	return get_def(id).get("need", NEED_NONE)
 
@@ -159,7 +178,7 @@ static func build(id: StringName, ctx: Dictionary) -> Dictionary:
 		"done": false, "failed": false, "round": int(ctx.get("round", 1)),
 	}
 	match id:
-		ID_CURED, ID_HALL:
+		ID_CURED, ID_HALL, ID_VARIETY: # M16 polish: + variety
 			out["text"] = text % number_words(goal)
 		ID_STRAIN:
 			var strain := StringName(str(ctx.get("strain", "")))
@@ -177,7 +196,7 @@ static func build(id: StringName, ctx: Dictionary) -> Dictionary:
 
 ## The ids the host may roll from. `ctx`: {"events": bool (random events run in this session), "can_mutate": bool (a
 ## strain on sale can turn hostile), "early_ok": bool (the shift is long enough for "early" to mean anything; default
-## true)}.
+## true), "strains": int (how many strains are on sale this shift; default VARIETY_STRAINS)}.
 static func pool(ctx: Dictionary) -> Array[StringName]:
 	var out: Array[StringName] = []
 	for def: Dictionary in CATALOG:
@@ -185,8 +204,14 @@ static func pool(ctx: Dictionary) -> Array[StringName]:
 			continue
 		if def["id"] == ID_CLEAN and not bool(ctx.get("events", false)):
 			continue # nobody is written up on a floor the Boss never walks: it would be free money
+		# --- M16 polish ---
+		if def["id"] == ID_VARIETY and int(ctx.get("strains", VARIETY_STRAINS)) < VARIETY_STRAINS:
+			continue # fewer strains on sale than the job asks for
+		if def["id"] == ID_KEEP and not bool(ctx.get("events", false)) and not bool(ctx.get("can_mutate", false)):
+			continue # nothing takes a plant on a floor without events or a strain that walks: free money again
+		# --- end M16 polish ---
 		match def["need"]:
-			NEED_LEAK, NEED_DRIVEBY:
+			NEED_LEAK, NEED_DRIVEBY, NEED_RAID: # M16 polish: + raid
 				if not bool(ctx.get("events", false)):
 					continue
 			NEED_HOSTILE:

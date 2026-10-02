@@ -398,6 +398,45 @@ func _test_trays(b: BalanceConfig) -> void:
 	q.turning = false
 	q.server_reset()
 	check(not turned_plain and turned_twitchy, "the same roll: safe on a plain day, it turns in a twitchy batch")
+	# --- M16 polish: the cap on walking plants (still under the twitchy batch) ---
+	var cap := b.mutation_chance_cap
+	var night: SeedDef = b.get_seed(&"nightshift")
+	check(is_equal_approx(cap, 0.5) and night.mutation_chance * 2.0 > cap and night.mutation_chance < cap,
+			"Night Shift turns %.0f%% of the time: doubled it would pass the cap of %.0f%%" % [night.mutation_chance * 100.0, cap * 100.0])
+	check(is_equal_approx(GrowPlot.get_mutation_chance(night), cap), "twitchy: Night Shift stops at the cap (%.2f, not %.2f)" % [GrowPlot.get_mutation_chance(night), night.mutation_chance * 2.0])
+	check(is_equal_approx(GrowPlot.get_mutation_chance(creeper), chance * 2.0), "twitchy: Creeper is under the cap and simply doubles (%.2f)" % GrowPlot.get_mutation_chance(creeper))
+	check(GrowPlot.get_mutation_chance(b.get_seed(&"budget")) == 0.0 and GrowPlot.get_mutation_chance(null) == 0.0, "twitchy: 0 stays 0")
+	var over_seed := -1
+	for candidate in range(1, 4000):
+		seed(candidate)
+		var v := randf()
+		if v >= cap + 0.02 and v < night.mutation_chance * 2.0 - 0.02:
+			over_seed = candidate
+			break
+	var under_seed := -1
+	for candidate in range(1, 4000):
+		seed(candidate)
+		var v := randf()
+		if v >= night.mutation_chance + 0.02 and v < cap - 0.02:
+			under_seed = candidate
+			break
+	check(over_seed > 0 and under_seed > 0, "found a roll between the cap and the doubled chance (seed %d) and one under the cap (seed %d)" % [over_seed, under_seed])
+	var r := plot(5)
+	r.server_plant(&"nightshift")
+	r.server_water(1.0)
+	r.stage = GrowPlot.Stage.READY
+	seed(over_seed)
+	var turned_over := r.server_roll_mutation()
+	seed(under_seed)
+	var turned_under := r.server_roll_mutation()
+	r.turning = false
+	r.server_reset()
+	check(not turned_over and turned_under, "twitchy Night Shift: a roll above the cap stays put (it turned before the cap), one under it turns")
+	var own := night.mutation_chance
+	night.mutation_chance = 0.8
+	check(is_equal_approx(GrowPlot.get_mutation_chance(night), 0.8), "the cap is on what a condition adds: a strain set above it keeps its own chance (%.2f)" % GrowPlot.get_mutation_chance(night))
+	night.mutation_chance = own
+	# --- end M16 polish ---
 	var budget_plot := plot(3)
 	budget_plot.server_plant(&"budget")
 	budget_plot.stage = GrowPlot.Stage.READY

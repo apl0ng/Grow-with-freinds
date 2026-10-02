@@ -13,7 +13,7 @@ extends RefCounted
 ## condition has the key.
 ##   water_drain            x  tray water drain per second                         (GrowPlot.tick)
 ##   growth_speed           x  growth speed of every tray                          (GameState.get_growth_speed_multiplier)
-##   mutation_chance        x  a ready plant's chance to turn hostile, capped at 1 (GrowPlot.server_roll_mutation)
+##   mutation_chance        x  a ready plant's chance to turn hostile, capped at mutation_chance_cap (GrowPlot.get_mutation_chance) # M16 polish
 ##   dark_growth            x  growth of a grows-in-the-dark strain in a power cut (GrowPlot.tick)
 ##   seed_cost              x  the price of every seed packet, shown and charged   (GameState.get_seed_cost)
 ##   sale_value             x  the deposit value of every strain                   (GameState.get_deposit_factor)

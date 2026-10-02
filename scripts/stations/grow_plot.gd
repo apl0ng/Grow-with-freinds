@@ -397,6 +397,8 @@ func _on_stage_changed(old: Stage) -> void:
 		else:
 			Sfx.play(&"grow", sound_pos)
 			Juice.burst(_plant.get_top_global_position(), LEAF_BURST_COLOR, 8)
+	elif harvested and _take_uprooted(): # M16 polish: the plant tore itself out of the tray: `uproot` and dirt, not the snip
+		_play_uproot_fx(sound_pos)
 	elif harvested:
 		Sfx.play(&"harvest", sound_pos)
 		Juice.burst(_soil_top() + Vector3.UP * 0.4, _tint_color(), HARVEST_BURST_COUNT)
@@ -725,7 +727,7 @@ func server_roll_mutation() -> bool:
 	if stage != Stage.READY or turning:
 		return false
 	var s := get_seed()
-	var chance := clampf(s.mutation_chance * GameState.condition_value(&"mutation_chance", 1.0), 0.0, 1.0) if s != null else 0.0 # M15 replay: * mutation_chance
+	var chance := get_mutation_chance(s) # M15 replay: * mutation_chance; M16 polish: capped (see get_mutation_chance)
 	if chance <= 0.0 or randf() >= chance:
 		return false
 	turn_left = maxf(Config.balance.mutation_warning_sec, 0.0)
@@ -753,6 +755,8 @@ func server_tick_mutation(delta: float) -> bool:
 		return false
 	var strain := strain_id
 	var where := global_position
+	GameState.server_note_crop_lost(self, LOSS_WALKED) # M16 polish: a plant that walks off is a plant lost (the "keep" job)
+	_rpc_uprooted.rpc() # M16 polish: every peer hears roots, not a harvest, when the tray empties below
 	turning = false
 	server_reset()
 	Hostiles.server_spawn(strain, where)
@@ -847,6 +851,8 @@ func server_crop_lost(cause: StringName) -> int:
 	if not _check_server(&"server_crop_lost"):
 		return 0
 	var s := get_seed()
+	if stage != Stage.EMPTY:
+		GameState.server_note_crop_lost(self, cause) # M16 polish: counted or not, the "keep" job hears of it
 	if stage == Stage.EMPTY or s == null or not s.counted:
 		return 0
 	var fine := mini(maxi(Config.balance.counted_fine, 0), maxi(GameState.money, 0))
@@ -896,3 +902,59 @@ func _play_spread_fx(sound_pos: Vector3) -> void:
 	Sfx.play(&"harvest", sound_pos)
 	Juice.burst(_soil_top() + Vector3.UP * 0.4, _tint_color(), HARVEST_BURST_COUNT)
 	juice_fx(&"puff", _soil_top(), DIRT_COLOR, SPREAD_PUFF_COUNT)
+
+
+# --- M16 polish ---------------------------------------------------------------------------------------------------
+## A cap on walking plants, and the sound of one leaving (CONTRACTS.md "M16", "Polish").
+##   the cap    get_mutation_chance(seed): the strain's own chance times the day's conditions, and no condition takes it
+##              past Config.balance.mutation_chance_cap (the twitchy batch doubled Night Shift to 0.70; it stops at
+##              0.50). The cap is on what the conditions add: a strain whose own chance is above it keeps its own.
+##   uprooting  server_tick_mutation sends _rpc_uprooted to every peer right before the tray is reset. READY -> EMPTY
+##              is the harvest transition, so the RPC only marks the tray: the transition that follows within
+##              UPROOT_MARK_MSEC plays `uproot` and throws dirt instead of the snip and the leaf burst. The RPC and
+##              the synced stage travel reliably on the same channel, the RPC first; a mark that nothing follows
+##              runs out by itself.
+##   the job    whatever takes the plant tells GameState.server_note_crop_lost(plot, cause) first (server_crop_lost for
+##              eaten / fire / collected, server_tick_mutation for LOSS_WALKED).
+
+## Cause for GameState.server_note_crop_lost: the plant turned and walked off (never passed to server_crop_lost: a
+## counted strain that walks is not fined).
+const LOSS_WALKED: StringName = &"walked"
+## How long an _rpc_uprooted mark waits for the tray to empty (msec).
+const UPROOT_MARK_MSEC: int = 1000
+const UPROOT_DIRT_COUNT: int = 12
+
+var _uprooted_at_msec: int = -1
+
+
+## A READY plant's chance to turn today, 0..1: SeedDef.mutation_chance times the conditions' `mutation_chance`, capped
+## at Config.balance.mutation_chance_cap (never below the strain's own chance). 0 for null. Any peer (the conditions
+## are synced): the number server_roll_mutation rolls against, and the one any text about the chance should show.
+static func get_mutation_chance(s: SeedDef) -> float:
+	if s == null:
+		return 0.0
+	var own := clampf(s.mutation_chance, 0.0, 1.0)
+	var factor := maxf(GameState.condition_value(&"mutation_chance", 1.0), 0.0)
+	var cap := maxf(clampf(Config.balance.mutation_chance_cap, 0.0, 1.0), own)
+	return clampf(minf(own * factor, cap), 0.0, 1.0)
+
+
+## Host -> every peer (the host through call_local), right before the tray of a plant that walks off is reset.
+@rpc("authority", "call_local", "reliable")
+func _rpc_uprooted() -> void:
+	_uprooted_at_msec = Time.get_ticks_msec()
+
+
+## True once per mark: the tray that just emptied was marked by _rpc_uprooted a moment ago.
+func _take_uprooted() -> bool:
+	var at := _uprooted_at_msec
+	_uprooted_at_msec = -1
+	return at >= 0 and Time.get_ticks_msec() - at <= UPROOT_MARK_MSEC
+
+
+## Every peer, READY -> EMPTY of a plant that walked off: roots out of wet soil, dirt over the rim.
+func _play_uproot_fx(sound_pos: Vector3) -> void:
+	Sfx.play(&"uproot", sound_pos)
+	juice_fx(&"puff", _soil_top(), DIRT_COLOR, UPROOT_DIRT_COUNT)
+
+# --- end M16 polish -----------------------------------------------------------------------------------------------

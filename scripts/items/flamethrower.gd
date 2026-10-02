@@ -23,7 +23,8 @@ extends Item
 ##           holder); workers -> player.server_ignite(holder) once per victim per IGNITE_COOLDOWN_SEC. Firing stops
 ##           by itself when the holder lets go (drop / throw / release), is staggered, goes to the back room or the
 ##           shift ends. One cone pass stops burning the moment its write-ups send the shooter to the back room.
-## An empty flamethrower is still an item: carried, dropped and thrown like the others.
+## An empty flamethrower is still an item: carried, dropped and thrown like the others. M16 polish: one left lying
+## on the floor is cleared by the host after Config.balance.empty_flamethrower_sec (the region at the end).
 ## View model: the base Item moves every GeometryInstance3D into the local holder's view-model layer; the flame
 ## particles are pinned back to the world layer each frame (they reach 3.5 m into the room and must be depth-tested
 ## against walls and plants, not drawn over them).
@@ -78,6 +79,7 @@ func _exit_tree() -> void:
 func _process(delta: float) -> void:
 	super(delta)
 	_poll_local_fire()
+	server_tick_empty(delta) # M16 polish: the host clears an empty one left lying (nothing happens on a client)
 	if firing and _flame != null and is_in_view_model():
 		_keep_flame_in_world()
 
@@ -437,3 +439,40 @@ func _keep_flame_in_world() -> void:
 		_flame.layers = Player.WORLD_RENDER_LAYER
 	if _flame.has_meta(META_WORLD_LAYERS):
 		_flame.remove_meta(META_WORLD_LAYERS)
+
+
+# --- M16 polish: empty flamethrowers do not pile up -----------------------------------------------------------------
+# An empty flamethrower (no fuel) that lies on the floor (nobody holds it, it is not in the air) is removed by the
+# HOST once it has lain there for Config.balance.empty_flamethrower_sec, through ItemManager.server_despawn_item: the
+# spawner takes it away on every peer like any other item. Picking it up, throwing it or refuelling it
+# (server_set_fuel) starts the wait again. A value of 0 or less turns the rule off. The cabinet is not involved: its
+# stock is a placeholder, not an item, and its restock runs on its own clock; a worker sent to the back room still
+# loses the flamethrower to the Boss at once (Events).
+
+var _empty_idle_sec: float = 0.0      # host: seconds this empty flamethrower has lain on the floor
+
+
+## Host: how long this empty flamethrower has lain on the floor (0 with fuel, in hands, in the air, on a client).
+func get_empty_idle_sec() -> float:
+	return _empty_idle_sec
+
+
+## SERVER (a no-op elsewhere). One step of the wait: `delta` seconds have passed. Called from _process on the host;
+## public so tests can run the clock. Returns true when the wait ran out and the item was removed.
+func server_tick_empty(delta: float) -> bool:
+	if not _is_authority or not is_inside_tree() or is_queued_for_deletion():
+		return false
+	var limit: float = Config.balance.empty_flamethrower_sec
+	if limit <= 0.0 or not is_empty() or is_held() or is_flying():
+		_empty_idle_sec = 0.0
+		return false
+	_empty_idle_sec += maxf(delta, 0.0)
+	if _empty_idle_sec < limit:
+		return false
+	var mgr := get_manager()
+	if mgr == null:
+		return false
+	mgr.server_despawn_item(self)
+	return true
+
+# --- end M16 polish ---------------------------------------------------------------------------------------------------
