@@ -230,7 +230,7 @@ func pick_kind(previous: StringName = &"") -> StringName:
 		total += get_weight(k) # M15 replay: the weight x the conditions' event_weight:<kind>
 	if total <= 0:
 		return EVENT_INSPECTION
-	var roll := _rng.randi_range(1, total)
+	var roll := _card().randi_range(1, total) # M16 variety: the card's own dice once the run seeded them
 	for k in KINDS:
 		if k == previous or (k == EVENT_RAT and not RAT_ENABLED):
 			continue
@@ -349,7 +349,7 @@ func server_end_event() -> void:
 	_server_clear_disruption(kind)
 	_rpc_event_ended.rpc(kind)
 	var b: BalanceConfig = Config.balance
-	_next_in = _rng.randf_range(minf(b.event_gap_min_sec, b.event_gap_max_sec), maxf(b.event_gap_min_sec, b.event_gap_max_sec)) * GameState.get_event_gap_factor() # M15 replay: gaps shrink per shift, x the conditions' event_gap
+	_next_in = _card().randf_range(minf(b.event_gap_min_sec, b.event_gap_max_sec), maxf(b.event_gap_min_sec, b.event_gap_max_sec)) * GameState.get_event_gap_factor() # M15 replay: gaps shrink per shift, x the conditions' event_gap; M16 variety: _card()
 
 
 ## SERVER ONLY. Mains power on/off outside an event (the FuseBox uses it if the power is off with no event).
@@ -2492,3 +2492,33 @@ func _free_room_child(child_name: String) -> void:
 	node.name = child_name + "_gone"
 	node.queue_free()
 # --- end M15 mayhem2 ---------------------------------------------------------------------------------------------
+
+
+# --- M16 variety: the run's dice ---------------------------------------------------------------------------------
+# With replay on the host seeds this autoload once per shift from the run seed (GameState's `M16 variety` region,
+# RunSeed.stream(seed, "events:<shift>")), so a run code deals the same events in the same order with the same gaps.
+# Two dice, so that what the workers do cannot shuffle the card: `_card_rng` rolls the kinds and the gaps (pick_kind,
+# the gap in server_end_event), `_rng` keeps the picks (the rat's tray, the drive-by's lanes, the rat's squeaks, whose
+# count follows how long the workers let an event run). Never seeded (replay off): `_card()` is `_rng`, as before.
+
+## Host: the dice for the kinds and the gaps once server_seed was called (null = `_rng` rolls them, as before M16).
+var _card_rng: RandomNumberGenerator = null
+
+
+## SERVER ONLY. Reseeds the event dice from `seed_value`: the card (kinds, gaps) and the picks, each on its own
+## stream. The same seed gives the same kinds in the same order with the same gaps.
+func server_seed(seed_value: int) -> void:
+	if not _is_host():
+		push_warning("Events.server_seed called on a non-host peer")
+		return
+	if _card_rng == null:
+		_card_rng = RandomNumberGenerator.new()
+	_card_rng.seed = RunSeed.stream(seed_value, &"card")
+	_rng.seed = RunSeed.stream(seed_value, &"picks")
+
+
+## The dice the scheduler rolls kinds and gaps with.
+func _card() -> RandomNumberGenerator:
+	return _card_rng if _card_rng != null else _rng
+
+# --- end M16 variety -----------------------------------------------------------------------------------------------

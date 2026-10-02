@@ -63,6 +63,7 @@ func _ready() -> void:
 	port_spin.rounded = true
 	_load_settings()
 	_apply_cli_overrides()
+	_run_ready() # M16 variety: the run code row
 	host_button.pressed.connect(_on_host_pressed)
 	join_button.pressed.connect(_on_join_pressed)
 	quit_button.pressed.connect(_on_quit_pressed)
@@ -188,6 +189,7 @@ func _begin_host(remember: bool) -> void:
 	Juice.punch_ui(host_button)
 	_set_busy(true)
 	_show_status(TEXT_HOSTING % port, &"info")
+	Config.run_code = get_run_code() # M16 variety: the run the host asks for ("" = a random one)
 	# Deferred: Game frees this menu while starting, never do that inside the button's own signal.
 	_host_after_firewall.call_deferred(_player_name(), port)
 
@@ -291,6 +293,7 @@ func _set_busy(busy: bool) -> void:
 	name_edit.editable = not busy
 	ip_edit.editable = not busy
 	port_spin.editable = not busy
+	_run_set_busy(busy) # M16 variety
 
 func _show_status(text: String, kind: StringName) -> void:
 	status_label.text = text
@@ -350,3 +353,59 @@ func _apply_fallback_styles() -> void:
 func _has_variation(variation: StringName) -> bool:
 	var t := theme if theme != null else ThemeDB.get_project_theme()
 	return t != null and t.get_type_variation_base(variation) != &""
+
+
+# --- M16 variety: the run code ---------------------------------------------------------------------------------------
+# A row under the two big buttons: a field for a run code and THIS WEEK, which fills in the code everyone gets this
+# week (FRIENDSLOP 10.1). Hosting hands the field to Config.run_code as a clean code; blank or junk hands over "",
+# and the host rolls a random run. The row comes after the buttons in the tree, so the keyboard path it always had
+# (Name, IP, Port, Open the floor, Report for shift) is untouched and the new stops come after it. Shown only when
+# runs exist (Config.replay_enabled). The code is not kept in settings.cfg: a run is asked for, not a habit.
+
+const TEXT_RUN_OK := "Run %s."
+const TEXT_RUN_JUNK := "Not a code. Random run."
+
+@onready var run_row: Control = %RunRow
+@onready var run_edit: LineEdit = %RunEdit
+@onready var run_hint: Label = %RunHint
+@onready var week_button: Button = %WeekButton
+
+
+## The run code hosting asks for: the field read as a code ("7K2M": case and spaces do not matter), "" when the
+## field is blank or is not a code.
+func get_run_code() -> String:
+	return RunSeed.to_code(RunSeed.from_code(run_edit.text))
+
+
+func _run_ready() -> void:
+	run_row.visible = Config.replay_enabled
+	run_edit.text = Config.run_code # `--run=<code>`, or what the last floor was opened with
+	run_edit.text_changed.connect(func(_text: String) -> void: _refresh_run_hint())
+	run_edit.text_submitted.connect(func(_text: String) -> void: _begin_host(true))
+	week_button.pressed.connect(_on_week_pressed)
+	_refresh_run_hint()
+
+
+func _on_week_pressed() -> void:
+	if _busy:
+		return
+	Sfx.play(&"ui_click")
+	run_edit.text = RunSeed.to_code(RunSeed.weekly(int(Time.get_unix_time_from_system())))
+	_refresh_run_hint()
+
+
+## Next to the field: nothing while it is blank, "Run 7K2M." for a code, the flat line for anything else.
+func _refresh_run_hint() -> void:
+	if run_edit.text.strip_edges() == "":
+		run_hint.text = ""
+	elif get_run_code() != "":
+		run_hint.text = TEXT_RUN_OK % get_run_code()
+	else:
+		run_hint.text = TEXT_RUN_JUNK
+
+
+func _run_set_busy(busy: bool) -> void:
+	run_edit.editable = not busy
+	week_button.disabled = busy
+
+# --- end M16 variety -------------------------------------------------------------------------------------------------

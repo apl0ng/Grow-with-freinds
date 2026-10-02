@@ -81,10 +81,12 @@ var _hum_handle: int = 0
 
 func _ready() -> void:
 	_set_hum(true)
+	_cover_ready() # M16 variety: the scene's cover transforms are read, the run's layout applied and followed
 
 
 func _exit_tree() -> void:
 	_set_hum(false)
+	_cover_exit() # M16 variety
 
 
 ## Starts / stops the mains hum (Sfx.play_loop, 2D). Looked up at runtime: this script is a compile-time
@@ -831,3 +833,181 @@ func get_roller_door_position() -> Vector3:
 func is_in_hall(point: Vector3) -> bool:
 	return get_area_index(point) == HALL_AREA_INDEX
 # --- end M15 mayhem2 ---------------------------------------------------------------------------------------------
+
+
+
+# --- M16 variety: cover that moves --------------------------------------------------------------------------------
+# The loose cover (the crates and pallets on the dock, in the main room and in the hall) stands differently each run
+# (FRIENDSLOP 10.1, CONTRACTS "M16", "Variety"). The run's seed picks one of COVER_LAYOUTS on the host
+# (GameState.get_run_cover(), synced in the state dictionary); every peer's Room moves its own nodes when it hears
+# GameState.run_changed, and once at _ready for a peer whose state arrived first. The host only changes the layout
+# while the game is WAITING (a reset or a test), so nothing moves under a running shift; a late joiner's Room takes
+# the layout the moment its state arrives.
+# The nodes are moved, never reparented, freed or given another collider. Layout 0 is the scene: its transforms are
+# read from the nodes at _ready, and a layout only lists the nodes it moves.
+# What every layout keeps (tools/tests/variety_body.gd proves it from the geometry, layout by layout): no piece in
+# another or in anything solid, every raised piece resting on one below it, the route graph and the doorways clear by
+# ROUTE_MARGIN, a worker's width free at every spawn, arrival, marker and station front and along the Boss's walks,
+# for every drive-by lane a spot behind cover, on the dock a spot no raid eye sees.
+
+## Every node a layout may move, by its path from the Room.
+const COVER_NODES: Array[NodePath] = [
+	^"Decor/PalletA", ^"Decor/PalletB", ^"Decor/CrateA", ^"Decor/CrateB", ^"Decor/CrateC",
+	^"Hall/CrateNorthA", ^"Hall/CrateNorthB", ^"Hall/PalletSouth", ^"Hall/CrateSouth",
+	^"Dock/CrateWestA", ^"Dock/CrateWestB", ^"Dock/CrateWestC", ^"Dock/CrateWestD", ^"Dock/CrateMidA", ^"Dock/CrateMidB",
+	^"Dock/PalletEast", ^"Dock/CrateEast", ^"Dock/PalletWestA", ^"Dock/PalletWestB",
+]
+## A worker is clear of a cover piece when their feet are this far outside its footprint (the body's radius and a bit).
+const COVER_BODY_MARGIN := 0.45
+## The arrangements: node path (as in COVER_NODES) -> [Room-local position, yaw in degrees]. A node a layout does not
+## name stands where the scene put it. Layout 0 names none: it is exactly the scene.
+const COVER_LAYOUTS: Array[Dictionary] = [
+	{},
+	{
+		"Dock/CrateMidA": [Vector3(-3.45, 0.0, 12.8), 4.0], "Dock/CrateMidB": [Vector3(-3.42, 0.9, 12.83), -9.0],
+		"Dock/CrateWestA": [Vector3(0.45, 0.0, 12.7), 12.0], "Dock/CrateWestB": [Vector3(0.5, 0.9, 12.72), -6.0],
+		"Dock/PalletEast": [Vector3(3.4, 0.0, 12.0), 90.0], "Dock/CrateEast": [Vector3(3.4, 0.15, 12.0), 15.0],
+		"Dock/CrateWestC": [Vector3(4.35, 0.0, 13.3), -10.0],
+		"Dock/PalletWestA": [Vector3(-9.3, 0.0, 9.5), 90.0], "Dock/PalletWestB": [Vector3(-9.25, 0.0, 12.9), 84.0],
+		"Dock/CrateWestD": [Vector3(-9.4, 0.0, 11.2), 8.0],
+		"Decor/PalletA": [Vector3(-8.6, 0.0, 6.9), 0.0], "Decor/PalletB": [Vector3(-8.6, 0.15, 6.9), 6.0],
+		"Decor/CrateA": [Vector3(-8.6, 0.3, 6.85), -8.0], "Decor/CrateB": [Vector3(-9.4, 0.0, 4.5), 15.0],
+		"Hall/CrateNorthA": [Vector3(21.2, 0.0, -3.4), 8.0], "Hall/CrateNorthB": [Vector3(21.2, 0.9, -3.35), -12.0],
+		"Hall/PalletSouth": [Vector3(14.6, 0.0, 6.8), 0.0], "Hall/CrateSouth": [Vector3(14.6, 0.15, 6.8), 15.0],
+	},
+	{
+		"Dock/CrateWestA": [Vector3(-6.15, 0.0, 10.7), -6.0], "Dock/CrateWestB": [Vector3(-6.12, 0.9, 10.72), 10.0],
+		"Dock/CrateMidA": [Vector3(1.4, 0.0, 13.6), 14.0], "Dock/CrateMidB": [Vector3(1.43, 0.9, 13.6), -5.0],
+		"Dock/PalletWestA": [Vector3(-8.7, 0.0, 12.7), 0.0], "Dock/PalletWestB": [Vector3(-8.7, 0.15, 12.7), 6.0],
+		"Dock/CrateWestD": [Vector3(-8.7, 0.3, 12.7), 8.0], "Dock/CrateWestC": [Vector3(-8.2, 0.0, 13.85), 15.0],
+		"Decor/PalletA": [Vector3(-6.0, 0.0, -6.85), 0.0], "Decor/PalletB": [Vector3(-6.0, 0.15, -6.85), 6.0],
+		"Decor/CrateA": [Vector3(-6.0, 0.3, -6.8), 10.0], "Decor/CrateB": [Vector3(2.3, 0.0, 6.95), -8.0],
+		"Hall/CrateNorthA": [Vector3(17.6, 0.0, 6.9), -8.0], "Hall/CrateNorthB": [Vector3(17.6, 0.9, 6.88), 12.0],
+		"Hall/PalletSouth": [Vector3(21.0, 0.0, 3.0), 90.0], "Hall/CrateSouth": [Vector3(21.0, 0.15, 3.0), -15.0],
+	},
+	{
+		"Dock/CrateMidA": [Vector3(-3.45, 0.0, 12.8), -5.0], "Dock/CrateMidB": [Vector3(-3.47, 0.9, 12.78), 9.0],
+		"Dock/CrateWestA": [Vector3(-6.5, 0.0, 13.9), 8.0], "Dock/CrateWestB": [Vector3(-6.47, 0.9, 13.92), -12.0],
+		"Dock/CrateEast": [Vector3(0.3, 0.0, 15.05), 0.0], "Dock/CrateWestC": [Vector3(1.5, 0.0, 14.45), 20.0],
+		"Dock/PalletWestA": [Vector3(4.2, 0.0, 12.3), 90.0], "Dock/PalletWestB": [Vector3(4.2, 0.15, 12.3), 96.0],
+		"Dock/CrateWestD": [Vector3(4.2, 0.3, 12.35), 8.0], "Dock/PalletEast": [Vector3(-9.2, 0.0, 10.4), 90.0],
+		"Decor/PalletA": [Vector3(-4.6, 0.0, 3.4), 35.0], "Decor/PalletB": [Vector3(-4.6, 0.15, 3.4), 41.0],
+		"Decor/CrateA": [Vector3(-4.6, 0.3, 3.4), 20.0],
+		"Hall/CrateNorthA": [Vector3(13.0, 0.0, 6.9), 8.0], "Hall/CrateNorthB": [Vector3(13.0, 0.9, 6.9), -12.0],
+	},
+]
+
+## The scene's own transform of every cover node (path -> Transform3D in its parent's space), read once.
+var _cover_base: Dictionary = {}
+var _cover_layout: int = 0
+
+
+## The arrangement the cover stands in (an index into COVER_LAYOUTS; 0 = the scene's own).
+func get_cover_layout() -> int:
+	return _cover_layout
+
+
+## Moves the loose cover into arrangement `index` of COVER_LAYOUTS (an index out of range is refused with a warning).
+## Local and immediate: every peer calls it for the layout the host synced. Never reparents, frees or adds anything.
+func apply_cover_layout(index: int) -> void:
+	if index < 0 or index >= COVER_LAYOUTS.size():
+		push_warning("Room.apply_cover_layout: no layout %d" % index)
+		return
+	_cover_capture()
+	var layout: Dictionary = COVER_LAYOUTS[index]
+	for path in COVER_NODES:
+		var node := get_node_or_null(path) as Node3D
+		if node == null or not _cover_base.has(path):
+			continue
+		var placed: Variant = layout.get(String(path))
+		if placed is Array and (placed as Array).size() >= 2 and (placed as Array)[0] is Vector3:
+			node.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(float((placed as Array)[1]))), (placed as Array)[0])
+		else:
+			node.transform = _cover_base[path]
+	_cover_layout = index
+
+
+## Every cover node that exists, in COVER_NODES order.
+func get_cover_nodes() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	for path in COVER_NODES:
+		var node := get_node_or_null(path) as Node3D
+		if node != null:
+			out.append(node)
+	return out
+
+
+## The floor rectangle each cover piece stands on as it stands now (Room-local x / z; the box round its collider,
+## so a turned crate's rectangle is a little larger than the crate). Same order as get_cover_nodes().
+func get_cover_footprints() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for node in get_cover_nodes():
+		out.append(_cover_footprint(node))
+	return out
+
+
+## True when `point` (global) is on the floor plan within `margin` of a cover piece, whatever its height.
+func is_in_cover(point: Vector3, margin: float = 0.0) -> bool:
+	if not point.is_finite():
+		return false
+	var p := _floor_point(point)
+	for rect in get_cover_footprints():
+		if rect.grow(margin).has_point(p):
+			return true
+	return false
+
+
+func _cover_ready() -> void:
+	_cover_capture()
+	# Looked up at runtime, like the hum: this script is a compile-time dependency of `-s` test scripts.
+	var state := get_node_or_null(^"/root/GameState")
+	if state == null or not state.has_signal(&"run_changed") or not state.has_method(&"get_run_cover"):
+		return
+	state.connect(&"run_changed", _on_run_changed)
+	_on_run_changed()
+
+
+func _cover_exit() -> void:
+	var state := get_node_or_null(^"/root/GameState")
+	if state != null and state.has_signal(&"run_changed") and state.is_connected(&"run_changed", _on_run_changed):
+		state.disconnect(&"run_changed", _on_run_changed)
+
+
+func _on_run_changed() -> void:
+	if not is_inside_tree():
+		return
+	var state := get_node_or_null(^"/root/GameState")
+	if state == null:
+		return
+	var index := int(state.call(&"get_run_cover"))
+	if index != _cover_layout:
+		apply_cover_layout(index)
+
+
+## Reads the scene's transforms (once: before anything was moved).
+func _cover_capture() -> void:
+	if not _cover_base.is_empty():
+		return
+	for path in COVER_NODES:
+		var node := get_node_or_null(path) as Node3D
+		if node != null:
+			_cover_base[path] = node.transform
+
+
+## The Room-local floor rectangle round a cover node's box collider (a 0.9 m square round its origin without one).
+func _cover_footprint(node: Node3D) -> Rect2:
+	var xf := _room_transform_of(node)
+	var half := Vector3(0.45, 0.45, 0.45)
+	var centre := Vector3.ZERO
+	var shape_node := node.get_node_or_null(^"Shape") as CollisionShape3D
+	if shape_node != null and shape_node.shape is BoxShape3D:
+		half = (shape_node.shape as BoxShape3D).size * 0.5
+		centre = shape_node.position
+	var bx := xf.basis.x * half.x
+	var bz := xf.basis.z * half.z
+	var ex := absf(bx.x) + absf(bz.x)
+	var ez := absf(bx.z) + absf(bz.z)
+	var c := xf * centre
+	return Rect2(c.x - ex, c.z - ez, ex * 2.0, ez * 2.0)
+
+# --- end M16 variety -----------------------------------------------------------------------------------------------
