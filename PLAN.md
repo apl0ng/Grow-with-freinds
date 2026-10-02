@@ -270,7 +270,7 @@ Rationale: FRIENDSLOP.md section 7.
 | 13.2 | Four-process stress of M12 (mutation under load, the chase, fire, events on top, churn) qa_m12_4p (+65) | qa | done (652 checks; 2 fixes) |
 | 13.3 | Visual pass on the real renderer (tools/tests/m12_shots_body.gd): flame plume, on-screen notices for a moving tray and a plant coming out, first-person flamethrower pose checked, banners checked | lead | done |
 | 13.4 | Hostile plant 2x (user request), tray warning line, fire-kills-plant covered in the flame suite, real recipes for flame / ignite / glass_break / scorch | lead | done |
-| 13.5 | Merge 13.1 and 13.2, register the suites, full run, re-export | lead | merged; full run and export in progress |
+| 13.5 | Merge 13.1 and 13.2, register the suites, full run, re-export | lead | done (59 suites, 9891 checks green; export re-cut) |
 | 13.6 | Lead follow-ups from the review: the Boss keeps the flamethrower of a back-room worker, MIN_EAT_SEC, Night Shift 210, report verdicts for burns / scorched / bitten, "No pressure.", the supply window footer hint | lead | done |
 Known UI gap: the supply window shows one and a half rows of the six strain cards at 720 lines (it scrolls; arrows and the
 wheel reach the second row). A compact card would fit both rows; not done yet.
