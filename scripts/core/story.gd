@@ -154,6 +154,7 @@ func _ready() -> void:
 			events.connect(&"power_changed", _on_power_changed)
 	_connect_hostile_signals() # --- M12 hostile --- (lines + handlers live in the region at the end of this file)
 	_disrupt_setup()  # M12 disrupt: its lines + event hooks (region at the end of the file)
+	_m13_setup()  # M13 lead: report verdicts for burns / scorched / bitten (region at the end of the file)
 
 
 func _process(delta: float) -> void:
@@ -298,7 +299,7 @@ static func get_report_score(peer_id: int) -> int:
 ##   "He noticed: <name>."    the most deposited, only if somebody deposited anything (ties: lowest id)
 ##   "Worst behaved: <name>." the most write-ups, only if there were any (ties: lowest id)
 ## With a single worker: only "Least useful" when they deposited nothing, else only "He noticed".
-func get_report_verdicts() -> PackedStringArray:
+func _base_report_verdicts() -> PackedStringArray:
 	var out := PackedStringArray()
 	var peers := get_report_peers()
 	if peers.is_empty():
@@ -783,3 +784,35 @@ func _disrupt_strain_name(strain: Variant) -> String:
 		return "Stock"
 	var def: SeedDef = Config.balance.get_seed(id)
 	return def.display_name if def != null else String(id).capitalize()
+
+
+# --- M13 lead: the shift report notices the M12 trouble ----------------------------------------------------------
+## Extra verdict lines under the report (after least / noticed / worst), each only when somebody's stat is above zero:
+## the worker who burnt the most hostile plants, the one who burnt the most crops, the one bitten most.
+const M13_LINES: Dictionary = {
+	"verdict_burns": "%s dealt with it. Noted. Not thanked.",
+	"verdict_scorched": "%s burnt stock. The fine came out of cash on hand.",
+	"verdict_bitten": "%s got bitten. No claim was filed.",
+}
+
+
+func _m13_setup() -> void:
+	for k in M13_LINES:
+		if not lines.has(k):
+			lines[k] = M13_LINES[k]
+
+
+func get_report_verdicts() -> PackedStringArray:
+	var out := _base_report_verdicts()
+	var peers := get_report_peers()
+	for entry: Array in [[Const.STAT_BURNS, "verdict_burns"], [Const.STAT_SCORCHED, "verdict_scorched"], [Const.STAT_BITTEN, "verdict_bitten"]]:
+		var best: int = 0
+		var best_amount: int = 0
+		for id in peers:
+			var amount: int = GameState.get_stat(id, entry[0])
+			if amount > best_amount:
+				best = id
+				best_amount = amount
+		if best_amount > 0:
+			out.append(line(String(entry[1])) % Net.get_player_name(best))
+	return out

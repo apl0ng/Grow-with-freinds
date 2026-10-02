@@ -289,6 +289,8 @@ func _run() -> void:
 	check(burn_took >= b.hostile_burn_sec * 0.8 and burn_took <= b.hostile_burn_sec + 1.5, "took %.2f s (hostile_burn_sec %.1f)" % [burn_took, b.hostile_burn_sec])
 	check(_died == [[hid, 1]], "hostile_died(id, me) %s" % [_died])
 	check(GameState.get_stat(1, Const.STAT_BURNS) == burns0 + 1, "STAT_BURNS +1 for me")
+	var verdicts := Story.get_report_verdicts()
+	check(verdicts.has("Tester dealt with it. Noted. Not thanked.") and verdicts.has("Bob burnt stock. The fine came out of cash on hand."), "the shift report notices who burnt the plant and who burnt the stock %s" % [verdicts])
 	check(ft3.server_request_fire(1, false), "stop")
 	await wait_until(func() -> bool: return Hostiles.get_hostile(hid) == null, 4.0, "the ash is cleared")
 	check(not Hostiles.is_any_alive() and Hostiles.count() == 0, "the floor is clear again")
