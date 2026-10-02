@@ -524,9 +524,11 @@ func _finish_transition(kind: StringName, reset: bool, token: int) -> void:
 			server_start_round()
 		return
 	if reset:
+		# The reset first: it empties the back room, and Events walks a released worker to a room spawn. The move to
+		# the alley has to be the last word.
+		server_reset_game()
 		if w != null:
 			w.server_move_players_to_lobby()
-		server_reset_game()
 	elif phase == Phase.ROUND_SUCCESS:
 		if w != null:
 			w.server_move_players_to_lobby()

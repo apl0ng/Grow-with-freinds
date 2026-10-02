@@ -40,6 +40,7 @@ func _run() -> void:
 			await _test_retry()
 			await _test_dropped_worker()
 			await _test_late_joiner_places()
+			await _test_retry_mid_shift()
 			await _test_cancel()
 	else:
 		check(Config.has_arg("no-lobby"), "the lobby is off because --no-lobby was passed (pass --lobby for the whole suite)")
@@ -367,6 +368,23 @@ func _test_late_joiner_places() -> void:
 	var p := _world.get_player(4)
 	check(p != null and not _lobby.contains_point(p.global_position), "a worker who joins during a shift is not put in the alley")
 	check(p != null and _flat(p.global_position).distance_to(_flat(_room.get_arrival_transform(p.spawn_index).origin)) < SPOT_TOLERANCE, "they land at the dock arrival of their index")
+
+
+func _test_retry_mid_shift() -> void:
+	step("start over in the middle of a shift, one worker in the back room")
+	var b: BalanceConfig = Config.balance
+	var w2 := _world.get_player(2)
+	check(GameState.server_send_to_backroom(2), "worker 2 is sent to the back room")
+	await wait_frames(3)
+	check(w2.global_position.distance_to(_room.get_backroom_transform(0).origin) < 1.5, "the body sits behind the booth")
+	var n := _transitions.size()
+	GameState.request_retry()
+	check(_transitions.size() == n + 1 and _transitions[n][0] == GameState.TRANSITION_TO_LOBBY and GameState.is_playing(), "START OVER during a shift: to_lobby, the shift runs on until it is dark")
+	await wait_until(func() -> bool: return GameState.phase == GameState.Phase.WAITING, b.transition_fade_sec + 1.5, "WAITING")
+	await wait_frames(3)
+	check(GameState.round_number == 1 and not GameState.is_in_backroom(2), "round 1, nobody in the back room")
+	_check_all_in_alley("after START OVER mid-shift")
+	await wait_until(func() -> bool: return not _hud.is_transition_showing(), b.transition_fade_sec + 1.5, "the screen fades back in")
 
 
 func _test_cancel() -> void:

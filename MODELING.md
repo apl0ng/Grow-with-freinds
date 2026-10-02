@@ -356,6 +356,12 @@ All paths are relative to `scenes/`. ✅ = shipped (in `art/models/manifest.json
 | ✅ `clipboard` | 0.25 × 0.36 × 0.07, floor (item, front -Z: the sheets face -Z), budget 1500 | the Boss's `Visual/Torso/ArmRight/Hand` during inspections | One mesh, no rig. Standing upright on its bottom edge; in a palm-down hand rotate it -90° about X (sheets up) |
 | ✅ `rat` | 0.13 × 0.07 × 0.35 (nose at -Z), floor, budget 2000 | `world/props/rat.tscn`, instanced **as** `Visual` | Rigged: `Body` (static, one unioned part so it gets the thin outline) + `Tail` (pivot at the rump (0, 0.046, 0.06), rest identity; `Tail.rotation.y` swishes). Thin, head hanging, heavy lids, bald patches, tail dragging |
 
+**M14 lobby** (lobby agent; built on Windows / Blender 5.2)
+
+| Model | Size / mount | Scene | Notes |
+|---|---|---|---|
+| ✅ `van` | 2.48 × 2.52 × 5.73 (doors open), floor, budget 7000. **Origin: on the ground under the centre of the rear axle. Front of the model = the REAR of the van** (the open doors face Godot +Z, the nose points at -Z) | `world/van.tscn` (the alley's van: `Model` + colliders + the cargo volume); as plain decor instance `art/models/van.glb` and give it your own box collider | Rigged: `Body` (static) + `DoorLeft` / `DoorRight` (pivots on the hinges at (∓0.93, 0.47, 0.78); **rest = open**, swung out 105°; `DoorLeft.rotation.y = deg_to_rad(105)` and `DoorRight.rotation.y = deg_to_rad(-105)` shut them). From the origin: rear sill z = +0.75, bulkhead z = -2.05, cargo floor y = 0.45, cargo ceiling y = 2.42, bay 1.8 wide (x ±0.9), bumper step z 0.75..1.07 at y 0.25, nose z = -4.07, body sides x ±1.0 (wheels ±1.14), open door tips x ±1.16, z +1.65. `TINT_paint` + `TINT_stripe` (give the root a `tint`: off-white `Color(0.79, 0.78, 0.74)` in the alley). Primer patch, rust, a dead headlight and tail light, a lost hubcap, "FLORIST" with letters scraped off |
+
 ---
 
 ## 9. Gotchas
