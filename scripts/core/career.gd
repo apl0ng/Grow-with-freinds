@@ -46,7 +46,8 @@ const KEY_BURNS := "burns"
 const KEY_BITTEN := "bitten"
 const KEY_SHOT := "shot"
 const KEY_BACKROOM := "backroom"
-const KEYS: PackedStringArray = [KEY_SHIFTS, KEY_BEST_ROUND, KEY_DEPOSITED, KEY_CONTRACTS, KEY_BURNS, KEY_BITTEN, KEY_SHOT, KEY_BACKROOM]
+const KEY_CLEARED := "cleared"  # M17 finale: runs cleared (the final notice paid while this peer was on the floor)
+const KEYS: PackedStringArray = [KEY_SHIFTS, KEY_BEST_ROUND, KEY_DEPOSITED, KEY_CONTRACTS, KEY_BURNS, KEY_BITTEN, KEY_SHOT, KEY_BACKROOM, KEY_CLEARED]  # M17 finale: + cleared
 ## A file larger than this is not a career file.
 const MAX_FILE_BYTES: int = 16384
 ## No record is allowed to grow past this (a damaged or edited file cannot overflow anything).
@@ -110,6 +111,7 @@ func _ready() -> void:
 	Net.peer_registered.connect(_on_peer_registered)
 	changed.connect(_sync_title)
 	_hats_ready() # M16 hats
+	_finale_ready() # M17 finale: a cleared run counts, and may issue the eyeshade
 
 
 # ---------------------------------------------------------------------------------------------
@@ -135,6 +137,7 @@ func get_summary_lines() -> Array[String]:
 	out.append(TEXT_CONTRACTS % get_record(KEY_CONTRACTS))
 	out.append(TEXT_BURNS % get_record(KEY_BURNS))
 	out.append(TEXT_TROUBLE % [get_record(KEY_BITTEN), get_record(KEY_SHOT), get_record(KEY_BACKROOM)])
+	if get_record(KEY_CLEARED) > 0: out.append(TEXT_CLEARED % get_record(KEY_CLEARED))  # M17 finale: only once there is one
 	return out
 
 
@@ -461,6 +464,35 @@ func _hats_file_line() -> String:
 	return "%s=%s\n" % [KEY_HAT, String(_hat)] if _hat != &"" else ""
 
 # --- end M16 hats -----------------------------------------------------------------------------------------------------
+
+
+# --- M17 finale -------------------------------------------------------------------------------------------------------
+# A run has an end (CONTRACTS "M17 / Finale"). `cleared` (KEY_CLEARED, one of KEYS: written as `cleared=<n>` under
+# [career], an M16 file without it reads as 0) counts the runs this player was on the floor for when the final notice
+# was paid: GameState.run_cleared fires on every peer present at that moment (not on a late joiner who arrives on the
+# end screen), before round_ended, so the clear is counted, saved, and the hat it issues (Hats: the green eyeshade at
+# one) is announced first; the end of the shift then counts the shift itself as usual. The summary gets one more line,
+# "Debts cleared: 1", only once there is one.
+
+const TEXT_CLEARED := "Debts cleared: %d"
+
+
+func _finale_ready() -> void:
+	if GameState.has_signal(&"run_cleared"):
+		GameState.connect(&"run_cleared", _finale_on_run_cleared)
+
+
+## Every peer present when the final notice is paid: one more debt cleared on this player's record.
+func _finale_on_run_cleared() -> void:
+	if not Net.players.has(_local_id()):
+		return
+	var hats_before := get_issued_hats()
+	_add(KEY_CLEARED, 1)
+	save()
+	changed.emit()
+	_hats_issue_new(hats_before)
+
+# --- end M17 finale ---------------------------------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------------------------

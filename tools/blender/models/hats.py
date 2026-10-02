@@ -1,4 +1,5 @@
-"""hats: issued kit (M16 hats agent; FRIENDSLOP 10.2, CONTRACTS "M16 / Hats"). Seven hats and the locker they are in.
+"""hats: issued kit (M16 hats agent; FRIENDSLOP 10.2, CONTRACTS "M16 / Hats"). Eight hats and the locker they are in
+(M17 finale: the eyeshade, issued for the first debt cleared).
 
 Every hat is ONE mesh, kind "item" (front on Godot -Z, like the worker), mount "free", authored in the HEAD SOCKET's
 space: the origin is the seat of the stock hard hat on the worker's head (player.py `hat_matrix()`, exported there
@@ -18,6 +19,7 @@ hat_cone          a traffic cone, the tip bent, one corner of the base curled, a
 hat_bucket        a tin bucket upside down, bitten at the rim, the handle hanging behind (bitten x5)
 hat_welding_mask  a leather cap, a headband and the mask swung up over the forehead, sooty (five plants burnt)
 hat_bandage       a head wrapped in gauze, one old stain, a loose end (shot x3)
+hat_eyeshade      a green celluloid eyeshade on a grey comb-over, a pencil stub in the band (one debt cleared; M17)
 locker            the alley's steel locker (prop, floor, origin under the centre of the footprint, front +Z in Godot):
                   `Body` (static) + `Door` (the right-hand door, pivot on its hinge edge, rest = shut;
                   scripts/world/locker.gd holds it ajar and swings it). TINT_paint + TINT_trim (give the root a tint).
@@ -351,6 +353,77 @@ def make_bandage():
     return [wrap, brow] + turns + stain + [knot] + ends
 
 
+# --- M17 finale ---------------------------------------------------------------------------------------------------
+def comb_strand(c, width, end, mat, grow=0.012, lift=0.003, thick=0.005, steps=16):
+    """A flat strip of hair lying on crown_profile(grow) in the upright plane y = c (a comb-over runs parallel, not
+    through the pole like strap()): from just above the seat on the left (-X) over the top towards +X, ending at
+    `end` (-1 = the seat on the left, 0 = the top of the curve, +1 = the seat on the right)."""
+    k = 1.0 + grow / TOP                                    # crown_profile stretches the dome's heights by this
+
+    def crown_r(z):
+        return stock_r(z / k) + grow
+
+    lo, hi = 0.0, TOP * k                                   # where the plane's curve tops out: crown_r(z) == |c|
+    for _ in range(30):
+        mid = (lo + hi) / 2
+        if crown_r(mid) > abs(c):
+            lo = mid
+        else:
+            hi = mid
+    z_top = lo
+
+    def fn(u, v):
+        s = -0.92 + (end + 0.92) * u
+        z = z_top * math.cos(min(1.0, abs(s)) * math.pi / 2)
+        y = c + (v - 0.5) * width
+        x = math.sqrt(max(crown_r(z) ** 2 - y * y, 0.0)) * (1 if s >= 0 else -1)
+        p = Vector((x, y, z))
+        n = (p - Vector((0.0, 0.0, 0.02))).normalized()
+        return p + n * (lift + thick), p + n * (lift - 0.004)
+    return P.shell(fn, steps, 1, "strand", mat, smooth=60.0)
+
+
+def make_eyeshade():
+    """A bookkeeper's green eyeshade on a thin comb-over, a pencil stub through the band (one debt cleared). The
+    hair is the liner every hat needs (the stock dome plus 1.2 cm, like the welding mask's cap); the visor is a
+    crescent of dull green celluloid on an elastic band, warped and bent down at its left front corner."""
+    hair = material("hair", P.mix(pal("COCOA"), pal("INK"), 0.35), "matte")
+    grey = material("hair_grey", P.mix(pal("STONE"), pal("CREAM"), 0.4), "matte")
+    celluloid = material("celluloid", P.mix(pal("GRASS"), pal("INK"), 0.3), "soft")
+    crown = lathe(crown_profile(0.012), verts=24, mat=hair, name="hair", smooth=180)
+    dent(crown, (0.05, 0.08, 0.27), radius=0.1, depth=0.01)
+    # Long grey strands combed over from above the left ear, flat across the top, short of the other side.
+    strands = [comb_strand(c, 0.042, end, grey) for c, end in ((-0.13, 0.35), (-0.065, 0.55), (0.0, 0.62),
+                                                                   (0.065, 0.5), (0.13, 0.3))]
+    band_ring = band(0.312, -0.03, 0.035, thickness=0.011, verts=28, mat="dark", name="band")
+
+    a_max, r_in, z_in, deep = math.radians(80), 0.316, 0.026, 0.175
+
+    def visor_point(u, v):
+        a = -a_max + 2 * a_max * u
+        d = 0.03 + (deep - 0.03) * math.sqrt(max(0.0, 1 - (a / a_max) ** 2))
+        r = r_in + d * v
+        z = z_in - 0.4 * d * v                                       # tipped down over the eyes
+        z += 0.008 * math.sin(3 * a) * v                             # celluloid warps
+        z -= 0.03 * v * v * max(0.0, -math.sin(a)) ** 1.5            # the left front corner, bent down
+        return Vector((r * math.sin(a), -r * math.cos(a), z))
+
+    visor = P.shell(lambda u, v: (visor_point(u, v) + Vector((0, 0, 0.004)), visor_point(u, v) - Vector((0, 0, 0.004))),
+                    16, 3, "visor", celluloid, smooth=50.0)
+    binding = pipe([visor_point(k / 16, 1.0) for k in range(17)], 0.007, verts=6, bend=0.0, mat="dark",
+                   name="binding")
+    # A pencil stub pushed through the band over the right ear, chewed down: built along +Z, then laid along the band.
+    stub = [cyl(0.016, 0.022, verts=8, pos=(0, 0, 0), bevel=0.004, mat="pink", name="eraser"),
+            cyl(0.016, 0.1, verts=6, pos=(0, 0, 0.022), bevel=0.002, mat=lib("caution"), name="pencil"),
+            cone(0.016, 0.036, verts=6, pos=(0, 0, 0.122), radius_top=0.003, mat="dark", name="point")]
+    pencil = join(stub, "pencil")
+    pencil.rotation_euler = (math.radians(100), 0.0, math.radians(-4))
+    pencil.location = (0.334, 0.08, 0.037)
+    apply_transform(pencil)
+    return [crown] + strands + [band_ring, visor, binding, pencil]
+# --- end M17 finale -----------------------------------------------------------------------------------------------
+
+
 # ====================================================================================================== locker
 def build_locker():
     reset()
@@ -407,7 +480,8 @@ def build_locker():
 
 
 HATS = (("hairnet", make_hairnet), ("paper_cap", make_paper_cap), ("hard_hat", make_hard_hat), ("cone", make_cone),
-        ("bucket", make_bucket), ("welding_mask", make_welding_mask), ("bandage", make_bandage))
+        ("bucket", make_bucket), ("welding_mask", make_welding_mask), ("bandage", make_bandage),
+        ("eyeshade", make_eyeshade))   # M17 finale
 
 
 def build():

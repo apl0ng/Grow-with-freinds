@@ -159,6 +159,7 @@ func _ready() -> void:
 	_replay_setup()  # M15 replay: the shift conditions (region at the end of the file)
 	_mayhem2_setup()  # M15 mayhem2: the raid, the sprinklers, the collector (region after the M14 mayhem one)
 	_career_setup()  # M15 career: the shift's job (region at the end of the file)
+	_finale_setup()  # M17 finale: the final notice (region at the end of the file)
 
 
 func _process(delta: float) -> void:
@@ -211,6 +212,7 @@ func get_board_text() -> String:
 			var owed := maxi(GameState.quota - GameState.round_sales, 0)
 			return line("board_owed") % [format_money(owed), GameState.round_number]
 		GameState.Phase.ROUND_SUCCESS:
+			if GameState.is_run_cleared(): return line("board_cleared")  # M17 finale: the run's last payment
 			return line("board_paid")
 		GameState.Phase.ROUND_FAILED:
 			return line("board_done")
@@ -368,6 +370,7 @@ func _on_round_started(_round_number: int) -> void:
 
 
 func _on_round_ended(success: bool, _round_number: int) -> void:
+	if success and GameState.is_run_cleared(): _request("final_cleared", Weight.MAJOR); return  # M17 finale: no next number
 	_request("paid" if success else "missed", Weight.MAJOR)
 
 
@@ -1371,3 +1374,52 @@ func _career_on_failed(contract: Dictionary) -> void:
 		Game.toast(line("toast_job_failed") % String(contract.get("text", "")), &"error")
 
 # --- end M15 career ----------------------------------------------------------------------------------------------
+
+
+# --- M17 finale: the final notice ----------------------------------------------------------------------------------
+# The run's last shift (GameState's "M17 finale" region; CONTRACTS "M17", "Finale"). GameState syncs it, so every peer
+# derives the same lines without a Story RPC. _ready() calls _finale_setup().
+#   the final notice starts          toast_final (info)                 "Final notice. Pay it and the debt is cleared."
+#   half time, under the share       toast_final_raised (error)         "Payment due up $132."
+#                                    + final_short, MAJOR               "Half the clock. Not half the money."
+#   half time, on schedule           final_on_schedule, MAJOR           "On schedule. Keep it there." (nothing else)
+#   paid: the run is cleared         final_cleared, MAJOR, said instead of "paid" (there is no next number);
+#                                    the debt board reads board_cleared ("PAID IN FULL") on the end screen
+
+const FINALE_LINES: Dictionary = {
+	"final_short": "Half the clock. Not half the money.",
+	"final_on_schedule": "On schedule. Keep it there.",
+	"final_cleared": "That's all of it. I'll think of something.",
+	"toast_final": "Final notice. Pay it and the debt is cleared.",
+	"toast_final_raised": "Payment due up %s.",
+	"board_cleared": "PAID IN FULL",
+}
+
+
+func _finale_setup() -> void:
+	for k in FINALE_LINES:
+		if not lines.has(k):
+			lines[k] = FINALE_LINES[k]
+	if GameState.has_signal(&"final_look"):
+		GameState.connect(&"final_look", _finale_on_look)
+	GameState.round_started.connect(_finale_on_round_started)
+
+
+## Every peer, when a shift starts: the final notice is announced on the floor (the HUD's title says it too).
+func _finale_on_round_started(_round_number: int) -> void:
+	if _in_session() and GameState.is_final_shift():
+		Game.toast(line("toast_final"), &"info")
+
+
+## Every peer: the host looked at the payment at half time of the final notice (GameState.final_look).
+func _finale_on_look(short: bool, raised: int) -> void:
+	if not _in_session():
+		return
+	if short:
+		if raised > 0:
+			Game.toast(line("toast_final_raised") % format_money(raised), &"error")
+		_request("final_short", Weight.MAJOR)
+	else:
+		_request("final_on_schedule", Weight.MAJOR)
+
+# --- end M17 finale ------------------------------------------------------------------------------------------------

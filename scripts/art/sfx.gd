@@ -1136,6 +1136,23 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_fade_in(b, 0.002)
 			_fade_out(b, 0.05)
 		# --- end M16 polish ---
+		# --- M17 finale ---
+		&"paid_in_full":  # the run is over: the ledger's pages run out, the book shuts, one rubber stamp. No bell, no tune.
+			b = _buf(1.15)
+			for t: float in [0.0, 0.03, 0.055, 0.085, 0.11, 0.14, 0.16]:             # the last pages, flicked over
+				_noise(b, rng, t, 0.024, 0.22, 0.6, 0.25, 0.0005, 9.0)
+			_noise(b, rng, 0.21, 0.09, 0.85, 0.32, 0.05, 0.0008, 7.0)                # the book shuts: paper slaps paper
+			_tone(b, 0.21, 0.24, 118.0, 60.0, 0.9, Wave.SINE, 0.002, 6.0)            # and the cover thuds on the desk
+			_tone(b, 0.21, 0.06, 250.0, 170.0, 0.18, Wave.TRIANGLE, 0.001, 8.0)
+			_noise(b, rng, 0.6, 0.012, 0.35, 0.9, 0.4, 0.0003, 9.0)                  # the stamp: a click
+			_tone(b, 0.61, 0.15, 146.0, 88.0, 0.65, Wave.SINE, 0.002, 6.0)           # a dull rubber thump
+			_noise(b, rng, 0.61, 0.05, 0.35, 0.3, 0.05, 0.001, 7.0)
+			_noise(b, rng, 0.8, 0.02, 0.1, 0.5, 0.2, 0.0005, 8.0)                    # it lifts off the page
+			_lowpass(b, 0.45)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.06)
+		# --- end M17 finale ---
 		_:
 			b = _buf(0.1)
 			_tone(b, 0.0, 0.08, 600.0, 600.0, 0.5, Wave.SINE, 0.002, 4.0)

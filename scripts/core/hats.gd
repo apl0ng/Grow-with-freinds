@@ -11,7 +11,7 @@ extends RefCounted
 ##   id         StringName, a-z 0-9 _ (it is written to the career file and sent on the wire as a String)
 ##   name       what the locker and the toast call it, lower case, flat
 ##   line       what it is issued for, flat, no exclamation mark
-##   key        the record it reads (a Career key: "shifts", "best_round", "backroom", "bitten", "burns", "shot")
+##   key        the record it reads (a Career key: "shifts", "best_round", "backroom", "bitten", "burns", "shot", M17 finale: "cleared")
 ##   threshold  issued when the record is at least this
 ##   scene      the model (art/models/hat_<id>.glb, built by tools/blender/models/hats.py): a Toonify root authored in
 ##              the head socket's space (origin = where the stock hard hat sits, front on -Z)
@@ -22,7 +22,7 @@ extends RefCounted
 
 ## The toast when the end of a shift issues one ("Issued: yellow hard hat. It is in your locker.").
 const TEXT_ISSUED := "Issued: %s. It is in your locker."
-## The pause menu's Record card ("Issued: 3 of 7").
+## The pause menu's Record card ("Issued: 3 of 8").
 const TEXT_RECORD := "Issued: %d of %d"
 ## Longest id (the career file's key rule; Net looks at no more than this).
 const MAX_ID_LENGTH: int = 24
@@ -44,6 +44,10 @@ const CATALOG: Array[Dictionary] = [
 			"scene": "res://art/models/hat_welding_mask.glb"},
 	{"id": &"bandage", "name": "bandage", "line": "Shot three times.", "key": "shot", "threshold": 3,
 			"scene": "res://art/models/hat_bandage.glb"},
+	# --- M17 finale: the one hat a run's end issues (Career "cleared": the final notice paid while on the floor) ---
+	{"id": &"eyeshade", "name": "green eyeshade", "line": "One debt cleared.", "key": "cleared", "threshold": 1,
+			"scene": "res://art/models/hat_eyeshade.glb"},
+	# --- end M17 finale ---
 ]
 
 ## id -> PackedScene (or null when the model is missing), loaded on first use.
@@ -123,7 +127,7 @@ static func issued_text(id: StringName) -> String:
 	return TEXT_ISSUED % hat_name if hat_name != "" else ""
 
 
-## The Record card's line for `career` ("Issued: 3 of 7").
+## The Record card's line for `career` ("Issued: 3 of 8").
 static func record_text(career: Object) -> String:
 	return TEXT_RECORD % [issued_for(career).size(), count()]
 

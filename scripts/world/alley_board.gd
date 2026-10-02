@@ -35,6 +35,7 @@ const TEXT_DUE := "Payment due $%d."
 const TEXT_NO_RECORD := "Nothing on file."
 const TEXT_JOB := "Job: %s. $%d."
 const TEXT_RUN := "Run %s."  # M16 variety
+const TEXT_FINAL := "Final notice. Pay it and the debt is cleared."  # M17 finale
 const HEADS: PackedStringArray = ["LAST SHIFT", "NEXT", "YOUR RECORD"]
 ## The LAST SHIFT column: this many lines of result and money, then at most this many verdicts.
 const HEAD_LINES: int = 3
@@ -98,6 +99,7 @@ func get_last_shift_lines() -> PackedStringArray:
 ## The next shift: its number and payment, then the briefing lines when there is a briefing.
 func get_next_lines() -> PackedStringArray:
 	var out := PackedStringArray([TEXT_NEXT % GameState.round_number, TEXT_DUE % GameState.quota])
+	if GameState.is_final_shift(): out.insert(0, TEXT_FINAL)  # M17 finale: the run's last shift heads the column
 	var src: Object = briefing_source if briefing_source != null and is_instance_valid(briefing_source) else GameState
 	if src.has_method(&"get_shift_briefing"):
 		out.append_array(_clean_lines(src.call(&"get_shift_briefing"), MAX_BRIEFING))

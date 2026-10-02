@@ -42,6 +42,9 @@ func _run() -> void:
 	# M16 lead: the shift's job is rolled from an unseeded dice and pays on the spot; this suite counts money to the
 	# dollar (a deposit that happened to finish the job failed "a quiet night" once), so its jobs pay nothing.
 	b.contract_reward = 0
+	# M17 finale: this suite plays nine shifts of one run; with the run's end in place shift 4 would be the final notice
+	# (two conditions, the run cleared when paid). The final notice has its own suite (finale_body.gd): no end here.
+	b.final_shift_by_team.clear()
 	check(replay_run == Config.has_arg("replay") or Config.has_arg("no-replay"), "Config.replay_enabled follows --replay / --no-replay (%s)" % replay_run)
 	Game.start_host("Tester", port_arg(7983))
 	await wait_until(func() -> bool: return Game.world != null and Game.local_player != null, 5.0, "world + local player exist")
