@@ -103,6 +103,7 @@ static func get_scene_path(item_type: StringName) -> String:
 		return "res://scenes/items/product.tscn"
 	if item_type == Const.ITEM_FLAMETHROWER: # M12: {"fuel": float}
 		return "res://scenes/items/flamethrower.tscn"
+	if item_type == Const.ITEM_BALL: return "res://scenes/items/ball.tscn" # M15 alley
 	return ""
 
 ## The ItemManager for `from`'s world: the nearest ancestor with an "Items" ItemManager child, else
@@ -654,6 +655,26 @@ func _inside_play(spot: Vector3, bounds: AABB) -> bool:
 	return false
 
 # --- end M14 level ------------------------------------------------------------------------------------------------------
+
+# --- M15 alley -----------------------------------------------------------------------------------------------------------
+
+## SERVER ONLY. Gives an item that is in the air a new arc from `origin` (world space) at `velocity`: a new flight
+## serial, so every peer restarts the arc from there and the server steps it like any throw. The thrower stays who it
+## was. The alley hoop uses it to let a ball that went through the ring drop straight down. False if the item is not
+## flying or the numbers are not finite.
+func server_redirect_flight(item: Item, origin: Vector3, velocity: Vector3) -> bool:
+	if not multiplayer.is_server():
+		push_error("ItemManager.server_redirect_flight called on a client")
+		return false
+	if not _is_live(item) or not item.is_flying() or not origin.is_finite() or not velocity.is_finite():
+		return false
+	_next_flight_serial += 1
+	item.flight_origin = _to_items_space(origin)
+	item.flight_velocity = velocity
+	item.flight_serial = _next_flight_serial
+	return true
+
+# --- end M15 alley -------------------------------------------------------------------------------------------------------
 
 func _flight_floor_limit() -> float:
 	var bounds := _room_bounds()

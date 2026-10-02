@@ -17,6 +17,10 @@
 [ext_resource type="PackedScene" path="res://scenes/world/props/sign_board.tscn" id="15_sign_board"]
 [ext_resource type="PackedScene" path="res://art/models/backroom_door.glb" id="16_door"]
 [ext_resource type="Material" path="res://art/materials/toon_rust.tres" id="17_rust"]
+[ext_resource type="Script" path="res://scripts/world/alley_hoop.gd" id="18_hoop"]
+[ext_resource type="Script" path="res://scripts/world/alley_board.gd" id="19_board"]
+[ext_resource type="PackedScene" path="res://art/models/alley_hoop.glb" id="20_hoop_model"]
+[ext_resource type="Material" path="res://art/materials/toon_wood.tres" id="21_wood"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(14, 1, 19)
@@ -75,6 +79,15 @@ size = Vector3(0.72, 0.12, 0.82)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_bin"]
 size = Vector3(0.74, 1.12, 0.84)
+
+[sub_resource type="BoxMesh" id="BoxMesh_counter"]
+size = Vector3(0.52, 0.6, 0.04)
+
+[sub_resource type="BoxMesh" id="BoxMesh_door_lamp"]
+size = Vector3(0.36, 0.16, 0.14)
+
+[sub_resource type="BoxMesh" id="BoxMesh_door_lamp_glow"]
+size = Vector3(0.28, 0.02, 0.1)
 
 [node name="Lobby" type="Node3D"]
 script = ExtResource("1_lobby")
@@ -329,3 +342,71 @@ board_material = ExtResource("11_caution")
 
 [node name="BackDoor" parent="Decor" instance=ExtResource("16_door")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.6, 0, 7.44)
+
+[node name="DoorLamp" type="MeshInstance3D" parent="Decor"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.6, 2.52, 7.38)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_door_lamp")
+material_override = ExtResource("10_metal_dark")
+
+[node name="Glow" type="MeshInstance3D" parent="Decor/DoorLamp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.088, 0)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_door_lamp_glow")
+material_override = SubResource("StandardMaterial3D_glow")
+
+[node name="DoorLight" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 2.35, 6.75)
+light_color = Color(1, 0.8, 0.56, 1)
+light_energy = 0.9
+light_specular = 0
+omni_range = 6.5
+
+[node name="BallSpot" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 0, 0.4)
+
+[node name="Hoop" type="Node3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1.2, 2.6, 7.44)
+script = ExtResource("18_hoop")
+
+[node name="Model" parent="Hoop" instance=ExtResource("20_hoop_model")]
+
+[node name="Ring" type="Marker3D" parent="Hoop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, 0.47)
+
+[node name="Counter" type="Node3D" parent="Hoop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.98, 0.1, 0)
+
+[node name="Plate" type="MeshInstance3D" parent="Hoop/Counter"]
+transform = Transform3D(0.999391, -0.034899, 0, 0.034899, 0.999391, 0, 0, 0, 1, 0, 0, 0.02)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_counter")
+material_override = ExtResource("9_dark")
+
+[node name="Caption" type="Label3D" parent="Hoop/Counter"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21, 0.045)
+cast_shadow = 0
+pixel_size = 0.002
+double_sided = false
+text = "IN"
+font_size = 44
+outline_size = 8
+
+[node name="Count" type="Label3D" parent="Hoop/Counter"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.06, 0.045)
+cast_shadow = 0
+pixel_size = 0.003
+double_sided = false
+text = "0"
+font_size = 110
+outline_size = 18
+
+[node name="ReportBoard" type="Node3D" parent="."]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 4.94, 2.05, 5.3)
+script = ExtResource("19_board")
+
+[node name="Panel" parent="ReportBoard" instance=ExtResource("15_sign_board")]
+text = ""
+board_size = Vector2(4, 1.8)
+board_material = ExtResource("9_dark")
+frame_material = ExtResource("21_wood")

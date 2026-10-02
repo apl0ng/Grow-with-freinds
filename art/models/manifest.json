@@ -1,4 +1,22 @@
 {
+ "alley_hoop": {
+  "front": "+z",
+  "kind": "prop",
+  "materials": [
+   "toon_wood",
+   "toon_metal_dark",
+   "toon_rust",
+   "toon_cream"
+  ],
+  "mount": "wall",
+  "script": "tools/blender/models/alley.py",
+  "size": [
+   0.993,
+   0.753,
+   0.829
+  ],
+  "tris": 2564
+ },
  "backroom_door": {
   "front": "+z",
   "kind": "prop",
@@ -20,6 +38,23 @@
    0.17
   ],
   "tris": 2824
+ },
+ "ball": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "toon_orange",
+   "toon_dark",
+   "toon_cream"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/alley.py",
+  "size": [
+   0.243,
+   0.166,
+   0.244
+  ],
+  "tris": 528
  },
  "barred_window": {
   "front": "+z",

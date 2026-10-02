@@ -947,6 +947,18 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_lowpass(b, 0.5)
 			_fade_out(b, 0.05)
 		# --- end M14 lobby ---
+		# --- M15 alley ---
+		&"ball":  # a half-flat ball on concrete: a dull rubber slap, the air left in it gives one low note, a dead second bounce
+			b = _buf(0.44)
+			_noise(b, rng, 0.0, 0.03, 0.6, 0.35, 0.05, 0.0008, 7.0)
+			_tone(b, 0.0, 0.17, 215.0, 118.0, 0.9, Wave.SINE, 0.002, 6.0)
+			_tone(b, 0.0, 0.12, 430.0, 300.0, 0.22, Wave.TRIANGLE, 0.002, 7.0)
+			_noise(b, rng, 0.2, 0.02, 0.22, 0.3, 0.05, 0.0008, 7.0)
+			_tone(b, 0.2, 0.13, 185.0, 108.0, 0.32, Wave.SINE, 0.002, 6.0)
+			_lowpass(b, 0.5)
+			_dc_block(b)
+			_fade_out(b, 0.04)
+		# --- end M15 alley ---
 		# --- M12 lead: the flamethrower and its consequences (dull and physical, nothing heroic) ------------------
 		&"flame":  # the loop while the trigger is held: a muffled roar with a slow rumble under it
 			b = _buf(0.8)
