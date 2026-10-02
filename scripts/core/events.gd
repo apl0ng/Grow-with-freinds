@@ -422,6 +422,13 @@ func _judge(player: Player, w: World) -> void:
 			_rpc_spotted.rpc(pid, Const.WRITE_UP_SKIMMING)
 		_seen_since[pid] = [_clock, pos]
 		return
+	# M13 QA: a worker who cannot move is not loitering. While a stun runs (a bite, a shove, a thrown item, a flame:
+	# the server's own view, Player.is_stunned()) the loiter clock restarts, so loiter_sec counts from the moment they
+	# can walk again. Before this a worker bitten in the Boss's sight and pinned where he stood was written up for
+	# standing still through the stun.
+	if player.is_stunned():
+		_seen_since[pid] = [_clock, pos]
+		return
 	if not _seen_since.has(pid):
 		_seen_since[pid] = [_clock, pos]
 		return
