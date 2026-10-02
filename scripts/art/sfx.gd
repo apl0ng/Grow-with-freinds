@@ -119,7 +119,7 @@ const SETTINGS := {
 	&"countdown": [-6.0, 0.0, 5.0],
 	&"round_start": [-8.0, 0.0, 10.0],
 	# M10: see the dB ladder in the header.
-	&"step": [-12.0, 0.12, 4.0],
+	&"step": [-10.0, 0.05, 5.0],
 	&"throw": [-8.0, 0.08, 5.0],
 	&"bonk": [-2.0, 0.08, 6.0],
 	&"shove": [-5.0, 0.10, 5.0],
@@ -145,9 +145,9 @@ const SETTINGS := {
 	&"headcount": [-10.0, 0.0, 12.0],
 	&"water_off": [-8.0, 0.0, 12.0],
 	&"shortage": [-10.0, 0.0, 12.0],
-	&"step2": [-12.0, 0.1, 4.0],
-	&"step3": [-12.0, 0.1, 4.0],
-	&"land": [-9.0, 0.08, 5.0],
+	&"step2": [-10.0, 0.05, 5.0],
+	&"step3": [-10.0, 0.05, 5.0],
+	&"land": [-8.0, 0.05, 6.0],
 	&"van_door": [-4.0, 0.03, 10.0],
 	&"leak": [-14.0, 0.0, 6.0],
 	&"slip": [-6.0, 0.08, 6.0],
@@ -692,14 +692,43 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			b = _buf(0.35)
 			_noise(b, rng, 0.0, 0.32, 0.6, 0.25, 0.03, 0.12, 2.0)
 		# --- M10 friendslop pass. Dull, low, factory. Concrete, steel, paper, mains. ---
-		&"step":   # a soft scuff on concrete: heel thump, a scuff, a little grit; pitch varies at play time
-			b = _buf(0.11)
-			_tone(b, 0.0, 0.06, 120.0, 68.0, 0.5, Wave.SINE, 0.002, 6.0)          # heel
-			_noise(b, rng, 0.0, 0.1, 0.6, 0.25, 0.04, 0.004, 6.0)                 # the scuff
-			_noise(b, rng, 0.01, 0.04, 0.25, 0.7, 0.3, 0.001, 8.0)                # grit
-			_noise(b, rng, 0.05, 0.05, 0.3, 0.3, 0.05, 0.003, 5.0)                # toe drags
-			_lowpass(b, 0.6)
-			_fade_out(b, 0.01)
+		&"step":   # a boot on concrete: the heel lands (low, short), a dull knock of the sole, a brief scuff
+			b = _buf(0.14)
+			_tone(b, 0.0, 0.08, 92.0, 52.0, 0.9, Wave.SINE, 0.002, 7.0)           # heel
+			_tone(b, 0.0, 0.03, 210.0, 130.0, 0.28, Wave.TRIANGLE, 0.001, 9.0)    # the knock of the sole
+			_noise(b, rng, 0.004, 0.05, 0.3, 0.2, 0.05, 0.003, 7.0)               # scuff
+			_noise(b, rng, 0.035, 0.07, 0.1, 0.45, 0.2, 0.005, 6.0)               # grit settling
+			_lowpass(b, 0.45)
+			_dc_block(b)
+			_fade_out(b, 0.015)
+		&"step2":  # the other foot: a little lower, the scuff comes later
+			b = _buf(0.15)
+			_tone(b, 0.0, 0.09, 84.0, 48.0, 0.9, Wave.SINE, 0.002, 6.5)
+			_tone(b, 0.0, 0.03, 185.0, 115.0, 0.25, Wave.TRIANGLE, 0.001, 9.0)
+			_noise(b, rng, 0.012, 0.06, 0.28, 0.18, 0.05, 0.004, 6.5)
+			_noise(b, rng, 0.05, 0.07, 0.09, 0.4, 0.2, 0.005, 6.0)
+			_lowpass(b, 0.42)
+			_dc_block(b)
+			_fade_out(b, 0.015)
+		&"step3":  # a flatter landing: more sole, a toe tap after it
+			b = _buf(0.15)
+			_tone(b, 0.0, 0.07, 102.0, 58.0, 0.85, Wave.SINE, 0.002, 7.5)
+			_tone(b, 0.0, 0.035, 240.0, 150.0, 0.3, Wave.TRIANGLE, 0.001, 8.5)
+			_noise(b, rng, 0.003, 0.04, 0.26, 0.24, 0.06, 0.003, 7.5)
+			_tone(b, 0.05, 0.03, 160.0, 110.0, 0.2, Wave.SINE, 0.002, 8.0)        # toe
+			_lowpass(b, 0.48)
+			_dc_block(b)
+			_fade_out(b, 0.015)
+		&"land":   # both boots after a jump: a heavy thud, the second boot a hair later, cloth and grit
+			b = _buf(0.3)
+			_tone(b, 0.0, 0.16, 74.0, 38.0, 1.0, Wave.SINE, 0.002, 5.5)
+			_tone(b, 0.012, 0.12, 66.0, 36.0, 0.7, Wave.SINE, 0.002, 6.0)
+			_tone(b, 0.0, 0.04, 190.0, 110.0, 0.3, Wave.TRIANGLE, 0.001, 8.0)
+			_noise(b, rng, 0.0, 0.1, 0.4, 0.16, 0.04, 0.004, 6.0)
+			_noise(b, rng, 0.05, 0.2, 0.12, 0.35, 0.15, 0.02, 4.0)
+			_lowpass(b, 0.4)
+			_dc_block(b)
+			_fade_out(b, 0.03)
 		&"throw":  # a short heave of air and a sleeve
 			b = _buf(0.3)
 			_noise(b, rng, 0.0, 0.28, 0.7, 0.3, 0.05, 0.07, 3.5)                  # air
@@ -1048,6 +1077,17 @@ func _bell(b: PackedFloat32Array, start: float, dur: float, f: float, amp: float
 	_tone(b, start, dur * 0.8, f * 2.0, f * 2.0, amp * 0.3, Wave.SINE, 0.001, 5.0)
 	_tone(b, start, dur * 0.6, f * 2.76, f * 2.76, amp * 0.22, Wave.SINE, 0.001, 6.0)
 	_tone(b, start, dur * 0.35, f * 5.4, f * 5.4, amp * 0.1, Wave.SINE, 0.001, 8.0)
+
+## Removes the mean (a short decaying low sine leaves a small DC offset; M14 footsteps).
+func _dc_block(b: PackedFloat32Array) -> void:
+	if b.is_empty():
+		return
+	var sum := 0.0
+	for v in b:
+		sum += v
+	var mean := sum / b.size()
+	for i in b.size():
+		b[i] -= mean
 
 func _lowpass(b: PackedFloat32Array, k: float) -> void:
 	var y := 0.0

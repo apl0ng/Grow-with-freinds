@@ -99,9 +99,18 @@ const STAGGER_FRICTION: float = 6.0
 const CAMERA_KICK_ROLL_DEG: float = 6.0
 const CAMERA_KICK_PITCH_DEG: float = 2.5
 const CAMERA_KICK_SEC: float = 0.35
-## M10 footsteps: metres walked on the floor per local step (walking / sprinting); remote steps follow the walk phase.
-const STEP_STRIDE_WALK: float = 0.75
-const STEP_STRIDE_SPRINT: float = 0.6
+## Footsteps (M14): metres on the floor per step. At 4.5 m/s walking that is about 2.8 steps a second, 3 sprinting and
+## 2 crouched: a human cadence (M10 played six a second walking and almost twelve sprinting). Remote bodies use the
+## same strides on their smoothed movement.
+const STEP_STRIDE_WALK: float = 1.6
+const STEP_STRIDE_SPRINT: float = 2.3
+const STEP_STRIDE_CROUCH: float = 1.2
+## Step variants (never the same twice in a row) and volume offsets in dB for a crouched and a sprinting step.
+const STEP_SOUNDS: Array[StringName] = [&"step", &"step2", &"step3"]
+const STEP_CROUCH_DB: float = -7.0
+const STEP_SPRINT_DB: float = 2.0
+## A fall faster than this (m/s) ends with a thud.
+const LAND_MIN_SPEED: float = 2.5
 ## Remote bodies below this smoothed speed (m/s) are standing: no walk cycle, no steps (same threshold as the bob).
 const WALK_ANIM_MIN_SPEED: float = 0.4
 ## Chest height above the feet (m), standing / crouched: where thrown items hit and where the Boss looks.
@@ -613,9 +622,33 @@ func _camera_kick(push: Vector3) -> void:
 
 # --- M10: footsteps -------------------------------------------------------------------------------------------------
 
-## Local body: one quiet 2D step per stride walked on the floor (never airborne, stunned or in the back room).
+var _last_step_sound: int = -1
+var _remote_stride_accum: float = 0.0           # remote: metres of smoothed movement since the last step
+var _was_airborne: bool = false
+var _fall_speed: float = 0.0
+
+## One of STEP_SOUNDS, never the one played last.
+func _next_step_sound() -> StringName:
+	var i := randi() % STEP_SOUNDS.size()
+	if i == _last_step_sound:
+		i = (i + 1) % STEP_SOUNDS.size()
+	_last_step_sound = i
+	return STEP_SOUNDS[i]
+
+## Local body: one quiet 2D step per stride walked on the floor (never airborne, stunned or in the back room), quieter
+## when crouched, and a thud when a fall ends.
 func _update_local_footsteps(moved: Vector3, can_move: bool) -> void:
-	if not is_on_floor() or is_stunned() or GameState.is_in_backroom(peer_id):
+	if not is_on_floor():
+		_was_airborne = true
+		_fall_speed = maxf(_fall_speed, -velocity.y)
+		_stride_accum = 0.0
+		return
+	if _was_airborne:
+		_was_airborne = false
+		if _fall_speed >= LAND_MIN_SPEED and not GameState.is_in_backroom(peer_id):
+			Sfx.play(&"land")
+		_fall_speed = 0.0
+	if is_stunned() or GameState.is_in_backroom(peer_id):
 		_stride_accum = 0.0
 		return
 	moved.y = 0.0
@@ -624,22 +657,24 @@ func _update_local_footsteps(moved: Vector3, can_move: bool) -> void:
 		return
 	_stride_accum += d
 	var sprinting := can_move and not crouching and Input.is_action_pressed(&"sprint")
-	var stride := STEP_STRIDE_SPRINT if sprinting else STEP_STRIDE_WALK
+	var stride := STEP_STRIDE_CROUCH if crouching else (STEP_STRIDE_SPRINT if sprinting else STEP_STRIDE_WALK)
 	if _stride_accum >= stride:
 		_stride_accum = fmod(_stride_accum, stride)
-		Sfx.play(&"step")
+		Sfx.play(_next_step_sound(), Vector3.INF, STEP_CROUCH_DB if crouching else (STEP_SPRINT_DB if sprinting else 0.0))
 		footstep.emit(global_position)
 
-## Remote body: a step each time the walk phase crosses 0 or PI while the body is moving.
-func _update_remote_footsteps(prev_phase: float) -> void:
-	var half_before := int(prev_phase / PI)
-	var half_now := int(_walk_phase / PI)
-	if half_before == half_now:
-		return
+## Remote body: the same strides, counted on its smoothed movement.
+func _update_remote_footsteps(delta: float) -> void:
 	if _visual_speed <= WALK_ANIM_MIN_SPEED or is_stunned() or GameState.is_in_backroom(peer_id):
+		_remote_stride_accum = 0.0
 		return
-	Sfx.play(&"step", global_position)
-	footstep.emit(global_position)
+	_remote_stride_accum += _visual_speed * delta
+	var fast := _visual_speed > (Config.balance.walk_speed + Config.balance.sprint_speed) * 0.5
+	var stride := STEP_STRIDE_CROUCH if crouching else (STEP_STRIDE_SPRINT if fast else STEP_STRIDE_WALK)
+	if _remote_stride_accum >= stride:
+		_remote_stride_accum = fmod(_remote_stride_accum, stride)
+		Sfx.play(_next_step_sound(), global_position, STEP_CROUCH_DB if crouching else 0.0)
+		footstep.emit(global_position)
 
 # --- Local simulation ---------------------------------------------------------------------------------------
 
@@ -805,14 +840,13 @@ func _animate_body(delta: float) -> void:
 	moved.y = 0.0
 	var speed := moved.length() / maxf(delta, 0.0001)
 	_visual_speed = lerpf(_visual_speed, speed, 1.0 - exp(-10.0 * delta))
-	var prev_phase := _walk_phase
 	if _visual_speed > WALK_ANIM_MIN_SPEED:
 		_walk_phase = fmod(_walk_phase + delta * (6.0 + _visual_speed * 1.6), TAU)
 	else:
 		_walk_phase = move_toward(_walk_phase, 0.0 if _walk_phase < PI else TAU, delta * 8.0)
 		if _walk_phase >= TAU:
 			_walk_phase = 0.0 # at rest again (TAU and 0 are the same pose; keeps the step counter honest)
-	_update_remote_footsteps(prev_phase)
+	_update_remote_footsteps(delta)
 	var amount := clampf(_visual_speed / Config.balance.walk_speed, 0.0, 1.0)
 	visual.position.y = absf(sin(_walk_phase)) * 0.08 * amount
 	visual.rotation.z = sin(_walk_phase) * 0.06 * amount

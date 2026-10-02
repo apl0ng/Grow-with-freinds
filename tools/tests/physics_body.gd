@@ -350,7 +350,7 @@ func _run() -> void:
 	var local_steps := int(_steps.get(1, 0))
 	var expected_steps := int(walked / Player.STEP_STRIDE_WALK)
 	check(walked > 2.5, "walked %.2f m in a second" % walked)
-	check(absi(local_steps - expected_steps) <= 1 and local_steps >= 3, "%d local steps for %.2f m (~one per %.2f m)" % [local_steps, walked, Player.STEP_STRIDE_WALK])
+	check(absi(local_steps - expected_steps) <= 1 and local_steps >= 1, "%d local steps for %.2f m (~one per %.2f m)" % [local_steps, walked, Player.STEP_STRIDE_WALK])
 	await wait_physics(10)
 	me.velocity = Vector3.ZERO
 	_steps.clear()
@@ -378,9 +378,9 @@ func _run() -> void:
 		bob.net_position += Vector3(bob_speed * dt, 0.0, 0.0)
 		await get_tree().process_frame
 	var remote_steps := int(_steps.get(BOB, 0))
-	# phase rate = 6 + speed * 1.6 rad/s, one step per PI: about 3.7 steps in a second of walking
-	var predicted_steps := (6.0 + bob_speed * 1.6) / PI
-	check(remote_steps >= 2 and remote_steps <= 6 and absf(float(remote_steps) - predicted_steps) <= 1.5,
+	# M14: one step per STEP_STRIDE_WALK of smoothed movement: about 2.2 steps in a second at 3.6 m/s
+	var predicted_steps := bob_speed / Player.STEP_STRIDE_WALK
+	check(remote_steps >= 1 and remote_steps <= 4 and absf(float(remote_steps) - predicted_steps) <= 1.5,
 			"%d remote steps in 1 s at %.1f m/s (predicted %.1f)" % [remote_steps, bob_speed, predicted_steps])
 	await wait_sec(0.4) # the smoothed speed decays: the last footfall may land in this window
 	_steps.clear()
