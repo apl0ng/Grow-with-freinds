@@ -2599,6 +2599,8 @@ var _phone_outcome: StringName = &""
 var _phone_next_kind: StringName = &""
 var _phone_next_told: bool = false
 var _phone_next_tries: int = 0
+## Tries the scheduler gives a kind the phone told the floor about before it rolls again (M17 lead).
+const PHONE_TOLD_MAX_TRIES := 6
 ## Every peer: the kind the last tip told (&"" = none), what cash on hand covered of the last fine.
 var _phone_tip: StringName = &""
 var _phone_fine_taken: int = 0
@@ -2971,7 +2973,9 @@ func _server_start_discount() -> void:
 func _mayhem3_pick_next() -> StringName:
 	if _phone_next_kind != &"" and KINDS.has(_phone_next_kind):
 		_phone_next_tries += 1
-		if _phone_next_told or _phone_next_tries <= 1:
+		# M17 lead: a told kind is kept for PHONE_TOLD_MAX_TRIES tries (5 s apart): a told rat with nothing growing used
+		# to stop every event for the rest of the shift.
+		if (_phone_next_told and _phone_next_tries <= PHONE_TOLD_MAX_TRIES) or _phone_next_tries <= 1:
 			return _phone_next_kind
 		_phone_next_kind = &""   # nobody was told and it could not start: rolled again, as before
 		_phone_next_told = false
