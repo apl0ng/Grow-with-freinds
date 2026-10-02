@@ -151,8 +151,8 @@ func _test_catalog() -> void:
 
 func _test_dice(b: BalanceConfig) -> void:
 	step("the dice")
-	check(b.conditions_from_round == 2 and b.conditions_per_shift == 1 and is_equal_approx(b.market_swing, 0.25) and is_equal_approx(b.event_gap_shrink_per_round, 0.08),
-			"balance: from shift 2, one per shift, swing 0.25, gaps shrink 0.08")
+	check(b.conditions_from_round == 2 and b.conditions_per_shift == 1 and is_equal_approx(b.market_swing, 0.15) and is_equal_approx(b.event_gap_shrink_per_round, 0.08),
+			"balance: from shift 2, one per shift, swing 0.15, gaps shrink 0.08")
 	var counts: Array = []
 	for n in range(1, 8):
 		counts.append(ShiftConditions.count_for_round(n, b.conditions_from_round, b.conditions_per_shift))
@@ -217,12 +217,12 @@ func _test_dice(b: BalanceConfig) -> void:
 				grid_ok = false
 			if strains.has(id):
 				best = maxf(best, v)
-			lows += 1 if is_equal_approx(v, 0.75) else 0
-			highs += 1 if is_equal_approx(v, 1.25) else 0
+			lows += 1 if is_equal_approx(v, 1.0 - b.market_swing) else 0
+			highs += 1 if is_equal_approx(v, 1.0 + b.market_swing) else 0
 		if best < 1.0:
 			fair_ok = false
-	check(grid_ok, "400 markets: every strain, always within 0.75 .. 1.25, always on the 5% grid")
-	check(values.size() == 11 and lows > 0 and highs > 0, "all eleven steps come up, both ends included (%d values)" % values.size())
+	check(grid_ok, "400 markets: every strain, always within the swing, always on the 5% grid")
+	check(values.size() == roundi(b.market_swing * 40.0) + 1 and lows > 0 and highs > 0, "every 5%% step of the swing comes up, both ends included (%d values)" % values.size())
 	check(fair_ok, "never every strain on sale below par")
 	check(ShiftConditions.snap_market(1.1499999) == 1.15 and ShiftConditions.snap_market(0.874) == 0.85 and ShiftConditions.snap_market(1.0) == 1.0, "snap_market gives the literal's own double")
 

@@ -173,7 +173,7 @@ extends Resource
 @export var conditions_from_round: int = 2
 @export var conditions_per_shift: int = 1
 ## Each strain's deposit value moves by up to this fraction either way each shift (rounded to 5%).
-@export var market_swing: float = 0.25
+@export var market_swing: float = 0.15
 ## Event gaps shrink by this fraction per shift (never below half).
 @export var event_gap_shrink_per_round: float = 0.08
 ## Cash paid on the spot for a contract met.

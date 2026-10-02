@@ -37,7 +37,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
   review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline lan firewall voice_test voice_mp physics physics_mp ui_m10 ui_m10_mp events events_mp hostile hostile_mp strains flame flame_mp disrupt disrupt_mp
   review_m10 review_m10_mp review_m12 review_m12_mp qa_m10_4p qa_m12_4p lobby lobby_mp mayhem mayhem_mp loop loop_mp level alley alley_mp
-  replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp
+  replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp economy
   qa_mouse_x11)
 
 ONLY=""
@@ -56,7 +56,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 80 81 82 83 84 85 86 91 92 95 96; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 91 92 95 96; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -340,6 +340,9 @@ run_suite mayhem2_mp      260 "$LOGDIR/mayhem2mp/*.log" env MAYHEM2_MP_PORT=$((B
 run_suite career          240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/career_body.gd --port=$((BASE + 85)) --replay --career-file=user://career_test_$((BASE + 85)).cfg --round-sec=900 --timeout=200
 rm -rf "$LOGDIR/careermp"; mkdir -p "$LOGDIR/careermp"
 run_suite career_mp       260 "$LOGDIR/careermp/*.log" env CAREER_MP_PORT=$((BASE + 86)) CAREER_MP_LOGS="$LOGDIR/careermp" tools/tests/career_mp.sh
+# M15 economy: the shift model (tools/tests/econ_sim.gd) against the shipped numbers: the payment table, the four
+# targets, no dominated strain, curing as a choice. Pure (no network); +79 is reserved for it.
+run_suite economy         300 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/economy_body.gd --port=$((BASE + 79))
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120

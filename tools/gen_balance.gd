@@ -30,9 +30,9 @@ func _init() -> void:
 	# M15 economy: the payment due for ten trays and cured bundles (500, 1325, 2431, 4030, 6489, 10457 solo; +10% a
 	# worker), and a cure that takes long enough for the six hooks to be a choice. Numbers from tools/tests/econ_sim.gd,
 	# pinned by tools/tests/economy_body.gd.
-	b.base_quota = 500
-	b.quota_scale = 1.75
-	b.quota_add = 450
+	b.base_quota = 350
+	b.quota_scale = 1.82
+	b.quota_add = 688
 	b.quota_per_extra_player = 0.1
 	b.cure_sec = 45.0
 	var err := ResourceSaver.save(b, "res://data/balance.tres")

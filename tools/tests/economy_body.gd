@@ -20,12 +20,12 @@ const Sim := preload("res://tools/tests/econ_sim.gd")
 
 ## quota_for_round(shift, workers): rows = shifts 1 to 6, columns = 1 to 4 workers.
 const QUOTA_TABLE: Array = [
-	[500, 550, 600, 650],
+	[350, 385, 420, 455],
 	[1325, 1458, 1590, 1723],
-	[2431, 2674, 2918, 3161],
-	[4030, 4433, 4836, 5239],
-	[6489, 7138, 7787, 8436],
-	[10457, 11502, 12548, 13594],
+	[2535, 2789, 3042, 3296],
+	[4174, 4591, 5009, 5426],
+	[6592, 7251, 7911, 8570],
+	[10429, 11472, 12515, 13558],
 ]
 const CAREFUL := 0
 const AVERAGE := 1
@@ -101,7 +101,7 @@ func _total(crew: Dictionary, from_shift: int = 1, to_shift: int = 6) -> float:
 # --- numbers ---------------------------------------------------------------------------------------------------------
 
 func _test_numbers() -> void:
-	check(_b.base_quota == 500 and is_equal_approx(_b.quota_scale, 1.75) and _b.quota_add == 450,
+	check(_b.base_quota == 350 and is_equal_approx(_b.quota_scale, 1.82) and _b.quota_add == 688,
 			"payment due: %d, x%.2f + %d a shift (M14: 350, x1.5 + 150)" % [_b.base_quota, _b.quota_scale, _b.quota_add])
 	check(is_equal_approx(_b.quota_per_extra_player, 0.1), "+%d%% a worker beyond the first (M14: +20%%)" % roundi(_b.quota_per_extra_player * 100.0))
 	check(is_equal_approx(_b.cure_sec, 45.0) and is_equal_approx(_b.cure_bonus, 0.4),
@@ -125,7 +125,7 @@ func _test_numbers() -> void:
 			and is_equal_approx(before.quota_per_extra_player, 0.2) and is_equal_approx(before.cure_sec, 20.0)
 			and before.get_seed(&"purple").sale_value_per_unit == 130 and before.get_seed(&"golden").sale_value_per_unit == 120,
 			"Sim.baseline() is the M14 economy")
-	check(_b.base_quota == 500 and purple.sale_value_per_unit == 140, "and it is a copy: the live resource is untouched")
+	check(is_equal_approx(_b.quota_scale, 1.82) and purple.sale_value_per_unit == 140, "and it is a copy: the live resource is untouched")
 
 
 func _test_quota_table() -> void:
@@ -142,7 +142,7 @@ func _test_quota_table() -> void:
 		for p in mini(got.size(), want.size()):
 			same = same and int(got[p]) == int(want[p])
 		check(same, "shift %d: $%d solo, $%d / $%d / $%d for two / three / four" % [n + 1, want[0], want[1], want[2], want[3]])
-	check(_b.quota_for_round(1, 0) == 500 and _b.quota_for_round(0, 1) == 500, "no workers / shift 0 read as one worker, shift 1")
+	check(_b.quota_for_round(1, 0) == 350 and _b.quota_for_round(0, 1) == 350, "no workers / shift 0 read as one worker, shift 1")
 	for n in range(1, 7):
 		check(_b.quota_for_round(n + 1, 1) > _b.quota_for_round(n, 1) and _b.quota_for_round(n, 4) > _b.quota_for_round(n, 3),
 				"shift %d: the next shift asks for more, and four workers for more than three" % n)
@@ -244,7 +244,15 @@ func _test_solo_first_shift() -> void:
 	var r := _row(CAREFUL, 1, 1)
 	var spare := float(r["deposits"]) / float(r["quota"]) - 1.0
 	check(int(r["made"]) == Sim.JITTERS.size(), "all %d campaigns meet $%d (at %.0f s on average)" % [Sim.JITTERS.size(), r["quota"], r["met_at"]])
-	check(spare >= 0.15 and spare <= 0.45, "$%.0f by the buzzer: %.0f%% over the payment (a quarter, give or take: 15%% to 45%%)" % [r["deposits"], spare * 100.0])
+	# M15 lead: shift 1 is the shift a new crew has to get through to see anything else (conditions, the market and
+	# the first unlock start at shift 2), so it is the M14 payment again: a careful worker has a lot to spare and an
+	# average one alone just makes it. The curve catches up at shift 2.
+	check(spare >= 0.5, "$%.0f by the buzzer: %.0f%% over the payment (shift 1 is the easy one: at least half again)" % [r["deposits"], spare * 100.0])
+	var plain := _row(AVERAGE, 1, 1)
+	check(float(plain["deposits"]) > float(plain["quota"]) and float(plain["deposits"]) < float(plain["quota"]) * 1.3,
+			"an average worker alone deposits $%.0f against $%d: over it, with under a third to spare" % [plain["deposits"], plain["quota"]])
+	var second := _row(AVERAGE, 1, 2)
+	check(float(second["deposits"]) < float(second["quota"]), "and misses shift 2 alone ($%.0f against $%d): the curve catches up" % [second["deposits"], second["quota"]])
 	check(float(r["low"]) > float(r["quota"]) * 1.1, "the slowest of the five still has a tenth to spare ($%.0f)" % r["low"])
 	var average := _row(AVERAGE, 1, 1)
 	print("      for the record: an average solo worker deposits $%.0f against $%d (%d/%d make it); a sloppy one $%.0f" % [
