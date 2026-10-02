@@ -547,6 +547,26 @@
   ],
   "tris": 2580
  },
+ "hand_truck": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "truck_paint",
+   "toon_rust",
+   "toon_metal_dark",
+   "toon_metal",
+   "toon_cream",
+   "toon_dark"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/hand_truck.py",
+  "size": [
+   0.625,
+   1.276,
+   0.68
+  ],
+  "tris": 2104
+ },
  "hat_bandage": {
   "front": "-z",
   "kind": "item",

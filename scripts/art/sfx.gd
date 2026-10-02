@@ -986,6 +986,19 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_fade_in(b, 0.002)
 			_fade_out(b, 0.05)
 		# --- end M16 hats ---
+		# --- M17 cart ---
+		&"truck_load":  # a bag dropped on a hand truck's steel toe plate: the bag's thud, the plate rings once, low, the frame rattles
+			b = _buf(0.46)
+			_noise(b, rng, 0.0, 0.06, 0.7, 0.25, 0.03, 0.002, 6.0)                   # the bag lands
+			_tone(b, 0.0, 0.16, 150.0, 82.0, 0.8, Wave.SINE, 0.003, 5.0)             # its weight
+			_tone(b, 0.01, 0.3, 610.0, 592.0, 0.15, Wave.TRIANGLE, 0.001, 6.0, 23.0, 0.02)   # the plate
+			_noise(b, rng, 0.05, 0.18, 0.24, 0.6, 0.3, 0.004, 6.0)                   # the frame rattles on its wheels
+			_tone(b, 0.06, 0.2, 260.0, 240.0, 0.12, Wave.SQUARE, 0.002, 7.0, 31.0, 0.03)
+			_lowpass(b, 0.55)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.04)
+		# --- end M17 cart ---
 		# --- M12 lead: the flamethrower and its consequences (dull and physical, nothing heroic) ------------------
 		&"flame":  # the loop while the trigger is held: a muffled roar with a slow rumble under it
 			b = _buf(0.8)

@@ -2032,6 +2032,7 @@ func server_raid_sweep(point_index: int) -> Dictionary:
 			if _can_write_up(holder):
 				_write_up(holder, Const.WRITE_UP_RAID)
 		_rpc_raid_took.rpc(item_name, holder, target)
+	HandTruck.server_raid_look(eye, out) # M17 cart: a hand truck in sight loses its whole load (scripts/items/hand_truck.gd)
 	_raid_sweeps += 1
 	_rpc_raid_swept.rpc(index, taken.size())
 	return out

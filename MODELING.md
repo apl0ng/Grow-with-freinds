@@ -403,6 +403,12 @@ prints how many get through: all must be met) and is at least 0.322 m in radius 
 To look at a hat on the worker without a window: build both into one scratch model (`player.py`'s parts, the hat's
 `make_*()` parts joined and placed with `hat.matrix_world = player.hat_matrix()`) with `--out DIR --preview`.
 
+**M17 cart** (cart agent; built on Windows / Blender 5.2; `tools/blender/models/hand_truck.py`)
+
+| Model | Size / mount | Scene | Notes |
+|---|---|---|---|
+| ✅ `hand_truck` | 0.63 × 1.28 × 0.68, floor (item, front -Z = the toe plate; origin on the floor under the plate's heel), 2104 tris, budget 3000 | `items/hand_truck.tscn` as `Visual/Model` (collider: box 0.64 × 1.3 × 0.7 at (0, 0.65, -0.04)) | One mesh, no rig. A sack truck: one bent pipe frame in faded red (`#8f4a3f`, the drums' red) with rust at the feet, the welds and a handle corner, the left upright bowed, the middle bar kinked; a dished toe plate (`metal_dark`) scuffed to rust at the nose, one corner bent down; two solid `dark` wheels on a `metal` axle, the right one sagged flat; a `cream` taped grip with a loose end. `hand_truck.gd` mirrors its numbers (Godot y, z): plate top 0.018, plate z -0.38 .. -0.03, axle (0.13, 0.17), uprights leaning back 0.1 over 1.05 m, grip (1.245, 0.18). The load is not in the model: `Visual/Load` stacks `product_bundle.glb` at 0.72 on the plate at runtime |
+
 ---
 
 ## 9. Gotchas

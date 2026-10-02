@@ -126,7 +126,7 @@ func _host_main() -> void:
 	check(loser_toasts.has("Someone's carrying that.") or loser_toasts.has("Hands full."),
 			"loser (%s) was told why: %s" % [NAMES[l], loser_toasts])
 	check(Game.world.items.get_held_by(_ids[l]) == null, "loser holds nothing on the host")
-	check(items_of(Const.ITEM_WATERING_CAN).size() == 2 and Game.world.items.get_items().size() == 2, "still exactly 2 items (no duplicates)")
+	check(items_of(Const.ITEM_WATERING_CAN).size() == 2 and Game.world.items.get_items().size() == 3 and items_of(Const.ITEM_HAND_TRUCK).size() == 1, "still exactly 2 cans and the hand truck (no duplicates)") # M17 cart: the shift's start stands the hand truck on the dock
 	await checkpoint("after the race", ["a", "b"])
 
 	step("(a2) server-side denial: winner asks for the second can with full hands (prediction bypassed)")

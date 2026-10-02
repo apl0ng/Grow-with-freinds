@@ -1025,3 +1025,27 @@ func _cover_footprint(node: Node3D) -> Rect2:
 	return Rect2(c.x - ex, c.z - ez, ex * 2.0, ez * 2.0)
 
 # --- end M16 variety -----------------------------------------------------------------------------------------------
+
+
+# --- M17 cart: where the hand truck stands --------------------------------------------------------------------------
+# The hand truck (scripts/items/hand_truck.gd) stands at the Marker3D Dock/HandTruckSpot at the start of every shift:
+# the loading dock's north-west corner, backed against the wall west of the dock passage, its plate (the truck's -Z)
+# facing into the dock. The marker's own script (scripts/items/hand_truck_spot.gd) has the host put it there. The spot
+# is clear of every COVER_LAYOUTS arrangement, of the route graph, the doorways, the arrivals and the collector's walk
+# (tools/tests/cart_body.gd measures it). Nothing here may name an autoload or the HandTruck class: this script is a
+# compile-time dependency of `-s` test scripts.
+
+const HAND_TRUCK_SPOT_PATH := ^"Dock/HandTruckSpot"
+## Room-local floor point and yaw (degrees) of the marker, for a room without it.
+const HAND_TRUCK_SPOT_FALLBACK := Vector3(-8.0, 0.0, 8.6)
+const HAND_TRUCK_SPOT_FALLBACK_YAW := 180.0
+
+
+## Where the hand truck stands (global; the origin on the floor, the truck's plate towards the transform's -Z).
+func get_hand_truck_spot() -> Transform3D:
+	var spot := get_node_or_null(HAND_TRUCK_SPOT_PATH) as Marker3D
+	if spot != null:
+		return _to_global(_room_transform_of(spot))
+	return _to_global(Transform3D(Basis(Vector3.UP, deg_to_rad(HAND_TRUCK_SPOT_FALLBACK_YAW)), HAND_TRUCK_SPOT_FALLBACK))
+
+# --- end M17 cart ---------------------------------------------------------------------------------------------------
