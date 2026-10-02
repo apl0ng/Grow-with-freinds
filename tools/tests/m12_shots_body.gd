@@ -33,6 +33,7 @@ func _run() -> void:
 			_out = a.trim_prefix("--out=")
 	DirAccess.make_dir_recursive_absolute(_out)
 	var b: BalanceConfig = Config.balance
+	Config.lobby_enabled = false   # this pass stages the floor directly (M14: a windowed run starts in the alley)
 	await get_tree().process_frame   # _ready is still adding children: the world cannot be created in this frame
 	Game.start_host("Zay", port_arg(7970))
 	await wait_until(func() -> bool: return Game.world != null and Game.local_player != null, 8.0, "world + local player")
