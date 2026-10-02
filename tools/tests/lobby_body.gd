@@ -134,6 +134,22 @@ func _test_alley() -> void:
 	var right := _van.get_node_or_null(Van.DOOR_RIGHT_PATH) as Node3D
 	check(left != null and right != null and _van.get_node_or_null(^"Model/Body") != null, "van.glb: Body, DoorLeft, DoorRight")
 	check(left != null and is_zero_approx(left.rotation.y) and not _van.are_doors_shut(), "the rear doors stand open")
+	if left != null and right != null:
+		var open_box := _van_box(left)
+		check(open_box.size.z > 0.8 and open_box.position.x < -0.95, "open, the left leaf sticks out behind the van (%s)" % open_box)
+		_van.set_doors_shut(true)
+		var l := _van_box(left)
+		var r := _van_box(right)
+		check(l.size.z < 0.2 and absf(l.get_center().z - 0.78) < 0.1 and l.position.x > -1.0 and l.end.x < 0.05, "shut, the left leaf fills the left half of the opening (%s)" % l)
+		check(r.size.z < 0.2 and absf(r.get_center().z - 0.78) < 0.1 and r.position.x > -0.05 and r.end.x < 1.0, "shut, the right leaf fills the right half (%s)" % r)
+		check(_van.are_doors_shut(), "are_doors_shut()")
+		_van.set_doors_shut(false)
+		check(is_zero_approx(left.rotation.y) and is_zero_approx(right.rotation.y), "and open again")
+	var bricks := _lobby.get_node_or_null(Lobby.BRICKS_PATH) as MultiMeshInstance3D
+	check(bricks != null and bricks.multimesh != null and bricks.multimesh.instance_count > 1500, "brick on the walls (%d bricks in one MultiMesh)" % (bricks.multimesh.instance_count if bricks != null and bricks.multimesh != null else 0))
+	check(_lobby.get_node_or_null(^"Sky/Moon") != null and _lobby.get_node_or_null(^"Decor/StreetLamp/Light") is SpotLight3D, "a moon, a street lamp")
+	await wait_sec(0.6)
+	check(Sfx.get_active_loop_count() == 0, "the factory hum does not follow the worker into the alley (%d loops)" % Sfx.get_active_loop_count())
 
 
 ## A body with the worker's capsule walks from the ground behind the doors into the back: no jump needed.
@@ -239,6 +255,7 @@ func _test_ride() -> void:
 	await wait_until(func() -> bool: return _van.occupants == 0 and _van.countdown_left == -1.0, 1.0, "the van is empty and idle")
 	await wait_until(func() -> bool: return not _hud.is_transition_showing(), b.transition_fade_sec + 1.5, "the screen fades back in")
 	check(_hud.get_lobby_text() == "" and not _hud.banner.visible, "no alley banner during a shift")
+	check(Sfx.get_active_loop_count() >= 1, "the hum is back on the floor (%d loops)" % Sfx.get_active_loop_count())
 
 
 # --- after a shift -----------------------------------------------------------------------------------------------------
@@ -374,6 +391,8 @@ func _test_old_flow() -> void:
 	check(_room.get_bounds().has_point(me.global_position) and not _lobby.contains_point(me.global_position), "the host spawned on the floor")
 	check(_flat(me.global_position).distance_to(_flat(_room.get_spawn_transform(me.spawn_index).origin)) < SPOT_TOLERANCE, "at its room spawn")
 	check(not _lobby.is_in_use() and not _lobby.visible, "the alley is not drawn")
+	await wait_sec(0.6)
+	check(Sfx.get_active_loop_count() >= 1, "the hum plays on the floor while waiting (%d loops)" % Sfx.get_active_loop_count())
 	_add_worker(2)
 	await wait_frames(3)
 	var w2 := _world.get_player(2)
@@ -439,6 +458,21 @@ func _check_all_in_alley(tag: String) -> void:
 		var want := _lobby.get_spawn_transform(p.spawn_index).origin
 		check(_flat(p.global_position).distance_to(_flat(want)) < SPOT_TOLERANCE and _lobby.contains_point(p.global_position),
 				"%s: worker %d is back at alley spawn %d" % [tag, p.peer_id, p.spawn_index])
+
+
+## Bounds of a van.glb part in the van's own space.
+func _van_box(part: Node3D) -> AABB:
+	var mi := part as MeshInstance3D
+	if mi == null or mi.mesh == null:
+		return AABB()
+	var xf := _van.global_transform.affine_inverse() * mi.global_transform
+	var faces := mi.mesh.get_faces()
+	if faces.is_empty():
+		return xf * mi.mesh.get_aabb()
+	var box := AABB(xf * faces[0], Vector3.ZERO)
+	for v in faces:
+		box = box.expand(xf * v)
+	return box
 
 
 func _ray(from: Vector3, to: Vector3) -> Dictionary:
