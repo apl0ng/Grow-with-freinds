@@ -36,7 +36,7 @@ if command -v setsid >/dev/null 2>&1 && command -v pgrep >/dev/null 2>&1; then H
 ALL_SUITES=(check art_test models_test models_station_test models_item_test models_props_test models_env_test models_arch_test models_char_test models_plant_test world_test items_test items_test_minimal farm_test econ_test flow_test items_net_test items_e2e_test
   farm_net_test farm_world_test flow_mp_test econ_mp_test net_test smoke qa_robust qa_solo qa_4p qa_mp_robust
   review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline lan firewall voice_test voice_mp physics physics_mp ui_m10 ui_m10_mp events events_mp hostile hostile_mp strains flame flame_mp disrupt disrupt_mp
-  review_m10 review_m10_mp review_m12 review_m12_mp qa_m10_4p
+  review_m10 review_m10_mp review_m12 review_m12_mp qa_m10_4p qa_m12_4p
   qa_mouse_x11)
 
 ONLY=""
@@ -55,7 +55,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 71 72 73 74 80 91 92 95 96; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 71 72 73 74 80 91 92 95 96; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -300,6 +300,9 @@ run_suite review_m12_mp   220 "$LOGDIR/rm12/*.log" env RM12_PORT=$((BASE + 64)) 
 # --fast shift with the scheduler on (+52; about 2 minutes).
 rm -rf "$LOGDIR/qam10"; mkdir -p "$LOGDIR/qam10"
 run_suite qa_m10_4p       300 "$LOGDIR/qam10/*.log" env QAM10_PORT=$((BASE + 52)) QAM10_LOGS="$LOGDIR/qam10" tools/tests/qa_m10_4p.sh
+# M13 QA of M12: mutation under load, the chase, fire, events on top, churn (a host and three client processes on +65).
+rm -rf "$LOGDIR/qam12"; mkdir -p "$LOGDIR/qam12"
+run_suite qa_m12_4p       300 "$LOGDIR/qam12/*.log" env QA_M12_PORT=$((BASE + 65)) QA_M12_LOGS="$LOGDIR/qam12" tools/tests/qa_m12_4p.sh
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120
