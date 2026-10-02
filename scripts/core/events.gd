@@ -436,7 +436,10 @@ func _judge(player: Player, w: World) -> void:
 	if pos.distance_to(entry[1]) > LOITER_MOVE:
 		_seen_since[pid] = [_clock, pos]
 		return
-	if _clock - float(entry[0]) >= Config.balance.loiter_sec and _can_write_up(pid):
+	# M14 loop: loiter_sec (3.0) is a whole number of sight intervals, and _clock is a sum of real frame times: the
+	# difference came out a hair under 3.0 about every other run, and the write-up slipped by one sight interval (the
+	# `events` suite failed on that, on the M14 base too). Same slack as the sight interval check in _tick_inspection.
+	if _clock - float(entry[0]) >= Config.balance.loiter_sec - 0.000001 and _can_write_up(pid): # M14 loop: - 0.000001
 		_write_up(pid, Const.WRITE_UP_LOITERING)
 		_rpc_spotted.rpc(pid, Const.WRITE_UP_LOITERING)
 		_seen_since[pid] = [_clock, pos]
