@@ -354,8 +354,10 @@ func _r1_fire_requests() -> void:
 	check(ft.server_request_fire(BOB, true), "firing")
 	check(GameState.server_send_to_backroom(BOB, 30.0), "Bob is sent to the back room while firing")
 	await wait_physics(3)
-	check(not ft.firing and ft.holder_id == 0, "the flame is out and the flamethrower is back on the floor (holder %d)" % ft.holder_id)
-	check(not ft.server_request_fire(BOB, true), "no fire request from the back room")
+	check(not is_instance_valid(ft) or ft.is_queued_for_deletion(), "the flame is out and the Boss keeps the flamethrower (M13: no second round after the 30 s)")
+	ft = _flamethrower(BOB)
+	await wait_physics(2)
+	check(ft != null and not ft.server_request_fire(BOB, true), "no fire request from the back room, even with one put back in his hands")
 	GameState.server_release_from_backroom(BOB)
 	await wait_frames(2)
 
@@ -387,11 +389,9 @@ func _r2_arson_brake() -> void:
 	check(_ignites.size() == b.write_ups_to_backroom, "exactly %d workers were set on fire in that pass, not all four %s" % [b.write_ups_to_backroom, _ignites])
 	check(_strikes(BOB) == 0, "no strike was booked on a worker already in the back room (strikes %d)" % _strikes(BOB))
 	check(GameState.money == money - b.write_up_fine * b.write_ups_to_backroom, "the team paid %d fines, not four (cash %d -> %d)" % [b.write_ups_to_backroom, money, GameState.money])
-	ft._server_tick(1.0 / 60.0)
 	await wait_physics(2)
-	check(not ft.firing and ft.holder_id == 0, "the flame is out, the flamethrower lies at Bob's spawn")
-	var spawn: Vector3 = room.get_spawn_transform(bob.spawn_index).origin
-	check(_flat(ft.global_position, spawn) < 1.0, "(%.1f m from it): the others can take it away during his 30 s" % _flat(ft.global_position, spawn))
+	check(not is_instance_valid(ft) or ft.is_queued_for_deletion(), "the flame is out and the Boss keeps the flamethrower: the griefer does not find it at his spawn after the 30 s (M13)")
+	check(toast_seen("The Boss keeps Bob's flamethrower."), "the floor is told")
 	# The brake as a whole: a griefer gets three acts per back-room stay.
 	await wait_until(func() -> bool: return not me.is_stunned() and me.can_be_staggered(), 4.0, "the host's own worker recovers")
 	GameState.server_release_from_backroom(BOB)

@@ -518,7 +518,14 @@ func _on_backroom_changed(peer_id: int, active: bool) -> void:
 	if active and w.items != null:
 		# Whatever they were carrying goes back to the floor at their spawn (ItemManager places a back-room
 		# worker's item there): the team is never down a can for the whole stay.
-		w.items.server_release_holder(peer_id)
+		# M13: except a flamethrower. The Boss keeps it (it used to lie at the worker's spawn with its fuel, so three
+		# acts of arson could repeat after every back-room stay).
+		var held := w.items.get_held_by(peer_id)
+		if held != null and held.item_type == Const.ITEM_FLAMETHROWER:
+			w.items.server_despawn_item(held)
+			_rpc_flamethrower_kept.rpc(peer_id)
+		else:
+			w.items.server_release_holder(peer_id)
 
 
 ## Host: the slot a back-room worker sits on. The lowest slot no other back-room worker holds, kept until they leave:
@@ -602,6 +609,18 @@ func _rpc_power(on: bool) -> void:
 	if changed:
 		Sfx.play(&"power_up" if on else &"power_down")
 		power_changed.emit(on)
+
+
+## Every peer (M13): the Boss kept the flamethrower of a worker he sent to the back room.
+const TOAST_FLAMETHROWER_KEPT := "The Boss keeps %s's flamethrower."
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_flamethrower_kept(peer_id: int) -> void:
+	Sfx.play(&"confiscate")
+	Game.toast(TOAST_FLAMETHROWER_KEPT % Net.get_player_name(peer_id), &"info")
+	var story: Node = get_node_or_null(^"/root/Story")
+	if story != null and story.has_method(&"bark_now"):
+		story.call(&"bark_now", String(story.call(&"line", "confiscated")))
 
 
 @rpc("authority", "call_local", "reliable")

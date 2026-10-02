@@ -132,13 +132,16 @@ func _run() -> void:
 	check(not ft.firing, "_rpc_request_fire from a non-holder does nothing")
 	check(not ft.server_request_fire(1, true) and not ft.server_request_fire(99, true) and not ft.server_request_fire(0, true), "server_request_fire refuses non-holders")
 	check(GameState.server_send_to_backroom(BOB, 30.0), "Bob sent to the back room")
-	check(not ft.server_request_fire(BOB, true) and not ft.firing, "refused from the back room")
-	check(ft.holder_id == 0, "the back room took it out of his hands (ItemManager rule)")
+	await wait_frames(2)
+	check(not is_instance_valid(ft) or ft.is_queued_for_deletion(), "the Boss keeps the flamethrower of a worker he sends to the back room (M13)")
+	check(items.get_held_by(BOB) == null and items.get_items_of_type(Const.ITEM_FLAMETHROWER).is_empty() and toast_seen("The Boss keeps Bob's flamethrower."), "nothing in his hands, none on the floor, the floor is told")
 	GameState.server_release_from_backroom(BOB)
 	await wait_frames(1)
 	_place(bob, Vector3(-3.0, 0.0, 4.5), 0.0) # the clear lane, facing -Z, nothing within reach
 	await wait_physics(2)
-	check(items.server_give_item(ft, BOB) and ft.holder_id == BOB, "Bob holds it again")
+	ft = items.server_spawn_item(Const.ITEM_FLAMETHROWER, {"fuel": b.flamethrower_fuel_sec}, bob.global_position, BOB) as Flamethrower
+	await wait_frames(2)
+	check(ft != null and ft.holder_id == BOB, "Bob holds a fresh one")
 	check(ft.server_request_fire(BOB, true) and ft.firing, "the holder on the floor may fire")
 	check(ft.server_request_fire(BOB, false) and not ft.firing, "and stop")
 

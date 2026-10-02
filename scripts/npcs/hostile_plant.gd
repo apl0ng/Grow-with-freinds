@@ -42,6 +42,9 @@ enum State { ROOT, ROAM, EAT, CHASE, BITE, BURNING, DEAD }
 const STATE_NAMES: Array[String] = ["Rooting", "Roaming", "Eating", "Chasing", "Biting", "Burning", "Dead"]
 ## Seconds it stands where its tray was before it moves.
 const ROOT_SEC := 2.0
+## M13: a tray is eaten for at least this long before the crop is lost, however little progress it had (a fresh
+## seedling used to vanish on the first tick; now somebody has time to run over).
+const MIN_EAT_SEC := 4.0
 ## A worker this close gets bitten.
 const BITE_RANGE := 1.7   # the plant is 2x (about 1.8 m wide): it bites from further out
 ## It stops a little short of the bite range so the collider does not shove the worker around.
@@ -113,6 +116,8 @@ var _target_plot: GrowPlot = null
 var _stand_point: Vector3 = Vector3.ZERO
 var _target_peer: int = 0
 var _bites: int = 0
+## Seconds spent eating the current tray (M13: a crop is never lost in less than MIN_EAT_SEC).
+var _eat_time: float = 0.0
 var _bite_cooldown: float = 0.0
 var _bite_left: float = 0.0
 var _calm_left: float = 0.0
@@ -293,6 +298,7 @@ func host_step(delta: float) -> void:
 				if _move_toward(_stand_point, b.hostile_speed, delta):
 					_wander_target = Vector3.INF
 					state = State.EAT
+					_eat_time = 0.0
 				elif _no_progress(delta):
 					_start_detour() # M13 review: the tray is behind a fence: round by the gate, then pick again
 			else:
@@ -305,8 +311,9 @@ func host_step(delta: float) -> void:
 				state = State.ROAM
 				return
 			_face_point(_target_plot.global_position, delta)
-			_target_plot.stage_progress = _target_plot.stage_progress - b.hostile_eat_per_sec * delta
-			if _target_plot.stage_progress <= 0.0:
+			_eat_time += delta
+			_target_plot.stage_progress = maxf(_target_plot.stage_progress - b.hostile_eat_per_sec * delta, 0.0)
+			if _target_plot.stage_progress <= 0.0 and _eat_time >= MIN_EAT_SEC:
 				var idx := plot_index_of(_target_plot)
 				_target_plot.server_reset()
 				_target_plot = null

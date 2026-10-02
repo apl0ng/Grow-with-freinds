@@ -176,8 +176,10 @@ func _host_main() -> void:
 	check(rft.firing, "one honest request: the flame is on")
 	check(GameState.server_send_to_backroom(_rogue, 60.0), "the rogue is sent to the back room while firing")
 	await wait_physics(4)
-	check(not rft.firing and rft.holder_id == 0, "the flame is out, the flamethrower is on the floor")
-	check(items.server_give_item(rft, _rogue), "(the host puts it back in the rogue's hands, in the back room)")
+	check(not is_instance_valid(rft) or rft.is_queued_for_deletion(), "the flame is out and the Boss keeps the flamethrower (M13)")
+	rft = items.server_spawn_item(Const.ITEM_FLAMETHROWER, {"fuel": b.flamethrower_fuel_sec}, Vector3(1.0, 0.0, 3.0), _rogue) as Flamethrower
+	await wait_sec(0.6)
+	check(rft != null and rft.holder_id == _rogue, "(the host puts a new one in the rogue's hands, in the back room)")
 	r = await run_cmd(_rogue, "fire_raw", {"item": String(rft.name), "on": true})
 	await wait_physics(3)
 	check(not rft.firing, "a fire request from the back room is refused")
