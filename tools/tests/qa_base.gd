@@ -155,7 +155,7 @@ static func canonical_state() -> String:
 	its.sort()
 	parts.append("items[%s]" % ";".join(its))
 	var plots: PackedStringArray = []
-	for i in range(1, 7):
+	for i in range(1, Room.GROW_PLOT_COUNT + 1):   # M14: the hall trays are part of the signature too
 		var plot := w.room.get_node_or_null("Stations/GrowPlot%d" % i) as GrowPlot
 		plots.append("-" if plot == null else "%d:%s" % [plot.stage, plot.strain_id])
 	parts.append("plots[%s]" % ",".join(plots))

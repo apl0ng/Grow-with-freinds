@@ -61,6 +61,7 @@
 [ext_resource type="PackedScene" path="res://art/models/backroom_door.glb" id="55_backroom_door"]
 [ext_resource type="PackedScene" path="res://scenes/stations/emergency_cabinet.tscn" id="56_emergency_cabinet"]
 [ext_resource type="PackedScene" path="res://scenes/stations/drying_rack.tscn" id="m14_drying_rack"]
+[ext_resource type="PackedScene" path="res://art/models/van.glb" id="m14_van_model"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_pw_south"]
 size = Vector3(0.12, 3, 0.95)
@@ -1414,15 +1415,10 @@ collision_mask = 0
 
 [node name="Visual" type="Node3D" parent="Dock/DockVan"]
 
-[node name="Box" type="MeshInstance3D" parent="Dock/DockVan/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0.8)
-mesh = SubResource("BoxMesh_m14_van_box")
-material_override = ExtResource("5_olive")
-
-[node name="Cab" type="MeshInstance3D" parent="Dock/DockVan/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.025, -1.6)
-mesh = SubResource("BoxMesh_m14_van_cab")
-material_override = ExtResource("8_metal_dark")
+[node name="Model" parent="Dock/DockVan/Visual" instance=ExtResource("m14_van_model")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.66)
+outline_width = 0.02
+tint = Color(0.79, 0.78, 0.74, 1)
 
 [node name="Shape" type="CollisionShape3D" parent="Dock/DockVan"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0)
@@ -1574,7 +1570,7 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.98, 1.2, -4)
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.98, 1.35, -2.5)
 
 [node name="DryingRack1" parent="Stations" instance=ExtResource("m14_drying_rack")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0, -6.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, -6.6)
 
 [node name="DryingRack2" parent="Stations" instance=ExtResource("m14_drying_rack")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, -6.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.5, 0, -6.6)

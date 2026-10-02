@@ -426,8 +426,8 @@ func _test_rack_layout(b: BalanceConfig) -> void:
 	step("drying racks: two in the north-west corner")
 	var racks := get_tree().get_nodes_in_group(Const.GROUP_DRYING_RACKS)
 	check(racks.size() == 2 and racks.has(rack1) and racks.has(rack2), "group '%s' holds exactly the two racks (%d)" % [Const.GROUP_DRYING_RACKS, racks.size()])
-	check(rack1.global_position.is_equal_approx(Vector3(-7.5, 0.0, -6.6)) and rack2.global_position.is_equal_approx(Vector3(-5.0, 0.0, -6.6)),
-			"at (-7.5, 0, -6.6) and (-5, 0, -6.6) (%s, %s)" % [rack1.global_position, rack2.global_position])
+	check(rack1.global_position.is_equal_approx(Vector3(14.0, 0.0, -6.6)) and rack2.global_position.is_equal_approx(Vector3(16.5, 0.0, -6.6)),
+			"in the grow hall at (14, 0, -6.6) and (16.5, 0, -6.6) (%s, %s)" % [rack1.global_position, rack2.global_position])
 	var stations := room.get_node(^"Stations")
 	var cabinet := stations.get_node_or_null(^"EmergencyCabinet")
 	check(cabinet != null and rack1.get_index() == cabinet.get_index() + 1 and rack2.get_index() == cabinet.get_index() + 2,
@@ -444,7 +444,7 @@ func _test_rack_layout(b: BalanceConfig) -> void:
 		var seen: Array[Vector3] = []
 		for hook in DryingRack.HOOK_COUNT:
 			var at := r.get_hook_position(hook)
-			check(bounds.has_point(at) and at.y > 0.8 and at.y < 1.6, tag + "hook %d hangs at a reachable height inside the room (%s)" % [hook + 1, at])
+			check(room.contains_point(at) and at.y > 0.8 and at.y < 1.6, tag + "hook %d hangs at a reachable height on the floor plan (%s)" % [hook + 1, at])
 			check(at.z > r.global_position.z, tag + "hook %d is on the front side" % (hook + 1))
 			for other in seen:
 				check(at.distance_to(other) > 0.4, tag + "hook %d is clear of the others" % (hook + 1))
