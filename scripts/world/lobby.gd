@@ -219,6 +219,21 @@ func _alley_sync() -> void:
 # --- end M15 alley ------------------------------------------------------------------------------------------------------
 
 
+# --- M16 hats -----------------------------------------------------------------------------------------------------------
+# $Locker (scenes/world/locker.tscn, scripts/world/locker.gd): a steel locker against the west wall under the street
+# lamp, between the lamp's pole and the first bin, its doors to the alley. Where a worker changes the hat the record
+# issued; local to whoever uses it (no state here, nothing for the host to do).
+
+const LOCKER_PATH := ^"Locker"
+
+
+## The locker (null if the scene lost it).
+func get_locker() -> Locker:
+	return get_node_or_null(LOCKER_PATH) as Locker
+
+# --- end M16 hats -------------------------------------------------------------------------------------------------------
+
+
 # --- cosmetics --------------------------------------------------------------------------------------------------------
 
 func _on_phase_changed(_phase: int) -> void:

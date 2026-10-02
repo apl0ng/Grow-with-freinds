@@ -1,0 +1,22 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/locker.gd" id="1_locker"]
+[ext_resource type="PackedScene" path="res://art/models/locker.glb" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_locker"]
+size = Vector3(0.88, 1.88, 0.54)
+
+[node name="Locker" type="Node3D"]
+script = ExtResource("1_locker")
+
+[node name="Visual" parent="." instance=ExtResource("2_model")]
+tint = Color(0.31, 0.43, 0.56, 1)
+outline_width = 0.02
+
+[node name="Collider" type="StaticBody3D" parent="."]
+collision_layer = 5
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Collider"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.94, 0.01)
+shape = SubResource("BoxShape3D_locker")

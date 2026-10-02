@@ -270,6 +270,7 @@ func _ready() -> void:
 		_awaiting_first_sync = true
 		_spawn_net_position = net_position
 	Net.players_changed.connect(_on_players_changed)
+	_hats_ready() # M16 hats
 
 # --- Public API ---------------------------------------------------------------------------------------------
 
@@ -884,7 +885,7 @@ func _apply_crouch_visuals() -> void:
 	var squash := lerpf(1.0, CROUCH_HEIGHT / STAND_HEIGHT, _crouch_blend)
 	visual.scale = Vector3(lerpf(1.0, 1.08, _crouch_blend), squash, lerpf(1.0, 1.08, _crouch_blend))
 	head.position.y = lerpf(STAND_CAMERA_Y, CROUCH_CAMERA_Y, _crouch_blend)
-	name_label.position.y = STAND_LABEL_Y * squash
+	name_label.position.y = (STAND_LABEL_Y + _hat_label_lift) * squash # M16 hats: the name clears a tall hat
 	body_hand_socket.position.y = STAND_BODY_SOCKET_Y * squash
 
 func _apply_appearance() -> void:
@@ -894,6 +895,7 @@ func _apply_appearance() -> void:
 		body_model.tint = Toon.grade(player_color) # recolours the model's TINT_* parts (shared, cached)
 
 func _on_players_changed() -> void:
+	_refresh_hat() # M16 hats
 	if not Net.players.has(peer_id):
 		return
 	var new_name := Net.get_player_name(peer_id)
@@ -1187,3 +1189,109 @@ func get_heavy_walk_speed() -> float:
 ## it reads the local input, so it only means something for the local worker.
 func get_move_speed() -> float:
 	return _current_speed(_input_enabled() and not is_stunned())
+
+
+# --- M16 hats: issued kit on the head ---------------------------------------------------------------------------------
+## The hat this worker wears (CONTRACTS "M16 / Hats"): every peer shows Net.get_player_hat(peer_id) on the body model.
+## The model (art/models/player.glb) carries the stock hard hat as its own mesh `Hat` and an empty `HatSocket` on the
+## hat's seat (it leans as the hat leans); an issued hat (Hats.make: a Toonify root authored in that socket's space) is
+## instanced under the socket and the stock one is hidden for as long. Purely local and cosmetic: nothing is synced
+## here, the player is never reparented, the old hat is freed when it changes. The socket is part of the body model,
+## under $Visual, so the hat takes the crouch squash, the walk bounce and a stumble's bounce with the head.
+## The local worker's own hat is shadow-only like the rest of its body: the first-person camera sits inside it.
+## With replay off (Config.replay_enabled) nobody wears one.
+
+const HAT_SOCKET_PATH := ^"Visual/Model/HatSocket"
+const STOCK_HAT_PATH := ^"Visual/Model/Hat"
+## Clear space between the top of a hat and the middle of the name label (the label is 0.22 m tall).
+const HAT_LABEL_GAP: float = 0.2
+## The socket when the body model has none of its own (what tools/blender/models/player.py prints).
+const HAT_SOCKET_FALLBACK := Transform3D(Basis(Vector3(0.98484, 0.13917, 0.10351), Vector3(-0.12689, 0.98499, -0.11706),
+		Vector3(-0.11825, 0.10215, 0.98772)), Vector3(-0.01, 1.5311, -0.0895))
+
+## The hat shown on this body right now (&"" = the stock hard hat).
+var hat_id: StringName = &""
+var _hat_node: Node3D = null
+var _hat_socket: Node3D = null
+## How far the name label is raised so it clears the hat (0 for the stock hat and every hat lower than the label).
+var _hat_label_lift: float = 0.0
+
+
+## The hat shown on this body (&"" = none: the stock hard hat).
+func get_hat() -> StringName:
+	return hat_id
+
+
+## The instanced hat model under the head socket, or null without one.
+func get_hat_node() -> Node3D:
+	return _hat_node if is_instance_valid(_hat_node) else null
+
+
+## The socket on the head of the body model that hats hang from.
+func get_hat_socket() -> Node3D:
+	if is_instance_valid(_hat_socket):
+		return _hat_socket
+	_hat_socket = get_node_or_null(HAT_SOCKET_PATH) as Node3D
+	if _hat_socket == null:
+		_hat_socket = Node3D.new()
+		_hat_socket.name = "HatSocket"
+		_hat_socket.transform = HAT_SOCKET_FALLBACK
+		(visual if visual != null else self).add_child(_hat_socket)
+	return _hat_socket
+
+
+## Shows the hat `id` on this body (&"" or an id the catalog does not have: the stock hard hat). Cosmetic, this peer
+## only: what a worker wears is decided by Net.hats (see _refresh_hat).
+func set_hat(id: StringName) -> void:
+	if not Hats.has(id):
+		id = &""
+	if id == hat_id and (id == &"" or get_hat_node() != null):
+		return
+	var old := get_hat_node()
+	if old != null:
+		old.get_parent().remove_child(old)
+		old.queue_free()
+	_hat_node = null
+	hat_id = &""
+	if id != &"":
+		var node := Hats.make(id)
+		if node != null:
+			get_hat_socket().add_child(node)
+			_hat_node = node
+			hat_id = id
+			if is_local():
+				for gi in node.find_children("*", "GeometryInstance3D", true, false):
+					(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	var stock := get_node_or_null(STOCK_HAT_PATH) as Node3D
+	if stock != null:
+		stock.visible = hat_id == &""
+	_hat_label_lift = maxf(_hat_top() + HAT_LABEL_GAP - STAND_LABEL_Y, 0.0)
+	if is_node_ready():
+		_apply_crouch_visuals()
+
+
+## How high the worn hat reaches above the feet of the standing body (0 without one): its meshes in $Visual's own
+## space, so a crouch or a bounce in progress does not count.
+func _hat_top() -> float:
+	var hat := get_hat_node()
+	if hat == null or visual == null or not is_inside_tree():
+		return 0.0
+	var top := 0.0
+	var to_visual := visual.global_transform.affine_inverse()
+	for n in hat.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh != null and not mi.has_meta(&"toonify_outline"):
+			top = maxf(top, (to_visual * mi.global_transform * mi.get_aabb()).end.y)
+	return top
+
+
+func _hats_ready() -> void:
+	Net.hats_changed.connect(_refresh_hat)
+	_refresh_hat()
+
+
+## The hat the session says this worker wears (none with replay off).
+func _refresh_hat() -> void:
+	set_hat(Net.get_player_hat(peer_id) if Config.replay_enabled else &"")
+
+# --- end M16 hats -----------------------------------------------------------------------------------------------------

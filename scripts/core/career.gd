@@ -28,6 +28,9 @@ extends Node
 ## The job title follows best_round (TITLES). It is the one thing that is sent: with replay on, this autoload hands it
 ## to Net (Net.send_title) once the peer is registered and whenever it changes, and the host passes the whole list to
 ## a late joiner (Net.server_send_titles).
+##
+## M16 hats: the record also issues hats (scripts/core/hats.gd). The one this player wears is kept in the file as
+## `hat=<id>` under [career] and is the second thing that is sent (Net.send_hat): see the "M16 hats" region.
 
 ## Emitted after any record changed (the end of a shift, a job done, a reload).
 signal changed
@@ -106,6 +109,7 @@ func _ready() -> void:
 	Net.titles_changed.connect(_sync_title)
 	Net.peer_registered.connect(_on_peer_registered)
 	changed.connect(_sync_title)
+	_hats_ready() # M16 hats
 
 
 # ---------------------------------------------------------------------------------------------
@@ -174,10 +178,12 @@ func get_strain_deposits() -> Dictionary:
 func load_file(file_path: String) -> bool:
 	_record = {}
 	_strains = {}
+	_hat = &"" # M16 hats
 	var text := _read_text(file_path)
 	var read := text != ""
 	if read:
 		_parse(text)
+	_hats_after_load() # M16 hats
 	changed.emit()
 	return read
 
@@ -222,6 +228,7 @@ func save() -> bool:
 func clear_record() -> void:
 	_record = {}
 	_strains = {}
+	_hat = &"" # M16 hats
 	_clear_shift()
 	changed.emit()
 
@@ -240,6 +247,7 @@ func _on_round_ended(success: bool, round_number: int) -> void:
 	var me := _local_id()
 	if me <= 0 or not Net.players.has(me):
 		return
+	var hats_before := get_issued_hats() # M16 hats
 	_add(KEY_SHIFTS, 1)
 	if success and round_number > get_record(KEY_BEST_ROUND):
 		_record[KEY_BEST_ROUND] = mini(round_number, MAX_VALUE)
@@ -253,12 +261,14 @@ func _on_round_ended(success: bool, round_number: int) -> void:
 	_clear_shift()
 	save()
 	changed.emit()
+	_hats_issue_new(hats_before) # M16 hats
 
 
 func _on_phase_changed(new_phase: int) -> void:
 	if new_phase == GameState.Phase.MENU:
 		_clear_shift()
 		_sent_title = ""
+		_hats_session_over() # M16 hats
 
 
 func _on_backroom_changed(peer_id: int, active: bool) -> void:
@@ -335,6 +345,122 @@ func _sync_title() -> void:
 func _on_peer_registered(peer_id: int) -> void:
 	if Net.is_host:
 		Net.server_send_titles(peer_id)
+		Net.server_send_hats(peer_id) # M16 hats
+
+
+# --- M16 hats ---------------------------------------------------------------------------------------------------------
+# Issued kit (CONTRACTS "M16 / Hats", scripts/core/hats.gd). The record issues hats (Hats.issued_for(self)); the one
+# this player wears is kept in the file as `hat=<id>` under [career] (no line = none; an unknown id, or one this
+# record has not issued, reads as none) and is the second thing that is sent: with replay on this autoload hands it
+# to Net (Net.send_hat) once the peer is registered and whenever it changes, and the host passes the whole list to a
+# late joiner (Net.server_send_hats, from _on_peer_registered). The host takes at most Net.MAX_HAT_CHANGES changes
+# from a peer in a session, so this side counts what it sent and refuses a change the host would drop: the hat a
+# player wears here is always the one the others see.
+
+## Emitted when the end of a shift issued a hat this record did not have before (once per hat, after `changed`).
+signal hat_issued(id: StringName)
+
+const KEY_HAT := "hat"
+
+## The hat this player chose (&"" = none). Only ever an issued one.
+var _hat: StringName = &""
+## What the host has been told this session ("" = none: where every session starts).
+var _sent_hat: String = ""
+## Changes sent to the host this session.
+var _hat_sends: int = 0
+
+
+## The hats this record has issued, in catalog order.
+func get_issued_hats() -> Array[StringName]:
+	return Hats.issued_for(self)
+
+
+## The hat this player wears (&"" = none: the worker as issued on day one).
+func get_hat() -> StringName:
+	return _hat
+
+
+## Puts a hat on (an issued one) or takes it off (&""). False, and nothing changes, for a hat this record has not
+## issued or, in a session, once the host would take no more changes. Saved at once.
+func set_hat(id: StringName) -> bool:
+	if id != &"" and not get_issued_hats().has(id):
+		return false
+	if id == _hat:
+		return true
+	if not can_change_hat():
+		return false
+	_hat = id
+	save()
+	changed.emit()
+	return true
+
+
+## Changes the host will still take from this peer in this session (the full budget while offline or with replay off:
+## nothing is sent then).
+func get_hat_changes_left() -> int:
+	if not _hats_on_the_wire():
+		return Net.MAX_HAT_CHANGES
+	return maxi(Net.MAX_HAT_CHANGES - _hat_sends, 0)
+
+
+## False once this session's changes are used up (the locker says so).
+func can_change_hat() -> bool:
+	return get_hat_changes_left() > 0
+
+
+func _hats_ready() -> void:
+	Net.players_changed.connect(_sync_hat)
+	Net.hats_changed.connect(_sync_hat)
+	changed.connect(_sync_hat)
+
+
+## True while a change of hat is something the host hears about: replay on, online, registered. Never for a second
+## reader of a file (a Career object outside the tree: it has no peer id).
+func _hats_on_the_wire() -> bool:
+	return is_inside_tree() and Config.replay_enabled and Net.is_online() and Net.players.has(_local_id())
+
+
+## A hat on file that this record has not issued (an edited file, a catalog that changed) reads as none.
+func _hats_after_load() -> void:
+	if _hat != &"" and not get_issued_hats().has(_hat):
+		_hat = &""
+
+
+## What the end of a shift added to the issued list: the signal for each, and with replay on the toast.
+func _hats_issue_new(before: Array[StringName]) -> void:
+	for id: StringName in get_issued_hats():
+		if before.has(id):
+			continue
+		hat_issued.emit(id)
+		if Config.replay_enabled:
+			Game.toast(Hats.issued_text(id), &"info")
+
+
+## Hands this peer's hat to the host once it is registered, and again when it changes (replay on only).
+func _sync_hat() -> void:
+	if not Net.is_online() or not Net.players.has(_local_id()):
+		_hats_session_over() # between sessions: the next host has heard nothing yet
+		return
+	if not Config.replay_enabled:
+		return
+	var id := String(_hat)
+	if id == _sent_hat or _hat_sends >= Net.MAX_HAT_CHANGES:
+		return
+	_sent_hat = id
+	_hat_sends += 1
+	Net.send_hat(_hat)
+
+
+func _hats_session_over() -> void:
+	_sent_hat = ""
+	_hat_sends = 0
+
+
+## The file's line for the chosen hat ("" for none: an older reader skips the line either way).
+func _hats_file_line() -> String:
+	return "%s=%s\n" % [KEY_HAT, String(_hat)] if _hat != &"" else ""
+
+# --- end M16 hats -----------------------------------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------------------------
@@ -382,6 +508,9 @@ func _parse(text: String) -> void:
 			continue
 		var key := line.substr(0, eq).strip_edges()
 		var value_text := line.substr(eq + 1).strip_edges()
+		if section == SECTION_CAREER and key == KEY_HAT: # M16 hats: the one line that is not a count
+			_hat = StringName(value_text) if Hats.is_wire_id(value_text) else &"" # M16 hats
+			continue # M16 hats
 		if not _is_key(key) or not _is_count(value_text):
 			continue
 		var value := clampi(value_text.to_int(), 0, MAX_VALUE)
@@ -395,6 +524,7 @@ func _serialize() -> String:
 	var out := "[%s]\n" % SECTION_CAREER
 	for key in KEYS:
 		out += "%s=%d\n" % [key, get_record(key)]
+	out += _hats_file_line() # M16 hats
 	out += "\n[%s]\n" % SECTION_STRAINS
 	var ids := _strains.keys()
 	ids.sort()

@@ -373,6 +373,7 @@ func _reset_session_state() -> void:
 	_rejected_peers.clear()
 	_reject_reason = ""
 	_career_reset() # M15 career: job titles are per session
+	_hats_reset() # M16 hats: so are the hats
 
 
 # --- M15 career: job titles ------------------------------------------------------------------------------------
@@ -480,3 +481,110 @@ func _career_reset() -> void:
 	_title_changes.clear()
 
 # --- end M15 career ----------------------------------------------------------------------------------------------
+
+
+# --- M16 hats -----------------------------------------------------------------------------------------------------
+# Issued kit (CONTRACTS "M16 / Hats", scripts/core/hats.gd): the hat a worker wears is the second thing of a career
+# file that is sent, in the shape of the title sync above and apart from the registration:
+#   peer -> host   _rpc_set_hat(id)          when it is registered with a hat on, and whenever it changes (Career sends it)
+#   host -> all    _rpc_hats_sync(hats)      peer_id -> hat id, after every accepted change and to a late joiner
+# The host takes a catalog id (Hats.is_wire_id: at most Hats.MAX_ID_LENGTH characters) or "" (no hat) from a
+# registered peer, at most MAX_HAT_CHANGES accepted changes per peer and session; anything else is dropped and the
+# peer keeps the hat it had. It cannot check a record it never sees: any catalog id is taken. Every receiver checks
+# the list against the same catalog again. A peer without a hat has no entry (&"" from get_player_hat).
+
+## Any peer: somebody's hat changed.
+signal hats_changed
+
+## Accepted hat changes per peer and session (the locker goes round the catalog a few times).
+const MAX_HAT_CHANGES: int = 32
+## Entries looked at in a synced list (the session never has this many peers).
+const MAX_HATS_SYNCED: int = 64
+
+## peer_id -> hat id (String, never ""). Authoritative on the host, replicated to every client.
+var hats: Dictionary = {}
+## HOST: peer_id -> hat changes accepted this session.
+var _hat_changes: Dictionary = {}
+
+
+## The hat a registered worker wears (&"" = none, or not registered).
+func get_player_hat(peer_id: int) -> StringName:
+	if not players.has(peer_id):
+		return &""
+	return StringName(String(hats.get(peer_id, "")))
+
+
+## Tells the host which hat this peer wears (&"" = none; the host itself included). No-op while offline.
+func send_hat(id: StringName) -> void:
+	if not is_online():
+		return
+	_rpc_set_hat.rpc_id(Const.SERVER_PEER_ID, String(id))
+
+
+## HOST: the whole list to one peer (a late joiner; Career calls it on peer_registered).
+func server_send_hats(peer_id: int) -> void:
+	if not is_host or peer_id == multiplayer.get_unique_id() or not _is_peer_connected(peer_id):
+		return
+	var live := _live_hats()
+	if not live.is_empty():
+		_rpc_hats_sync.rpc_id(peer_id, live)
+
+
+## Peer -> host: "this is the hat I wear" ("" = none).
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_set_hat(id: String) -> void:
+	if not is_host:
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender == 0:
+		sender = Const.SERVER_PEER_ID
+	if not players.has(sender):
+		return
+	if id != "" and not Hats.is_wire_id(id):
+		return
+	if String(hats.get(sender, "")) == id:
+		return
+	var count := int(_hat_changes.get(sender, 0))
+	if count >= MAX_HAT_CHANGES:
+		return
+	_hat_changes[sender] = count + 1
+	var next := _live_hats()
+	if id == "":
+		next.erase(sender)
+	else:
+		next[sender] = id
+	_rpc_hats_sync.rpc(next)
+
+
+## Host -> everyone: the full list. Runs locally on the host too (call_local).
+@rpc("authority", "call_local", "reliable")
+func _rpc_hats_sync(new_hats: Dictionary) -> void:
+	var next: Dictionary = {}
+	var looked := 0
+	for k: Variant in new_hats.keys():
+		looked += 1
+		if looked > MAX_HATS_SYNCED:
+			break
+		var value: Variant = new_hats[k]
+		if not value is String or not (k is int or k is float):
+			continue
+		if Hats.is_wire_id(value):
+			next[int(k)] = String(value)
+	hats = next
+	hats_changed.emit()
+
+
+## HOST: the hats of the workers still registered.
+func _live_hats() -> Dictionary:
+	var out: Dictionary = {}
+	for k: Variant in hats.keys():
+		if players.has(k):
+			out[k] = hats[k]
+	return out
+
+
+func _hats_reset() -> void:
+	hats = {}
+	_hat_changes.clear()
+
+# --- end M16 hats -------------------------------------------------------------------------------------------------

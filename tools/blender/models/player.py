@@ -11,7 +11,11 @@ a dented grubby hard hat a size too small with a crooked peak, a scuffed caution
 (art/props/face.tscn, sad mood: heavy lids, eye bags, frown) on the head front, so blinks / moods / look() /
 surprise() keep working and art retunes reach the players too.
 
-Nodes (Godot):  <Model, Toonify> / Body       bean + apron + legs + boots + hard hat (one mesh)
+Nodes (Godot):  <Model, Toonify> / Body       bean + apron + legs + boots (one mesh)
+                                 / Hat        the stock hard hat with its sticker and sprout (M16: its own mesh, so
+                                               player.gd can hide it while an issued hat is worn)
+                                 / HatSocket  empty on the hat's seat, leaning as the hat leans: issued hats
+                                               (hats.py) are instanced under it
                                  / ArmL, ArmR  arm + glove, origin at the shoulder, rest rotation 0 (free to swing)
                                  / FacePivot   empty at the head centre: player.tscn's Visual/Face (the node
                                                player.gd tilts with the look pitch) sits exactly here
@@ -412,7 +416,14 @@ def build():
     tuck_head(body, hm)
 
     low = legs_and_boots(leg_mat, leather, rubber)
-    body = join(upper + [hat] + low, "Body")
+    body = join(upper + low, "Body")
+    # M16 hats: the stock hard hat is its own node, so an issued hat (tools/blender/models/hats.py) can take its
+    # place: player.gd hides `Hat` and instances the issued one under `HatSocket`, an empty that carries the stock
+    # hat's seat (position AND the crooked lean), so every hat is authored in the stock hat's space.
+    hat = join([hat], "Hat")
+    socket = empty("HatSocket")
+    socket.matrix_world = hm
+    bpy.context.view_layer.update()
 
     arm_l = arm(+1, tint, leather)
     arm_r = arm(-1, tint, leather)
@@ -431,4 +442,10 @@ def build():
     for nm, o in (("ArmL", arm_l), ("ArmR", arm_r)):
         print("  player: %s shoulder (Godot) = (%.3f, %.3f, %.3f)" % (nm, -o.location.x, o.location.z, o.location.y))
 
-    export([body, arm_l, arm_r, pivot], "player", kind="character", mount="floor")
+    # The socket as player.tscn / player.gd see it (Godot: x = -x, y = z, z = y of the authoring space).
+    g = Matrix(((-1, 0, 0), (0, 0, 1), (0, 1, 0)))
+    gb = g @ hm.to_3x3() @ g.transposed()
+    go = g @ hm.translation
+    print("  player: HatSocket (Godot) = Transform3D(%s, %.4f, %.4f, %.4f)" % (
+        ", ".join("%.5f" % gb[r][c] for c in range(3) for r in range(3)), go.x, go.y, go.z))
+    export([body, hat, arm_l, arm_r, pivot, socket], "player", kind="character", mount="floor")
