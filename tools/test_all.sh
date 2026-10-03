@@ -38,7 +38,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   review_play_mp review_ui review_core review_core_mp review_core_slots review_viewmodel discipline lan firewall voice_test voice_mp physics physics_mp ui_m10 ui_m10_mp events events_mp hostile hostile_mp strains flame flame_mp disrupt disrupt_mp
   review_m10 review_m10_mp review_m12 review_m12_mp qa_m10_4p qa_m12_4p lobby lobby_mp mayhem mayhem_mp loop loop_mp level alley alley_mp
   replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp economy polish variety variety_mp
-  hats hats_mp finale finale_mp mayhem3 mayhem3_mp
+  hats hats_mp finale finale_mp mayhem3 mayhem3_mp cart cart_mp
   qa_mouse_x11)
 
 ONLY=""
@@ -57,7 +57,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 33 34 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 33 34 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 98 99; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -369,6 +369,12 @@ run_suite finale_mp       260 "$LOGDIR/finalemp/*.log" env FINALE_MP_PORT=$((BAS
 run_suite mayhem3         200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/mayhem3_body.gd --port=$((BASE + 33)) --events --round-sec=900
 rm -rf "$LOGDIR/mayhem3mp"; mkdir -p "$LOGDIR/mayhem3mp"
 run_suite mayhem3_mp      260 "$LOGDIR/mayhem3mp/*.log" env MAYHEM3_MP_PORT=$((BASE + 34)) MAYHEM3_MP_LOGS="$LOGDIR/mayhem3mp" tools/tests/mayhem3_mp.sh
+# M17 cart: the hand truck on a solo host with one fake worker (+98): the dock spot in every cover layout, heavy carry,
+# load / unload / full, the data round trip, the chute deposit, the raid, shift start and START OVER; a client loads,
+# unloads and deposits, a late joiner sees the load (+99).
+run_suite cart            240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/cart_body.gd --port=$((BASE + 98)) --round-sec=900 --timeout=220
+rm -rf "$LOGDIR/cartmp"; mkdir -p "$LOGDIR/cartmp"
+run_suite cart_mp         260 "$LOGDIR/cartmp/*.log" env CART_MP_PORT=$((BASE + 99)) CART_MP_LOGS="$LOGDIR/cartmp" tools/tests/cart_mp.sh
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120

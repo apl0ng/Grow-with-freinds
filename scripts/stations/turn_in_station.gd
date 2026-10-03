@@ -292,7 +292,7 @@ func get_load_value(truck: HandTruck) -> int:
 		return 0
 	for entry in truck.get_load():
 		total += compute_sale_value(Config.balance.get_seed(entry["strain_id"]), int(entry["amount"]),
-				GameState.get_sale_multiplier(), bool(entry["cured"]))
+				GameState.get_sale_multiplier() * Events.get_scale_factor(), bool(entry["cured"])) # M17 lead: and the scale's cut, as each sale has
 	return total
 
 
