@@ -132,6 +132,9 @@ $godot = Find-Godot
 Write-Host "Using Godot: $godot"
 Install-Templates
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+# The output folder sits inside the project: a .gdignore keeps Godot from importing what lands there (audition WAVs).
+$gdIgnore = Join-Path $OutDir ".gdignore"
+if (-not (Test-Path $gdIgnore)) { [IO.File]::WriteAllText($gdIgnore, "") }
 $mode = if ($DebugBuild) { "--export-debug" } else { "--export-release" }
 Write-Host "Exporting ($mode) to $OutExe ..."
 $p = Start-Process -FilePath $godot -ArgumentList @("--headless", "--path", "`"$ProjectDir`"", $mode, "`"$Preset`"", "`"$OutExe`"") -WorkingDirectory $ProjectDir -Wait -PassThru -WindowStyle Hidden
