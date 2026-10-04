@@ -19,6 +19,10 @@ extends Resource
 ## Quota multiplier per player beyond the first: quota *= 1 + quota_per_extra_player * (players - 1).
 ## Applied by GameState when a round starts (co-op scaling; 0 = same quota for any team size).
 @export var quota_per_extra_player: float = 0.2
+## M18: what each worker beyond the first adds grows by this much per shift after the first (a crew's capacity
+## climbs faster than one worker's once the floor is bought up): team = 1 + (quota_per_extra_player +
+## quota_team_growth * (shift - 1)) * (players - 1). 0 = flat, as before.
+@export var quota_team_growth: float = 0.0
 ## If true the round ends (success) the moment sales reach the quota; otherwise it runs to the timer.
 @export var end_round_on_quota_met: bool = true
 ## If true unspent money carries over to the next round.
@@ -205,6 +209,19 @@ extends Resource
 @export var phone_discount: float = 0.2
 @export var phone_discount_sec: float = 60.0
 
+@export_group("M18")
+## Walkie-talkies on the floor at the start of a run, and how loud a radio voice plays at the receiving radio (dB).
+@export var radio_count: int = 2
+@export var radio_volume_db: float = -4.0
+## Black Damp's spores: the cloud's radius (metres) and how long a worker caught in it is fogged (seconds); how long
+## the cloud hangs where it puffed.
+@export var spore_radius: float = 2.6
+@export var spore_fog_sec: float = 9.0
+@export var spore_cloud_sec: float = 6.0
+## Gestures: how long one plays, and the shortest gap between two (seconds).
+@export var emote_sec: float = 2.4
+@export var emote_cooldown_sec: float = 1.0
+
 @export_group("Networking")
 @export var default_port: int = 7777
 @export var max_players: int = 4
@@ -224,7 +241,8 @@ func get_upgrade(id: StringName) -> UpgradeDef:
 func quota_for_round(round_number: int, player_count: int = 1) -> int:
 	var n: int = max(round_number, 1)
 	var base := base_quota * pow(quota_scale, n - 1) + quota_add * (n - 1)
-	var team: float = 1.0 + quota_per_extra_player * float(maxi(player_count - 1, 0))
+	var per_extra := quota_per_extra_player + quota_team_growth * float(n - 1)  # M18: grows by shift (0 = flat)
+	var team: float = 1.0 + per_extra * float(maxi(player_count - 1, 0))
 	return int(round(base * team))
 
 func total_grow_time(seed: SeedDef) -> float:

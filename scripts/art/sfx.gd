@@ -93,11 +93,13 @@ const SOUNDS: Array[StringName] = [
 	&"uproot", &"locker",
 	# M17 (lead placeholders: the phone, the scale, the hand truck, the debt cleared)
 	&"phone_ring", &"phone_pickup", &"scale_hit", &"truck_load", &"paid_in_full",
+	# M18 (lead placeholders: the radio, the spores, gestures)
+	&"radio_on", &"radio_off", &"radio_static", &"spore_puff", &"cough", &"emote",
 ]
 
 ## Sounds synthesised as seamless loops (loop_mode FORWARD over the whole buffer): ambience and walking keys.
 ## Only these can be started with play_loop().
-const LOOPING: Array[StringName] = [&"hum", &"keys", &"hostile_eat", &"flame", &"leak", &"siren", &"sprinkler", &"phone_ring"]
+const LOOPING: Array[StringName] = [&"hum", &"keys", &"hostile_eat", &"flame", &"leak", &"siren", &"sprinkler", &"phone_ring", &"radio_static"]
 
 ## Per-sound playback settings: [volume_db, pitch_variation (+-fraction), 3D unit_size].
 const SETTINGS := {
@@ -174,6 +176,12 @@ const SETTINGS := {
 	&"scale_hit": [-5.0, 0.05, 8.0],
 	&"truck_load": [-7.0, 0.06, 6.0],
 	&"paid_in_full": [-8.0, 0.0, 6.0],
+	&"radio_on": [-10.0, 0.03, 5.0],
+	&"radio_off": [-10.0, 0.03, 5.0],
+	&"radio_static": [-18.0, 0.0, 5.0],
+	&"spore_puff": [-6.0, 0.06, 8.0],
+	&"cough": [-6.0, 0.08, 7.0],
+	&"emote": [-14.0, 0.05, 5.0],
 }
 
 enum Wave { SINE, TRIANGLE, SQUARE, SAW, CHIP }

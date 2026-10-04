@@ -24,6 +24,7 @@ const ITEM_PRODUCT: StringName = &"product"
 const ITEM_FLAMETHROWER: StringName = &"flamethrower"   # M12: the emergency cabinet's weapon, props {"fuel": float, "firing": bool}
 const ITEM_BALL: StringName = &"ball"                   # M15: the alley ball (an ordinary throwable item)
 const ITEM_HAND_TRUCK: StringName = &"hand_truck"       # M17: the dock's hand truck (heavy to carry, takes bundles)
+const ITEM_RADIO: StringName = &"radio"                 # M18: a walkie-talkie (push to talk carries to every other radio)
 
 # --- Upgrade effect keys (UpgradeDef.effect_key) ---
 const EFFECT_GROWTH_SPEED: StringName = &"growth_speed"   # multiplier bonus: growth rate *= 1 + total

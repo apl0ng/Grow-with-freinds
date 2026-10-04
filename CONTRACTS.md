@@ -1292,3 +1292,72 @@ inspection does not count a loaded truck as skimming. qa_4p, qa_robust and qa_m1
 
 **Suites and ports.** finale +93 / finale_mp +94, mayhem3 +33 / mayhem3_mp +34, cart +98 / cart_mp +99.
 `tools/tests/m17_shots_body.gd` is the capture tool (`--board` for the alley board).
+
+## M18 — radios, spores, gestures, a fairer payment for full crews (lead prep, 2026-10-04)
+Design: FRIENDSLOP.md section 12. Four agents in worktrees `.claude/worktrees/<agent>18` on `m18/<agent>`:
+**radio**, **spores**, **emotes**, **economy2**. Lead-only files as before (project.godot, CONTRACTS.md, PLAN.md,
+README.md, HANDOFF.md, FRIENDSLOP.md, tools/test_all.sh, const.gd, balance_config.gd, config.gd, the tables of
+sfx.gd). Shared files are edited only inside `# --- M18 <agent> ---` regions plus tagged one-line hooks
+(`# M18 <agent>`). Test ports: radio +36 / radio_mp +37, spores +38 / spores_mp +39, emotes +40 / emotes_mp +49;
+economy2 extends the existing `economy` suite. Every suite that runs with `--replay` passes `--run=B5VP`.
+
+### Prep already in place (lead)
+- `Const.ITEM_RADIO` (&"radio").
+- Input actions `emote_1` .. `emote_4` on the number keys 1 to 4.
+- `BalanceConfig` group "M18": `radio_count` 2, `radio_volume_db` -4, `spore_radius` 2.6, `spore_fog_sec` 9,
+  `spore_cloud_sec` 6, `emote_sec` 2.4, `emote_cooldown_sec` 1.0; and `quota_team_growth` (default 0: what each
+  worker beyond the first adds to the payment grows by this much per shift; `quota_for_round` already reads it).
+- Sfx names with default blips: `radio_on`, `radio_off`, `radio_static` (loop), `spore_puff`, `cough`, `emote`.
+
+### Radio (radio agent) — an item, its model, voice.gd region, room.tscn marker, HUD region
+- **Walkie-talkies** (`Const.ITEM_RADIO`, model `radio.glb`): `radio_count` of them on a shelf in the main room
+  (a marker this agent adds, clear of every cover layout and route) from the start of a run; ordinary carryable,
+  throwable items; START OVER puts them back.
+- **Push to talk on the radio.** A worker holding a radio who talks (V, or open mic) is heard, besides the normal
+  proximity voice, at every OTHER radio on the floor, wherever it is: held by somebody or lying on the floor, through
+  a band-limited, crackling filter (`radio_volume_db`), with `radio_on` / `radio_off` clicks at both ends when a
+  transmission starts and stops and a little `radio_static` under it. A radio in the back room still receives. The
+  host decides who transmits (the holder's peer) and every peer plays the radio voices at the radio nodes it has.
+- Power cut: radios keep working (batteries). A radio the raid sees is not taken (it is not product).
+- HUD: "RADIO" next to the talk indicator while the local worker transmits through one.
+- API: `Radio` (item class), `Voice.is_on_radio(peer_id) -> bool`, `Voice.get_radio_listeners() -> Array[Node3D]`,
+  signal `Voice.radio_changed(peer_id, on)`.
+- Suites `radio` (+36) and `radio_mp` (+37).
+
+### Spores (spores agent) — a seventh strain, grow_plot region, a fog overlay, sfx recipes
+- **Black Damp**, trait "spores" (`SeedDef` gets a `spore` flag or trait key; data/balance.tres + tools/gen_balance.gd),
+  unlocks at shift 3, pays well, grows slowly. A READY Black Damp tray puffs a spore cloud (`spore_puff`) when it is
+  harvested, uprooted, burnt, shot or bumped by a thrown item: every worker within `spore_radius` (at puff time and
+  while the cloud hangs, `spore_cloud_sec`) is fogged for `spore_fog_sec`: their own screen greys and blurs at the
+  edges, their hearing is muffled (a local low-pass on the master bus), and they cough (`cough`, heard by everyone
+  at that worker, every few seconds). A crouched worker breathing through their sleeve is fogged half as long.
+- The cloud is a cosmetic particle volume on every peer; who is fogged is decided on the host and synced (a worker
+  state or a small RPC + late-join replay).
+- Story: a flat Boss line the first time a shift fogs somebody; the shift report counts "fogged" per worker.
+- The strains / replay / economy suites pin six strains and their unlocks: update the pins on purpose (economy2
+  works in parallel on the economy model; touch econ_sim.gd / economy_body.gd only where the seventh strain forces
+  it, and say so).
+- Suites `spores` (+38) and `spores_mp` (+39).
+
+### Emotes (emotes agent) — player region, net region or player RPC, HUD hint
+- **Four gestures** on `emote_1` .. `emote_4`: point (the arm follows where the worker looks), a tired half-wave, a
+  shrug, slump (sit down against whatever is behind you until you move). Nobody smiles; nothing is a dance. Each
+  plays for `emote_sec` on the worker's body on every peer (the procedural arms and body the model already has),
+  with the `emote` cloth sound; at most one per `emote_cooldown_sec`; moving cancels slump; not while stunned,
+  carrying something heavy or in the back room (a worker in the back room can gesture to the other back-room
+  workers: say what you decide).
+- Owner-driven like movement: the owner sends the gesture; the host validates (cooldown, state) and relays; late
+  joiners see a running slump.
+- The local worker sees their own point arm in first person (the view model), and a small HUD hint lists the keys
+  in the pause menu's controls text.
+- Suites `emotes` (+40) and `emotes_mp` (+49).
+
+### Economy 2 (economy2 agent) — data/balance.tres quota numbers, tools/tests/econ_sim.gd, the economy suite
+- The M15 model found the middle of a run slack for full crews (four average workers deposit about $8,900 against
+  $3,296 in shift 3) because the per-worker raise is flat. Pick `quota_team_growth` (and, if the model says so,
+  re-pick `quota_per_extra_player`) so that, with the final notice in place (shift 4 / 5 / 6 by team size, M17):
+  a careful solo worker can clear a run (four shifts) about half the time; two careful workers clear five shifts
+  about half the time; four average workers who split up reach the final notice but clear it only with favors and
+  the racks; nobody clears without cured bundles. Solo numbers must not move (team size 1 is unaffected by the field).
+- Pin the new targets and the payment table in the `economy` suite; update the flow / econ pins that follow.
+- A seventh strain (Black Damp, shift 3) lands in parallel: keep the model tolerant of a strain it does not know yet.

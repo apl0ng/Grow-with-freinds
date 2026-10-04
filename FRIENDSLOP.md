@@ -245,3 +245,28 @@ every session ended in a failure. A run needs a last shift.
 ### 11.4 Next
 - A second way the rooms join; a per-shift payment table for full crews (the middle of a run is slack for four);
   more to do in the alley; the scale and the phone as things workers can break.
+
+## 12. M18: talking across the floor, a strain that chokes, saying it without words (2026-10-04)
+The user asked for more. What makes a session with friends worth retelling is usually somebody shouting across the
+building, somebody coughing in a cloud they walked into, and somebody pointing at the thing everyone else missed.
+
+### 12.1 Radios (now)
+- Two walkie-talkies on a shelf. Hold one and talk, and every other radio on the floor carries your voice, crackling,
+  wherever it is lying. The worker in the hall can tell the worker at the window what to buy; the worker in the back
+  room can still hear the floor; a radio left on the dock tells everyone what the raid is saying.
+
+### 12.2 Black Damp (now)
+- A seventh strain from shift three. It pays well and grows slowly, and a ripe tray puffs a cloud of spores when it
+  is harvested, uprooted, burnt, shot or hit. Whoever is in the cloud sees grey, hears through cotton and coughs for
+  a while; everyone else hears the coughing. Crouch and breathe through your sleeve.
+
+### 12.3 Gestures (now)
+- Four keys: point, a tired half-wave, a shrug, sit down against the wall. Nobody smiles and nobody dances.
+
+### 12.4 A fairer payment for a full crew (now)
+- The payment for a crew of three or four climbs faster through the run than for one worker, so a full crew is not
+  coasting through the middle shifts.
+
+### 12.5 Next
+- A second way the rooms join; the Boss's own bad day (a shift where he walks the floor the whole time); a vending
+  machine in the alley; breaking the scale and the phone on purpose.
