@@ -91,4 +91,7 @@ func quit_gracefully(code: int) -> void:
 		sfx.call(&"stop_all")
 	for i in 4:
 		await get_tree().process_frame
+	# Four frames were not always enough: review_m10 still crashed the exit about one run in four after M17, never in 16
+	# runs with this wait (the game's own quit path does the same: Game.quit_gracefully).
+	await get_tree().create_timer(0.3, true, false, true).timeout
 	get_tree().quit(code)

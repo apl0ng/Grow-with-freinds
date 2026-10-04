@@ -38,6 +38,7 @@ var _pending_menu_message: String = ""
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	get_tree().set_auto_accept_quit(false)  # M17 lead: closing the window goes through quit_gracefully()
 	Net.peer_registered.connect(_on_peer_registered)
 	Net.peer_joined.connect(_on_peer_joined)
 	Net.peer_left.connect(_on_peer_left)
@@ -45,6 +46,43 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_IN:
 		refresh_mouse_mode()
+	elif what == NOTIFICATION_WM_CLOSE_REQUEST:
+		quit_gracefully()  # M17 lead
+
+
+# --- M17 lead: quitting -------------------------------------------------------------------------------------------
+# Quitting with audio still playing has crashed the exit now and then (a voice generator playback or a sound player
+# released in the last frames, still referenced by the audio thread when the engine tears down: exit 139 after a
+# PASS in the suites, about one run in four of review_m10 after M17). The window close and the menu's quit button
+# leave the session, stop every voice and sound, give the audio thread QUIT_SETTLE_SEC, then quit. A watchdog quits
+# regardless after QUIT_WATCHDOG_SEC so the window always closes.
+
+const QUIT_SETTLE_SEC := 0.3
+const QUIT_WATCHDOG_SEC := 2.0
+
+var _quitting := false
+
+
+## True once quit_gracefully() has started.
+func is_quitting() -> bool:
+	return _quitting
+
+
+## Leaves the session, stops all audio and quits after the audio thread has let go. Safe to call twice.
+func quit_gracefully(code: int = 0) -> void:
+	if _quitting:
+		return
+	_quitting = true
+	var tree := get_tree()
+	tree.create_timer(QUIT_WATCHDOG_SEC, true, false, true).timeout.connect(func() -> void: tree.quit(code))
+	if Net.is_online() or not Net.players.is_empty():
+		Net.leave()
+	Voice.shutdown()
+	Sfx.stop_all()
+	for i in 4:
+		await tree.process_frame
+	await tree.create_timer(QUIT_SETTLE_SEC, true, false, true).timeout
+	tree.quit(code)
 
 # --- Scene flow -------------------------------------------------------------------------------------------
 

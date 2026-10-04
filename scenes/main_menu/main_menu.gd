@@ -176,8 +176,7 @@ func _on_ip_submitted(_text: String) -> void:
 	_begin_join(true)
 
 func _on_quit_pressed() -> void:
-	Sfx.play(&"ui_click")
-	get_tree().quit()
+	Game.quit_gracefully()  # M17 lead: stops every sound (the click too) and lets the audio thread go first
 
 func _begin_host(remember: bool) -> void:
 	if _busy:
