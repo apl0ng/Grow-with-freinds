@@ -82,6 +82,17 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 - To hear the synthesised sounds without launching the game:
   `godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/sound_demo_body.gd --out=<dir>`
   writes one WAV per sound (`--sounds=a,b,c` or `all`).
+- A run has an end (M17): with replay on, the fourth shift for one worker, the fifth for two and the sixth for three
+  or four is posted as the final notice. It has two conditions, and the Boss checks the number at half time (under
+  40% in and the payment goes up a tenth). Pay it and the debt is cleared: PAID IN FULL, the record counts it and
+  issues a green eyeshade, and NEW RUN starts again.
+- A hand truck stands on the loading dock (M17). It takes four bundles and is as heavy to push as a Floor Brick
+  bundle; whoever brings it to the chute deposits the whole load at once, each bundle paid as if carried by hand. A
+  raid that sees it takes everything on it.
+- Two more things go wrong (M17): the chute's scale can read light (every deposit pays 15% less until somebody
+  shoves the chute with F or throws something at it), and the wall phone in the main room rings (hold E to answer
+  for a tip about the next event, a minute of cheaper seeds, or a wrong number; let it ring and $30 comes out of
+  cash on hand).
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows

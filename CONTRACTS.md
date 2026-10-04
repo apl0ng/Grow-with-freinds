@@ -1246,3 +1246,49 @@ with `--replay` passes `--run=B5VP` (cover layout 0, one fixed card).
   path; `--first-event=scale|phone`. The suites and the economy model that pin twelve kinds and their weights
   (`disrupt`, `mayhem`, `mayhem2`, `economy` / `tools/tests/econ_sim.gd`) follow.
 - Suites `mayhem3` (+33) and `mayhem3_mp` (+34), with `--events`.
+
+### M17 as delivered (integration notes, lead, 2026-10-02)
+Three branches merged (finale, mayhem3, cart). The first three agents stopped on the account's Fable usage limit
+with nothing committed; fresh agents on Opus finished from their worktrees. What differs from the plan above:
+
+**The final notice (finale).** `GameState.get_final_shift()`, `is_final_shift()` (true from WAITING before that
+shift through its end screen), `is_run_cleared()`, `get_largest_team()` (host), signals `final_changed`,
+`run_cleared` (before `round_ended`), `final_look(short, raised)`; state entry `"final": {"shift", "cleared"}`.
+- The last shift is locked once the final notice starts: a worker joining during it does not move the end of the
+  run; one joining earlier (alley, end screen) does.
+- "Always two conditions" is `maxi(count, 2)` and only when the shift rolls any. A shift rolled as final keeps its
+  two conditions if the team grows in the alley afterwards (the replay region's "rolled once" rule). The same code
+  still deals the same card for the same team size.
+- After a clear, `request_next_round` is ignored; `server_start_round` / `server_return_to_lobby(false)` warn.
+- Copy: Boss on the clear "That's all of it. I'll think of something."; toast "Final notice. Pay it and the debt is
+  cleared."; the board on the end screen "PAID IN FULL"; the panel title uses `Toon.WARNING`.
+- Career `cleared` (in `KEYS`), "Debts cleared: N"; hat `eyeshade` ("green eyeshade", one debt cleared): eight hats.
+- The replay suite clears `final_shift_by_team` (it plays nine shifts of one run).
+
+**The scale and the phone (mayhem3).** Fourteen kinds, weights as specified.
+- Scale: `Events.is_scale_off()`, `get_scale_factor()`, `server_hit_scale(peer)`, `request_hit_scale()`,
+  `try_hit_scale()`; F at the chute goes through `Events._input` (a worker under the crosshair is still shoved);
+  thrown hits are checked in `Events._physics_process` on the host with the same cast ItemManager uses, so a
+  thrown bundle that strikes the chute fixes the scale first and is sold at full price. The cut is in
+  `TurnInStation.get_sale_value` (and, lead, in the truck's prompt total); the supply card does not show it.
+- Phone: `Decor/WallPhone` at (-7.8, 1.15, -7.5) (`WallPhone`, greyed "Phone" while silent);
+  `Events.request_answer_phone()`, `server_answer_phone(peer)`, `get_phone_discount()`,
+  `get_phone_discount_left()`, signals `phone_answered`, `phone_missed`, `phone_discount_changed`. When it starts
+  ringing the host rolls both the call and the next kind from `_card()`; the tip only reveals that kind, the
+  scheduler starts it next either way. **A told kind is retried at most `PHONE_TOLD_MAX_TRIES` (6) times, 5 s
+  apart** (lead: a told rat with nothing growing stopped every event for the rest of the shift).
+- The fine goes through `server_try_spend(taken, 0, "phone")`; the jar tags refresh through a `has_method` guard on
+  ShopCounter's private `_decorate_from_balance`.
+
+**The hand truck (cart).** `HandTruck` (`scripts/items/hand_truck.gd`), spot `Dock/HandTruckSpot` at (-8, 0, 8.6),
+clear in all four cover layouts. The synced property is **`cargo`** (`load` would shadow GDScript's `load()`): an
+array of `{strain_id, amount, cured, dry_left}`, replaced whole, cleaned on receive (16 entries at most); a bundle
+off a rack keeps its remaining drying. The truck spawns when the first shift starts (inside the van ride's black
+screen), keeps its load across shifts, and START OVER despawns it. With empty hands, aiming at the bags takes the
+top bundle, aiming at the frame picks the truck up. At the chute each bundle is spawned at the slot and sold through
+`server_sell_item`, top first, so every sale rule applies; a sale that meets the payment ends the shift and the rest
+stays on. RMB: "Too heavy to throw." A raid looks at a standing truck at the middle of its load. The Boss's
+inspection does not count a loaded truck as skimming. qa_4p, qa_robust and qa_m10_4p count the truck among the items.
+
+**Suites and ports.** finale +93 / finale_mp +94, mayhem3 +33 / mayhem3_mp +34, cart +98 / cart_mp +99.
+`tools/tests/m17_shots_body.gd` is the capture tool (`--board` for the alley board).
