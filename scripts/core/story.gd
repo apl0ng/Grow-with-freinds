@@ -161,6 +161,7 @@ func _ready() -> void:
 	_mayhem3_setup()  # M17 mayhem3: the scale, the phone (region after the M15 mayhem2 one)
 	_career_setup()  # M15 career: the shift's job (region at the end of the file)
 	_finale_setup()  # M17 finale: the final notice (region at the end of the file)
+	_read_setup()  # M19 readability: the tell's lines, answers in the toasts, the report's cost lines (region after M18 spores)
 
 
 func _process(delta: float) -> void:
@@ -469,7 +470,7 @@ func _on_event_started(kind: StringName, _params: Dictionary) -> void:
 		&"power_cut":
 			_request("power_cut", Weight.PROGRESS)
 		&"audit":
-			_request("audit", Weight.PROGRESS)
+			_request("read_audit_start" if _params.has("tell") else "audit", Weight.PROGRESS)  # M19 readability: a told audit counts at the end
 		&"rat":
 			_request("rat", Weight.PROGRESS)
 
@@ -619,7 +620,7 @@ const HOSTILE_PLOT_FALLBACK := "the trays"
 func hostile_plot_turning(plot_label: String) -> void:
 	if _in_session():
 		# The Boss only speaks at his window: the floor also gets it on screen (every peer, local).
-		Game.toast(String(lines.get("plot_turning", "%s is moving.")) % plot_label, &"error")
+		Game.toast(read_with_answer("plot_turning", String(lines.get("plot_turning", "%s is moving.")) % plot_label), &"error")  # M19 readability: the toast names the answer
 		_request_named("plot_turning", plot_label, Weight.MAJOR)
 
 func _connect_hostile_signals() -> void:
@@ -648,7 +649,7 @@ func _on_hostile_spawned(_id: int, _strain_id: StringName, position: Vector3) ->
 		return
 	var idx := _hostile_plot_index_near(position)
 	var where: String = HOSTILE_PLOT_NAME % idx if idx > 0 else HOSTILE_PLOT_FALLBACK
-	Game.toast(String(lines.get("hostile_spawned", "Something came out of %s.")) % where, &"error")
+	Game.toast(read_with_answer("hostile_spawned", String(lines.get("hostile_spawned", "Something came out of %s.")) % where), &"error")  # M19 readability: the toast names the answer
 	_request_named("hostile_spawned", where, Weight.MAJOR)
 
 
@@ -767,7 +768,7 @@ func _disrupt_on_event_started(kind: StringName, params: Dictionary) -> void:
 		&"headcount":
 			_request("headcount", Weight.MAJOR)
 		&"water_off":
-			_request("water_off", Weight.PROGRESS)
+			_request("read_water_warn" if params.has("tell") else "water_off", Weight.PROGRESS)  # M19 readability: the main goes off after the tell
 		&"shortage":
 			_disrupt_shortage_name = _disrupt_strain_name(params.get("strain", ""))
 			_request_named("shortage", _disrupt_shortage_name, Weight.PROGRESS)
@@ -853,7 +854,7 @@ const MAYHEM_LINES: Dictionary = {
 	"slipped": "Wet floor, %s.",
 	"driveby": "Get down.",
 	"driveby_hit": "%s got hit. Still on the clock.",
-	"driveby_bill": "Glass and holes: %s. It comes out of cash on hand.",
+	"driveby_bill": "Glass and holes: %s. Out of cash on hand.",  # M19 readability: two-second copy (was "It comes out of cash on hand.")
 	"driveby_bill_short": "Glass and holes: %s. You had %s. I took it.",
 	"driveby_bill_broke": "Glass and holes: %s. Nothing to take. Noted.",
 	"toast_leak": "The tank is leaking. Hold it shut.",
@@ -1182,9 +1183,9 @@ const MAYHEM3_LINES: Dictionary = {
 	"phone_favor": "A favor. Seeds are cheap. Not for long.",
 	"phone_wrong": "Wrong number.",
 	"phone_missed": "He called. Nobody picked up. %s.",
-	"phone_missed_short": "He called. Nobody picked up. %s. You had %s. I took it.",
+	"phone_missed_short": "He called. Nobody picked up. %s. I took %s.",  # M19 readability: two-second copy (was "... You had %s. I took it.")
 	"phone_missed_broke": "He called. Nobody picked up. %s. Nothing to take.",
-	"toast_scale": "The scale reads light: deposits pay %d%% less. Hit the chute (%s) or throw something at it.",
+	"toast_scale": "The scale reads light: %d%% less. Hit the chute (%s).",  # M19 readability: two-second copy (was 17 words)
 	"toast_scale_fixed": "%s hit the scale. It reads right.",
 	"toast_scale_fixed_nobody": "The scale took a hit. It reads right.",
 	"toast_scale_back": "The scale reads right again.",
@@ -1359,6 +1360,219 @@ func _spores_report_verdicts(peers: Array) -> PackedStringArray:
 		out.append(line("verdict_fogged") % Net.get_player_name(best))
 	return out
 # --- end M18 spores ----------------------------------------------------------------------------------------------
+
+
+# --- M19 readability: the answer in the copy, the tell's lines, what the shift cost --------------------------------
+# CONTRACTS "M19", "Readability". Every peer derives these from Events' signals and synced state (no Story RPC).
+#   a told audit starts               read_audit_start   PROGRESS (instead of "The number went up.")
+#   it counts (Events.audit_counted)  audit              PROGRESS + toast read_toast_audit (error): "Audit: payment due
+#                                                        up $35."
+#   a told water main starts          read_water_warn    PROGRESS (instead of "Water main is off.")
+#   ... and goes off (tell_ended)     water_off          PROGRESS
+#   the glass breaks (the cabinet)    (toast only)       "Dale broke the glass. Flamethrower out." (info)
+#   Black Damp starts to ripen        (toast only)       "Black Damp is ripening. Crouch near it." once a shift
+#   a tray moves / a plant comes out  the toast gets the answer: "GrowPlot 3 is moving. Harvest it.", "Something came out
+#                                     of GrowPlot 3. Burn it." (the Boss's own lines stay as they were)
+# The shift report's "what it cost": get_cost_lines(Events.get_shift_costs()), at most three, the dearest first.
+
+const READ_LINES: Dictionary = {
+	"read_audit_start": "Audit. I count what you still owe.",
+	"read_audit_none": "Counted. Nothing owed. This time.",
+	"read_water_warn": "Water main goes off. Fill the cans.",
+	"read_toast_audit": "Audit: payment due up %s.",
+	"read_toast_audit_none": "Audit: nothing owed.",
+	"read_toast_glass": "%s broke the glass. Flamethrower out.",
+	"read_toast_ripening": "Black Damp is ripening. Crouch near it.",
+	"read_answer_plot_turning": "Harvest it.",
+	"read_answer_hostile_spawned": "Burn it.",
+	# The shift report ("%s" = a count in words with its noun, then dollars as "$360").
+	"cost_raid": "The raid took %s. %s.",
+	"cost_raid_fines": "The raid cost %s in fines.",
+	"cost_inspection": "The inspection took %s. %s.",
+	"cost_inspection_fines": "The inspection cost %s in fines.",
+	"cost_headcount": "The head count cost %s in fines.",
+	"cost_collection_paid": "The collector took %s.",
+	"cost_collection_bundle": "The collector took %s. %s.",
+	"cost_collection_tray": "The collector took %s.",
+	"cost_phone": "Nobody took the call. %s.",
+	"cost_driveby": "The drive-by cost %s.",
+	"cost_driveby_trays": "The drive-by cost %s. %s set back.",
+	"cost_driveby_trays_only": "The drive-by set %s back.",
+	"cost_scale": "The scale shaved %s off deposits.",
+	"cost_audit": "The audit put %s on the payment.",
+	"cost_plant": "The plant ate %s.",
+	"cost_walked": "%s walked off.",
+	"cost_fire": "The fire took %s.",
+	"cost_fire_fines": "The fire cost %s in fines.",
+	"cost_rat": "The rat ate into %s.",
+}
+## The report says at most this many cost lines.
+const READ_COST_LINES_MAX: int = 3
+
+var _read_ripen_round: int = -1
+
+
+func _read_setup() -> void:
+	for k in READ_LINES:
+		if not lines.has(k):
+			lines[k] = READ_LINES[k]
+	var events: Node = get_node_or_null(^"/root/Events")
+	if events != null:
+		for entry: Array in [[&"tell_ended", _read_on_tell_ended], [&"audit_counted", _read_on_audit_counted]]:
+			if events.has_signal(entry[0]):
+				events.connect(entry[0], entry[1])
+	Game.world_ready.connect(_read_on_world_ready)
+	GameState.round_started.connect(func(_n: int) -> void: _read_ripen_round = -1)   # a new shift, a new first tray
+
+
+## A toast's text with the answer after it ("GrowPlot 3 is moving. Harvest it."); `key` names the line.
+func read_with_answer(key: String, text: String) -> String:
+	var answer := line("read_answer_" + key)
+	return text if answer == "" else "%s %s" % [text, answer]
+
+
+func _read_on_tell_ended(kind: StringName) -> void:
+	if not _in_session():
+		return
+	if kind == &"water_off":
+		_request("water_off", Weight.PROGRESS)
+
+
+func _read_on_audit_counted(raise: int) -> void:
+	if not _in_session():
+		return
+	if raise > 0:
+		Game.toast(line("read_toast_audit") % format_money(raise), &"error")
+		_request("audit", Weight.MAJOR)
+	else:
+		Game.toast(line("read_toast_audit_none"), &"info")
+		_request("read_audit_none", Weight.PROGRESS)
+
+
+## Every world: the emergency cabinet tells the floor who took the flamethrower.
+func _read_on_world_ready(world: Node) -> void:
+	var room: Variant = world.get(&"room") if world != null else null
+	var cabinet: Node = (room as Node).get_node_or_null(^"Stations/EmergencyCabinet") if room is Node else null
+	if cabinet != null and cabinet.has_signal(&"glass_broken") and not cabinet.is_connected(&"glass_broken", _read_on_glass_broken):
+		cabinet.connect(&"glass_broken", _read_on_glass_broken)
+
+
+func _read_on_glass_broken(by_peer: int) -> void:
+	if _in_session() and by_peer > 0:
+		Game.toast(line("read_toast_glass") % Net.get_player_name(by_peer), &"info")
+
+
+## Every peer, from a Black Damp tray whose motes start before it is ripe (GrowPlot): once a shift.
+func read_spore_ripening() -> void:
+	if not _in_session() or not GameState.is_playing() or _read_ripen_round == GameState.round_number:
+		return
+	_read_ripen_round = GameState.round_number
+	Game.toast(line("read_toast_ripening"), &"info")
+
+
+# --- what it cost -------------------------------------------------------------------------------------------------
+
+## The shift report's lines for the ledger `costs` (Events.get_shift_costs()): one per source that cost anything, the
+## dearest first (ties in Events.COST_SOURCES order), at most `max_lines`.
+func get_cost_lines(costs: Dictionary, max_lines: int = READ_COST_LINES_MAX) -> PackedStringArray:
+	var order: Array = []
+	var sources: PackedStringArray = Events.COST_SOURCES
+	for i in sources.size():
+		var raw: Variant = costs.get(sources[i])
+		if not (raw is Dictionary):
+			continue
+		var text := read_cost_line(sources[i], raw)
+		if text != "":
+			order.append([int((raw as Dictionary).get("value", 0)), i, text])
+	order.sort_custom(func(a: Array, b: Array) -> bool: return a[0] > b[0] or (a[0] == b[0] and a[1] < b[1]))
+	var out := PackedStringArray()
+	for entry: Array in order:
+		if out.size() >= max_lines:
+			break
+		out.append(String(entry[2]))
+	return out
+
+
+## The report's lines for the running shift's ledger.
+func get_shift_cost_lines() -> PackedStringArray:
+	return get_cost_lines(Events.get_shift_costs())
+
+
+## One source's line ("" when it cost nothing to speak of).
+func read_cost_line(source: String, e: Dictionary) -> String:
+	var money := int(e.get("money", 0))
+	var bundles := int(e.get("bundles", 0))
+	var plants := int(e.get("plants", 0))
+	var setback := int(e.get("setback", 0))
+	var value := int(e.get("value", 0))
+	var strain := String(e.get("strain", ""))
+	var dollars := format_money(value)
+	match source:
+		Events.COST_RAID:
+			if bundles > 0:
+				return line("cost_raid") % [read_count(bundles, "bundle", strain), dollars]
+			if money > 0:
+				return line("cost_raid_fines") % format_money(money)
+		Events.COST_INSPECTION:
+			if bundles > 0:
+				return line("cost_inspection") % [read_count(bundles, "bundle", strain), dollars]
+			if money > 0:
+				return line("cost_inspection_fines") % format_money(money)
+		Events.COST_HEADCOUNT:
+			if money > 0:
+				return line("cost_headcount") % format_money(money)
+		Events.COST_COLLECTION:
+			if bundles > 0:
+				return line("cost_collection_bundle") % [read_count(bundles, "bundle", strain), dollars]
+			if plants > 0:
+				return line("cost_collection_tray") % read_count(plants, "tray", strain)
+			if money > 0:
+				return line("cost_collection_paid") % format_money(money)
+		Events.COST_PHONE:
+			if money > 0:
+				return line("cost_phone") % format_money(money)
+		Events.COST_DRIVEBY:
+			var trays := setback + plants
+			if money > 0 and trays > 0:
+				return line("cost_driveby_trays") % [format_money(money), read_capital(read_count(trays, "tray", ""))]
+			if money > 0:
+				return line("cost_driveby") % format_money(money)
+			if trays > 0:
+				return line("cost_driveby_trays_only") % read_count(trays, "tray", "")
+		Events.COST_SCALE:
+			if money > 0:
+				return line("cost_scale") % format_money(money)
+		Events.COST_AUDIT:
+			if money > 0:
+				return line("cost_audit") % format_money(money)
+		Events.COST_PLANT:
+			if plants > 0:
+				return line("cost_plant") % read_count(plants, "tray", strain)
+		Events.COST_WALKED:
+			if plants > 0:
+				return line("cost_walked") % read_capital(read_count(plants, "tray", strain))
+		Events.COST_FIRE:
+			if plants > 0:
+				return line("cost_fire") % read_count(plants, "tray", strain)
+			if money > 0:
+				return line("cost_fire_fines") % format_money(money)
+		Events.COST_RAT:
+			if setback > 0:
+				return line("cost_rat") % read_count(setback, "tray", strain)
+	return ""
+
+
+## "a bundle", "a tray of Purple Haze", "two bundles", "three trays of Night Shift" (the strain when there is one).
+func read_count(n: int, noun: String, strain: String) -> String:
+	var text := "a %s" % noun if n == 1 else "%s %ss" % [mayhem_amount_words(n), noun]
+	if strain != "" and strain != Events.COST_MIXED:
+		text += " of " + _disrupt_strain_name(strain)
+	return text
+
+
+static func read_capital(text: String) -> String:
+	return text.substr(0, 1).to_upper() + text.substr(1) if text != "" else text
+# --- end M19 readability -------------------------------------------------------------------------------------------
 
 
 # --- M14 loop: strain traits and the drying rack -----------------------------------------------------------------

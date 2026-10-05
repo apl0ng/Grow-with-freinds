@@ -1399,6 +1399,7 @@ func server_note_harvest(plot: Node3D, _peer_id: int) -> void:
 func server_note_crop_lost(_plot: Node3D, _cause: StringName) -> void:
 	if not _require_server("server_note_crop_lost"):
 		return
+	Events.read_note_crop_lost(_plot, _cause)  # M19 readability: the shift report's "what it cost"
 	if _career_active() and _career_id() == Contracts.ID_KEEP:
 		_career_fail()
 # --- end M16 polish ---

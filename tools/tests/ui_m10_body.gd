@@ -253,7 +253,7 @@ func _section_event_banner() -> void:
 	_story_gap()
 	Events.event_started.emit(&"inspection", {"seconds": 35.0})
 	await wait_frames(1)
-	check(hud.get_event_text() == "INSPECTION" and not hud.event_hint.visible, "INSPECTION banner, no hint (%s)" % hud.get_event_text())
+	check(hud.get_event_text() == "INSPECTION" and hud.event_hint.visible and hud.event_hint.text == HUD.TEXT_READ_INSPECTION_HINT, "INSPECTION banner with its answer (%s / %s)" % [hud.get_event_text(), hud.event_hint.text])  # M19 readability: every hint names its answer (was: no hint)
 	check(Story.last_bark == "Walking the floor. Don't make me stop.", "Boss: '%s'" % Story.last_bark)
 	Events.event_ended.emit(&"inspection")
 	_story_gap()

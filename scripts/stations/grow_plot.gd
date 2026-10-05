@@ -77,6 +77,7 @@ var stage_progress: float = 0.0:
 		stage_progress = value
 		if is_node_ready():
 			_plant.set_growth(stage_progress)
+			_read_progress_changed()  # M19 readability: Black Damp's tell starts before it is ripe
 
 @onready var _plant: PlantVisual = %Plant
 @onready var _soil_meshes: Array[MeshInstance3D] = [%SoilBed, %SoilMound]
@@ -936,7 +937,7 @@ func get_spore_tell() -> CPUParticles3D:
 
 ## Every peer, from the stage setter and _refresh_visuals: the tell runs exactly while the tray is spore-ripe.
 func _spores_refresh_tell() -> void:
-	var on := is_spore_ripe() and is_inside_tree()
+	var on := (is_spore_ripe() or read_is_spore_ripening()) and is_inside_tree()  # M19 readability: the motes start before it is ripe
 	if on and _spore_tell == null:
 		_spore_tell = Spores.make_motes(SPORE_TELL_MOTES, 2.2, 0.22, 0.035, 0.4)
 		_spore_tell.name = SPORE_TELL_NODE
@@ -949,6 +950,58 @@ func _spores_refresh_tell() -> void:
 		_spore_tell.visible = on
 
 # --- end M18 spores -----------------------------------------------------------------------------------------------
+
+
+# --- M19 readability: Black Damp's tell starts before the tray is ripe ----------------------------------------------
+## CONTRACTS "M19", "Readability"; RELEASE.md D1. Nothing puffs before a tray is READY, so the motes start
+## READ_SPORE_PRE_TELL_SEC before it ripens at the pace it grows now: by the time anybody can harvest, burn, shoot or
+## hit it, the floor has seen the tell for that long. The first tray that starts to ripen in a shift also puts a toast up
+## on every peer (Story.read_spore_ripening: "Black Damp is ripening. Crouch near it."). Every peer, from the synced
+## stage_progress (one tagged line in its setter) and the stage setter (through _spores_refresh_tell).
+
+const READ_SPORE_PRE_TELL_SEC := 3.5
+
+var _read_ripening: bool = false
+
+
+## Seconds until this tray is READY at the pace it grows now: 0 when it is READY, INF when it does not grow now (dry, dark,
+## empty, not yet flowering counts the flowering stage only from FLOWERING on).
+func get_seconds_to_ripe() -> float:
+	if stage == Stage.READY:
+		return 0.0
+	if stage != Stage.FLOWERING or water < Config.balance.dry_threshold:
+		return INF
+	var pace := 1.0
+	if not Events.is_power_on():
+		pace = get_dark_growth_factor() * GameState.condition_value(&"dark_growth", 1.0)
+	var rate := pace * GameState.get_growth_speed_multiplier()
+	var duration := get_stage_duration(stage)
+	if duration <= 0.0:
+		return 0.0
+	if rate <= 0.0:
+		return INF
+	return (1.0 - stage_progress) * duration / rate
+
+
+## True while a flowering spore tray is within READ_SPORE_PRE_TELL_SEC of ripening (its motes already drift). Any peer.
+func read_is_spore_ripening() -> bool:
+	return stage == Stage.FLOWERING and Spores.has_spores(get_seed()) and get_seconds_to_ripe() <= READ_SPORE_PRE_TELL_SEC
+
+
+func _read_progress_changed() -> void:
+	if stage != Stage.FLOWERING:
+		_read_ripening = false
+		return
+	if stage_progress <= 0.0:
+		return   # it just entered the stage or is about to leave it: the stage setter redraws the tell
+	var now := read_is_spore_ripening()
+	if now == _read_ripening:
+		return
+	_read_ripening = now
+	_spores_refresh_tell()
+	if now and is_inside_tree():
+		Story.read_spore_ripening()
+# --- end M19 readability ----------------------------------------------------------------------------------------------
 
 
 # --- M16 polish ---------------------------------------------------------------------------------------------------

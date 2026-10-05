@@ -606,7 +606,7 @@ func _test_driveby_event(b: BalanceConfig) -> void:
 	step("drive-by: the bill")
 	check(_billed.size() == 1 and int(_billed[0][0]) == b.driveby_fine and int(_billed[0][1]) == b.driveby_fine, "driveby_billed(fine, all of it) (%s)" % [_billed])
 	check(GameState.money == 600 - b.driveby_fine, "cash on hand is down by driveby_fine (%d)" % GameState.money)
-	check(_barked("Glass and holes: %s. It comes out of cash on hand." % Story.mayhem_amount_words(b.driveby_fine)), "the Boss says so (%s)" % Story.last_bark)
+	check(_barked("Glass and holes: %s. Out of cash on hand." % Story.mayhem_amount_words(b.driveby_fine)), "the Boss says so (%s)" % Story.last_bark)  # M19 readability: two-second copy
 	check(toast_seen("Drive-by: $%d out of cash on hand." % b.driveby_fine), "and so does a toast")
 	_put(w2, _safe_spots(lanes, 2)[1])
 	GameState.server_add_money(12 - GameState.money)

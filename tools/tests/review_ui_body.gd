@@ -200,8 +200,8 @@ func _section_e_workers_layout() -> void:
 	var held := hud.held_panel.get_global_rect()
 	var prompt := hud.prompt_panel.get_global_rect()
 	var stack := hud.toasts.get_global_rect()
-	check(hud.held_panel.visible and hud.prompt_panel.visible and hud.get_toast_count() == 4,
-			"held item, prompt and 4 toasts up (held %s, prompt %s '%s', toasts %d)" % [hud.held_panel.visible,
+	check(hud.held_panel.visible and hud.prompt_panel.visible and hud.get_toast_count() == HUD.MAX_TOASTS,  # M19 readability: three at most (was 4)
+			"held item, prompt and a full toast stack up (held %s, prompt %s '%s', toasts %d)" % [hud.held_panel.visible,
 			hud.prompt_panel.visible, hud.prompt_label.text, hud.get_toast_count()])
 	check(not held.intersects(prompt) and not held.intersects(stack) and not prompt.intersects(stack),
 			"held %s / prompt %s / toasts %s do not overlap" % [held, prompt, stack])
