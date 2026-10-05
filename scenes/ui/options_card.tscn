@@ -1,0 +1,368 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/options_card.gd" id="1_options"]
+
+[node name="OptionsCard" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_options")
+
+[node name="Dim" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"OverlayPanel"
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Card" type="PanelContainer" parent="Center"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(900, 0)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Center/Card"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "OPTIONS"
+horizontal_alignment = 1
+
+[node name="Note" type="Label" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "Kept on this machine. Nobody else sees them."
+horizontal_alignment = 1
+
+[node name="Columns" type="HBoxContainer" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Left" type="VBoxContainer" parent="Center/Card/VBox/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="Controls" type="PanelContainer" parent="Center/Card/VBox/Columns/Left"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="ControlsBox" type="VBoxContainer" parent="Center/Card/VBox/Columns/Left/Controls"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="ControlsTitle" type="Label" parent="Center/Card/VBox/Columns/Left/Controls/ControlsBox"]
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "CONTROLS"
+horizontal_alignment = 1
+
+[node name="SensRow" type="HBoxContainer" parent="Center/Card/VBox/Columns/Left/Controls/ControlsBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SensLabel" type="Label" parent="Center/Card/VBox/Columns/Left/Controls/ControlsBox/SensRow"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "Mouse speed"
+
+[node name="SensSlider" type="HSlider" parent="Center/Card/VBox/Columns/Left/Controls/ControlsBox/SensRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 0.2
+max_value = 4.0
+step = 0.05
+value = 1.0
+
+[node name="SensValue" type="Label" parent="Center/Card/VBox/Columns/Left/Controls/ControlsBox/SensRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+text = "1.00x"
+horizontal_alignment = 2
+
+[node name="InvertToggle" type="CheckButton" parent="Center/Card/VBox/Columns/Left/Controls/ControlsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Invert mouse Y"
+
+[node name="Video" type="PanelContainer" parent="Center/Card/VBox/Columns/Left"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="VideoBox" type="VBoxContainer" parent="Center/Card/VBox/Columns/Left/Video"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="VideoTitle" type="Label" parent="Center/Card/VBox/Columns/Left/Video/VideoBox"]
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "SCREEN"
+horizontal_alignment = 1
+
+[node name="FovRow" type="HBoxContainer" parent="Center/Card/VBox/Columns/Left/Video/VideoBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="FovLabel" type="Label" parent="Center/Card/VBox/Columns/Left/Video/VideoBox/FovRow"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "Field of view"
+
+[node name="FovSlider" type="HSlider" parent="Center/Card/VBox/Columns/Left/Video/VideoBox/FovRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 60.0
+max_value = 100.0
+step = 1.0
+value = 80.0
+
+[node name="FovValue" type="Label" parent="Center/Card/VBox/Columns/Left/Video/VideoBox/FovRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+text = "80"
+horizontal_alignment = 2
+
+[node name="FullscreenToggle" type="CheckButton" parent="Center/Card/VBox/Columns/Left/Video/VideoBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Fullscreen"
+
+[node name="WindowRow" type="HBoxContainer" parent="Center/Card/VBox/Columns/Left/Video/VideoBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="WindowLabel" type="Label" parent="Center/Card/VBox/Columns/Left/Video/VideoBox/WindowRow"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "Window"
+
+[node name="Scale1" type="Button" parent="Center/Card/VBox/Columns/Left/Video/VideoBox/WindowRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"SmallButton"
+toggle_mode = true
+text = "1x"
+
+[node name="Scale15" type="Button" parent="Center/Card/VBox/Columns/Left/Video/VideoBox/WindowRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"SmallButton"
+toggle_mode = true
+text = "1.5x"
+
+[node name="Scale2" type="Button" parent="Center/Card/VBox/Columns/Left/Video/VideoBox/WindowRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"SmallButton"
+toggle_mode = true
+text = "2x"
+
+[node name="WindowValue" type="Label" parent="Center/Card/VBox/Columns/Left/Video/VideoBox/WindowRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "1280 x 720"
+horizontal_alignment = 2
+
+[node name="VsyncToggle" type="CheckButton" parent="Center/Card/VBox/Columns/Left/Video/VideoBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "VSync"
+
+[node name="Right" type="VBoxContainer" parent="Center/Card/VBox/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="Game" type="PanelContainer" parent="Center/Card/VBox/Columns/Right"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="GameBox" type="VBoxContainer" parent="Center/Card/VBox/Columns/Right/Game"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="GameTitle" type="Label" parent="Center/Card/VBox/Columns/Right/Game/GameBox"]
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "FIRST SHIFT"
+horizontal_alignment = 1
+
+[node name="GuidanceToggle" type="CheckButton" parent="Center/Card/VBox/Columns/Right/Game/GameBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "The Boss names each next step"
+
+[node name="Sound" type="PanelContainer" parent="Center/Card/VBox/Columns/Right"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="SoundBox" type="VBoxContainer" parent="Center/Card/VBox/Columns/Right/Sound"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="SoundTitle" type="Label" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox"]
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "SOUND"
+horizontal_alignment = 1
+
+[node name="SoundToggle" type="CheckButton" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Sound"
+
+[node name="SoundNote" type="Label" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "Muted from the command line."
+
+[node name="MasterRow" type="HBoxContainer" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="MasterLabel" type="Label" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox/MasterRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "Master"
+
+[node name="MasterSlider" type="HSlider" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox/MasterRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = -30.0
+max_value = 6.0
+step = 1.0
+
+[node name="MasterValue" type="Label" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox/MasterRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+text = "+0 dB"
+horizontal_alignment = 2
+
+[node name="SfxRow" type="HBoxContainer" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SfxLabel" type="Label" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox/SfxRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "Effects"
+
+[node name="SfxSlider" type="HSlider" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox/SfxRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = -30.0
+max_value = 6.0
+step = 1.0
+
+[node name="SfxValue" type="Label" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox/SfxRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+text = "+0 dB"
+horizontal_alignment = 2
+
+[node name="VoiceRow" type="HBoxContainer" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="VoiceLabel" type="Label" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox/VoiceRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "Voices"
+
+[node name="VoiceSlider" type="HSlider" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox/VoiceRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = -30.0
+max_value = 6.0
+step = 1.0
+
+[node name="VoiceValue" type="Label" parent="Center/Card/VBox/Columns/Right/Sound/SoundBox/VoiceRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+text = "+0 dB"
+horizontal_alignment = 2
+
+[node name="Keys" type="PanelContainer" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="KeysBox" type="VBoxContainer" parent="Center/Card/VBox/Keys"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="KeysTitle" type="Label" parent="Center/Card/VBox/Keys/KeysBox"]
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "KEYS"
+horizontal_alignment = 1
+
+[node name="KeyGrid" type="GridContainer" parent="Center/Card/VBox/Keys/KeysBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 0
+columns = 10
+
+[node name="Buttons" type="HBoxContainer" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="DefaultsButton" type="Button" parent="Center/Card/VBox/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+theme_type_variation = &"SmallButton"
+text = "DEFAULTS"
+
+[node name="BackButton" type="Button" parent="Center/Card/VBox/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+theme_type_variation = &"SmallButton"
+text = "BACK"

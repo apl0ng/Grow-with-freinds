@@ -526,8 +526,10 @@ func _test_back_room(b: BalanceConfig) -> void:
 func _test_copy() -> void:
 	step("copy: the keys are listed")
 	var hud := world.get_node_or_null(^"HUD") as HUD
-	var line := hud.pause_menu.controls_label_2.text if hud != null else ""
-	check(line.ends_with(" · 1-4 gestures") and line.begins_with(PauseMenu.TEXT_CONTROLS_M10), "pause menu: '%s'" % line)
+	# M19 settings: the key list moved from the ON BREAK card onto the OPTIONS card (read-only, one "KEY what" per row).
+	var keys: PackedStringArray = hud.pause_menu.options.get_key_texts() if hud != null else PackedStringArray()
+	var line := " · ".join(keys)
+	check(keys.has("1-4 gestures") and keys.has("RMB throw") and keys.has("V talk"), "OPTIONS card keys: '%s'" % line)
 	var menu := (load("res://scenes/main_menu/main_menu.tscn") as PackedScene).instantiate()
 	var how := menu.get_node_or_null(^"Center/Column/HowTo/HowToText") as Label
 	check(how != null and how.text.contains(" - 1-4 gestures - "), "main menu how-to lists '1-4 gestures'")

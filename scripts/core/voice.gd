@@ -393,6 +393,16 @@ func _apply_output_volume() -> void:
 	if idx != -1:
 		AudioServer.set_bus_volume_db(idx, output_volume_db)
 
+# --- M19 settings ---
+## The voice volume is the player's `voice_db` setting (M19): Settings applies it here at start and on every change,
+## without writing voice.cfg (the value is kept in settings.cfg; voice.cfg keeps the microphone, push to talk and gain).
+func apply_settings_volume(db: float) -> void:
+	var was_loading := _loading_settings
+	_loading_settings = true
+	output_volume_db = db
+	_loading_settings = was_loading
+# --- end M19 settings ---
+
 # --- Capture ----------------------------------------------------------------------------------------------------
 
 ## A microphone can be used: a real window, audio input enabled in the project, an input device, no --no-mic.
