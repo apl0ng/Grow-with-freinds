@@ -274,7 +274,7 @@ func _case_throws() -> void:
 	check(_staggers.size() == hits, "host: %d hit(s) == %d stagger(s) observed" % [hits, _staggers.size()])
 	for k in ["a", "b", "c"]:
 		var r := await run_cmd(_ids[k], "report_items", {"names": names})
-		check(int(r.get("items", -1)) == items_of(CAN).size() + items_of(Const.ITEM_HAND_TRUCK).size() + 4, "%s: same item count" % NAMES[k]) # M17 cart: and the dock's hand truck
+		check(int(r.get("items", -1)) == items_of(CAN).size() + items_of(Const.ITEM_HAND_TRUCK).size() + items_of(Const.ITEM_RADIO).size() + 4, "%s: same item count" % NAMES[k]) # M17 cart: and the dock's hand truck; M18 radio: and the shelf's radios
 		var by_name: Dictionary = r.get("items_by_name", {})
 		var same := true
 		for n in names:

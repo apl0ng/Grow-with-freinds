@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scenes/world/room.gd" id="1_room"]
 [ext_resource type="Script" path="res://scripts/items/hand_truck_spot.gd" id="m17_truck_spot"]
+[ext_resource type="Script" path="res://scripts/items/radio_spot.gd" id="m18_radio_spot"]
 [ext_resource type="Material" path="res://art/materials/toon_void.tres" id="4_void"]
 [ext_resource type="Material" path="res://art/materials/toon_olive.tres" id="5_olive"]
 [ext_resource type="Material" path="res://art/materials/toon_dark.tres" id="6_dark"]
@@ -234,6 +235,18 @@ radius = 0.012
 height = 0.024
 radial_segments = 4
 rings = 2
+
+[sub_resource type="BoxMesh" id="BoxMesh_m18_plank"]
+size = Vector3(0.9, 0.04, 0.3)
+
+[sub_resource type="BoxMesh" id="BoxMesh_m18_plate"]
+size = Vector3(0.05, 0.24, 0.015)
+
+[sub_resource type="BoxMesh" id="BoxMesh_m18_arm"]
+size = Vector3(0.04, 0.035, 0.27)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m18_plank"]
+size = Vector3(0.9, 0.04, 0.3)
 
 [node name="Room" type="Node3D"]
 script = ExtResource("1_room")
@@ -920,6 +933,57 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3.2)
 
 [node name="WallPhone" parent="Decor" instance=ExtResource("m17_wall_phone")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.8, 1.15, -7.5)
+
+[node name="RadioShelf" type="Node3D" parent="Decor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0, -7.5)
+
+[node name="Plank" type="MeshInstance3D" parent="Decor/RadioShelf"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.98, 0.15)
+mesh = SubResource("BoxMesh_m18_plank")
+material_override = ExtResource("18_wood")
+
+[node name="PlateWest" type="MeshInstance3D" parent="Decor/RadioShelf"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, 0.86, 0.0075)
+mesh = SubResource("BoxMesh_m18_plate")
+material_override = ExtResource("8_metal_dark")
+
+[node name="ArmWest" type="MeshInstance3D" parent="Decor/RadioShelf"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, 0.9425, 0.145)
+mesh = SubResource("BoxMesh_m18_arm")
+material_override = ExtResource("10_rust")
+
+[node name="PlateEast" type="MeshInstance3D" parent="Decor/RadioShelf"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, 0.86, 0.0075)
+mesh = SubResource("BoxMesh_m18_plate")
+material_override = ExtResource("8_metal_dark")
+
+[node name="ArmEast" type="MeshInstance3D" parent="Decor/RadioShelf"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, 0.9425, 0.145)
+mesh = SubResource("BoxMesh_m18_arm")
+material_override = ExtResource("8_metal_dark")
+
+[node name="Body" type="StaticBody3D" parent="Decor/RadioShelf"]
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Decor/RadioShelf/Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.98, 0.15)
+shape = SubResource("BoxShape3D_m18_plank")
+
+[node name="Spot" type="Marker3D" parent="Decor/RadioShelf"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 1, 0.16)
+script = ExtResource("m18_radio_spot")
+
+[node name="Sign" parent="Decor/RadioShelf" instance=ExtResource("14_sign_board")]
+transform = Transform3D(0.997564, -0.069756, 0, 0.069756, 0.997564, 0, 0, 0, 1, 0.02, 1.64, 0.01)
+text = "RADIOS
+PUT THEM BACK"
+board_size = Vector2(0.66, 0.26)
+font_size = 48
+text_color = Color(0.18, 0.165, 0.24, 1)
+outline_color = Color(0.81, 0.78, 0.74, 1)
+board_material = ExtResource("16_cream")
+show_frame = false
+outline_size = 4
 
 [node name="InspectionRoute" type="Node3D" parent="Decor"]
 

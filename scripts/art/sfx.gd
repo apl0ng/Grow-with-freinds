@@ -1007,6 +1007,38 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_fade_in(b, 0.002)
 			_fade_out(b, 0.04)
 		# --- end M17 cart ---
+		# --- M18 radio --- the walkie-talkies: a cheap plastic key, a squelch that opens and shuts, an open channel's hiss
+		&"radio_on":  # the talk key goes down: a plastic click, then the squelch opens on a short burst of carrier hiss
+			b = _buf(0.2)
+			_noise(b, rng, 0.0, 0.008, 0.7, 0.95, 0.45, 0.0003, 10.0)                  # the key
+			_tone(b, 0.0, 0.03, 1900.0, 1500.0, 0.18, Wave.SINE, 0.0005, 8.0)          # its plastic
+			_noise(b, rng, 0.03, 0.12, 0.45, 0.62, 0.22, 0.004, 3.0)                   # the squelch opens
+			_tone(b, 0.035, 0.1, 1210.0, 1200.0, 0.08, Wave.SQUARE, 0.002, 4.0)        # a weak carrier whine under it
+			_lowpass(b, 0.7)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.03)
+		&"radio_off":  # the key comes up: the squelch tail, a hiss that drops away, and the key clicks back
+			b = _buf(0.32)
+			_noise(b, rng, 0.0, 0.22, 0.6, 0.7, 0.2, 0.003, 4.5)                       # the squelch tail
+			_noise(b, rng, 0.2, 0.008, 0.55, 0.95, 0.45, 0.0003, 10.0)                 # the key comes back up
+			_tone(b, 0.2, 0.03, 1700.0, 1400.0, 0.15, Wave.SINE, 0.0005, 8.0)
+			_lowpass(b, 0.7)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.04)
+		&"radio_static":  # loop: an open channel's hiss, wavering, the odd crackle; quiet ends so the wrap never clicks
+			b = _buf(2.0)
+			_noise(b, rng, 0.0, 2.0, 0.5, 0.6, 0.18, 0.02, 0.0)                         # the hiss
+			for crackle_t: float in [0.21, 0.58, 0.63, 1.12, 1.47, 1.81]:                  # crackles
+				_noise(b, rng, crackle_t, 0.012, 0.6, 0.95, 0.5, 0.0003, 9.0)
+			var static_n := b.size()
+			for static_i in static_n:                                                      # three slow swells per loop
+				b[static_i] *= 1.0 + 0.35 * sin(TAU * 3.0 * float(static_i) / float(static_n))
+			_dc_block(b)
+			_fade_in(b, 0.01)
+			_fade_out(b, 0.01)
+		# --- end M18 radio ---
 		# --- M12 lead: the flamethrower and its consequences (dull and physical, nothing heroic) ------------------
 		&"flame":  # the loop while the trigger is held: a muffled roar with a slow rumble under it
 			b = _buf(0.8)

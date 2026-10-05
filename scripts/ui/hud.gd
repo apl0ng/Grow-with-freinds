@@ -193,6 +193,7 @@ func _ready() -> void:
 	_career_ready() # M15 career: the job line under the payment bar, titles in the WORKERS list
 	_m15_lead_ready() # M15 lead: the centre banner follows the payment column's bottom edge
 	_finale_ready() # M17 finale: the payment panel's title reads FINAL NOTICE on the run's last shift
+	_radio_hud_ready() # M18 radio: "RADIO" next to the talk mark in the WORKERS rows while that worker is on the radio
 
 	_ui_locked = Game.is_ui_locked()
 	_stats_ready = GameState.phase != GameState.Phase.MENU
@@ -1128,6 +1129,85 @@ func _career_add_title(peer_id: int, color: Color) -> void:
 	(_player_rows[peer_id] as Dictionary)["title"] = label
 
 # --- end M15 career ------------------------------------------------------------------------------------------------
+
+
+# --- M18 radio: "RADIO" in the WORKERS rows ------------------------------------------------------------------------
+# A small "RADIO" tag right after a worker's colour dot (the "))" talk mark sits on the dot) while that worker
+# transmits through a radio: the local worker while Voice.is_transmitting_on_radio() (the microphone sends with a radio
+# in hand, or the host has said so), any other worker while Voice.is_on_radio(peer). refresh_players() rebuilds the
+# rows, so a poll (a Timer child, RADIO_POLL_SEC) puts the tag into a rebuilt row and shows / hides it;
+# Voice.radio_changed is the fast path. The held item line needs nothing: it reads "Radio" like any other item.
+
+const TEXT_RADIO_TAG := "RADIO"
+const RADIO_POLL_SEC: float = 0.1
+
+var _radio_poll: Timer = null
+
+
+func _radio_hud_ready() -> void:
+	_radio_poll = Timer.new()
+	_radio_poll.name = "RadioPoll"
+	_radio_poll.wait_time = RADIO_POLL_SEC
+	_radio_poll.autostart = true
+	_radio_poll.timeout.connect(_radio_refresh_tags)
+	add_child(_radio_poll)
+	var voice: Node = Voice
+	if voice != null and voice.has_signal(&"radio_changed"):
+		voice.connect(&"radio_changed", _on_radio_changed)
+
+
+func _on_radio_changed(_peer_id: int, _on: bool) -> void:
+	_radio_refresh_tags()
+
+
+## True while the row of `peer_id` shows the tag (tests).
+func has_radio_tag(peer_id: int) -> bool:
+	if not _player_rows.has(peer_id):
+		return false
+	var tag: Variant = (_player_rows[peer_id] as Dictionary).get("radio")
+	return tag != null and is_instance_valid(tag) and (tag as Label).visible
+
+
+## Shows / hides the tag in every row (a row that lacks it gets one when it is needed).
+func _radio_refresh_tags() -> void:
+	var local_id := _local_peer_id()
+	var voice: Node = Voice
+	if voice == null or not voice.has_method(&"is_on_radio"):
+		return
+	for peer_id: int in _player_rows.keys():
+		var entry: Dictionary = _player_rows[peer_id]
+		var on := false
+		if peer_id == local_id and voice.has_method(&"is_transmitting_on_radio"):
+			on = bool(voice.call(&"is_transmitting_on_radio"))
+		else:
+			on = bool(voice.call(&"is_on_radio", peer_id))
+		var tag: Variant = entry.get("radio")
+		if tag == null or not is_instance_valid(tag):
+			if not on:
+				continue
+			tag = _radio_make_tag(entry)
+			if tag == null:
+				continue
+		var label := tag as Label
+		if label.visible != on:
+			label.visible = on
+			_fit_player_name(entry["row"] as HBoxContainer, entry["name"] as Label)
+
+
+func _radio_make_tag(entry: Dictionary) -> Label:
+	var row := entry.get("row") as HBoxContainer
+	if row == null or not is_instance_valid(row) or row.is_queued_for_deletion():
+		return null
+	var label := _player_label(TEXT_RADIO_TAG, Toon.WARNING, PLAYER_TAG_FONT_SIZE)
+	label.name = "RadioTag"
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.visible = false
+	row.add_child(label)
+	row.move_child(label, mini(1, row.get_child_count() - 1)) # right after the colour dot and its talk mark
+	entry["radio"] = label
+	return label
+
+# --- end M18 radio -------------------------------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------------------------

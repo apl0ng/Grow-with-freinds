@@ -409,6 +409,12 @@ To look at a hat on the worker without a window: build both into one scratch mod
 |---|---|---|---|
 | ✅ `hand_truck` | 0.63 × 1.28 × 0.68, floor (item, front -Z = the toe plate; origin on the floor under the plate's heel), 2104 tris, budget 3000 | `items/hand_truck.tscn` as `Visual/Model` (collider: box 0.64 × 1.3 × 0.7 at (0, 0.65, -0.04)) | One mesh, no rig. A sack truck: one bent pipe frame in faded red (`#8f4a3f`, the drums' red) with rust at the feet, the welds and a handle corner, the left upright bowed, the middle bar kinked; a dished toe plate (`metal_dark`) scuffed to rust at the nose, one corner bent down; two solid `dark` wheels on a `metal` axle, the right one sagged flat; a `cream` taped grip with a loose end. `hand_truck.gd` mirrors its numbers (Godot y, z): plate top 0.018, plate z -0.38 .. -0.03, axle (0.13, 0.17), uprights leaning back 0.1 over 1.05 m, grip (1.245, 0.18). The load is not in the model: `Visual/Load` stacks `product_bundle.glb` at 0.72 on the plate at runtime |
 
+**M18 radio** (radio agent; built on Windows / Blender 5.2; `tools/blender/models/radio.py`)
+
+| Model | Size / mount | Scene | Notes |
+|---|---|---|---|
+| ✅ `radio` | 0.17 × 0.41 × 0.11, floor (item, front -Z = the grille; origin under the middle of the base), 1248 tris, budget 1500 | `items/radio.tscn`, instanced **as** `Visual` (collider: box 0.2 × 0.36 × 0.14 at y 0.18) | Rigged: `Body` (static: a fat case in dark olive plastic, custom `radio_case`, rubbed grey at the corners and the bottom, `radio_worn`; the top right corner knocked in and cracked; a five-slat grille over a `void` recess; a peeling `cream` channel sticker with two pen strokes; a stubby `dark` rubber antenna bent over to one side on its collar, a channel and a volume knob; the push-to-talk bar on the side; the battery door on the back held shut by two turns of grey tape round the case, `radio_tape`, one crooked, one loose end) + `Led` (the small lamp above the grille, origin at its centre, unlit `radio_lamp`; `radio.gd` sets a lit `material_override` while the radio sends or receives). In the hand it is turned 165° (`hold_rotation_degrees`) so the grille and the lamp face the holder |
+
 ---
 
 ## 9. Gotchas

@@ -105,6 +105,7 @@ static func get_scene_path(item_type: StringName) -> String:
 		return "res://scenes/items/flamethrower.tscn"
 	if item_type == Const.ITEM_BALL: return "res://scenes/items/ball.tscn" # M15 alley
 	if item_type == Const.ITEM_HAND_TRUCK: return "res://scenes/items/hand_truck.tscn" # M17 cart: {"cargo": String}
+	if item_type == Const.ITEM_RADIO: return "res://scenes/items/radio.tscn" # M18 radio
 	return ""
 
 ## The ItemManager for `from`'s world: the nearest ancestor with an "Items" ItemManager child, else

@@ -835,6 +835,43 @@ func is_in_hall(point: Vector3) -> bool:
 # --- end M15 mayhem2 ---------------------------------------------------------------------------------------------
 
 
+# --- M18 radio: the radio shelf ------------------------------------------------------------------------------------
+# The walkie-talkies (scripts/items/radio.gd) stand on a small steel-bracketed plank on the main room's north wall, in
+# the north-west corner between the west wall and the wall phone: Decor/RadioShelf (the plank's top 1.0 m up, 0.3 m
+# deep), its marker Decor/RadioShelf/Spot on the middle of the plank's top, turned so its -Z points at the room (a
+# radio stood there with the marker's yaw shows its face to the room). The marker's own script
+# (scripts/items/radio_spot.gd) has the host stock the shelf. It hangs on the wall above the floor plan: no cover
+# layout, route, doorway, walk, lane, spawn or station front comes near it (tools/tests/radio_body.gd measures it).
+# Nothing here may name an autoload or the Radio class: this script is a compile-time dependency of `-s` test scripts.
+
+const RADIO_SPOT_PATH := ^"Decor/RadioShelf/Spot"
+## Room-local point and yaw (degrees) of the marker, for a room without it.
+const RADIO_SPOT_FALLBACK := Vector3(-9.0, 1.0, -7.34)
+const RADIO_SPOT_FALLBACK_YAW := 180.0
+## The radios stand along the marker's X, this far apart, never wider than RADIO_SHELF_USABLE in all.
+const RADIO_SLOT_SPACING := 0.32
+const RADIO_SHELF_USABLE := 0.72
+
+
+## The middle of the radio shelf's top (global; a radio stood here with this basis faces the room).
+func get_radio_spot() -> Transform3D:
+	var spot := get_node_or_null(RADIO_SPOT_PATH) as Marker3D
+	if spot != null:
+		return _to_global(_room_transform_of(spot))
+	return _to_global(Transform3D(Basis(Vector3.UP, deg_to_rad(RADIO_SPOT_FALLBACK_YAW)), RADIO_SPOT_FALLBACK))
+
+
+## Where radio `index` of `count` stands on the shelf (global; spread evenly along the shelf, centred on the spot).
+func get_radio_slot(index: int, count: int) -> Transform3D:
+	var spot := get_radio_spot()
+	var n := maxi(count, 1)
+	var spacing := minf(RADIO_SLOT_SPACING, RADIO_SHELF_USABLE / float(n))
+	var offset := (float(clampi(index, 0, n - 1)) - float(n - 1) * 0.5) * spacing
+	return Transform3D(spot.basis, spot.origin + spot.basis.x.normalized() * offset)
+
+# --- end M18 radio -------------------------------------------------------------------------------------------------
+
+
 # --- M17 mayhem3 --- the wall phone ----------------------------------------------------------------------------------
 ## The wall phone that rings for Events.EVENT_PHONE (scenes/world/props/wall_phone.tscn, a WallPhone): on the main
 ## room's north wall, 1.5 m west of the debt board, its origin 1.15 m up the wall. No cover layout puts anything near it
