@@ -33,7 +33,11 @@ func _init() -> void:
 	b.base_quota = 350
 	b.quota_scale = 1.82
 	b.quota_add = 688
-	b.quota_per_extra_player = 0.1
+	# M18 economy2: what a worker beyond the first adds shrinks by the shift, 35% in shift 1 to 10% in shift 6 (M15 to
+	# M17: a flat 10%). Full crews are strongest against the payment in the middle of a run; by shift 6 the solo curve
+	# has caught up with what ten trays can make. Pinned by tools/tests/economy_body.gd.
+	b.quota_per_extra_player = 0.35
+	b.quota_team_growth = -0.05
 	b.cure_sec = 45.0
 	var err := ResourceSaver.save(b, "res://data/balance.tres")
 	print("balance.tres saved: ", error_string(err))
