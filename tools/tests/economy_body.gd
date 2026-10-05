@@ -145,7 +145,7 @@ func _test_numbers() -> void:
 	var unlocks: Dictionary = {}
 	for s: SeedDef in _b.seeds:
 		unlocks[String(s.id)] = s.unlock_round
-	check(unlocks == {"budget": 1, "purple": 1, "creeper": 1, "golden": 2, "nightshift": 3, "brick": 4}, "strains unlock by shift: %s" % [unlocks])
+	check(unlocks == {"budget": 1, "purple": 1, "creeper": 1, "golden": 2, "nightshift": 3, "brick": 4, "damp": 3}, "strains unlock by shift: %s" % [unlocks])  # M18 spores: Black Damp at 3
 	# The baseline is the shipped config with exactly the retuned numbers put back.
 	var before := Sim.baseline(_b)
 	check(before.base_quota == 350 and is_equal_approx(before.quota_scale, 1.5) and before.quota_add == 150

@@ -826,6 +826,7 @@ func get_report_verdicts() -> PackedStringArray:
 		if best_amount > 0:
 			out.append(line(String(entry[1])) % Net.get_player_name(best))
 	out.append_array(_mayhem_report_verdicts(peers))  # M14 mayhem: shot / slips (region below)
+	out.append_array(_spores_report_verdicts(peers))  # M18 spores: fogged (region after the M17 mayhem3 one)
 	out.append_array(_replay_report_lines())  # M15 replay: which conditions ran (region at the end of the file)
 	return out
 
@@ -1312,6 +1313,52 @@ func mayhem3_missed_line(fine: int, taken: int) -> String:
 		return line("phone_missed_short") % [said, mayhem_amount_words(taken)]
 	return line("phone_missed_broke") % said
 # --- end M17 mayhem3 ---------------------------------------------------------------------------------------------
+
+
+# --- M18 spores --- Black Damp ---------------------------------------------------------------------------------------
+## The seventh strain's card blurb, the Boss's line the first time a shift fogs somebody (every peer, from
+## Spores._rpc_fog with the host's `first` flag) and the shift report's verdict for the worker fogged most often
+## (get_report_verdicts appends it when somebody was fogged at all). Installed at construction like the loop's lines.
+const SPORES_LINES: Dictionary = {
+	"spores_first": "That's the damp, %s. Cough on your own time.",
+	"verdict_fogged": "%s breathed the damp. Nobody opened a window.",
+}
+const SPORES_BLURBS: Dictionary = {
+	"damp": "Slow. Pays well. Ripe trays put spores in the air.",
+}
+
+var _spores_lines_installed: bool = _spores_install_lines()
+
+
+func _spores_install_lines() -> bool:
+	for key in SPORES_LINES:
+		if not lines.has(key):
+			lines[key] = SPORES_LINES[key]
+	for id in SPORES_BLURBS:
+		blurbs[id] = SPORES_BLURBS[id]
+	return true
+
+
+## Every peer: the first worker fogged this shift (Spores decides on the host and says so in the packet).
+func spores_first_fog(peer_id: int) -> void:
+	if _in_session():
+		_request_named("spores_first", Net.get_player_name(peer_id), Weight.PROGRESS)
+
+
+## The shift report's line for the worker fogged most often (ties: the lowest id), when anybody was.
+func _spores_report_verdicts(peers: Array) -> PackedStringArray:
+	var out := PackedStringArray()
+	var best: int = 0
+	var best_amount: int = 0
+	for id: int in peers:
+		var amount: int = GameState.get_stat(id, Spores.STAT_FOGGED)
+		if amount > best_amount:
+			best = id
+			best_amount = amount
+	if best_amount > 0:
+		out.append(line("verdict_fogged") % Net.get_player_name(best))
+	return out
+# --- end M18 spores ----------------------------------------------------------------------------------------------
 
 
 # --- M14 loop: strain traits and the drying rack -----------------------------------------------------------------

@@ -1231,6 +1231,32 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_fade_in(b, 0.002)
 			_fade_out(b, 0.05)
 		# --- end M17 mayhem3 -------------------------------------------------------------------------------------
+		# --- M18 spores --- Black Damp (soft and wet; a dry throat. Nothing sounds like a cartoon) -----------------
+		&"spore_puff":  # a ripe tray lets go: the pod gives with a soft wet pop, a breath of spores pushes out, dust hangs
+			b = _buf(0.9)
+			_tone(b, 0.0, 0.12, 140.0, 70.0, 0.55, Wave.SINE, 0.004, 4.0)           # the pod gives: a dull, soft thump
+			_noise(b, rng, 0.0, 0.05, 0.6, 0.35, 0.05, 0.002, 5.0)                  # the wet pop
+			_noise(b, rng, 0.01, 0.55, 0.75, 0.22, 0.03, 0.06, 2.6)                 # the breath pushing out, low and soft
+			_noise(b, rng, 0.15, 0.7, 0.18, 0.55, 0.2, 0.15, 3.0)                   # fine dust, hissing as it hangs
+			_lowpass(b, 0.35)
+			_dc_block(b)
+			_fade_in(b, 0.003)
+			_fade_out(b, 0.12)
+		&"cough":  # a dry, tired cough: the throat catches, two hacks (the second weaker), a breath back in through teeth
+			b = _buf(0.95)
+			for k in 2:
+				var hack_t := 0.02 + k * 0.27
+				var hack_amp := 1.0 if k == 0 else 0.7
+				_noise(b, rng, hack_t, 0.012, 0.6 * hack_amp, 0.9, 0.3, 0.0005, 6.0)            # the throat snaps open
+				_noise(b, rng, hack_t, 0.2, 0.9 * hack_amp, 0.45, 0.08, 0.004, 4.5)             # air through a dry throat
+				_tone(b, hack_t, 0.16, 190.0 - k * 20.0, 120.0, 0.35 * hack_amp, Wave.SAW, 0.004, 5.0)  # the voice, rough
+				_tone(b, hack_t + 0.005, 0.1, 620.0, 420.0, 0.15 * hack_amp, Wave.SINE, 0.003, 6.0)     # the chest
+			_noise(b, rng, 0.62, 0.25, 0.18, 0.7, 0.35, 0.08, 3.0)                  # the breath back in, through the teeth
+			_lowpass(b, 0.6)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.08)
+		# --- end M18 spores ----------------------------------------------------------------------------------------
 		# --- M16 polish ---
 		&"uproot":  # a plant pulls itself out of a wet tray: the soil gives, roots tear, the clod comes free, dirt falls back
 			b = _buf(0.52)

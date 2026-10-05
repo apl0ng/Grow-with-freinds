@@ -32,3 +32,10 @@ extends Resource
 @export var trait_text: String = ""
 ## M15: the first shift this strain is sold in (1 = always; a locked card reads "From shift N"). Only with replay on.
 @export var unlock_round: int = 1
+
+# --- M18 spores ---
+@export_group("Spores (M18)")
+## A READY tray puffs a spore cloud when it is harvested, uprooted, burnt, shot or hit by a thrown item; whoever breathes
+## it is fogged for a while (Black Damp; scripts/core/spores.gd).
+@export var spores: bool = false
+# --- end M18 spores ---

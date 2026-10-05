@@ -1,8 +1,8 @@
 extends "res://tools/tests/qa_base.gd"
-## M12 strains suite (strains agent): the six seed strains in data/balance.tres (ids unique, the M12 numbers and
+## M12 strains suite (strains agent): the seven seed strains (M18: Black Damp) in data/balance.tres (ids unique, the M12 numbers and
 ## mutation chances, house-tone copy, Story blurbs), every strain bought at the counter, planted, watered, grown,
 ## harvested and deposited through the real stations' server API on a single headless host with a fake worker, the
-## SUPPLY WINDOW holding six cards, and the three M12 GLBs (hostile_plant, emergency_cabinet, flamethrower): root,
+## SUPPLY WINDOW holding seven cards, and the three M12 GLBs (hostile_plant, emergency_cabinet, flamethrower): root,
 ## size, origin, facing and the rigged nodes the scenes will drive.
 ##   godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/strains_body.gd --port=7954
 ## Every engine/script error fails the run unless announced (qa_base.gd).
@@ -16,6 +16,7 @@ const EXPECTED := {
 	"nightshift": ["Night Shift", 70, 1.2, 1, 210, 0.35],
 	"creeper": ["Creeper", 30, 0.8, 1, 70, 0.12],
 	"brick": ["Floor Brick", 120, 2.0, 3, 110, 0.2],
+	"damp": ["Black Damp", 80, 1.8, 1, 245, 0.05],  # M18 spores
 }
 ## M14 loop: id -> [thirst_multiplier, dark_growth_multiplier, spread_chance, heavy, counted, trait_text, card tag]
 const TRAITS := {
@@ -25,6 +26,7 @@ const TRAITS := {
 	"nightshift": [1.0, 2.0, 0.0, false, false, "Grows in the dark.", "GROWS IN THE DARK"],
 	"creeper": [1.0, 0.0, 0.33, false, false, "Spreads.", "SPREADS"],
 	"brick": [1.0, 0.0, 0.0, true, false, "Heavy.", "HEAVY"],
+	"damp": [1.0, 0.0, 0.0, false, false, "Spores.", "SPORES"],  # M18 spores: SeedDef.spores is its one trait
 }
 const WORKER := 2
 
@@ -55,11 +57,11 @@ func _run() -> void:
 	check(_worker != null and _world.get_players().size() == 2, "host + 1 fake worker spawned")
 	check(_room.get_station("ShopCounter") is ShopCounter and _room.get_station("TurnInStation") is TurnInStation,
 			"counter + chute stations exist")
-	for i in range(1, 7):
+	for i in range(1, 8):  # M18 spores: seven strains, seven trays
 		check(_room.get_station("GrowPlot%d" % i) is GrowPlot, "GrowPlot%d exists (one plot per strain)" % i)
 
 	step("shift start")
-	# Six strains deposited in a row outsell a first shift's quota (the round would end PAID after the third one):
+	# Seven strains deposited in a row outsell a first shift's quota (the round would end PAID after the third one):
 	# this run is about the stations, so the shift runs to the timer.
 	b.end_round_on_quota_met = false
 	GameState.request_start_round()
@@ -88,7 +90,7 @@ func _run() -> void:
 # --- data -----------------------------------------------------------------------------------------------------------
 
 func _test_data(b: BalanceConfig) -> void:
-	check(b.seeds.size() == 6, "six strains in data/balance.tres (%d)" % b.seeds.size())
+	check(b.seeds.size() == 7, "seven strains in data/balance.tres (%d)" % b.seeds.size())
 	var ids: Dictionary = {}
 	var order: PackedStringArray = []
 	for s: SeedDef in b.seeds:
@@ -98,8 +100,8 @@ func _test_data(b: BalanceConfig) -> void:
 		ids[s.id] = true
 		order.append(String(s.id))
 	check(ids.size() == b.seeds.size(), "strain ids are unique (%s)" % [order])
-	check(order == PackedStringArray(["budget", "purple", "golden", "nightshift", "creeper", "brick"]),
-			"the three M12 strains follow the original three, in contract order (%s)" % [order])
+	check(order == PackedStringArray(["budget", "purple", "golden", "nightshift", "creeper", "brick", "damp"]),
+			"the three M12 strains follow the original three, then M18's Black Damp, in contract order (%s)" % [order])
 	for id: String in EXPECTED:
 		var want: Array = EXPECTED[id]
 		var s: SeedDef = b.get_seed(StringName(id))
@@ -137,6 +139,15 @@ func _test_data(b: BalanceConfig) -> void:
 	check(creeper.g > creeper.r and creeper.b > creeper.r, "Creeper is teal")
 	var brick := b.get_seed(&"brick").color
 	check(brick.r > brick.g and brick.g > brick.b, "Floor Brick is rust")
+	var damp := b.get_seed(&"damp").color  # M18 spores
+	check(damp.v < 0.35 and damp.s < 0.35 and damp.g >= damp.r and damp.g > damp.b, "Black Damp is a dark, mouldy grey-green (%s)" % damp.to_html(false))
+	var dp := b.get_seed(&"damp")
+	var best_unit := 0
+	for s: SeedDef in b.seeds:
+		if s != dp:
+			best_unit = maxi(best_unit, s.sale_value_per_unit)
+	check(dp.sale_value_per_unit > best_unit and dp.grow_time_multiplier > b.get_seed(&"golden").grow_time_multiplier and dp.spores,
+			"Black Damp pays the most a unit ($%d against $%d) and grows slower than Golden Kush (x%.1f): the spores are the catch" % [dp.sale_value_per_unit, best_unit, dp.grow_time_multiplier])
 	# The contract's pay-off: the strains with a temper pay better per plant than the safe ones.
 	var ns := b.get_seed(&"nightshift")
 	check(ns.sale_value_per_unit * ns.yield_amount - ns.cost > 60 - 20, "Night Shift margins beat Budget Bud")
@@ -168,7 +179,7 @@ func _test_traits(b: BalanceConfig) -> void:
 		check(not s.trait_text.contains("!") and (s.trait_text == "" or s.trait_text.ends_with(".")), "%s trait text is flat (no '!', a full stop)" % id)
 		check(ShopCard.get_seed_tag(s) == want[6], "%s card tag '%s' (got '%s')" % [id, want[6], ShopCard.get_seed_tag(s)])
 		var traits := 0
-		for on: bool in [not is_equal_approx(s.thirst_multiplier, 1.0), s.dark_growth_multiplier > 0.0, s.spread_chance > 0.0, s.heavy, s.counted]:
+		for on: bool in [not is_equal_approx(s.thirst_multiplier, 1.0), s.dark_growth_multiplier > 0.0, s.spread_chance > 0.0, s.heavy, s.counted, s.spores]:  # M18 spores
 			if on:
 				traits += 1
 		check(traits == (0 if id == "budget" else 1), "%s carries %s (%d)" % [id, "no trait: the control group" if id == "budget" else "exactly one trait", traits])
@@ -263,7 +274,7 @@ func _test_shop_ui(b: BalanceConfig) -> void:
 	if not check(ui != null and ui.is_open(), "the counter opens the SUPPLY WINDOW locally"):
 		return
 	var cards := ui.get_cards(ShopCounter.KIND_SEED)
-	check(cards.size() == 6, "six seed cards (%d)" % cards.size())
+	check(cards.size() == 7, "seven seed cards (%d)" % cards.size())
 	for seed_def: SeedDef in b.seeds:
 		var card := ui.get_card(ShopCounter.KIND_SEED, seed_def.id)
 		if not check(card != null, "card for %s" % seed_def.id):
@@ -282,7 +293,7 @@ func _test_shop_ui(b: BalanceConfig) -> void:
 		var desc := card.find_child("DescLabel", true, false) as Label
 		check(desc != null and desc.get_line_count() <= 2, "%s blurb still fits two lines (%d)" % [seed_def.id, desc.get_line_count() if desc != null else -1])
 	var grid := ui.find_child("SeedGrid", true, false) as GridContainer
-	check(grid != null and grid.columns == 3 and grid.get_child_count() == 6, "seed grid: 3 columns, 2 rows of cards")
+	check(grid != null and grid.columns == 3 and grid.get_child_count() == 7, "seed grid: 3 columns, 3 rows of cards (M18: the seventh starts the third row)")
 	var panel := ui.find_child("Panel", true, false) as Control
 	var viewport_size := ui.get_viewport().get_visible_rect().size
 	var scroll_h: float = ui.get_scroll_height()
@@ -294,11 +305,15 @@ func _test_shop_ui(b: BalanceConfig) -> void:
 	var card_h := 0.0
 	for c in cards:
 		card_h = maxf(card_h, c.get_combined_minimum_size().y)
-	var two_rows := 2.0 * card_h + 14.0 + 14.0
+	var rows := ceili(cards.size() / 3.0)  # M18 spores: three rows with the seventh card
+	var all_rows := rows * card_h + (rows - 1) * 14.0 + 14.0
 	var room := viewport_size.y - ShopUI.PANEL_CHROME_HEIGHT
-	var want_h := maxf(ShopUI.SCROLL_MIN_HEIGHT, minf(two_rows, room))
+	var want_h := maxf(ShopUI.SCROLL_MIN_HEIGHT, minf(all_rows, room))
 	check(absf(scroll_h - want_h) <= 1.0,
-			"the scroll area shows as much of the second row as the screen allows (cards %.0f px, scroll %.0f px, want %.0f)" % [card_h, scroll_h, want_h])
+			"the scroll area shows as many of the %d rows as the screen allows (cards %.0f px, scroll %.0f px, want %.0f)" % [rows, card_h, scroll_h, want_h])
+	var hint := ui.get_node_or_null(^"Root/Panel/VBox/Footer/Hint") as Label
+	check(hint != null and hint.text == (ShopUI.HINT_SCROLL if all_rows > scroll_h + 1.0 else ShopUI.HINT_DEFAULT),
+			"the footer says whether a row is below the fold ('%s')" % (hint.text if hint != null else "?"))
 	check(scroll_h > ShopUI.SCROLL_MIN_HEIGHT, "on a %s window it shows more than the one-row floor" % viewport_size)
 	ui.close(false)
 	await wait_frames(1)

@@ -292,6 +292,7 @@ func server_harvest(player: Player) -> bool:
 	if product == null:
 		push_warning("GrowPlot.server_harvest: ItemManager did not spawn the product; harvest skipped")
 		return false
+	Spores.puff_plot(self, Spores.CAUSE_HARVEST)  # M18 spores: a ripe Black Damp tray puffs on the harvester (still READY here)
 	if _server_try_spread(s): # M14 loop: the yield is out; a strain that spreads may leave a watered seedling behind
 		return true
 	stage_progress = 0.0
@@ -360,6 +361,7 @@ func _refresh_visuals() -> void:
 	_tag.visible = stage != Stage.EMPTY
 	_update_collision()
 	_update_water_visuals()
+	_spores_refresh_tell()  # M18 spores
 
 func _on_stage_changed(old: Stage) -> void:
 	if not is_node_ready():
@@ -381,6 +383,7 @@ func _on_stage_changed(old: Stage) -> void:
 	if fx and planted:
 		Juice.pop_in(_tag)
 	_update_collision()
+	_spores_refresh_tell()  # M18 spores: the motes over a ripe Black Damp tray
 	if not fx:
 		return
 	var sound_pos := global_position + Vector3.UP * 0.6
@@ -578,6 +581,7 @@ func server_scorch(by_peer: int) -> bool:
 		GameState.server_add_stat(by_peer, Const.STAT_SCORCHED)
 		if arson:
 			GameState.server_write_up(by_peer, Const.WRITE_UP_ARSON)
+	Spores.puff_plot(self, Spores.CAUSE_FIRE)  # M18 spores: a ripe Black Damp tray puffs as it burns
 	_rpc_scorched.rpc(by_peer)
 	server_crop_lost(LOSS_FIRE) # M14 loop: a counted strain lost to fire costs the floor a fine (before the reset below)
 	if stage == Stage.READY:
@@ -756,6 +760,7 @@ func server_tick_mutation(delta: float) -> bool:
 	var strain := strain_id
 	var where := global_position
 	GameState.server_note_crop_lost(self, LOSS_WALKED) # M16 polish: a plant that walks off is a plant lost (the "keep" job)
+	Spores.puff_plot(self, Spores.CAUSE_UPROOT)  # M18 spores: a Black Damp plant tearing itself out puffs
 	_rpc_uprooted.rpc() # M16 polish: every peer hears roots, not a harvest, when the tray empties below
 	turning = false
 	server_reset()
@@ -902,6 +907,48 @@ func _play_spread_fx(sound_pos: Vector3) -> void:
 	Sfx.play(&"harvest", sound_pos)
 	Juice.burst(_soil_top() + Vector3.UP * 0.4, _tint_color(), HARVEST_BURST_COUNT)
 	juice_fx(&"puff", _soil_top(), DIRT_COLOR, SPREAD_PUFF_COUNT)
+
+
+# --- M18 spores ---------------------------------------------------------------------------------------------------
+## Black Damp (spores agent, CONTRACTS.md "M18", "Spores"). The puffs, the clouds and the fog live in
+## scripts/core/spores.gd; this file only calls it, one tagged line each: server_harvest (CAUSE_HARVEST),
+## server_tick_mutation (CAUSE_UPROOT), server_scorch (CAUSE_FIRE). Events.server_fire_lane (CAUSE_SHOT) and
+## ItemManager's flight step (CAUSE_HIT) call it from their own files. Every hook runs while the tray is still READY.
+## Here: the tell. A READY tray of a spore strain lets a few grey-olive motes drift off its buds on every peer, so the
+## floor can see which trays will puff (the plant is the stock model in the strain's dark tint).
+
+const SPORE_TELL_NODE := "SporeTell"
+const SPORE_TELL_MOTES := 6
+const SPORE_TELL_HEIGHT := 0.95
+
+var _spore_tell: CPUParticles3D = null
+
+
+## True while this tray holds a READY plant of a spore strain (it puffs when disturbed). Any peer.
+func is_spore_ripe() -> bool:
+	return stage == Stage.READY and Spores.has_spores(get_seed())
+
+
+## The motes over a ripe spore tray (null until the first one ripened here).
+func get_spore_tell() -> CPUParticles3D:
+	return _spore_tell
+
+
+## Every peer, from the stage setter and _refresh_visuals: the tell runs exactly while the tray is spore-ripe.
+func _spores_refresh_tell() -> void:
+	var on := is_spore_ripe() and is_inside_tree()
+	if on and _spore_tell == null:
+		_spore_tell = Spores.make_motes(SPORE_TELL_MOTES, 2.2, 0.22, 0.035, 0.4)
+		_spore_tell.name = SPORE_TELL_NODE
+		_spore_tell.gravity = Vector3(0.0, 0.12, 0.0)
+		_spore_tell.position = Vector3(0.0, SPORE_TELL_HEIGHT, 0.0)
+		var visual := get_node_or_null(^"Visual")
+		(visual if visual != null else self).add_child(_spore_tell)
+	if _spore_tell != null:
+		_spore_tell.emitting = on
+		_spore_tell.visible = on
+
+# --- end M18 spores -----------------------------------------------------------------------------------------------
 
 
 # --- M16 polish ---------------------------------------------------------------------------------------------------
