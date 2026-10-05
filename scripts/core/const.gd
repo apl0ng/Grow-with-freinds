@@ -49,6 +49,7 @@ const STAT_SHOT: StringName = &"shot"             # M14: times knocked down by g
 const STAT_SLIPS: StringName = &"slips"           # M14: slips in the tank puddle
 const STAT_CURED: StringName = &"cured"           # M14: cured bundles this worker deposited
 const STAT_CONTRACTS: StringName = &"contracts"   # M15: contracts met this shift (counted for the host peer: the floor)
+const STAT_FOGGED: StringName = &"fogged"         # M18: times this worker breathed Black Damp's spores (Spores.STAT_FOGGED)
 
 # --- M10: write-up reasons (GameState.server_write_up) ---
 const WRITE_UP_SKIMMING: String = "skimming"     # carrying product in the Boss's sight

@@ -39,7 +39,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   review_m10 review_m10_mp review_m12 review_m12_mp qa_m10_4p qa_m12_4p lobby lobby_mp mayhem mayhem_mp loop loop_mp level alley alley_mp
   replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp economy polish variety variety_mp
   hats hats_mp finale finale_mp mayhem3 mayhem3_mp cart cart_mp quit
-  radio radio_mp
+  radio radio_mp emotes emotes_mp spores spores_mp
   qa_mouse_x11)
 
 ONLY=""
@@ -58,7 +58,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 98 99; do
+  for off in 11 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 98 99; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -384,6 +384,15 @@ run_suite quit             60 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/quit_body.
 run_suite radio           240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/radio_body.gd --port=$((BASE + 36)) --run=B5VP --career-file=user://radio_test_$((BASE + 36)).cfg --round-sec=900 --timeout=220
 rm -rf "$LOGDIR/radiomp"; mkdir -p "$LOGDIR/radiomp"
 run_suite radio_mp        280 "$LOGDIR/radiomp/*.log" env RADIO_MP_PORT=$((BASE + 37)) RADIO_MP_LOGS="$LOGDIR/radiomp" tools/tests/radio_mp.sh
+# M18 emotes: the four gestures on a solo host with one fake worker (+40); host + client + late joiner (+49).
+run_suite emotes          200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/emotes_body.gd --port=$((BASE + 40)) --round-sec=900 --timeout=180
+rm -rf "$LOGDIR/emotesmp"; mkdir -p "$LOGDIR/emotesmp"
+run_suite emotes_mp       200 "$LOGDIR/emotesmp/*.log" env EMOTES_MP_PORT=$((BASE + 49)) EMOTES_MP_LOGS="$LOGDIR/emotesmp" tools/tests/emotes_mp.sh
+# M18 spores: Black Damp's clouds and the fog on a solo host with two fake workers (+38); host + client + late
+# joiner (+39).
+run_suite spores          200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/spores_body.gd --port=$((BASE + 38)) --round-sec=900 --timeout=180
+rm -rf "$LOGDIR/sporesmp"; mkdir -p "$LOGDIR/sporesmp"
+run_suite spores_mp       260 "$LOGDIR/sporesmp/*.log" env SPORES_MP_PORT=$((BASE + 39)) SPORES_MP_LOGS="$LOGDIR/sporesmp" tools/tests/spores_mp.sh
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120
