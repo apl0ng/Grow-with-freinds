@@ -30,7 +30,7 @@ extends CanvasLayer
 
 const TOAST_SCENE: PackedScene = preload("res://scenes/ui/toast.tscn")
 const PING_MARKER_SCENE: PackedScene = preload("res://scenes/ui/ping_marker.tscn")
-const MAX_TOASTS: int = 4
+const MAX_TOASTS: int = 3  # M19 readability: three at most, the oldest goes (was 4)
 const HELD_POLL_SEC: float = 0.1
 ## Seconds between polls of Voice.is_speaking for the WORKERS marks (the signal is the fast path).
 const SPEAK_POLL_SEC: float = 0.2
@@ -89,9 +89,9 @@ const TEXT_EVENT_RAT := "RAT"
 const TEXT_EVENT_HEADCOUNT := "HEAD COUNT"
 const TEXT_EVENT_HEADCOUNT_HINT := "The line. In front of the window."
 const TEXT_EVENT_WATER_OFF := "WATER OFF"
-const TEXT_EVENT_WATER_OFF_HINT := "No pressure at the tank."
+const TEXT_EVENT_WATER_OFF_HINT := "No pressure. Use the cans."  # M19 readability: the hint names the answer (was "No pressure at the tank.")
 const TEXT_EVENT_SHORTAGE := "SHORTAGE"
-const TEXT_EVENT_SHORTAGE_HINT := "%s is out of stock."
+const TEXT_EVENT_SHORTAGE_HINT := "%s is out. Buy another."  # M19 readability: the hint names the answer (was "%s is out of stock.")
 
 @onready var root_control: Control = %Root
 @onready var stats: Control = %Stats
@@ -195,6 +195,7 @@ func _ready() -> void:
 	_finale_ready() # M17 finale: the payment panel's title reads FINAL NOTICE on the run's last shift
 	_radio_hud_ready() # M18 radio: "RADIO" next to the talk mark in the WORKERS rows while that worker is on the radio
 	_onboarding_ready() # M19 onboarding: the guide's hint line in the lower middle, just above the prompt
+	_read_hud_ready() # M19 readability: hints that name the answer, the tell on the banner, the GO banner under the column
 
 	_ui_locked = Game.is_ui_locked()
 	_stats_ready = GameState.phase != GameState.Phase.MENU
@@ -590,7 +591,7 @@ func _sync_event_banner() -> void:
 
 func _show_event_banner(pop: bool) -> void:
 	event_label.text = _event_title()
-	var hint := _event_hint()
+	var hint := _read_phase_hint(_event_hint())  # M19 readability: the tell has its own hint (water off, audit)
 	event_hint.text = hint
 	event_hint.visible = hint != ""
 	var fresh := not event_panel.visible
@@ -654,7 +655,7 @@ func _event_hint() -> String:
 			return _mayhem2_event_hint(_event_kind)
 		&"scale", &"phone":  # M17 mayhem3
 			return _mayhem3_event_hint(_event_kind)
-	return ""
+	return _read_event_hint(_event_kind)  # M19 readability: inspection, audit and rat name their answer too
 
 
 # --- M14 mayhem: the leak and the drive-by on the banner ----------------------------------------------------------
@@ -725,7 +726,7 @@ func _update_event_countdown() -> void:
 	var text := _event_title()
 	var events: Node = Events
 	if events != null and events.has_method(&"get_event_time_left"):
-		var left := float(events.call(&"get_event_time_left"))
+		var left := _read_countdown(float(events.call(&"get_event_time_left")))  # M19 readability: the audit counts down to its count
 		if left > 0.0:
 			var total := ceili(left)
 			@warning_ignore("integer_division")
@@ -1299,6 +1300,133 @@ func _onboarding_place() -> void:
 	_guide_hint.offset_bottom = -GUIDE_HINT_FROM_BOTTOM
 
 # --- end M19 onboarding --------------------------------------------------------------------------------------------
+
+
+# --- M19 readability: hints that name the answer, the tell on the banner, nothing on top of anything ---------------
+# CONTRACTS "M19", "Readability". Every event's hint names what to do (the three that had none get one here); a told
+# event (Events.get_tell_left() > 0) shows its tell's own hint where it differs (the water main: fill the cans while
+# the tank still fills them; the audit: deposit before he counts, then what he put on the payment) and the audit's
+# countdown runs to the count. Toasts stack three at most (MAX_TOASTS). The GO banner ("SHIFT n — GET TO WORK") follows
+# the payment column's bottom like the centre banner does (M15 lead), so the column (title, payment, job, chips, event)
+# never runs into it. get_read_blocks() lists every visible block for the overlap measure in the readability suite.
+
+const TEXT_READ_INSPECTION_HINT := "Hands empty. Keep moving."
+const TEXT_READ_AUDIT_HINT := "Deposit before he counts."
+const TEXT_READ_AUDIT_DONE := "Payment due up %s."
+const TEXT_READ_RAT_HINT := "Chase it off the tray."
+const TEXT_READ_WATER_TELL_HINT := "Fill the cans. Now."
+## Gap between the payment column and the GO banner (pixels).
+const READ_GO_GAP: float = 10.0
+
+## The running audit's raise once he counted (-1 until then).
+var _read_audit_raise: int = -1
+
+
+func _read_hud_ready() -> void:
+	var events: Node = Events
+	if events != null:
+		for entry: Array in [[&"tell_ended", _read_on_tell_ended], [&"audit_counted", _read_on_audit_counted],
+				[&"event_ended", _read_on_event_ended]]:
+			if events.has_signal(entry[0]):
+				events.connect(entry[0], entry[1])
+	var column := %QuotaColumn as Control
+	column.minimum_size_changed.connect(_read_place_go_banner)
+	column.resized.connect(_read_place_go_banner)
+	go_banner.visibility_changed.connect(_read_place_go_banner)
+	root_control.resized.connect(_read_place_go_banner)
+	_read_place_go_banner.call_deferred()
+
+
+## The hint of a kind whose own region has none ("" for the rest).
+func _read_event_hint(kind: StringName) -> String:
+	match kind:
+		&"inspection":
+			return TEXT_READ_INSPECTION_HINT
+		&"audit":
+			return TEXT_READ_AUDIT_HINT
+		&"rat":
+			return TEXT_READ_RAT_HINT
+	return ""
+
+
+## The hint as shown: the tell's own where it differs from the event's.
+func _read_phase_hint(hint: String) -> String:
+	match _event_kind:
+		&"water_off":
+			if Events.is_in_tell():
+				return TEXT_READ_WATER_TELL_HINT
+		&"audit":
+			if _read_audit_raise > 0:
+				return TEXT_READ_AUDIT_DONE % format_money(_read_audit_raise)
+			if not Events.is_in_tell():
+				return ""   # counted already (an audit with no tell counts at once), or nothing was owed
+	return hint
+
+
+## The countdown on the banner: the audit's runs to the count while it is told, and stops once he counted.
+func _read_countdown(left: float) -> float:
+	if _event_kind == &"audit" and Events.get_event_tell() > 0.0:
+		return Events.get_tell_left()
+	return left
+
+
+func _read_on_tell_ended(kind: StringName) -> void:
+	if event_panel.visible and kind == _event_kind:
+		_show_event_banner(false)
+
+
+func _read_on_audit_counted(raise: int) -> void:
+	_read_audit_raise = raise
+	if event_panel.visible and _event_kind == &"audit":
+		_show_event_banner(false)
+
+
+func _read_on_event_ended(_kind: StringName) -> void:
+	_read_audit_raise = -1
+
+
+## Keeps the GO banner's top READ_GO_GAP under the payment column (it sits at 32 % of the screen otherwise).
+func _read_place_go_banner() -> void:
+	if go_banner == null or not is_instance_valid(go_banner):
+		return
+	var column := %QuotaColumn as Control
+	var bottom := column.position.y + column.get_combined_minimum_size().y + READ_GO_GAP
+	var h := go_banner.get_combined_minimum_size().y
+	var natural_top := root_control.size.y * go_banner.anchor_top - h * 0.5
+	var shift := maxf(bottom - natural_top, 0.0)
+	if not is_equal_approx(go_banner.offset_top, shift):
+		go_banner.offset_top = shift
+		go_banner.offset_bottom = shift
+
+
+## Every visible block of the HUD (tests): [name, global rect, node] for the children of Root and Root/Stats, the
+## payment column's children and the payment panel's title, payment and job line, and each toast. Full-screen layers,
+## the overlays, the crosshair and the containers that only hold the others are left out.
+func get_read_blocks() -> Array:
+	var out: Array = []
+	var column := %QuotaColumn as Control
+	var skip: Array = [stats, float_layer, crosshair, round_end, pause_menu, back_room, toasts, column]
+	for parent: Control in [root_control, stats, column]:
+		for c: Node in parent.get_children():
+			var ctl := c as Control
+			if ctl == null or skip.has(ctl) or not ctl.is_visible_in_tree():
+				continue
+			out.append([String(ctl.name), ctl.get_global_rect(), ctl])
+	var vbox := quota_panel.get_node_or_null(^"VBox") as Control
+	if vbox != null:
+		for c: Node in vbox.get_children():
+			var ctl := c as Control
+			if ctl != null and ctl.is_visible_in_tree():
+				out.append(["QuotaPanel/" + String(ctl.name), ctl.get_global_rect(), ctl])
+	var i := 0
+	for t in _live_toasts():
+		if t.is_visible_in_tree():
+			out.append(["Toast%d" % i, t.get_global_rect(), t])
+			i += 1
+	return out
+# --- end M19 readability -------------------------------------------------------------------------------------------
+
+
 
 
 # ---------------------------------------------------------------------------------------------

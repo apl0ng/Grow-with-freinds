@@ -152,7 +152,7 @@ extends Resource
 @export var puddle_sec: float = 30.0
 @export var slip_stun_sec: float = 0.8
 ## Drive-by: seconds of warning, seconds of gunfire, stage progress a tray in a lane loses per hit, the fine afterwards.
-@export var driveby_warning_sec: float = 2.5
+@export var driveby_warning_sec: float = 3.5
 @export var driveby_sec: float = 6.0
 @export var driveby_tray_loss: float = 0.35
 @export var driveby_fine: int = 30

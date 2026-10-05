@@ -127,7 +127,7 @@ func _test_kinds(b: BalanceConfig) -> void:
 	step("copy, sounds, the model's lines")
 	check(Story.line("scale") == "The scale reads light. Somebody hit it." and Story.line("phone") == "That's the phone. Pick it up.", "Story has the scale and phone lines")
 	check(Story.mayhem3_missed_line(30, 30) == "He called. Nobody picked up. Thirty.", "the missed call: '%s'" % Story.mayhem3_missed_line(30, 30))
-	check(Story.mayhem3_missed_line(30, 12) == "He called. Nobody picked up. Thirty. You had twelve. I took it." and Story.mayhem3_missed_line(30, 0) == "He called. Nobody picked up. Thirty. Nothing to take." and Story.mayhem3_missed_line(0, 0) == "", "short, broke, nothing billed")
+	check(Story.mayhem3_missed_line(30, 12) == "He called. Nobody picked up. Thirty. I took twelve." and Story.mayhem3_missed_line(30, 0) == "He called. Nobody picked up. Thirty. Nothing to take." and Story.mayhem3_missed_line(0, 0) == "", "short, broke, nothing billed")  # M19 readability: the short line is two-second copy now
 	check(Story.mayhem3_tip_line(&"raid") == "Next: a raid." and Story.mayhem3_tip_line(&"power_cut") == "Next: a power cut." and Story.mayhem3_tip_line(&"nonsense") == "Next: trouble.", "the tip names the kind (%s)" % Story.mayhem3_tip_line(&"raid"))
 	var named := 0
 	for k in Events.KINDS:
@@ -269,7 +269,7 @@ func _test_scale(b: BalanceConfig) -> void:
 	check(is_equal_approx(float(p.get("seconds", 0.0)), b.scale_sec) and is_equal_approx(float(p.get("cut", -1.0)), b.scale_cut) and p.size() == 2, "params {seconds: scale_sec, cut: scale_cut} (%s)" % [p])
 	check(Events.is_scale_off() and is_equal_approx(Events.get_scale_factor(), 1.0 - b.scale_cut), "is_scale_off(), get_scale_factor() = %.2f" % Events.get_scale_factor())
 	check(_hud.get_event_text().begins_with("SCALE IS OFF") and _hud.event_hint.visible and _hud.event_hint.text == "It reads light. Hit it.", "HUD banner SCALE IS OFF with the hint (%s / %s)" % [_hud.get_event_text(), _hud.event_hint.text])
-	var toast := "The scale reads light: deposits pay %d%% less. Hit the chute (%s) or throw something at it." % [roundi(b.scale_cut * 100.0), HUD.action_key_text(&"shove", "F")]
+	var toast := "The scale reads light: %d%% less. Hit the chute (%s)." % [roundi(b.scale_cut * 100.0), HUD.action_key_text(&"shove", "F")]  # M19 readability: two-second copy
 	check(toast_seen(toast) and _barked("The scale reads light. Somebody hit it."), "the floor is told: toast + the Boss (%s)" % Story.last_bark)
 	check(not Events.server_start_event(Events.EVENT_PHONE), "one at a time: the phone is refused meanwhile")
 

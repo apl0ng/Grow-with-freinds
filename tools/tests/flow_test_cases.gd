@@ -297,13 +297,13 @@ func _test_ui() -> void:
 	for i in 6:
 		Game.toast_requested.emit("Toast number %d" % i, &"info")
 	await _frames_wait(1)
-	_check(hud.get_toast_count() == 4, "toast stack capped at 4 (got %d)" % hud.get_toast_count())
+	_check(hud.get_toast_count() == HUD.MAX_TOASTS, "toast stack capped at %d (got %d)" % [HUD.MAX_TOASTS, hud.get_toast_count()])  # M19 readability: three (was 4)
 	hud.show_toast("Hands full.", &"error")
 	hud.show_toast("Hands full.", &"error")
 	await _frames_wait(1)
 	var newest := hud.toasts.get_child(hud.toasts.get_child_count() - 1) as HudToast
 	_check(newest != null and newest.repeat_count == 2 and newest.theme_type_variation == &"ToastError", "repeat toast bumps (x2) with ToastError style")
-	_check(hud.get_toast_count() == 4, "still 4 toasts after repeats")
+	_check(hud.get_toast_count() == HUD.MAX_TOASTS, "still %d toasts after repeats" % HUD.MAX_TOASTS)  # M19 readability
 	Game.toast("Seeds. Don't waste them.", &"success")
 	await _frames_wait(1)
 	var success_toast := hud.toasts.get_child(hud.toasts.get_child_count() - 1) as HudToast

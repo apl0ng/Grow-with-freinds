@@ -74,6 +74,7 @@ func refresh() -> void:
 		verdicts_box.add_child(label)
 	verdicts_box.visible = not _verdict_texts.is_empty()
 	_career_refresh_job() # M15 career: whether the shift's job was done
+	_read_refresh_costs() # M19 readability: what the shift's disruptions cost (under the table)
 
 
 # --- M15 career: the shift's job on the report ---------------------------------------------------------------------
@@ -106,6 +107,63 @@ func get_job_text() -> String:
 	return _career_job_label.text if _career_job_label != null and _career_job_label.visible else ""
 
 # --- end M15 career ------------------------------------------------------------------------------------------------
+
+
+# --- M19 readability: what the shift's disruptions cost ---------------------------------------------------------------
+# A short block right under the table ("CostLines", built on first use): a small "WHAT IT COST" title and at most three
+# lines from Story.get_shift_cost_lines() (Events' ledger, synced by the host like the verdicts' stats), the dearest
+# first: "The raid took two bundles. $360.", "The collector took $40.", "The rat ate into a tray of Purple Haze.".
+# Hidden on a shift nothing cost anything. It follows Events.shift_costs_changed, so a cost booked as the shift ended
+# (a sale on a light scale, the last unpaid call) still lands on the card.
+
+const TEXT_COST_TITLE := "WHAT IT COST"
+const COST_TITLE_FONT_SIZE: int = 14
+const COST_FONT_SIZE: int = 17
+
+var _read_box: VBoxContainer
+var _read_title: Label
+var _read_texts: PackedStringArray = []
+
+
+func _read_refresh_costs() -> void:
+	if _read_box == null:
+		_read_box = VBoxContainer.new()
+		_read_box.name = "CostLines"
+		_read_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_read_box.add_theme_constant_override(&"separation", 0)
+		_read_title = Label.new()
+		_read_title.name = "CostTitle"
+		_read_title.text = TEXT_COST_TITLE
+		_read_title.theme_type_variation = &"SubtleLabel"
+		_read_title.add_theme_font_size_override(&"font_size", COST_TITLE_FONT_SIZE)
+		_read_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_read_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_read_box.add_child(_read_title)
+		add_child(_read_box)
+		move_child(_read_box, grid.get_index() + 1)
+		if Events.has_signal(&"shift_costs_changed"):
+			Events.connect(&"shift_costs_changed", _read_refresh_costs)
+	for child: Node in _read_box.get_children():
+		if child != _read_title:
+			_read_box.remove_child(child)
+			child.queue_free()
+	_read_texts = Story.get_shift_cost_lines() if Story.has_method(&"get_shift_cost_lines") else PackedStringArray()
+	for text in _read_texts:
+		var label := Label.new()
+		label.text = text
+		label.add_theme_font_size_override(&"font_size", COST_FONT_SIZE)
+		label.add_theme_color_override(&"font_color", Toon.WARNING)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_read_box.add_child(label)
+	_read_box.visible = not _read_texts.is_empty()
+
+
+## The "what it cost" lines shown (tests); empty while the block is hidden.
+func get_cost_texts() -> PackedStringArray:
+	return _read_texts.duplicate() if _read_box != null and _read_box.visible else PackedStringArray()
+
+# --- end M19 readability -----------------------------------------------------------------------------------------------
 
 
 # --- M18 spores: the FOGGED column ------------------------------------------------------------------------------------

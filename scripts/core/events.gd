@@ -176,6 +176,7 @@ func _ready() -> void:
 	GameState.backroom_changed.connect(_on_backroom_changed)
 	Net.peer_registered.connect(_on_peer_registered)
 	Net.peer_left.connect(_on_peer_left)
+	_read_ready()  # M19 readability: the tells, the flicker, the shift's cost ledger
 
 
 func _process(delta: float) -> void:
@@ -320,6 +321,7 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 			seconds = maxf(b.shortage_sec, 1.0)
 			p["seconds"] = seconds
 			p["strain"] = strain
+	seconds = _read_with_tell(kind, p, seconds)  # M19 readability: a scheduled event's tell (params "tell", "total")
 	_last_kind = kind
 	_clock = 0.0
 	_sight_accum = 0.0
@@ -327,9 +329,9 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 	_last_write_up.clear()
 	_next_in = -1.0
 	# The station state goes out before the event packet (same reliable channel, so it lands first).
-	if kind == EVENT_POWER_CUT:
+	if kind == EVENT_POWER_CUT and not p.has("tell"):  # M19 readability: with a tell the mains go when it runs out
 		_rpc_power.rpc(false)
-	elif kind == EVENT_WATER_OFF:
+	elif kind == EVENT_WATER_OFF and not p.has("tell"):  # M19 readability: likewise the water main
 		_well().server_set_pressure(false)
 	elif kind == EVENT_SHORTAGE:
 		_counter().server_set_shortage(StringName(p["strain"]))
@@ -338,7 +340,7 @@ func server_start_event(kind: StringName, params: Dictionary = {}) -> bool:
 	_mayhem2_server_begin(kind)  # M15 mayhem2: the sprinklers water every tray before the event packet
 	_mayhem3_server_begin(kind)  # M17 mayhem3: the kind the phone decided has come
 	_rpc_event_started.rpc(kind, p, seconds)
-	if kind == EVENT_AUDIT:
+	if kind == EVENT_AUDIT and not p.has("tell"):  # M19 readability: with a tell he counts at its end (_read_audit_count)
 		# After the banner went out: raising the quota can end the shift at once (sales already cover it),
 		# and the round_ended handler then closes this event.
 		GameState.server_raise_quota(b.audit_raise_fraction)
@@ -369,7 +371,7 @@ func server_set_power(on: bool) -> void:
 func request_event(kind: StringName) -> void:
 	if not _is_host():
 		return
-	server_start_event(kind)
+	server_start_scheduled(kind)  # M19 readability: with the kind's tell, like the scheduler
 
 
 ## Host time step: scheduler + the active event's rules. Public so tests can advance time; `_process` calls it
@@ -383,6 +385,7 @@ func tick(delta: float) -> void:
 	_mayhem3_tick(delta)  # M17 mayhem3: the phone's favor runs out
 	if active_event != &"":
 		_time_left = maxf(_time_left - delta, 0.0)
+		_read_tick_event(delta)  # M19 readability: the tell runs out (the mains go, the water main shuts, the audit counts)
 		match active_event:
 			EVENT_INSPECTION:
 				_tick_inspection(delta)
@@ -419,7 +422,7 @@ func tick(delta: float) -> void:
 		if not _forced_first_used and forced in KINDS:
 			_forced_first_used = true
 			kind = forced
-		if not server_start_event(kind):
+		if not server_start_scheduled(kind):  # M19 readability: with the kind's tell (READ_TELL_SEC)
 			# Nothing could start (e.g. no plot for a rat): try again after a short gap.
 			_next_in = 5.0
 
@@ -475,7 +478,7 @@ func _tick_inspection(delta: float) -> void:
 		remaining -= step
 		if _sight_accum >= SIGHT_INTERVAL - 0.000001:
 			_sight_accum = 0.0
-			server_sight_check()
+			if get_tell_left() <= 0.0: server_sight_check()  # M19 readability: nobody is judged during the tell
 			if active_event != EVENT_INSPECTION:
 				return
 	var boss := _boss()
@@ -490,6 +493,7 @@ func _judge(player: Player, w: World) -> void:
 	if held != null and held.item_type == Const.ITEM_PRODUCT:
 		if _can_write_up(pid):
 			_write_up(pid, Const.WRITE_UP_SKIMMING)
+			_read_note_bundle(EVENT_INSPECTION, held)  # M19 readability: the report's "what it cost"
 			w.items.server_despawn_item(held)
 			_rpc_spotted.rpc(pid, Const.WRITE_UP_SKIMMING)
 		_seen_since[pid] = [_clock, pos]
@@ -541,7 +545,8 @@ func _tick_rat(delta: float) -> void:
 	var w: World = Game.world
 	if rat != null and w != null and rat.has_method(&"is_eating") and bool(rat.call(&"is_eating")):
 		var plot := _rat_target_plot()
-		if plot != null and plot.is_growing():
+		if plot != null and plot.is_growing() and get_tell_left() <= 0.0:  # M19 readability: it does not eat during the tell
+			_read_note_rat(plot, minf(plot.stage_progress, RAT_EAT_PER_SEC * delta))  # M19 readability: the report's line
 			plot.stage_progress = maxf(plot.stage_progress - RAT_EAT_PER_SEC * delta, 0.0)
 		for player in w.get_players():
 			if GameState.is_in_backroom(player.peer_id):
@@ -728,6 +733,7 @@ func _on_peer_registered(peer_id: int) -> void:
 		_rpc_power.rpc_id(peer_id, false)
 	_mayhem2_replay(peer_id)  # M15 mayhem2: the wet floor after the sprinklers (before the event packet, like its start)
 	_mayhem3_replay(peer_id)  # M17 mayhem3: a running favor on the seeds
+	_read_replay(peer_id)  # M19 readability: the shift's cost ledger
 	if active_event != &"":
 		_rpc_event_started.rpc_id(peer_id, active_event, _params, _time_left)
 
@@ -1259,7 +1265,7 @@ func _mayhem_prepare(kind: StringName, p: Dictionary) -> float:
 		var room := _room()
 		if room == null or room.get_gunfire_lanes().is_empty():
 			return 0.0
-		var warning := maxf(b.driveby_warning_sec, 0.0)
+		var warning := maxf(maxf(b.driveby_warning_sec, 0.0), float(p.get("tell", 0.0)))  # M19 readability: a scheduled drive-by warns for its tell at least
 		var seconds := warning + maxf(b.driveby_sec, 0.5)
 		p["seconds"] = seconds
 		p["warning"] = warning
@@ -1382,7 +1388,7 @@ func _judge_slips(delta: float, well: Well) -> void:
 		e[3] = false
 		if void_window or not (speed > limit):
 			continue
-		if player.crouching or GameState.is_in_backroom(pid) or not (well.is_in_puddle(pos) or is_floor_slick_at(pos) or is_wet_at(pos)): # M15 replay / M15 mayhem2: or anywhere on a slick or wet floor
+		if player.crouching or GameState.is_in_backroom(pid) or not ((well.is_in_puddle(pos) and not _read_puddle_fresh()) or is_floor_slick_at(pos) or is_wet_at(pos)): # M15 replay / M15 mayhem2: or anywhere on a slick or wet floor; M19 readability: not a fresh puddle
 			continue
 		if _last_slip.has(pid) and _mayhem_clock - float(_last_slip[pid]) < SLIP_COOLDOWN_SEC:
 			continue
@@ -1900,6 +1906,7 @@ func is_floor_wet() -> bool:
 func is_wet_at(point: Vector3) -> bool:
 	if not is_floor_wet():
 		return false
+	if active_event == EVENT_SPRINKLERS and get_tell_left() > 0.0: return false  # M19 readability: not slippery during the tell
 	var room := _room()
 	return room != null and room.contains_point(point)
 
@@ -2025,6 +2032,7 @@ func server_raid_sweep(point_index: int) -> Dictionary:
 			continue
 		var holder: int = item.holder_id
 		var item_name := String(item.name)
+		_read_note_bundle(EVENT_RAID, item)  # M19 readability: the report's "what it cost"
 		w.items.server_despawn_item(item)
 		taken.append(item_name)
 		_raid_taken += 1
@@ -2033,6 +2041,7 @@ func server_raid_sweep(point_index: int) -> Dictionary:
 			if _can_write_up(holder):
 				_write_up(holder, Const.WRITE_UP_RAID)
 		_rpc_raid_took.rpc(item_name, holder, target)
+	_read_note_trucks()  # M19 readability: what each truck's load is worth before a look can take it
 	HandTruck.server_raid_look(eye, out) # M17 cart: a hand truck in sight loses its whole load (scripts/items/hand_truck.gd)
 	_raid_sweeps += 1
 	_rpc_raid_swept.rpc(index, taken.size())
@@ -2343,6 +2352,7 @@ func server_collect_unpaid() -> Dictionary:
 		out["strain"] = StringName(str(best.get(&"strain_id")))
 		out["where"] = String(best.name)
 		at = _bundle_position(best, w)
+		_read_note_bundle(EVENT_COLLECTION, best)  # M19 readability: the report's "what it cost"
 		w.items.server_despawn_item(best)
 	else:
 		var plot := _most_advanced_plot(room)
@@ -2542,6 +2552,563 @@ func _card() -> RandomNumberGenerator:
 # --- end M16 variety -----------------------------------------------------------------------------------------------
 
 
+# --- M19 readability: the tell before a disruption costs anything, and what a shift's disruptions cost -------------
+# CONTRACTS "M19", "Readability"; RELEASE.md D1 (3 s of warning, the answer named, two-second copy). The audit table is
+# tools/tests/readability_audit.md; every telegraph in it is pinned by tools/tests/readability_body.gd.
+# The tell. The scheduler (and request_event) start every kind through server_start_scheduled(kind): a kind listed in
+# READ_TELL_SEC gets the params "tell" (seconds before it can cost anything) and "total" (its whole length). Meanwhile:
+#   inspection  the Boss walks; nobody is judged yet           power_cut   the lights flicker; the mains stay on
+#   audit       a countdown; then he counts what is owed        rat         it runs to the tray; it does not eat yet
+#   water_off   the pipes knock; the tank still fills cans      leak        its fresh puddle trips nobody yet
+#   driveby     the warning lasts the tell at least (tyres)     sprinklers  the floor is not slippery yet
+#   scale       deposits still pay in full
+# For power_cut, audit, water_off and scale the tell comes before the event's own length (the total grows by it). When
+# it runs out the host does what the start of the event used to do (the mains go, the water main shuts, the audit
+# counts) and every peer gets tell_ended(kind). A bare server_start_event(kind) has no tell and behaves as before M19
+# (the older suites and the tools start events that way).
+# The audit with a tell counts what is still owed: the payment due goes up audit_raise_fraction of (payment due -
+# deposited so far), so a deposit during the countdown is the answer.
+# The ledger. The host books what each disruption cost the floor during the shift, by source (COST_SOURCES): money out of
+# cash on hand (fines, the collector, the phone, the drive-by's bill, counted plants), money put on the payment (the
+# audit) or lost on deposits (the scale), bundles taken (at what the chute pays for them now) and plants lost or set back
+# (at what their harvest would pay, by how far they had grown). The whole ledger goes to every peer on each change and to
+# a late joiner (_rpc_read_costs); Story.get_cost_lines() words it for the shift report. Cleared when a shift starts, on
+# a reset and on the menu. The values only order the lines: the report says three at most, the dearest first.
+
+## Every peer: the running event's tell ran out; from now on it can cost something.
+signal tell_ended(kind: StringName)
+## Every peer: the audit counted what was still owed and put `raise` on the payment due (0: nothing was owed).
+signal audit_counted(raise: int)
+## Every peer: get_shift_costs() changed.
+signal shift_costs_changed
+
+## Seconds of warning a scheduled kind gets before it can cost anything (RELEASE.md D1: READ_MIN_TELL_SEC at least).
+## The kinds not listed warn longer on their own: head count (headcount_sec), raid (raid_warning_sec), collection
+## (collector_sec), phone (phone_sec); a shortage refuses a purchase and costs nothing.
+## The drive-by's 3.5 pins driveby_warning_sec until the lead raises it in BalanceConfig (2.5 -> 3.5).
+const READ_TELL_SEC: Dictionary = {
+	EVENT_INSPECTION: 3.0, EVENT_POWER_CUT: 3.0, EVENT_AUDIT: 8.0, EVENT_RAT: 3.0, EVENT_WATER_OFF: 5.0,
+	EVENT_LEAK: 3.0, EVENT_DRIVEBY: 3.5, EVENT_SPRINKLERS: 3.0, EVENT_SCALE: 3.0,
+}
+const READ_MIN_TELL_SEC := 3.0
+## Kinds whose tell comes before their own length.
+const READ_TELL_FIRST: Array[StringName] = [EVENT_POWER_CUT, EVENT_AUDIT, EVENT_WATER_OFF, EVENT_SCALE]
+## The power cut's tell: [seconds after the start, seconds dark] (the lights dip, the hum drops out).
+const READ_FLICKER: Array = [[0.45, 0.12], [1.15, 0.08], [1.7, 0.22], [2.25, 0.1], [2.6, 0.25]]
+## Under this many seconds a tell counts as over (float steps).
+const READ_EPSILON := 0.0001
+## The host sends a ledger that only crept (the rat eating) at most this often.
+const READ_FLUSH_SEC := 0.5
+
+## The ledger's sources, in the order ties are listed.
+const COST_RAID := "raid"
+const COST_COLLECTION := "collection"
+const COST_INSPECTION := "inspection"
+const COST_AUDIT := "audit"
+const COST_SCALE := "scale"
+const COST_DRIVEBY := "driveby"
+const COST_PHONE := "phone"
+const COST_HEADCOUNT := "headcount"
+const COST_PLANT := "plant"      # the hostile plant ate a tray
+const COST_WALKED := "walked"    # a tray got up and walked off
+const COST_FIRE := "fire"        # the flamethrower: burnt trays, arson and misuse fines
+const COST_RAT := "rat"
+const COST_SOURCES: PackedStringArray = [COST_RAID, COST_COLLECTION, COST_INSPECTION, COST_AUDIT, COST_SCALE,
+		COST_DRIVEBY, COST_PHONE, COST_HEADCOUNT, COST_PLANT, COST_WALKED, COST_FIRE, COST_RAT]
+## An entry's "strain" when it holds more than one.
+const COST_MIXED := "*"
+
+## Host: the running event's tell has run out (or it had none).
+var _read_tell_done: bool = true
+## Every peer: source -> {"money", "bundles", "plants", "setback", "value": int, "strain": String}.
+var _read_costs: Dictionary = {}
+## Host: a hand truck's load as it stood before the last raid look: truck name -> [[value, strain], ...].
+var _read_truck_values: Dictionary = {}
+## Host: the tray the running rat eats has been booked (instance id, 0 = not yet); dollars eaten not booked yet.
+var _read_rat_plot: int = 0
+var _read_rat_acc: float = 0.0
+## Host: the ledger changed without being sent; seconds until it may go.
+var _read_dirty: bool = false
+var _read_flush_left: float = 0.0
+## Every peer: the power cut's flicker.
+var _read_flicker: Tween = null
+
+
+func _read_ready() -> void:
+	event_started.connect(_read_on_event_started)
+	event_ended.connect(_read_on_event_ended)
+	GameState.round_started.connect(_read_on_round_started)
+	GameState.round_ended.connect(_read_on_round_ended)
+	GameState.game_reset.connect(_read_on_game_reset)
+	GameState.phase_changed.connect(_read_on_phase_changed)
+	GameState.worker_written_up.connect(_read_on_written_up)
+	GameState.sale_made.connect(_read_on_sale)
+	driveby_billed.connect(_read_on_driveby_billed)
+	tray_shot.connect(_read_on_tray_shot)
+	collector_paid.connect(_read_on_collector_paid)
+	phone_missed.connect(_read_on_phone_missed)
+	raid_took.connect(_read_on_raid_took)
+
+
+# --- the tell (queries: any peer) -----------------------------------------------------------------------------------
+
+## The tell a scheduled `kind` gets (0 = none).
+func get_tell_sec(kind: StringName) -> float:
+	return maxf(float(READ_TELL_SEC.get(kind, 0.0)), 0.0)
+
+
+## The params the scheduler starts `kind` with: {"tell": seconds}, {} without one.
+func get_tell_params(kind: StringName) -> Dictionary:
+	var tell := get_tell_sec(kind)
+	return {"tell": tell} if tell > 0.0 else {}
+
+
+## SERVER ONLY. What the scheduler does: server_start_event(kind) with the kind's tell. Public for tests.
+func server_start_scheduled(kind: StringName) -> bool:
+	return server_start_event(kind, get_tell_params(kind))
+
+
+## The running event's tell in seconds (0 without one or without an event).
+func get_event_tell() -> float:
+	if active_event == &"":
+		return 0.0
+	var v: Variant = _params.get("tell", 0.0)
+	return maxf(float(v), 0.0) if (v is float or v is int) else 0.0
+
+
+## Seconds since the running event started, from its "total" and the countdown (0 without a total).
+func get_event_elapsed() -> float:
+	if active_event == &"":
+		return 0.0
+	var v: Variant = _params.get("total", -1.0)
+	var total: float = float(v) if (v is float or v is int) else -1.0
+	if total < 0.0:
+		return 0.0
+	return maxf(total - _time_left, 0.0)
+
+
+## Seconds of the running event's tell still to go (0 once it ran out, or without one).
+func get_tell_left() -> float:
+	var tell := get_event_tell()
+	if tell <= 0.0:
+		return 0.0
+	var left := tell - get_event_elapsed()
+	return left if left > READ_EPSILON else 0.0
+
+
+## True while the running event is in its tell.
+func is_in_tell() -> bool:
+	return get_tell_left() > 0.0
+
+
+# --- the tell (host) ------------------------------------------------------------------------------------------------
+
+## Host, from server_start_event once the kind filled `p`: a "tell" among the caller's params makes it a told event
+## ("tell" kept, "total" added; for READ_TELL_FIRST kinds the tell comes before `seconds`). Returns the event's length.
+func _read_with_tell(kind: StringName, p: Dictionary, seconds: float) -> float:
+	var v: Variant = p.get("tell", 0.0)
+	var tell: float = float(v) if (v is float or v is int) else 0.0
+	if not (tell > 0.0) or not is_finite(tell):
+		p.erase("tell")
+		p.erase("total")
+		_read_tell_done = true
+		return seconds
+	tell = minf(tell, 60.0)
+	if kind == EVENT_DRIVEBY:
+		tell = float(p.get("warning", tell))   # its warning is its tell (at least the asked one, _mayhem_prepare)
+	var total := seconds + tell if kind in READ_TELL_FIRST else seconds
+	p["tell"] = tell
+	p["total"] = total
+	_read_tell_done = false
+	_read_rat_plot = 0
+	_read_rat_acc = 0.0
+	return total
+
+
+## Host, every tick while an event runs (after the countdown step): the tell runs out; and a crept ledger goes out.
+func _read_tick_event(delta: float) -> void:
+	if _read_dirty:
+		_read_flush_left -= delta
+	if not _read_tell_done and active_event != &"" and get_tell_left() <= 0.0:
+		_read_tell_done = true
+		var kind := active_event
+		match kind:
+			EVENT_POWER_CUT:
+				if power_on:
+					_rpc_power.rpc(false)
+			EVENT_WATER_OFF:
+				var well := _well()
+				if well != null and well.has_pressure():
+					well.server_set_pressure(false)
+			EVENT_AUDIT:
+				_read_audit_count()
+		if active_event == kind:
+			_rpc_read_tell_over.rpc(kind)
+	if _read_dirty and _read_flush_left <= 0.0:
+		_read_flush()
+
+
+## Host: the audit's count. What is still owed times audit_raise_fraction goes on the payment due (at least $1 when
+## anything is owed); every peer hears the raise.
+func _read_audit_count() -> void:
+	var quota := GameState.quota
+	var owed := maxi(quota - GameState.round_sales, 0)
+	var fraction := maxf(Config.balance.audit_raise_fraction, 0.0)
+	var raise := 0
+	if owed > 0 and fraction > 0.0 and quota > 0:
+		raise = maxi(int(round(float(owed) * fraction)), 1)
+		server_note_cost(COST_AUDIT, raise, 0, 0, 0, raise, "")
+		GameState.server_raise_quota(float(raise) / float(quota))
+	_rpc_read_audit.rpc(raise)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_read_tell_over(kind: StringName) -> void:
+	_read_stop_flicker(false)
+	if active_event == kind:
+		tell_ended.emit(kind)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_read_audit(raise: int) -> void:
+	audit_counted.emit(maxi(raise, 0))
+
+
+## Host: a fresh puddle (a leak still in its tell) trips nobody.
+func _read_puddle_fresh() -> bool:
+	return active_event == EVENT_LEAK and get_tell_left() > 0.0
+
+
+# --- the tell (every peer): the power cut's flicker -----------------------------------------------------------------
+
+func _read_on_event_started(kind: StringName, _p: Dictionary) -> void:
+	_read_stop_flicker(false)
+	if kind == EVENT_POWER_CUT and power_on and get_tell_left() > 0.0:
+		_read_start_flicker()
+
+
+func _read_on_event_ended(_kind: StringName) -> void:
+	if _read_flicker != null:
+		_read_stop_flicker(true)
+	_read_rat_plot = 0
+	if _is_host() and _read_dirty:
+		_read_flush()
+
+
+## The lights dip and come back READ_FLICKER times (Room.set_power, cosmetic: Events.power_on stays true).
+func _read_start_flicker() -> void:
+	var room := _room()
+	if room == null or not room.is_inside_tree():
+		return
+	var at := get_event_elapsed()
+	var cursor := at
+	var tw := room.create_tween()
+	var any := false
+	for f: Array in READ_FLICKER:
+		var start := float(f[0])
+		if start < at:
+			continue
+		tw.tween_interval(maxf(start - cursor, 0.001))
+		tw.tween_callback(_read_flick.bind(false))
+		tw.tween_interval(float(f[1]))
+		tw.tween_callback(_read_flick.bind(true))
+		cursor = start + float(f[1])
+		any = true
+	if not any:
+		tw.kill()
+		return
+	_read_flicker = tw
+
+
+func _read_flick(lit: bool) -> void:
+	var room := _room()
+	if room == null or not power_on or active_event != EVENT_POWER_CUT:
+		return
+	room.set_power(lit)
+
+
+## Stops the flicker; `restore` puts the lights back to the mains' real state.
+func _read_stop_flicker(restore: bool) -> void:
+	if _read_flicker != null and _read_flicker.is_valid():
+		_read_flicker.kill()
+	_read_flicker = null
+	if restore:
+		var room := _room()
+		if room != null and room.is_power_on() != power_on:
+			room.set_power(power_on)
+
+
+## True while the power cut's flicker runs (tests).
+func is_flickering() -> bool:
+	return _read_flicker != null and _read_flicker.is_valid() and _read_flicker.is_running()
+
+
+# --- the ledger -----------------------------------------------------------------------------------------------------
+
+## The shift's disruption costs: source -> {"money", "bundles", "plants", "setback", "value": int, "strain": String}
+## (a copy). Any peer.
+func get_shift_costs() -> Dictionary:
+	return _read_costs.duplicate(true)
+
+
+## SERVER ONLY (while a shift runs). Books a cost against `source` (one of COST_SOURCES): `money` taken or owed,
+## `bundles` taken, `plants` lost, trays `setback`, `value` (dollars, orders the lines), `strain` (the bundles' or
+## plants' strain id). `send` false keeps it until the next flush (a cost that creeps every tick).
+func server_note_cost(source: String, money: int, bundles: int, plants: int, setback: int, value: int, strain: String, send: bool = true) -> void:
+	if not _is_host() or not COST_SOURCES.has(source) or not GameState.is_playing():
+		return
+	var e: Dictionary = _read_costs.get(source, {"money": 0, "bundles": 0, "plants": 0, "setback": 0, "value": 0, "strain": ""})
+	e["money"] = int(e["money"]) + maxi(money, 0)
+	e["bundles"] = int(e["bundles"]) + maxi(bundles, 0)
+	e["plants"] = int(e["plants"]) + maxi(plants, 0)
+	e["setback"] = int(e["setback"]) + maxi(setback, 0)
+	e["value"] = int(e["value"]) + maxi(value, 0)
+	if strain != "":
+		var had := String(e["strain"])
+		e["strain"] = strain if had == "" or had == strain else COST_MIXED
+	_read_costs[source] = e
+	if send:
+		_read_flush()
+	else:
+		if not _read_dirty:
+			_read_flush_left = READ_FLUSH_SEC
+		_read_dirty = true
+
+
+## Host: the ledger goes to every peer.
+func _read_flush() -> void:
+	_read_dirty = false
+	_read_flush_left = 0.0
+	if _is_host():
+		_rpc_read_costs.rpc(_read_costs)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_read_costs(costs: Dictionary) -> void:
+	var clean: Dictionary = {}
+	for k: Variant in costs:
+		var key := str(k)
+		var raw: Variant = costs[k]
+		if not COST_SOURCES.has(key) or not (raw is Dictionary):
+			continue
+		var e: Dictionary = raw
+		var entry := {"strain": str(e.get("strain", "")).left(32)}
+		for f: String in ["money", "bundles", "plants", "setback", "value"]:
+			var n: Variant = e.get(f, 0)
+			entry[f] = clampi(int(n), 0, 99999999) if (n is int or n is float) else 0
+		clean[key] = entry
+	_read_costs = clean
+	shift_costs_changed.emit()
+
+
+## Host: a late joiner gets the shift's ledger.
+func _read_replay(peer_id: int) -> void:
+	if not _read_costs.is_empty():
+		_rpc_read_costs.rpc_id(peer_id, _read_costs)
+
+
+func _read_clear(broadcast: bool) -> void:
+	_read_costs = {}
+	_read_truck_values.clear()
+	_read_rat_plot = 0
+	_read_rat_acc = 0.0
+	_read_dirty = false
+	shift_costs_changed.emit()
+	if broadcast and _is_host():
+		_rpc_read_costs.rpc({})
+
+
+func _read_on_round_started(_round_number: int) -> void:
+	_read_clear(true)
+
+
+func _read_on_round_ended(_success: bool, _round_number: int) -> void:
+	if _is_host() and _read_dirty:
+		_read_flush()
+
+
+func _read_on_game_reset() -> void:
+	_read_clear(true)
+
+
+func _read_on_phase_changed(phase: int) -> void:
+	if phase == GameState.Phase.MENU:
+		_read_stop_flicker(false)
+		_read_clear(false)
+
+
+# --- the ledger: what each source books (host) ----------------------------------------------------------------------
+
+## What the chute pays for `item` right now (0 for anything that is not a bundle).
+func _read_bundle_value(item: Item) -> int:
+	var chute := _scale_chute()
+	if chute == null or item == null or not is_instance_valid(item) or item.item_type != Const.ITEM_PRODUCT:
+		return 0
+	return maxi(chute.get_sale_value(item), 0)
+
+
+## Host, right before a disruption takes `item` (a bundle): booked against the kind's source.
+func _read_note_bundle(kind: StringName, item: Item) -> void:
+	if not _is_host() or item == null or not is_instance_valid(item):
+		return
+	var source := COST_RAID if kind == EVENT_RAID else (COST_COLLECTION if kind == EVENT_COLLECTION else COST_INSPECTION)
+	server_note_cost(source, 0, 1, 0, 0, _read_bundle_value(item), str(item.get(&"strain_id")))
+
+
+## Host, before a raid look reaches the hand trucks: what each truck's load is worth (raid_took names its bundles
+## "<truck>/load<n>").
+func _read_note_trucks() -> void:
+	_read_truck_values.clear()
+	var w: World = Game.world
+	if w == null or not is_instance_valid(w) or w.items == null:
+		return
+	var mult := GameState.get_sale_multiplier()
+	for item in w.items.get_items_of_type(Const.ITEM_HAND_TRUCK):
+		var cargo: Variant = item.get(&"cargo")
+		if not (cargo is Array):
+			continue
+		var values: Array = []
+		for entry: Variant in cargo:
+			if not (entry is Dictionary):
+				values.append([0, ""])
+				continue
+			var strain := StringName(str((entry as Dictionary).get("strain_id", "")))
+			var amount := int((entry as Dictionary).get("amount", 1))
+			var cured := bool((entry as Dictionary).get("cured", false))
+			values.append([TurnInStation.compute_sale_value(Config.balance.get_seed(strain), amount, mult, cured), String(strain)])
+		_read_truck_values[String(item.name)] = values
+
+
+func _read_on_raid_took(item_name: String, _holder_peer: int) -> void:
+	if not _is_host() or not item_name.contains("/load"):
+		return   # a loose or held bundle was booked by the look itself (_read_note_bundle)
+	var truck_name := item_name.get_slice("/load", 0)
+	var index := int(item_name.get_slice("/load", 1)) - 1
+	var values: Array = _read_truck_values.get(truck_name, [])
+	var entry: Array = values[index] if index >= 0 and index < values.size() else [0, ""]
+	server_note_cost(COST_RAID, 0, 1, 0, 0, int(entry[0]), String(entry[1]))
+
+
+## The fine of a write-up, against the disruption that caused it.
+func _read_on_written_up(_peer_id: int, reason: String, _count: int) -> void:
+	if not _is_host():
+		return
+	var source := ""
+	match reason:
+		Const.WRITE_UP_SKIMMING, Const.WRITE_UP_LOITERING:
+			source = COST_INSPECTION
+		Const.WRITE_UP_ABSENT:
+			source = COST_HEADCOUNT
+		Const.WRITE_UP_RAID:
+			source = COST_RAID
+		Const.WRITE_UP_ARSON, Const.WRITE_UP_MISUSE:
+			source = COST_FIRE
+	var fine := maxi(Config.balance.write_up_fine, 0)
+	if source != "" and fine > 0:
+		server_note_cost(source, fine, 0, 0, 0, fine, "")
+
+
+## A deposit while the scale reads light: what it would have paid in full, less what it paid.
+func _read_on_sale(amount: int, _seller_peer: int) -> void:
+	if not _is_host() or active_event != EVENT_SCALE or amount <= 0:
+		return
+	var factor := get_scale_factor()
+	if factor >= 1.0 or factor <= 0.0:
+		return
+	var lost := int(round(float(amount) / factor)) - amount
+	if lost > 0:
+		server_note_cost(COST_SCALE, lost, 0, 0, 0, lost, "")
+
+
+func _read_on_driveby_billed(_fine: int, taken: int) -> void:
+	if _is_host() and taken > 0:
+		server_note_cost(COST_DRIVEBY, taken, 0, 0, 0, taken, "")
+
+
+func _read_on_tray_shot(plot_name: String) -> void:
+	if not _is_host():
+		return
+	var room := _room()
+	var plot := room.get_station(plot_name) as GrowPlot if room != null else null
+	var value := 0
+	if plot != null:
+		value = int(round(float(_read_plant_value(plot)) * _read_growth_share(plot, maxf(Config.balance.driveby_tray_loss, 0.0))))
+	server_note_cost(COST_DRIVEBY, 0, 0, 0, 1, value, String(plot.strain_id) if plot != null else "")
+
+
+func _read_on_collector_paid(_peer_id: int, fee: int) -> void:
+	if _is_host() and fee > 0:
+		server_note_cost(COST_COLLECTION, fee, 0, 0, 0, fee, "")
+
+
+func _read_on_phone_missed(_fine: int) -> void:
+	if _is_host() and _phone_fine_taken > 0:
+		server_note_cost(COST_PHONE, _phone_fine_taken, 0, 0, 0, _phone_fine_taken, "")
+
+
+## HOST, from GameState.server_note_crop_lost (before the tray is reset and before a counted plant's fine): the plant in
+## `plot` is lost to `cause` (GrowPlot.LOSS_*).
+func read_note_crop_lost(plot: Node3D, cause: StringName) -> void:
+	var tray := plot as GrowPlot
+	if not _is_host() or tray == null or tray.stage == GrowPlot.Stage.EMPTY:
+		return
+	var source := ""
+	match cause:
+		GrowPlot.LOSS_EATEN:
+			source = COST_PLANT
+		GrowPlot.LOSS_WALKED:
+			source = COST_WALKED
+		GrowPlot.LOSS_FIRE:
+			source = COST_FIRE
+		GrowPlot.LOSS_GUNFIRE:
+			source = COST_DRIVEBY
+		GrowPlot.LOSS_COLLECTED:
+			source = COST_COLLECTION
+	if source == "":
+		return
+	var s := tray.get_seed()
+	var fine := 0
+	if s != null and s.counted and cause != GrowPlot.LOSS_WALKED:
+		fine = mini(maxi(Config.balance.counted_fine, 0), maxi(GameState.money, 0))   # server_crop_lost takes it next
+	var value := maxi(int(round(float(_read_plant_value(tray)) * tray.get_growth_fraction())), s.cost if s != null else 0)
+	server_note_cost(source, fine, 0, 1, 0, value + fine, String(tray.strain_id))
+
+
+## Host, from _tick_rat: the rat ate `eaten` of the tray's stage progress this step (sent with the next flush).
+func _read_note_rat(plot: GrowPlot, eaten: float) -> void:
+	if not _is_host() or plot == null or eaten <= 0.0:
+		return
+	var first := _read_rat_plot != plot.get_instance_id()
+	_read_rat_plot = plot.get_instance_id()
+	# A step eats a fraction of a dollar: whole dollars are booked as they add up.
+	_read_rat_acc += float(_read_plant_value(plot)) * _read_growth_share(plot, eaten)
+	var dollars := int(floor(_read_rat_acc))
+	_read_rat_acc -= float(dollars)
+	if first or dollars > 0:
+		server_note_cost(COST_RAT, 0, 0, 0, 1 if first else 0, dollars, String(plot.strain_id), first)
+
+
+## What the harvest of `plot`'s strain pays now (the full plant).
+func _read_plant_value(plot: GrowPlot) -> int:
+	var s := plot.get_seed() if plot != null else null
+	if s == null:
+		return 0
+	return TurnInStation.compute_sale_value(s, s.yield_amount, GameState.get_sale_multiplier(), false)
+
+
+## The share of `plot`'s whole growth that `progress` of its current stage is.
+func _read_growth_share(plot: GrowPlot, progress: float) -> float:
+	if plot == null or not plot.is_growing():
+		return 0.0
+	var total := 0.0
+	for st in range(GrowPlot.Stage.SEEDLING, GrowPlot.Stage.READY):
+		total += plot.get_stage_duration(st)
+	if total <= 0.0:
+		return 0.0
+	return clampf(progress, 0.0, 1.0) * plot.get_stage_duration(plot.stage) / total
+# --- end M19 readability ---------------------------------------------------------------------------------------------
+
+
 # --- M17 mayhem3: the scale reads light, the phone rings -----------------------------------------------------------
 # CONTRACTS "M17", "Mayhem 3"; FRIENDSLOP 11.3. Decided on the host; the other peers get the event packets and the
 # reliable RPCs below (who hit the scale, who took the call and what it was, the fine, the favor on the seeds). Story
@@ -2631,6 +3198,7 @@ func is_scale_off() -> bool:
 func get_scale_factor() -> float:
 	if active_event != EVENT_SCALE:
 		return 1.0
+	if get_tell_left() > 0.0: return 1.0  # M19 readability: it reads right until the tell is over
 	var cut_v: Variant = _params.get("cut", Config.balance.scale_cut)
 	var cut: float = float(cut_v) if (cut_v is float or cut_v is int) else Config.balance.scale_cut
 	return 1.0 - clampf(cut, 0.0, 0.95)
