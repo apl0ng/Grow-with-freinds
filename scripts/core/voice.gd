@@ -35,6 +35,7 @@ extends Node
 ##             in _ready, saved whenever a setter changes a value. load_settings() resets to the defaults first.
 ##   Headless  is_mic_available() is false, nothing is captured, no errors are printed; the receive path,
 ##             playback nodes and speaking state fully work (the Dummy audio driver still mixes).
+##   Radio     M18: walkie-talkies carry a transmission to every other radio; see the "M18 radio" region. # M18 radio
 ##
 ## Test hooks (tools/tests/voice_test.gd, voice_mp_*.gd):
 ##   debug_inject_frame(peer_id, frame, seq := -1)  runs the receive path as if `peer_id` had sent it
@@ -188,6 +189,7 @@ class Output:
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_ensure_voice_bus()
+	_radio_ready() # M18 radio: the Radio bus (after the Voice bus it sends to), the late-join replay
 	load_settings()
 	_mic_possible = _detect_mic()
 	Game.world_ready.connect(_on_world_ready)
@@ -198,6 +200,7 @@ func _process(_delta: float) -> void:
 	var now := Time.get_ticks_msec()
 	_process_capture(now)
 	_process_outputs()
+	_radio_process(now) # M18 radio
 	_expire_speaking(now)
 
 # --- Public API (contract) --------------------------------------------------------------------------------------
@@ -522,6 +525,7 @@ func _send_frame(frame: PackedByteArray) -> void:
 	_send_seq = (_send_seq + 1) % SEQ_MODULO
 	_stats_sent += 1
 	_rpc_voice.rpc(_send_seq, frame)
+	_radio_sent() # M18 radio: the host's own frames count for its radio state
 
 # --- Transport --------------------------------------------------------------------------------------------------
 
@@ -570,6 +574,7 @@ func _receive(sender: int, seq: int, frame: PackedByteArray, now: int) -> void:
 	_stats_received += 1
 	_stats_lost += gap
 	_refresh_speaking(sender, now)
+	_radio_frame(sender, frame, now) # M18 radio: an accepted frame also plays at the other radios
 	_queue_playback(sender, frame, gap)
 
 func _drop(reason: String) -> void:
@@ -594,6 +599,499 @@ func _expire_speaking(now: int) -> void:
 		return
 	for k in _speaking.keys():
 		_refresh_speaking(int(k), now)
+
+# --- M18 radio ----------------------------------------------------------------------------------------------------
+# Walkie-talkies (CONTRACTS "M18", "Radio"; scripts/items/radio.gd). A worker holding a radio who transmits is heard,
+# besides the proximity voice above, at every OTHER radio in the world, held by anybody or lying anywhere (the back
+# room included).
+#   Who     The HOST decides. A peer is on the radio while its frames arrive (frames _receive accepted, every check
+#           above passed; for the host itself every frame _send_frame sends) and a radio is in its hands (its
+#           ItemManager.get_held_by item is a Const.ITEM_RADIO). It goes off RADIO_GAP_MS after its last frame, the
+#           moment the radio leaves its hands, or when it leaves the session. Every change goes to every peer as
+#           _rpc_radio(peer, on) (authority, call_local, reliable); a late joiner gets the running ones on
+#           Net.peer_registered. Clients never decide, they only apply.
+#   Where   Every peer, for every frame _receive accepted from a peer that is on the radio (never from itself: its own
+#           frames never come back, and a frame "from" the local id is skipped): the same frame, through the radio
+#           filter, at every radio item except the one the sender holds. One RadioOut per (sender, receiving radio):
+#           an AudioStreamGenerator (16 kHz, 0.15 s) on an AudioStreamPlayer3D "RadioVoice<sender>" added as a child
+#           of the radio item (never reparented; it goes with the radio), on the runtime bus "Radio" (high-pass +
+#           low-pass = a narrow band, a light overdrive; it sends to "Voice", so the voice volume applies) at
+#           Config.balance.radio_volume_db, inverse-distance from RADIO_UNIT_SIZE out to voice_range. The samples are
+#           bit-crushed to RADIO_CRUSH_LEVELS steps with a little hiss and the odd crackle (a per-output RNG seeded
+#           from the pair), soft-clipped. Jitter buffer like the proximity outputs. The outputs of a sender are freed
+#           when its transmission ends (or when their radio goes away).
+#   Sounds  On every change, every peer (Radio's cosmetics): the radio_on / radio_off click at the sending radio and
+#           at every receiving radio; while it runs the static loop and the lamp at the receiving radios, the lamp at
+#           the sending one (refreshed every frame while anybody is on the radio, so a radio picked up or spawned
+#           mid-transmission follows).
+#   Limits  Nothing new on the wire but _rpc_radio (host only). Frames ride the existing relay with its sender, size,
+#           rate and order checks; the radio path only ever sees frames _receive accepted. A power cut changes
+#           nothing (batteries).
+# Test hooks: get_radio_output_count(), get_radio_output_node(sender, radio), get_radio_stats(), RADIO_BUS.
+
+## Every peer: `peer_id` started / stopped transmitting through a radio (decided by the host).
+signal radio_changed(peer_id: int, on: bool)
+
+const RADIO_BUS: StringName = &"Radio"
+## A transmission ends this long after the sender's last frame.
+const RADIO_GAP_MS: int = 400
+## The band the Radio bus lets through (Hz) and its overdrive.
+const RADIO_LOW_CUT_HZ: float = 380.0
+const RADIO_HIGH_CUT_HZ: float = 2800.0
+const RADIO_BUS_DRIVE: float = 0.3
+## Sample treatment: quantisation steps per unit (a 5-6 bit sound), hiss, crackle (chance per sample, size), soft-clip drive.
+const RADIO_CRUSH_LEVELS: float = 24.0
+const RADIO_HISS: float = 0.012
+const RADIO_CRACKLE_CHANCE: float = 0.0015
+const RADIO_CRACKLE_MIN: float = 0.12
+const RADIO_CRACKLE_MAX: float = 0.35
+const RADIO_CRACKLE_DECAY: float = 0.55
+const RADIO_DRIVE: float = 1.6
+## A radio's small speaker: full level within this many metres, then inverse distance out to voice_range.
+const RADIO_UNIT_SIZE: float = 3.0
+## Where the voice comes out of a radio (item local: about the grille).
+const RADIO_SPEAKER_OFFSET := Vector3(0.0, 0.2, 0.0)
+
+## Playback of one sender at one receiving radio.
+class RadioOut:
+	var sender: int = 0
+	var radio_id: int = 0                   # instance id of the receiving radio item
+	var player: AudioStreamPlayer3D = null
+	var playback: AudioStreamGeneratorPlayback = null
+	var capacity: int = 0
+	var queue: Array[PackedVector2Array] = []
+	var primed: bool = false
+	var rng := RandomNumberGenerator.new()
+	var crackle: float = 0.0
+
+var _radio_on: Dictionary = {}          # peer -> true while it transmits through a radio (every peer; the host's word)
+var _radio_heard_ms: Dictionary = {}    # HOST: peer -> ticks of its last frame
+var _radio_outs: Dictionary = {}        # "sender:radio instance id" -> RadioOut
+var _radio_watched: Dictionary = {}     # radio instance id -> true (its tree_exiting releases its outputs)
+var _radio_stats_frames: int = 0        # frames that went to the radios (once per frame, whatever the radio count)
+var _radio_stats_queued: int = 0        # frames queued at a radio output (once per receiving radio)
+var _radio_stats_played: int = 0
+var _radio_stats_dropped: int = 0
+
+
+# --- public (contract) ---
+
+## True while `peer_id` transmits through a radio (every peer, as the host decided).
+func is_on_radio(peer_id: int) -> bool:
+	return _radio_on.has(peer_id)
+
+
+## The peers on the radio now, sorted.
+func get_radio_peers() -> Array[int]:
+	var out: Array[int] = []
+	for k in _radio_on.keys():
+		out.append(int(k))
+	out.sort()
+	return out
+
+
+## The radios playing a transmission now: every radio item that some peer on the radio is not holding.
+func get_radio_listeners() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	if _radio_on.is_empty():
+		return out
+	var held := _radio_sending_ids()
+	for r in _radio_items():
+		for p in _radio_on.keys():
+			if int(held.get(p, 0)) != r.get_instance_id():
+				out.append(r)
+				break
+	return out
+
+
+## True while the local worker transmits through a radio: the host says so, or (before its word arrives) the local
+## microphone is sending and the local worker holds a radio. The HUD's "RADIO" tag reads this.
+func is_transmitting_on_radio() -> bool:
+	if not Net.is_online():
+		return false
+	var me := multiplayer.get_unique_id()
+	return _radio_on.has(me) or (transmitting and _radio_held_by(me) != null)
+
+
+# --- test hooks ---
+
+## How many radio outputs exist (live players).
+func get_radio_output_count() -> int:
+	var n := 0
+	for k in _radio_outs.keys():
+		var o: RadioOut = _radio_outs[k]
+		if is_instance_valid(o.player) and o.player.is_inside_tree():
+			n += 1
+	return n
+
+
+## The output that plays `sender` at `radio` (null when there is none).
+func get_radio_output_node(sender: int, radio: Node) -> AudioStreamPlayer3D:
+	if radio == null or not is_instance_valid(radio):
+		return null
+	var o: RadioOut = _radio_outs.get(_radio_key(sender, radio.get_instance_id()))
+	if o == null or not is_instance_valid(o.player):
+		return null
+	return o.player
+
+
+## {frames, queued, played, dropped, outputs, peers}.
+func get_radio_stats() -> Dictionary:
+	return {
+		"frames": _radio_stats_frames,
+		"queued": _radio_stats_queued,
+		"played": _radio_stats_played,
+		"dropped": _radio_stats_dropped,
+		"outputs": get_radio_output_count(),
+		"peers": get_radio_peers(),
+	}
+
+
+# --- hooks (one line each in the code above) ---
+
+func _radio_ready() -> void:
+	_ensure_radio_bus()
+	if not Net.peer_registered.is_connected(_radio_on_peer_registered):
+		Net.peer_registered.connect(_radio_on_peer_registered)
+
+
+## _process: the host ends transmissions; every peer pumps the outputs and keeps the radios' cosmetics current.
+func _radio_process(now: int) -> void:
+	if _radio_on.is_empty() and _radio_outs.is_empty():
+		return
+	if _is_radio_host():
+		for k in _radio_on.keys():
+			var p := int(k)
+			if now - int(_radio_heard_ms.get(p, -RADIO_GAP_MS)) >= RADIO_GAP_MS or not Net.players.has(p) \
+					or _radio_held_by(p) == null:
+				_radio_set(p, false)
+	for k in _radio_outs.keys():
+		var o: RadioOut = _radio_outs[k]
+		if not is_instance_valid(o.player) or not o.player.is_inside_tree() or o.player.is_queued_for_deletion():
+			o.playback = null
+			o.queue.clear()
+			_radio_outs.erase(k)
+			continue
+		_radio_pump(o)
+	if not _radio_on.is_empty():
+		_radio_refresh_cosmetics()
+
+
+## _send_frame: the host's own transmission (clients' frames reach the host through _receive).
+func _radio_sent() -> void:
+	if not _is_radio_host():
+		return
+	var me := multiplayer.get_unique_id()
+	_radio_heard_ms[me] = Time.get_ticks_msec()
+	if not _radio_on.has(me) and _radio_held_by(me) != null:
+		_radio_set(me, true)
+
+
+## _receive, after every check passed: the host keeps the sender's clock (and puts it on the radio at once when it
+## holds one); every peer plays the frame at the other radios while the sender is on the radio.
+func _radio_frame(sender: int, frame: PackedByteArray, now: int) -> void:
+	if _is_radio_host():
+		_radio_heard_ms[sender] = now
+		if not _radio_on.has(sender) and _radio_held_by(sender) != null:
+			_radio_set(sender, true)
+	if not _radio_on.has(sender) or sender == multiplayer.get_unique_id():
+		return
+	var held := _radio_held_by(sender)
+	var any := false
+	for r in _radio_items():
+		if r == held:
+			continue
+		var o := _radio_ensure_out(sender, r)
+		if o == null:
+			continue
+		_radio_queue(o, frame)
+		any = true
+	if any:
+		_radio_stats_frames += 1
+
+
+## _forget_peer: a peer left. The host ends its transmission for everyone; a client just drops it.
+func _radio_forget(peer_id: int) -> void:
+	_radio_heard_ms.erase(peer_id)
+	if not _radio_on.has(peer_id):
+		return
+	if _is_radio_host():
+		_radio_set(peer_id, false)
+	else:
+		_radio_apply(peer_id, false)
+
+
+## _clear_peer_state (offline, back in the menu, shutdown()): every output released, every radio silent.
+func _radio_clear() -> void:
+	for k in _radio_outs.keys():
+		_radio_release_out(_radio_outs[k])
+	_radio_outs.clear()
+	_radio_heard_ms.clear()
+	var was: Array = _radio_on.keys()
+	_radio_on.clear()
+	for r in _radio_items():
+		if r.has_method(&"stop_sounds"):
+			r.call(&"stop_sounds")
+	for p in was:
+		radio_changed.emit(int(p), false)
+
+
+# --- state ---
+
+## HOST: puts `peer_id` on / off the radio for everyone (applied here too: call_local).
+func _radio_set(peer_id: int, on: bool) -> void:
+	if not on:
+		_radio_heard_ms.erase(peer_id)
+	_rpc_radio.rpc(peer_id, on)
+
+
+## Host -> every peer: `peer_id` is on / off the radio.
+@rpc("authority", "call_local", "reliable")
+func _rpc_radio(peer_id: int, on: bool) -> void:
+	if peer_id <= 0:
+		return
+	_radio_apply(peer_id, on)
+
+
+## HOST: a late joiner hears who is on the radio right now.
+func _radio_on_peer_registered(peer_id: int) -> void:
+	if not _is_radio_host() or peer_id == multiplayer.get_unique_id():
+		return
+	for k in _radio_on.keys():
+		_rpc_radio.rpc_id(peer_id, int(k), true)
+
+
+## Every peer: a transmission starts / stops here (idempotent).
+func _radio_apply(peer_id: int, on: bool) -> void:
+	if on == _radio_on.has(peer_id):
+		return
+	if on:
+		_radio_on[peer_id] = true
+	else:
+		_radio_on.erase(peer_id)
+		for k in _radio_outs.keys():
+			var o: RadioOut = _radio_outs[k]
+			if o.sender == peer_id:
+				_radio_release_out(o)
+				_radio_outs.erase(k)
+	# Both ends click: the radio in the sender's hands and every radio that carries it (every other one).
+	for r in _radio_items():
+		_radio_click(r, on)
+	_radio_refresh_cosmetics()
+	radio_changed.emit(peer_id, on)
+
+
+## Lamps and static at every radio from the current state: sending while its holder is on the radio, receiving while
+## anybody else is.
+func _radio_refresh_cosmetics() -> void:
+	var held := _radio_sending_ids()
+	for r in _radio_items():
+		var id := r.get_instance_id()
+		var sending := false
+		var receiving := false
+		for p in _radio_on.keys():
+			if int(held.get(p, 0)) == id:
+				sending = true
+			else:
+				receiving = true
+		if r.has_method(&"set_sending"):
+			r.call(&"set_sending", sending)
+		if r.has_method(&"set_receiving"):
+			r.call(&"set_receiving", receiving)
+
+
+func _radio_click(radio: Node3D, on: bool) -> void:
+	if radio.has_method(&"play_click"):
+		radio.call(&"play_click", on)
+
+
+# --- outputs ---
+
+func _radio_key(sender: int, radio_id: int) -> String:
+	return "%d:%d" % [sender, radio_id]
+
+
+func _radio_ensure_out(sender: int, radio: Node3D) -> RadioOut:
+	var rid := radio.get_instance_id()
+	var key := _radio_key(sender, rid)
+	var o: RadioOut = _radio_outs.get(key)
+	if o != null and is_instance_valid(o.player) and o.player.is_inside_tree() and not o.player.is_queued_for_deletion():
+		return o
+	if o != null:
+		_radio_release_out(o)
+		_radio_outs.erase(key)
+	if not radio.is_inside_tree() or radio.is_queued_for_deletion():
+		return null
+	o = RadioOut.new()
+	o.sender = sender
+	o.radio_id = rid
+	o.rng.seed = hash(key)
+	var gen := AudioStreamGenerator.new()
+	gen.mix_rate = float(SAMPLE_RATE)
+	gen.buffer_length = 0.15
+	var p := AudioStreamPlayer3D.new()
+	p.name = "RadioVoice%d" % sender
+	p.stream = gen
+	p.bus = RADIO_BUS if AudioServer.get_bus_index(RADIO_BUS) != -1 else VOICE_BUS
+	p.volume_db = Config.balance.radio_volume_db
+	p.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+	p.unit_size = RADIO_UNIT_SIZE
+	p.max_distance = maxf(Config.balance.voice_range, RADIO_UNIT_SIZE)
+	p.max_db = 0.0
+	p.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_DISABLED
+	p.position = RADIO_SPEAKER_OFFSET
+	radio.add_child(p)
+	p.play()
+	o.player = p
+	o.playback = p.get_stream_playback() as AudioStreamGeneratorPlayback
+	if o.playback != null:
+		o.capacity = o.playback.get_frames_available()
+	_radio_outs[key] = o
+	if not _radio_watched.has(rid):
+		_radio_watched[rid] = true
+		radio.tree_exiting.connect(_on_radio_exiting.bind(rid), CONNECT_ONE_SHOT)
+	return o
+
+
+## A radio leaves the tree (despawned, the world freed): its outputs go with it; let go of their playbacks now.
+func _on_radio_exiting(radio_id: int) -> void:
+	_radio_watched.erase(radio_id)
+	for k in _radio_outs.keys():
+		var o: RadioOut = _radio_outs[k]
+		if o.radio_id == radio_id:
+			o.playback = null
+			o.queue.clear()
+			if is_instance_valid(o.player) and o.player.is_inside_tree():
+				o.player.stop()
+			o.player = null
+			_radio_outs.erase(k)
+
+
+## Stops and frees one output, its generator playback first.
+func _radio_release_out(o: RadioOut) -> void:
+	o.playback = null
+	o.queue.clear()
+	if is_instance_valid(o.player) and not o.player.is_queued_for_deletion():
+		if o.player.is_inside_tree():
+			o.player.stop()
+		o.player.queue_free()
+	o.player = null
+
+
+## Decodes `frame` through the radio treatment into the output's jitter queue.
+func _radio_queue(o: RadioOut, frame: PackedByteArray) -> void:
+	var mono := decode_mulaw(frame)
+	var stereo := PackedVector2Array()
+	stereo.resize(mono.size())
+	for i in mono.size():
+		var s := roundf(mono[i] * RADIO_CRUSH_LEVELS) / RADIO_CRUSH_LEVELS
+		s += (o.rng.randf() * 2.0 - 1.0) * RADIO_HISS
+		if o.rng.randf() < RADIO_CRACKLE_CHANCE:
+			o.crackle = o.rng.randf_range(RADIO_CRACKLE_MIN, RADIO_CRACKLE_MAX) * (1.0 if o.rng.randf() < 0.5 else -1.0)
+		s += o.crackle
+		o.crackle *= RADIO_CRACKLE_DECAY
+		s = tanh(s * RADIO_DRIVE)
+		stereo[i] = Vector2(s, s)
+	o.queue.append(stereo)
+	_radio_stats_queued += 1
+	while o.queue.size() > JITTER_MAX_FRAMES:
+		o.queue.pop_front()
+		_radio_stats_dropped += 1
+
+
+## Jitter buffer -> generator, like _pump (its own counters).
+func _radio_pump(o: RadioOut) -> void:
+	if o.playback == null:
+		if is_instance_valid(o.player) and o.player.playing:
+			o.playback = o.player.get_stream_playback() as AudioStreamGeneratorPlayback
+			if o.playback != null:
+				o.capacity = o.playback.get_frames_available()
+		if o.playback == null:
+			return
+	if not o.primed:
+		if o.queue.size() < JITTER_START_FRAMES:
+			return
+		o.primed = true
+	while not o.queue.is_empty():
+		var frame: PackedVector2Array = o.queue[0]
+		if o.playback.get_frames_available() < frame.size():
+			break
+		o.queue.pop_front()
+		o.playback.push_buffer(frame)
+		_radio_stats_played += 1
+	if o.queue.is_empty() and o.capacity > 0 and o.playback.get_frames_available() >= o.capacity - FRAME_SAMPLES:
+		var silence := PackedVector2Array()
+		silence.resize(FRAME_SAMPLES)
+		o.playback.push_buffer(silence)
+		o.primed = false
+
+
+# --- helpers ---
+
+func _is_radio_host() -> bool:
+	return Net.is_host and multiplayer.has_multiplayer_peer() and multiplayer.is_server()
+
+
+## Every radio item in the current world.
+func _radio_items() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	var w: Node = Game.world
+	if w == null or not is_instance_valid(w):
+		return out
+	var items: ItemManager = w.get(&"items") as ItemManager
+	if items == null or not is_instance_valid(items):
+		return out
+	for it in items.get_items_of_type(Const.ITEM_RADIO):
+		if it.is_inside_tree():
+			out.append(it)
+	return out
+
+
+## The radio `peer_id` holds, or null.
+func _radio_held_by(peer_id: int) -> Node3D:
+	var w: Node = Game.world
+	if w == null or not is_instance_valid(w):
+		return null
+	var items: ItemManager = w.get(&"items") as ItemManager
+	if items == null or not is_instance_valid(items):
+		return null
+	var it := items.get_held_by(peer_id)
+	return it if it != null and it.item_type == Const.ITEM_RADIO else null
+
+
+## peer on the radio -> instance id of the radio it holds now (0 = none).
+func _radio_sending_ids() -> Dictionary:
+	var out := {}
+	for k in _radio_on.keys():
+		var r := _radio_held_by(int(k))
+		out[k] = r.get_instance_id() if r != null else 0
+	return out
+
+
+func _ensure_radio_bus() -> void:
+	var idx := AudioServer.get_bus_index(RADIO_BUS)
+	if idx == -1:
+		AudioServer.add_bus()
+		idx = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(idx, RADIO_BUS)
+		var low_cut := AudioEffectHighPassFilter.new()
+		low_cut.cutoff_hz = RADIO_LOW_CUT_HZ
+		low_cut.db = AudioEffectFilter.FILTER_24DB
+		AudioServer.add_bus_effect(idx, low_cut)
+		var high_cut := AudioEffectLowPassFilter.new()
+		high_cut.cutoff_hz = RADIO_HIGH_CUT_HZ
+		high_cut.db = AudioEffectFilter.FILTER_24DB
+		AudioServer.add_bus_effect(idx, high_cut)
+		var drive := AudioEffectDistortion.new()
+		drive.mode = AudioEffectDistortion.MODE_OVERDRIVE
+		drive.drive = RADIO_BUS_DRIVE
+		drive.post_gain = -2.0
+		AudioServer.add_bus_effect(idx, drive)
+	# A bus can only send to one mixed after it (a lower index): the Voice bus when that holds, else Master.
+	var voice_idx := AudioServer.get_bus_index(VOICE_BUS)
+	AudioServer.set_bus_send(idx, VOICE_BUS if voice_idx != -1 and voice_idx < idx else &"Master")
+
+# --- end M18 radio ------------------------------------------------------------------------------------------------
 
 # --- Playback ---------------------------------------------------------------------------------------------------
 
@@ -626,6 +1124,7 @@ func _forget_peer(peer_id: int, now: int) -> void:
 	if o != null:
 		_outputs.erase(peer_id)
 		_release_output(o)
+	_radio_forget(peer_id) # M18 radio
 	_refresh_speaking(peer_id, now)
 
 ## Stops and frees an emitter, letting go of its generator playback first.
@@ -656,6 +1155,7 @@ func _clear_peer_state() -> void:
 	_debug_seq.clear()
 	_gate_open_until_ms = 0
 	_clear_outputs()
+	_radio_clear() # M18 radio: the radio outputs and the radios' sounds go too (shutdown() comes through here)
 	for k in _speaking.keys().duplicate():
 		_last_heard_ms.erase(k)
 		_refresh_speaking(int(k), now)

@@ -1142,6 +1142,27 @@
   ],
   "tris": 2980
  },
+ "radio": {
+  "front": "-z",
+  "kind": "item",
+  "materials": [
+   "radio_case",
+   "radio_worn",
+   "toon_void",
+   "toon_cream",
+   "toon_dark",
+   "radio_tape",
+   "radio_lamp"
+  ],
+  "mount": "floor",
+  "script": "tools/blender/models/radio.py",
+  "size": [
+   0.168,
+   0.409,
+   0.106
+  ],
+  "tris": 1248
+ },
  "rat": {
   "front": "-z",
   "kind": "character",
