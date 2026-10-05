@@ -1469,3 +1469,42 @@ carries the payment targets. `tools/tests/m18_shots_body.gd` is the capture tool
 
 **Known gaps.** None of the M18 sounds has been heard by a human (radio clicks and static, spore puff, cough,
 gesture). The radio filter itself is unheard. `qa_m12_4p` still has its own restock race (host 78, peer 77).
+
+### M19 as delivered (integration notes, lead, 2026-10-05)
+Three branches merged (settings, onboarding, readability). Release bar: L2 and R4 are true; D1 is true for every
+scheduled disruption (the audit table is in tools/tests/readability_audit.md); L1 waits on a human playtest.
+
+**Settings (settings).** `Settings` autoload (`scripts/core/settings.gd`), one file `user://settings.cfg`
+(sections controls / video / audio / game; the menu's [menu] section is copied byte for byte), its own tolerant
+parser, temp file + rename, `--settings-file=<path>`; without it a headless or `-s` run keeps everything in memory
+(Career's rule). Keys: mouse_sensitivity, invert_y, fov (default **80**, the camera's old value), fullscreen,
+window_scale (1 / 1.5 / 2, fitted to the screen), vsync, master_db / sfx_db / voice_db (-30..+6), **muted** (the
+Sound toggle; audio.cfg and voice.cfg are migrated once into the real file and then only read for migration),
+guidance (default: on while Career has no shift worked, then off, unless set). The OPTIONS card
+(`scenes/ui/options_card.tscn`) from the main menu (Options beside "Walk out") and the break card (OPTIONS between
+BACK TO WORK and CLOCK OUT); the key list lives on it. The main menu shows "v" + Game.get_version() under the title.
+net_test used to write the user's real settings.cfg: it now passes `--settings-file`.
+
+**Onboarding (onboarding).** `Guide` (`scripts/core/guide.gd`, `/root/Story/Guide`, `Story.guide`): buy, plant,
+water, wait, harvest, deposit, payment; each step done when anybody on the crew has done it (read from the synced
+state), said once when the Boss has been quiet 3 s and once more after `guide_step_timeout_sec`; a hint line
+`World/HUD/Root/GuideHint` above the prompt (x 430..850, bottom at y 550). Gate: `--no-guide` / `--guide`, otherwise
+the real game with replay on, and the player either has no shift on file or guidance on. The first shift a player
+works turns guidance off. The alley board's first line and a van hint for a first-timer.
+
+**Readability (readability).** Every scheduled disruption has a tell (`Events.READ_TELL_SEC`: inspection 3, power
+cut 3 with a flicker, audit 8 with a countdown and a raise on what is still owed, rat 3, water off 5, leak 3,
+drive-by 3.5 (`driveby_warning_sec` 3.5, lead), sprinklers 3, scale 3) through `Events.server_start_scheduled`; a bare
+`server_start_event` is as before (the older suites keep their pins). Hints name the answer. The shift report's
+WHAT IT COST block (three lines, dearest first) from a per-shift cost ledger the host syncs. Toasts capped at three.
+Black Damp's motes start 3.5 s before it ripens, with one toast a shift. The flamethrower is player-made (no tell).
+
+**Lead fixes at integration.** The Record card's wrapping labels got a width (the card grew to 2500 px with the new
+pause menu). The onboarding suite counts Settings writes, not `changed` (guidance's dynamic default flips without a
+write). The economy model charges a drive-by a fixed 2.5 s duck plus the firing (a longer warning used to cost more
+in the model). The events suite accepts the power-cut flicker. Toasts draw under the end-of-shift card and the break
+menu while they are open (`HUD.are_toasts_under_cards()`; the report's last line was hidden under three toasts).
+
+**Suites and ports.** onboarding +12 / +13, settings +14 / +15, readability +16 / +17.
+`tools/tests/m19_shots_body.gd` (the busiest moments) and `tools/tests/m19_menu_shots_body.gd` (menus, options, the
+guide) are the capture tools.

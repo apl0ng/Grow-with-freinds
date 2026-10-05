@@ -196,6 +196,7 @@ func _ready() -> void:
 	_radio_hud_ready() # M18 radio: "RADIO" next to the talk mark in the WORKERS rows while that worker is on the radio
 	_onboarding_ready() # M19 onboarding: the guide's hint line in the lower middle, just above the prompt
 	_read_hud_ready() # M19 readability: hints that name the answer, the tell on the banner, the GO banner under the column
+	_m19_lead_ready() # M19 lead: toasts draw under the end-of-shift card and the break menu while they are open
 
 	_ui_locked = Game.is_ui_locked()
 	_stats_ready = GameState.phase != GameState.Phase.MENU
@@ -1795,3 +1796,37 @@ func _finale_refresh_title() -> void:
 		_finale_title.remove_theme_color_override(&"font_color")
 
 # --- end M17 finale ------------------------------------------------------------------------------------------------
+
+
+# --- M19 lead: toasts under the cards ------------------------------------------------------------------------------
+# The toast stack (bottom right) is the last child of Root, so it drew over the end-of-shift card and the break menu
+# (and its OPTIONS card) and cut off their right edge (seen in the M19 capture: the report's last verdict line under
+# three toasts). While either card is open the stack moves just below them in Root's draw order; it goes back on top
+# when both are closed. move_child only changes the drawing order (nothing is reparented).
+
+var _toasts_index: int = -1
+
+
+func _m19_lead_ready() -> void:
+	_toasts_index = toasts.get_index()
+	round_end.visibility_changed.connect(_place_toasts)
+	pause_menu.visibility_changed.connect(_place_toasts)
+	_place_toasts()
+
+
+## True while the toast stack is drawn under the end-of-shift card / the break menu (tests).
+func are_toasts_under_cards() -> bool:
+	return toasts.get_index() < round_end.get_index()
+
+
+func _place_toasts() -> void:
+	if not is_instance_valid(toasts) or toasts.get_parent() == null:
+		return
+	var root := toasts.get_parent()
+	if round_end.visible or pause_menu.visible:
+		if toasts.get_index() > round_end.get_index():
+			root.move_child(toasts, mini(round_end.get_index(), pause_menu.get_index()))
+	elif toasts.get_index() != _toasts_index:
+		root.move_child(toasts, mini(_toasts_index, root.get_child_count() - 1))
+
+# --- end M19 lead --------------------------------------------------------------------------------------------------

@@ -102,6 +102,15 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 - The payment due (M18): $350, then x1.82 + 500 a shift for one worker, so a careful worker alone can clear the
   four-shift debt about half the time. A crew pays more, most in the middle of the run (four workers: x1.46 in
   shift 1, x2.27 in shift 3, x1.40 in shift 6).
+- The first shift teaches itself (M19): on a first run the Boss says each next step at his window (buy seeds, plant,
+  fill a can and water, wait, harvest, deposit, then what the payment bar is) and a line above the prompt shows the
+  key. A step counts when anybody on the crew does it; the guidance turns itself off after your first shift.
+- OPTIONS (M19): Options on the main menu, OPTIONS on the break card: mouse speed, invert Y, field of view,
+  fullscreen, window size, VSync, master / effects / voice volume, the first-shift guidance, and the key list. Kept
+  per player in `user://settings.cfg`. The main menu shows the version.
+- Every disruption warns first (M19): at least three seconds before it costs anything (the lights flicker before a
+  power cut, the audit counts down, the rat waits, the scale still reads right), and every banner hint says what to
+  do. The shift report ends with what the trouble cost, the three dearest first.
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows
