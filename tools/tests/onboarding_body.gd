@@ -18,8 +18,9 @@ extends "res://tools/tests/qa_base.gd"
 ##                 pick up / fill / pour), Bob fills and pours -> wait, the tray ripens -> harvest, the host harvests ->
 ##                 deposit, Bob deposits -> the payment line, the guide is over, its hint stays PAYMENT_HINT_SEC; every
 ##                 line at the Boss (his bark label, Story.bark_log) and the normal lines still there; the hint on the
-##                 HUD (World/HUD/Root/GuideHint), clear of the prompt, the chat, the toasts and the top column, hidden
-##                 by a UI lock, never a lock or a pause itself
+##                 HUD (World/HUD/Root/GuideHint, x 430..850, bottom edge y 550 at 1280 x 720), clear of the prompt, the
+##                 held item, the chat, the toasts and the top column (also with a long prompt, a long held item and a
+##                 full toast stack), hidden by a UI lock, never a lock or a pause itself
 ##   the end       the shift's end switches guidance off (Settings.set_value(&"guidance", false)), the record has the
 ##                 shift; START OVER: nothing for that player any more
 ##   START OVER    mid-shift for a player with no shift on file: the guide starts from the top again; the shift ending
@@ -185,14 +186,13 @@ func _check_hint_rect(tag: String) -> void:
 	var r := panel.get_global_rect()
 	print("      [%s] GuideHint rect %s (text '%s')" % [tag, r, hud.get_guide_hint_text()])
 	check(get_viewport().get_visible_rect().size == Vector2(1280, 720), "[%s] the frame is 1280 x 720" % tag)
-	check(is_equal_approx(r.position.x, 430.0) and is_equal_approx(r.end.x, 850.0) and is_equal_approx(r.position.y, 620.0) and r.end.y <= 700.0,
-			"[%s] x 430..850, from y 620 down (%s)" % [tag, r])
-	var prompt_bottom := 720.0 - 110.0
-	check(r.position.y > prompt_bottom, "[%s] below the prompt panel's bottom edge (%.0f)" % [tag, prompt_bottom])
+	check(is_equal_approx(r.position.x, 430.0) and is_equal_approx(r.end.x, 850.0) and is_equal_approx(r.end.y, 550.0) and r.position.y >= 470.0,
+			"[%s] x 430..850, the bottom edge at y 550 (%s)" % [tag, r])
 	var others := {
 		"the centre banner": hud.banner, "the event banner": hud.event_panel, "the payment column": hud.quota_panel,
 		"the chips": hud.get_condition_chips(), "the job line": hud.get(&"_career_job_label"), "the toasts": hud.toasts,
 		"the chat": hud.chat, "the go banner": hud.go_banner, "the workers": hud.players_panel,
+		"the prompt": hud.prompt_panel, "the held item": hud.held_panel,
 	}
 	for what: String in others:
 		var c := others[what] as Control
@@ -201,6 +201,8 @@ func _check_hint_rect(tag: String) -> void:
 		var cr := c.get_global_rect()
 		if what == "the toasts" or what == "the chat":
 			cr = Rect2(Vector2(cr.position.x, 0.0), Vector2(cr.size.x, 720.0)) # both grow upwards from the bottom
+		if what == "the prompt" and not c.visible:
+			cr = Rect2(Vector2(0.0, 558.0), Vector2(1280.0, 52.0)) # where its one line stands when it shows
 		check(not r.intersects(cr), "[%s] clear of %s (%s)" % [tag, what, cr])
 
 
@@ -285,6 +287,18 @@ func _test_walk(b: BalanceConfig) -> void:
 	await wait_frames(2)
 	check(hud.get_guide_hint().visible and (hud.get_guide_hint().get_node(^"Label") as Label).text == Guide.ALLEY_LINE, "shown on the HUD")
 	_check_hint_rect("the van's line, waiting")
+	# The busiest bottom of the screen: a long prompt, a long held item, a full toast stack.
+	var bundle := items.server_spawn_item(Const.ITEM_PRODUCT, {"strain_id": "golden", "amount": 3, "cured": true, "dry_left": 12.5}, me.global_position, 1)
+	hud.call(&"_on_prompt_changed", "Deposit Golden Kush x3, cured, heavy (+$560)", true)
+	for i in HUD.MAX_TOASTS:
+		hud.show_toast("Job: three cured bundles of one strain. $60. (%d)" % i, &"info")
+	await wait_sec(0.3)
+	check(hud.prompt_panel.visible and hud.held_panel.visible and hud.get_toast_count() == HUD.MAX_TOASTS,
+			"a long prompt, a long held item ('%s'), %d toasts" % [hud.held_label.text, hud.get_toast_count()])
+	_check_hint_rect("the busy bottom")
+	hud.call(&"_on_prompt_changed", "", false)
+	items.server_despawn_item(bundle)
+	await wait_frames(2)
 	guide.tick(Guide.VAN_HINT_SEC + 0.1)
 	check(hud.get_guide_hint_text() == "", "gone after %.0f s" % Guide.VAN_HINT_SEC)
 	_put_me(floor_spot)

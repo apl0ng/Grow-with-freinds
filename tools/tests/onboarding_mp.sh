@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # M19 onboarding multi-process suite (onboarding agent): a host and two clients as separate headless processes on the
-# real game stack (tools/tests/onboarding_mp_body.gd), plain game with --guide, each with its own temp career file
+# real game stack (tools/tests/onboarding_mp_body.gd), with --guide --replay --run=B5VP (the game a player runs:
+# the market, the job, the unlocks; no conditions in shift 1), each with its own temp career file
 # (user://onboarding_mp_<port>_<name>.cfg, removed at the end) and a fake Settings object (nothing is ever saved).
 # The host has a record and guidance off: no guide. Alpha has no record: her guide walks the first shift while the
 # HOST does every step (buy, plant, water, the tray ripens, harvest, deposit), each step read from the synced state.
@@ -42,7 +43,7 @@ PIDS=()
 launch() { # name args...
   local name=$1; shift
   timeout 200 "$GODOT" --headless --path . -s res://tools/tests/run_test.gd -- \
-    --body=res://tools/tests/onboarding_mp_body.gd --port="$PORT" --round-sec=900 --guide --run=B5VP --career-file="user://onboarding_mp_${PORT}_${name}.cfg" "$@" >"$LOGS/onb_$name.log" 2>&1 &
+    --body=res://tools/tests/onboarding_mp_body.gd --port="$PORT" --round-sec=900 --guide --replay --run=B5VP --career-file="user://onboarding_mp_${PORT}_${name}.cfg" "$@" >"$LOGS/onb_$name.log" 2>&1 &
   PIDS+=("$!:$name")
 }
 wait_for_line() { # file pattern seconds
