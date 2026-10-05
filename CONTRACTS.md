@@ -1508,3 +1508,72 @@ menu while they are open (`HUD.are_toasts_under_cards()`; the report's last line
 **Suites and ports.** onboarding +12 / +13, settings +14 / +15, readability +16 / +17.
 `tools/tests/m19_shots_body.gd` (the busiest moments) and `tools/tests/m19_menu_shots_body.gd` (menus, options, the
 guide) are the capture tools.
+
+## M20 — one more run: debt levels, the run summary, achievements, economy3 (lead prep)
+RELEASE.md, M20 (closes P1, P2, P3). Four agents in worktrees `.claude/worktrees/<agent>20` on `m20/<agent>`:
+**debt**, **summary**, **achievements**, **economy3**. tools/dev/AGENT_RULES.md applies (milestone M20; base ports
+debt 9100, summary 9200, achievements 9300, economy3 9400). Test ports: debt +18 / debt_mp +19, summary +1 /
+summary_mp +2, achievements +3 / achievements_mp +4; economy3 extends `economy`.
+Shared file rules for this wave: `scripts/core/career.gd` gets one region per agent (`# --- M20 debt ---`,
+`# --- M20 summary ---`, `# --- M20 achievements ---`), each with its own record keys (add them to `KEYS` with a
+tagged one-line hook each); the debt modifiers' numbers are lead-prepared fields in BalanceConfig "M20 debt" (below): the debt agent reads them,
+economy3 tunes their values in data/balance.tres (CRLF, hand-edited) and tools/gen_balance.gd.
+
+### Prep already in place (lead)
+- `BalanceConfig` group "M20 debt": `debt_max_level` 5; `debt_payment_raise` 0.12 (level 2 and up: the payment x (1 +
+  raise)); `debt_extra_conditions` 1 (level 3 and up: this many more conditions every shift); `debt_favor_cost_raise`
+  0.5 and `debt_market_swing_add` 0.1 (level 4 and up); `debt_final_extra_shifts` 1 and `debt_final_look_raise` 0.2
+  (level 5: the final notice comes one shift later and its half-time look raises this much instead of
+  `final_interim_raise`). Level 1 reads none of them.
+
+### Debt levels (debt agent) — scripts/core/debt.gd (new), game_state.gd region, the alley, career region, hats
+- **Levels 1 to 5.** Level 1 is the game as it is. Clearing a run at level N opens N + 1 for this player (Career key
+  `debt_level`: the highest level cleared; the host's record decides what the HOST may pick; every peer's own record
+  counts its own clears). Each level adds ONE modifier on top of the previous ones, chosen so the level is harder in
+  a way players notice and talk about: e.g. 2 "The rate goes up" (payment +12%), 3 "He brings friends" (an extra
+  condition every shift), 4 "No credit" (favors cost 50% more, the market swings wider), 5 "Final, final notice" (the
+  last shift is one longer and the half-time look raises 20%). Numbers in BalanceConfig "M20 debt".
+- **Picking it.** In the alley, the host chooses the level before the van leaves (the board's NEXT column shows
+  "Debt level 3: He brings friends." and a second line per active modifier; a lever, a clipboard or the board itself
+  is the control: E cycles the levels the host has open; clients see it). With the lobby off, `--debt=<n>` and the
+  host panel (one more field) set it. The level is synced in the state (`"debt": {"level": int}`), shown as a chip
+  ("Debt 3"), carried in the run code (`RunSeed`: the same code at another level is another run; keep codes for
+  level 1 exactly as they are), and in the run summary.
+- **On file.** `debt_level` (highest cleared), a hat per level 2..5 (Hats catalog rows; models in hats.py; the
+  locker shows them), a title line on the Record card ("Debt level 3 cleared").
+- With replay off: always level 1, nothing shown (the older suites).
+- Suites `debt` (+18) and `debt_mp` (+19).
+
+### The run summary (summary agent) — scripts/ui/run_summary.gd + scene (new), round_end, career region
+- After PAID IN FULL and after a missed payment, the end card gets a RUN page (a second page or a button "RUN"):
+  the run's numbers (shifts paid, deposited in all, cash on hand, the debt level, the run code), the three worst
+  moments of the run (from the cost ledger M19 keeps per shift: keep a per-run copy; the dearest three with their
+  shift number), one line per worker (deposited, written up, fogged, bitten), and **next on file**: the next hat and
+  what issues it, the next title, the next debt level ("Clear level 3 to open level 4.").
+- Personal bests in the career file (region): best deposited in a run, fastest clear (shifts / minutes), per run
+  code for the weekly code ("This week: best $14,210."); "New best." on the page when one falls.
+- Flat copy; the same card look; keyboard and mouse; clients see the same page (synced with the report).
+- Suites `summary` (+1) and `summary_mp` (+2).
+
+### Achievements (achievements agent) — scripts/core/achievements.gd (new), career region, the Record card, hats
+- **Twenty achievements** in a catalog (`Achievements`): id, flat name, one flat line, a test on the career record
+  or on the shift's events, evaluated on each peer for its own record at the end of a shift / a run, plus a few on
+  the spot. Names in the game's tone, e.g. "Paid on the buzzer" (the payment met with under 5 s left), "Nobody saw
+  anything" (a raid that took nothing), "Burnt the floor" (five trays scorched in one shift), "Breathed it in" (fogged
+  three times in one shift), "On the radio" (talked on the radio for 60 s in a run), "Back room regular" (sent to
+  the back room in three shifts of one run), "Clean run" (no write-up in a whole run), "The phone was for you"
+  (answered the phone five times), "Debt level 5". Three of them issue hats (Hats rows + models).
+- Shown on the Record card ("Achievements: 7 of 20") and a page listing them (got / not yet, the line for each);
+  a toast when one is got ("On file: Paid on the buzzer.").
+- Own screen only: a got achievement is a toast on that player's screen and a line on their Record; nothing is sent.
+- Suites `achievements` (+3) and `achievements_mp` (+4).
+
+### Economy 3 (economy3 agent) — tools/tests/econ_sim.gd, the economy suite, BalanceConfig "M20 debt" numbers
+- Extend the model to debt levels (each modifier priced), and tune the debt agent's numbers so that: level 2 is
+  cleared by a careful full crew about two times in three, level 3 about half the time, level 5 rarely (one in five
+  at most) and never without favors, racks and cured bundles; a careful solo worker clears level 2 sometimes and
+  level 4 never. Level 1 stays exactly as M18 tuned it.
+- Works in parallel with the debt agent: start from the contract's modifier list and its numbers as named fields;
+  agree on the field names through CONTRACTS (the debt agent owns the code, economy3 the numbers): if a field the
+  model needs is missing, report it instead of editing debt code.
+- Pins in the economy suite; a table per level in the report.

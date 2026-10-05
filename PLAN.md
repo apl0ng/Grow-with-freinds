@@ -350,3 +350,14 @@ RELEASE.md M19; CONTRACTS.md "M19".
 | 19.2 | Settings: sensitivity, invert Y, field of view, volume buses, display, guidance; the OPTIONS card; the version on the menu; settings + settings_mp suites | settings | done (199 + 56 checks) |
 | 19.3 | The disruption audit against RELEASE D1, "what it cost" lines in the report, a decluttered HUD, a capture tool; readability + readability_mp suites | readability | done (138 + 70 checks; the audit table in tools/tests/readability_audit.md) |
 | 19.4 | Integration: merges, captures of a whole first run, the audit table in CONTRACTS, full run, export | lead | done (100 suites, 16963 checks green; version 0.19.0; export re-cut) |
+
+## M20 One more run: debt levels, the run summary, achievements, economy3 (in progress, 2026-10-05)
+RELEASE.md M20 (P1, P2, P3); CONTRACTS.md "M20".
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 20.0 | Prep: BalanceConfig group "M20 debt" (the five levels' modifier numbers) | lead | done |
+| 20.1 | Debt levels 1-5: the picker in the alley, the modifiers, the chip, the run code, the record, a hat per level; debt + debt_mp suites | debt | in progress |
+| 20.2 | The run summary page: the run's numbers, the three worst moments, per-worker lines, next on file, personal bests; summary + summary_mp suites | summary | in progress |
+| 20.3 | Twenty achievements, the Record card count and page, three hats; achievements + achievements_mp suites | achievements | in progress |
+| 20.4 | The economy model at each debt level; the modifier numbers tuned; economy suite | economy3 | in progress |
+| 20.5 | Integration: merges, captures, docs, full run, export | lead | pending |

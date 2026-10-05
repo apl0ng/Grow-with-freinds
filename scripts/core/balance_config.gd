@@ -231,6 +231,22 @@ extends Resource
 ## The first-shift guide: a step the crew has not done is said once more after this many seconds.
 @export var guide_step_timeout_sec: float = 25.0
 
+@export_group("M20 debt")
+## Debt levels (CONTRACTS "M20"): level 1 is the game as tuned in M18; each level adds one modifier on top of the
+## ones before it. The debt agent reads these; economy3 tunes them (values in data/balance.tres).
+@export var debt_max_level: int = 5
+## Level 2 and up: the payment due x (1 + this).
+@export var debt_payment_raise: float = 0.12
+## Level 3 and up: this many more shift conditions every shift.
+@export var debt_extra_conditions: int = 1
+## Level 4 and up: favors cost this much more, and the market swings this much wider.
+@export var debt_favor_cost_raise: float = 0.5
+@export var debt_market_swing_add: float = 0.1
+## Level 5: the final notice comes this many shifts later, and its half-time look raises this much (instead of
+## final_interim_raise).
+@export var debt_final_extra_shifts: int = 1
+@export var debt_final_look_raise: float = 0.2
+
 @export_group("Networking")
 @export var default_port: int = 7777
 @export var max_players: int = 4
