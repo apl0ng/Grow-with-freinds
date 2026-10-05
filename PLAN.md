@@ -322,17 +322,17 @@ section 11, CONTRACTS.md "M17".
 | 17.3 | Events: the scale that reads light, the phone; weights for fourteen kinds; mayhem3 + mayhem3_mp suites | mayhem3 | done (194 + 69 checks; the lead capped retries of a told kind) |
 | 17.4 | Integration: merges, test_all registration, captures in the real renderer, README, full run, export; the exit crash found and fixed (Game.quit_gracefully, quit suite) | lead | done (88 suites, 15470 checks green; export re-cut) |
 
-## M18 Radios, spores, gestures, a fairer payment for full crews (in progress, 2026-10-04)
+## M18 Radios, spores, gestures, a fairer payment for full crews (done, 2026-10-05)
 The user asked for "more" after M17 (2026-10-04); the lead chose this scope: FRIENDSLOP.md section 12, CONTRACTS.md
 "M18".
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | 18.0 | Prep: Const.ITEM_RADIO, input actions emote_1..4, BalanceConfig group M18 and quota_team_growth, Sfx names | lead | done |
-| 18.1 | Walkie-talkies: radio voice to every other radio, the shelf, clicks and static; radio + radio_mp suites | radio | in progress |
-| 18.2 | Black Damp (seventh strain): spore clouds, fogged workers (screen, hearing, coughing); spores + spores_mp suites | spores | in progress |
-| 18.3 | Gestures: point, half-wave, shrug, slump; emotes + emotes_mp suites | emotes | in progress |
-| 18.4 | The payment for full crews grows by shift (quota_team_growth) against the final notice; economy suite | economy2 | in progress |
-| 18.5 | Integration: merges, test_all registration, captures in the real renderer, README, full run, export | lead | pending |
+| 18.1 | Walkie-talkies: radio voice to every other radio, the shelf, clicks and static; radio + radio_mp suites | radio | done (119 + 76 checks) |
+| 18.2 | Black Damp (seventh strain): spore clouds, fogged workers (screen, hearing, coughing); spores + spores_mp suites | spores | done (114 + 62 checks) |
+| 18.3 | Gestures: point, half-wave, shrug, slump; emotes + emotes_mp suites | emotes | done (124 + 70 checks) |
+| 18.4 | The payment for full crews grows by shift (quota_team_growth) against the final notice; economy suite | economy2 | done (a per-shift team table and size curve replaced quota_team_growth; solo x1.82 + 500; 161 checks) |
+| 18.5 | Integration: merges, test_all registration, captures in the real renderer, README, full run, export | lead | done (94 suites, 16247 checks green; export re-cut) |
 
 ## Road to 1.0 (2026-10-05)
 The user asked for goals that get the game to release: RELEASE.md holds the release bar (the loop, the disruption,
