@@ -16,13 +16,18 @@ extends Resource
 ## quota(n) = round(base_quota * quota_scale^(n-1) + quota_add * (n-1))
 @export var quota_scale: float = 1.5
 @export var quota_add: int = 150
-## Quota multiplier per player beyond the first: quota *= 1 + quota_per_extra_player * (players - 1).
-## Applied by GameState when a round starts (co-op scaling; 0 = same quota for any team size).
+## The payment for a team: quota *= quota_team_factor(shift, players) = 1 + a(shift) * m(players), 1 for one worker,
+## never below 1. Applied by GameState when a round starts (co-op scaling).
+## a(shift): quota_team_by_shift[shift - 1] (shifts past the end use the last value); with the table empty,
+## quota_per_extra_player in every shift (the flat raise of M15 to M17).
 @export var quota_per_extra_player: float = 0.2
-## M18: what each worker beyond the first adds grows by this much per shift after the first (a crew's capacity
-## climbs faster than one worker's once the floor is bought up): team = 1 + (quota_per_extra_player +
-## quota_team_growth * (shift - 1)) * (players - 1). 0 = flat, as before.
-@export var quota_team_growth: float = 0.0
+## M18: what a team adds to the payment, by shift (index = shift - 1). A full crew is strongest against the payment
+## in the middle of a run, so the table rises to shift 3 and falls after it. Empty = quota_per_extra_player.
+@export var quota_team_by_shift: Array[float] = []
+## M18: m(players), how the shift's share scales with the team (index = players - 2: two, three, four workers; sizes
+## past the end use the last value). Ten trays saturate at about three workers, so this grows slower than the team.
+## Empty = players - 1 (each worker beyond the first adds the same, as before).
+@export var quota_team_by_size: Array[float] = []
 ## If true the round ends (success) the moment sales reach the quota; otherwise it runs to the timer.
 @export var end_round_on_quota_met: bool = true
 ## If true unspent money carries over to the next round.
@@ -245,9 +250,22 @@ func get_upgrade(id: StringName) -> UpgradeDef:
 func quota_for_round(round_number: int, player_count: int = 1) -> int:
 	var n: int = max(round_number, 1)
 	var base := base_quota * pow(quota_scale, n - 1) + quota_add * (n - 1)
-	var per_extra := quota_per_extra_player + quota_team_growth * float(n - 1)  # M18: grows by shift (0 = flat)
-	var team: float = 1.0 + per_extra * float(maxi(player_count - 1, 0))
-	return int(round(base * team))
+	return int(round(base * quota_team_factor(n, player_count)))
+
+## M18: what the payment of shift `round_number` is multiplied by for `player_count` workers: 1.0 for one worker (or
+## none), otherwise 1 + a(shift) * m(players) from quota_team_by_shift / quota_team_by_size (see their comments),
+## never below 1.0 at any shift (a game with no final notice runs past the end of the table: the last value holds).
+func quota_team_factor(round_number: int, player_count: int) -> float:
+	if player_count <= 1:
+		return 1.0
+	var n: int = maxi(round_number, 1)
+	var a := quota_per_extra_player
+	if not quota_team_by_shift.is_empty():
+		a = quota_team_by_shift[mini(n, quota_team_by_shift.size()) - 1]
+	var m := float(player_count - 1)
+	if not quota_team_by_size.is_empty():
+		m = quota_team_by_size[mini(player_count - 2, quota_team_by_size.size() - 1)]
+	return 1.0 + maxf(a * m, 0.0)
 
 func total_grow_time(seed: SeedDef) -> float:
 	var t := 0.0

@@ -7,6 +7,7 @@ extends RefCounted
 ##   Sim.run_campaign(Config.balance, {"workers": 4, "skill": Sim.SKILL_CAREFUL})             shifts 1 to 6, carried over
 ##   Sim.run_crew(Config.balance, {"workers": 4, "skill": Sim.SKILL_CAREFUL})                 five campaigns, the means
 ##   Sim.format_table(Sim.baseline(Config.balance), "M14")                                    the printed table
+##   Sim.run_team(Config.balance, {"workers": 2, "skill": Sim.SKILL_CAREFUL})   M18: the run that team plays (to its final notice)
 ##
 ## WHAT IS MODELLED
 ##   The floor: ten trays (six in the pen, four in the grow hall), the supply window, the tank, the chute, two racks of
@@ -177,6 +178,7 @@ const WATERING_SEC := 2.0
 ## (cure_bonus was looked at and left alone; it is listed so a later change of it shows up against the baseline.)
 const M14_NUMBERS: Dictionary = {
 	"base_quota": 350, "quota_scale": 1.5, "quota_add": 150, "quota_per_extra_player": 0.2,
+	"quota_team_by_shift": [], "quota_team_by_size": [],  # M18 economy2: M14 had a flat raise
 	"cure_sec": 20.0, "cure_bonus": 0.4,
 	"seeds": {"purple": {"sale_value_per_unit": 130}, "golden": {"sale_value_per_unit": 120}},
 }
@@ -338,6 +340,10 @@ static func with_numbers(cfg: BalanceConfig, numbers: Dictionary) -> BalanceConf
 					var fields: Dictionary = per_seed[id]
 					for f: String in fields:
 						s.set(f, fields[f])
+		elif out.get(key) is Array:  # M18 economy2: a typed array field (the team tables) takes the values, typed
+			var arr := (out.get(key) as Array).duplicate()
+			arr.assign(numbers[key])
+			out.set(key, arr)
 		else:
 			out.set(key, numbers[key])
 	return out
@@ -545,6 +551,7 @@ static func run_campaign(cfg: BalanceConfig, opt: Dictionary, shifts: int = 6) -
 			var o := opt.duplicate()
 			o["shift"] = shift
 			o["main"] = cfg.seeds[seed_index].id
+			o["final"] = shift == int(opt.get("final_shift", 0)) and bool(opt.get("final_look", true))  # M18 economy2
 			var r := run_shift(cfg, o, carry)
 			if best.is_empty() or float(r["deposits"]) > float(best["deposits"]):
 				best = r
@@ -668,6 +675,11 @@ class Run:
 	var timeline: PackedVector2Array = PackedVector2Array()
 	var contract_cash: float = 0.0
 	var contract_at: float = 0.0
+	# --- M18 economy2: the final notice's half-time look (see run_team) ---
+	var final_look: bool = false
+	var final_looked: bool = false
+	var final_raised: bool = false
+	# --- end M18 economy2 ---
 
 	func setup(config: BalanceConfig, opt: Dictionary, carry: Variant, ctx: Dictionary) -> void:
 		cfg = config
@@ -677,6 +689,7 @@ class Run:
 		shift = ctx["shift"]
 		length = cfg.round_length_sec
 		quota_plain = cfg.quota_for_round(shift, workers)
+		if opt.has("team_factor"): quota_plain = roundi(float(cfg.quota_for_round(shift, 1)) * float((opt["team_factor"] as Callable).call(shift, workers)))  # M18 economy2 what-if
 		quota = float(quota_plain)
 		use_favors = bool(opt.get("favors", true))
 		use_racks = bool(opt.get("racks", sk["racks"]))
@@ -724,6 +737,7 @@ class Run:
 			gross[i] *= float(market.get(String(cfg.seeds[i].id), 1.0))
 		contract_cash = float(opt.get("contract_cash", 0.0))
 		contract_at = float(opt.get("contract_at", length * 0.5))
+		final_look = bool(opt.get("final", false))  # M18 economy2
 		# The fallback order when the main strain costs more than the spread budget: profit per tray-second, best first.
 		rank = allowed.duplicate()
 		rank.sort_custom(func(a: int, b: int) -> bool:
@@ -860,6 +874,7 @@ class Run:
 			"time": {"walk": time_walk, "water": time_water, "handle": time_handle, "idle": time_idle, "events": time_events},
 			"trays": {"empty": tray_empty, "growing": tray_growing, "dry": tray_dry, "ready": tray_ready},
 			"bottleneck": _bottleneck(), "favors": favors, "cash": cash, "timeline": timeline, "carry": carry_state,
+			"final_raised": final_raised,  # M18 economy2
 		}
 
 	func _bottleneck() -> String:
@@ -873,6 +888,17 @@ class Run:
 		if time_water >= time_walk and time_water >= time_handle:
 			return "water trips"
 		return "walking" if time_walk >= time_handle else "handling"
+
+	# --- M18 economy2 ---
+	## The final notice's half-time look (GameState._final_on_time): under final_interim_share of the payment
+	## deposited, the payment rises by final_interim_raise of itself (the audit's raise; `quota` already carries the
+	## expected audit).
+	func _final_look() -> void:
+		final_looked = true
+		if sales < quota * clampf(cfg.final_interim_share, 0.0, 1.0):
+			quota *= 1.0 + maxf(cfg.final_interim_raise, 0.0)
+			final_raised = true
+	# --- end M18 economy2 ---
 
 	func _tick() -> void:
 		clock += DT
@@ -894,6 +920,7 @@ class Run:
 				_complete(w)
 			if w_busy[w] <= 0.0:
 				_decide(w)
+		if final_look and not final_looked and met_at < 0.0 and t >= length * FINAL_LOOK_AT: _final_look()  # M18 economy2
 		if met_at < 0.0 and sales >= quota:
 			met_at = t
 			carry_state = _snapshot()
@@ -1486,6 +1513,118 @@ static func crew_makes(crew: Dictionary, shift: int, at_least: int = 3) -> bool:
 	return int((crew["shifts"] as Array)[shift - 1]["made"]) >= at_least
 
 
+# --- M18 economy2: the run a team plays, to its final notice -----------------------------------------------------------
+## Since M17 a run ends at a final notice: shift final_shift_by_team[workers - 1] (4 for one worker, 5 for two, 6 for
+## three or four). Paying it clears the run; a missed shift before it ends the run. run_team plays a crew through
+## exactly those shifts, once per JITTERS entry, with the final notice's half-time look on the last one (Run._final_look:
+## at FINAL_LOOK_AT of the clock, under final_interim_share of the payment deposited, the payment rises by
+## final_interim_raise). Not modelled: the final notice's two conditions (no condition is modelled), a worker who
+## joins in the alley (the team is the same size all run). Nothing here knows the strains: run_campaign tries every
+## strain the config has on sale.
+## What-if for a payment formula BalanceConfig does not have: opt "team_factor" (Callable(shift, workers) -> float)
+## replaces the team factor of quota_for_round in every shift (the solo payment stays the formula's).
+
+## GameState.FINAL_LOOK_AT: the share of the final notice's clock that has run when the host looks at the payment.
+const FINAL_LOOK_AT := 0.5
+## The payment as M15 to M17 shipped it (350, x1.82 + 688 a shift; a flat +10% a worker beyond the first): the
+## "before" of the M18 retune.
+const M17_NUMBERS: Dictionary = {
+	"base_quota": 350, "quota_scale": 1.82, "quota_add": 688, "quota_per_extra_player": 0.1,
+	"quota_team_by_shift": [], "quota_team_by_size": [],
+}
+
+
+## The run's last shift for a team of `workers` (BalanceConfig.final_shift_by_team; 6 when the table is empty).
+static func final_shift(cfg: BalanceConfig, workers: int) -> int:
+	var table := cfg.final_shift_by_team
+	if table.is_empty():
+		return 6
+	return maxi(int(table[clampi(workers, 1, table.size()) - 1]), 1)
+
+
+## run_crew through the team's run. `opt` as run_crew, plus final_look (default true: the half-time look on the last
+## shift) and shifts (default final_shift(cfg, workers)). Returns run_crew's result plus {final (the last shift),
+## cleared (campaigns that paid every shift of the run), reached (campaigns that paid every shift before the last),
+## raised (campaigns whose final notice went up at half time), raised_lost (of those, campaigns that deposited the
+## payment as it was before the look and missed it after)}.
+static func run_team(cfg: BalanceConfig, opt: Dictionary) -> Dictionary:
+	var workers := clampi(int(opt.get("workers", 1)), 1, 4)
+	var last := maxi(int(opt.get("shifts", final_shift(cfg, workers))), 1)
+	var o := opt.duplicate()
+	o["final_shift"] = last
+	var crew := run_crew(cfg, o, last)
+	var cleared := 0
+	var raised := 0
+	var raised_lost := 0
+	for n: int in crew["made"]:
+		if n >= last:
+			cleared += 1
+	for campaign: Array in crew["campaigns"]:
+		var r: Dictionary = campaign[last - 1]
+		if bool(r.get("final_raised", false)):
+			raised += 1
+			var before := float(r["quota_taxed"]) / (1.0 + maxf(cfg.final_interim_raise, 0.0))
+			if not bool(r["made"]) and float(r["deposits"]) >= before:
+				raised_lost += 1
+	crew["final"] = last
+	crew["cleared"] = cleared
+	crew["reached"] = int((crew["shifts"] as Array)[last - 1]["alive"])
+	crew["raised"] = raised
+	crew["raised_lost"] = raised_lost
+	return crew
+
+
+## Every team of the table, each through its own run: [skill][workers - 1] -> run_team result.
+static func all_teams(cfg: BalanceConfig, opt: Dictionary = {}) -> Array:
+	var out: Array = []
+	for skill in SKILLS.size():
+		var row: Array = []
+		for workers in range(1, 5):
+			var o := opt.duplicate()
+			o["workers"] = workers
+			o["skill"] = skill
+			row.append(run_team(cfg, o))
+		out.append(row)
+	return out
+
+
+## The payment's team factor in `shift` for `workers`: quota_for_round(shift, workers) / quota_for_round(shift, 1).
+static func team_factor(cfg: BalanceConfig, shift: int, workers: int) -> float:
+	return cfg.quota_team_factor(shift, workers)
+
+
+## One line for a config's payment: the solo curve and the team numbers.
+static func describe_payment(cfg: BalanceConfig) -> String:
+	var team := "+%d%% a worker beyond the first" % roundi(cfg.quota_per_extra_player * 100.0)
+	if not cfg.quota_team_by_shift.is_empty():
+		team = "team table %s by shift x %s for 2 / 3 / 4 workers" % [cfg.quota_team_by_shift, str(cfg.quota_team_by_size) if not cfg.quota_team_by_size.is_empty() else "1 / 2 / 3"]
+	return "base %d, x%.2f + %d a shift, %s" % [cfg.base_quota, cfg.quota_scale, cfg.quota_add, team]
+
+
+## The printed run table: per team, per shift of its run, mean deposits by the buzzer / payment due and how many of the
+## five campaigns met it; then campaigns that reached the final notice, cleared it, and had it raised at half time.
+static func format_runs(cfg: BalanceConfig, title: String, opt: Dictionary = {}, teams: Array = []) -> String:
+	if teams.is_empty():
+		teams = all_teams(cfg, opt)
+	var lines: PackedStringArray = []
+	lines.append("== %s: %s; final notice at shift %s by team size" % [title, describe_payment(cfg), cfg.final_shift_by_team])
+	lines.append("   deposits by the buzzer / payment due, campaigns of %d that met it; reached / cleared the final notice, raised at half time" % JITTERS.size())
+	for skill in teams.size():
+		for wi in (teams[skill] as Array).size():
+			var team: Dictionary = teams[skill][wi]
+			var line := "   %-7s x%d" % [SKILL_NAMES[skill], wi + 1]
+			for r: Dictionary in team["shifts"]:
+				line += " | %5.0f /%5d %d/%d" % [float(r["deposits"]), int(r["quota"]), int(r["made"]), JITTERS.size()]
+			for _pad in range(int(team["final"]), 6):
+				line += " |                 "
+			line += " || reached %d, cleared %d, raised %d" % [int(team["reached"]), int(team["cleared"]), int(team["raised"])]
+			if int(team["raised_lost"]) > 0:
+				line += " (%d lost to it)" % int(team["raised_lost"])
+			lines.append(line)
+	return "\n".join(lines)
+# --- end M18 economy2 ---------------------------------------------------------------------------------------------------
+
+
 # --- printing ----------------------------------------------------------------------------------------------------------
 
 ## Every crew of the table: [skill][workers - 1] -> run_crew result.
@@ -1508,8 +1647,7 @@ static func format_table(cfg: BalanceConfig, title: String, opt: Dictionary = {}
 	if crews.is_empty():
 		crews = all_crews(cfg, opt)
 	var lines: PackedStringArray = []
-	lines.append("== %s: base %d, x%.2f + %d a shift, +%d%% a worker, cure %.0f s for +%d%%" % [title, cfg.base_quota,
-			cfg.quota_scale, cfg.quota_add, roundi(cfg.quota_per_extra_player * 100.0), cfg.cure_sec, roundi(cfg.cure_bonus * 100.0)])
+	lines.append("== %s: %s, cure %.0f s for +%d%%" % [title, describe_payment(cfg), cfg.cure_sec, roundi(cfg.cure_bonus * 100.0)])  # M18 economy2: describe_payment
 	lines.append("   deposits by the buzzer / payment due, campaigns of %d that met it, mean second it was met; main strain, bottleneck" % JITTERS.size())
 	for skill in crews.size():
 		for wi in (crews[skill] as Array).size():
