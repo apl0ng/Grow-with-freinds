@@ -249,7 +249,7 @@ custom_minimum_size = Vector2(540, 0)
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
 text = "Buy seeds at the supply window. Plant them in the trays, water them from the tank, harvest, and deposit the product down the chute. Cover the payment before the shift ends. The number only goes up.
-WASD move - Shift sprint - Space jump - Ctrl/C crouch - E/LMB use - Q/G drop - Esc break - Enter start shift (host)"
+WASD move - Shift sprint - Space jump - Ctrl/C crouch - E/LMB use - Q/G drop - 1-4 gestures - Esc break - Enter start shift (host)"
 horizontal_alignment = 1
 autowrap_mode = 3
 

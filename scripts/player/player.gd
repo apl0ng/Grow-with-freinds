@@ -270,6 +270,7 @@ func _ready() -> void:
 		_awaiting_first_sync = true
 		_spawn_net_position = net_position
 	Net.players_changed.connect(_on_players_changed)
+	_emotes_ready() # M18 emotes
 	_hats_ready() # M16 hats
 
 # --- Public API ---------------------------------------------------------------------------------------------
@@ -698,6 +699,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var stunned := is_stunned()
 	var can_move := _input_enabled() and not stunned
+	_emotes_physics(can_move) # M18 emotes
 	if not is_on_floor():
 		velocity.y -= _gravity * delta
 
@@ -746,6 +748,7 @@ func _process(delta: float) -> void:
 		if _view_model_active:
 			_match_view_model_viewport()
 			sync_view_model()
+	_emotes_process(delta) # M18 emotes
 
 func _input_enabled() -> bool:
 	return not Game.is_ui_locked()
@@ -765,6 +768,7 @@ func _write_net_state() -> void:
 	net_pitch = head.rotation.x
 
 func _teleport_local(xform: Transform3D) -> void:
+	_emotes_cancel_owner() # M18 emotes
 	place_at(xform)
 	_write_net_state()
 
@@ -1068,6 +1072,680 @@ func _unshare_lights_with_view_model() -> void:
 func _on_tree_node_added(node: Node) -> void:
 	if node is Light3D and not _view_model_closing:
 		_share_light(node as Light3D)
+
+# --- M18 emotes: four gestures on the number keys ---------------------------------------------------------------------
+## Point, a tired half-wave, a shrug and slump (CONTRACTS "M18 / Emotes"), built from the body's procedural pieces: the
+## arm pivots (Visual/Model/ArmL|ArmR, rest rotation 0), the body model's own transform (Visual/Model: the crouch squash
+## and Juice own $Visual, nothing else moves the model) and the face pivot riding along with it. Nobody smiles, nothing
+## is a dance, the face keeps its mood.
+##   1 point   the gesture arm comes up and follows where the worker looks (the head pitch every peer already has from
+##             net_pitch; the yaw is the body's own) for the whole gesture
+##   2 wave    the arm comes up halfway and rocks twice, slowly
+##   3 shrug   the shoulders come up, both hands go out low, the head cocks; the shoulders sag back while it holds
+##   4 slump   the worker sits down where they stand: squashed low, leaning back against whatever is behind (a ray on
+##             the world layer, re-probed while sitting) or hunched forward in the open, arms limp, breathing slowly;
+##             it lasts until they move or press any gesture key again
+## Timed gestures last Config.balance.emote_sec; at most one starts per emote_cooldown_sec (the host's rule, with
+## EMOTE_COOLDOWN_SLACK_SEC for jitter; the owner keeps its own clock so it does not ask in vain). The `emote` cloth
+## sound plays at the body on every peer (2D for the worker themself).
+## Refused while stunned, while carrying something heavy (a Floor Brick bundle, the hand truck: "Both hands are busy.")
+## and while the flamethrower burns or its trigger is held. With a normal item in the right glove the LEFT arm points /
+## waves / shrugs (the item stays in hand; a slumped worker keeps it in the lap). Allowed in the back room: the keys
+## work under the back-room lock (like push to talk) and the body there plays them for anyone who can see in; being
+## sent there or let out ends a gesture.
+## The owner does not ask while walking or in the air (it would end at once).
+## Ends early: any movement input, a jump or a crouch change, the body drifting EMOTE_DRIFT_M from where it started, a
+## teleport (all seen by the owner, who tells the host); a stagger (shove, thrown item, fire) or a back-room change
+## (every peer on its own, from the signals it already gets).
+## Network (owner-driven like movement; one small reliable RPC each way, nothing per frame):
+##   owner -> host  _rpc_request_emote(kind)   1..4 starts, 0 ends; taken only from the node's own registered peer,
+##                                             the rules checked again (server_emote)
+##   host -> all    _rpc_emote(kind, elapsed)  call_local; only the server's is accepted. A late joiner gets the running
+##                                             gesture (a slump, or the rest of a timed one) on Net.peer_registered.
+## First person (local worker): pointing shows a first-person arm under %Camera (FP_ARM_NAME: a sleeve in the worker's
+## colour, a work glove with one finger out) on the view-model layer like a held item (add_view_model_user; the world
+## layer while the view model is off; hidden while another camera is current); slump lowers the camera to
+## SIT_CAMERA_Y. The other gestures show nothing in first person.
+
+## Every peer: a gesture started on this body (after its sound).
+signal emote_started(kind: int)
+## Every peer: the gesture `kind` ended on this body (ran out, cancelled or replaced); the pose still eases out.
+signal emote_ended(kind: int)
+
+const EMOTE_NONE: int = 0
+const EMOTE_POINT: int = 1
+const EMOTE_WAVE: int = 2
+const EMOTE_SHRUG: int = 3
+const EMOTE_SLUMP: int = 4
+## Input action per gesture (the number keys 1 to 4, project.godot): EMOTE_ACTIONS[kind - 1].
+const EMOTE_ACTIONS: Array[StringName] = [&"emote_1", &"emote_2", &"emote_3", &"emote_4"]
+const EMOTE_NAMES: Array[String] = ["", "point", "wave", "shrug", "slump"]
+## Why a gesture is refused (get_emote_block / get_emote_refusal).
+const EMOTE_REFUSED_STUNNED := "stunned"
+const EMOTE_REFUSED_HEAVY := "heavy"
+const EMOTE_REFUSED_TRIGGER := "trigger"
+const EMOTE_REFUSED_COOLDOWN := "cooldown"
+const EMOTE_REFUSED_MOVING := "moving"
+const TEXT_HANDS_BUSY := "Both hands are busy."
+## Pose easing (seconds): in, in for the slump (sitting down takes longer), out (also how early a timed gesture starts
+## to lower so it is down when it ends).
+const EMOTE_IN_SEC: float = 0.25
+const EMOTE_SLUMP_IN_SEC: float = 0.5
+const EMOTE_OUT_SEC: float = 0.35
+## The host accepts a gesture this much before the cooldown is over (the request rode the network; jitter).
+const EMOTE_COOLDOWN_SLACK_SEC: float = 0.15
+## Owner: the body moved this far (horizontally) from where the gesture started -> it ends (bumped, carried along).
+const EMOTE_DRIFT_M: float = 0.5
+## A gesture replayed this far in (a late joiner) starts silently.
+const EMOTE_SOUND_LATE_SEC: float = 0.25
+## Where the glove hangs from the shoulder at rest (ArmR, model space: player.py puts the mitt about 0.42 m below and
+## 0.18 m in front of the shoulder, a little out), and so how far forward of straight down the hanging arm already is.
+const ARM_REST_GLOVE := Vector3(0.061, -0.415, -0.178)
+const ARM_REST_FORWARD: float = 0.4
+## Point: the arm turns in towards the middle a little (rad, ArmR; mirrored for ArmL).
+const POINT_INWARD: float = 0.08
+const POINT_LEAN: float = -0.05
+## Wave: how high the arm comes up (rotation.x), how far out, the rock (rad) and its rate (Hz).
+const WAVE_RAISE: float = 2.05
+const WAVE_OUT: float = 0.45
+const WAVE_SWAY: float = 0.2
+const WAVE_HZ: float = 1.1
+const WAVE_TILT: float = 0.035
+## Shrug: ArmR's pose (z mirrored for ArmL), the shoulder lift (m) and the head cock (rad, the whole body model).
+const SHRUG_ARM := Vector3(0.5, 0.0, 0.62)
+const SHRUG_LIFT: float = 0.06
+const SHRUG_TILT: float = 0.05
+## Slump: ArmR's limp pose (z mirrored for ArmL), the body's total height / width (whatever the crouch was), the eye
+## height of a worker sitting on the floor, the lean back against a wall / the hunch in the open (rad).
+const SLUMP_ARM := Vector3(0.22, 0.0, 0.32)
+const SIT_SQUASH: float = 0.58
+const SIT_WIDEN: float = 1.08
+const SIT_CAMERA_Y: float = 0.85
+const SIT_LEAN_BACK: float = 0.24
+const SIT_HUNCH: float = -0.12
+## Slump: a wall closer behind than SIT_WALL_REACH (from the middle of the body) is leant on; the body slides back
+## towards it by up to SIT_BACK_MAX, leaving SIT_BACK_CLEAR. Re-probed every SIT_PROBE_SEC (the worker can turn).
+const SIT_WALL_REACH: float = 1.0
+const SIT_BACK_CLEAR: float = 0.55
+const SIT_BACK_MAX: float = 0.35
+const SIT_PROBE_SEC: float = 0.25
+const SIT_BREATH_HZ: float = 0.22
+const SIT_BREATH: float = 0.012
+## First-person point arm (camera space): the shoulder (x mirrored for the left arm), the point it aims at (the
+## crosshair, a few metres out), how far below it starts while it comes up.
+const FP_ARM_NAME := "PointArm"
+const FP_ARM_SHOULDER := Vector3(0.3, -0.3, 0.08)
+const FP_ARM_AIM := Vector3(0.0, 0.0, -4.0)
+const FP_ARM_DROP: float = 0.35
+
+var _emote_kind: int = EMOTE_NONE          # the gesture running on this peer (0 = none)
+var _emote_time: float = 0.0               # seconds since it started
+var _emote_pose: int = EMOTE_NONE          # the pose drawn (stays while it eases out)
+var _emote_weight: float = 0.0             # 0..1 ease of the pose
+var _emote_left: bool = false              # the left arm gestures (a normal item in the right glove)
+var _emote_posed: bool = false             # overrides applied (restored once at the end)
+var _emote_snap: bool = false              # next pose frame: take the targets as they are (a fresh start)
+var _emote_tgt_l := Vector3.ZERO           # smoothed arm targets and arm weights (a switch glides)
+var _emote_tgt_r := Vector3.ZERO
+var _emote_tw_l: float = 0.0
+var _emote_tw_r: float = 0.0
+var _emote_wall: float = INF               # slump: distance to the wall behind (INF = none within reach)
+var _emote_probe_left: float = 0.0
+var _emote_lean: float = 0.0               # slump: smoothed lean / slide back
+var _emote_back: float = 0.0
+var _emote_sent_msec: int = -1000000       # owner: last gesture asked for
+var _emote_anchor := Vector3.ZERO          # owner: where the body stood when it started
+var _emote_crouch0: bool = false           # owner: the crouch when it started
+var _emote_ready_msec: int = 0             # SERVER: when this worker may start the next one
+var _emote_arm_l_rest := Vector3.ZERO
+var _emote_arm_r_rest := Vector3.ZERO
+var _emote_model_rest := Transform3D.IDENTITY
+var _emote_face_rest := Vector3.ZERO
+var _emote_socket_rest := Vector3.ZERO
+var _emote_fp_arm: Node3D = null           # local: the first-person point arm (built on the first point)
+var _emote_fp_registered: bool = false
+var _emote_fp_on_vm: int = -1              # its layers: -1 unknown, 0 world, 1 view model
+var _emote_fp_color := Color(0.0, 0.0, 0.0, 0.0)
+
+
+static func emote_name(kind: int) -> String:
+	return EMOTE_NAMES[kind] if kind > 0 and kind < EMOTE_NAMES.size() else ""
+
+
+## The gesture running on this body on this peer (EMOTE_NONE = none). A slump runs until cancelled.
+func get_emote() -> int:
+	return _emote_kind
+
+
+func is_emoting() -> bool:
+	return _emote_kind != EMOTE_NONE
+
+
+func is_slumped() -> bool:
+	return _emote_kind == EMOTE_SLUMP
+
+
+## Seconds since the running gesture started.
+func get_emote_time() -> float:
+	return _emote_time
+
+
+## How far the pose is eased in (0..1; it eases out after the gesture ended).
+func get_emote_weight() -> float:
+	return _emote_weight
+
+
+## The arm doing the gesture while a pose is drawn (ArmL with a normal item in hand, else ArmR), or null.
+func get_emote_arm() -> Node3D:
+	if _emote_pose == EMOTE_NONE:
+		return null
+	return arm_l if _emote_left else arm_r
+
+
+## Where the gesture arm's glove points from the shoulder (world space, unit length; ZERO without a pose).
+func get_emote_arm_direction() -> Vector3:
+	var arm := get_emote_arm()
+	if arm == null or not arm.is_inside_tree():
+		return Vector3.ZERO
+	var rest := ARM_REST_GLOVE * Vector3(-1.0 if _emote_left else 1.0, 1.0, 1.0)
+	return (arm.global_basis * rest).normalized()
+
+
+## Slump: the distance to the wall behind the body from its middle (INF = nothing within SIT_WALL_REACH).
+func get_slump_wall() -> float:
+	return _emote_wall
+
+
+## Local worker: the first-person point arm while it is shown, else null.
+func get_first_person_arm() -> Node3D:
+	if _emote_fp_arm == null or not is_instance_valid(_emote_fp_arm) or not _emote_fp_arm.visible:
+		return null
+	return _emote_fp_arm
+
+
+## The state rule, any peer (the host checks it again): "" or EMOTE_REFUSED_STUNNED / _HEAVY / _TRIGGER.
+func get_emote_block() -> String:
+	if is_stunned():
+		return EMOTE_REFUSED_STUNNED
+	var item := get_held_item()
+	if item == null or not is_instance_valid(item):
+		return ""
+	if item.has_method(&"is_heavy") and bool(item.call(&"is_heavy")):
+		return EMOTE_REFUSED_HEAVY
+	if item.item_type == Const.ITEM_FLAMETHROWER and ((item.has_method(&"is_firing") and bool(item.call(&"is_firing"))) \
+			or (is_local() and Input.is_action_pressed(&"use_item"))):
+		return EMOTE_REFUSED_TRIGGER
+	return ""
+
+
+## Local worker: why a gesture key would do nothing right now ("" = it would ask the host).
+func get_emote_refusal() -> String:
+	var block := get_emote_block()
+	if block != "":
+		return block
+	if Time.get_ticks_msec() - _emote_sent_msec < int(Config.balance.emote_cooldown_sec * 1000.0):
+		return EMOTE_REFUSED_COOLDOWN
+	if (_input_enabled() and _emote_walking()) or (is_local() and not is_on_floor()):
+		return EMOTE_REFUSED_MOVING # walking (it would end at once) or in the air
+	return ""
+
+
+## LOCAL worker: asks the host for gesture `kind` (EMOTE_POINT..EMOTE_SLUMP; the gesture keys call this). A slumped
+## worker stands up instead. False when it was refused here (a heavy carry also says so in a toast).
+func request_emote(kind: int) -> bool:
+	if not is_local() or kind < EMOTE_POINT or kind > EMOTE_SLUMP:
+		return false
+	if _emote_kind == EMOTE_SLUMP:
+		_emote_stop_owner()
+		return true
+	var why := get_emote_refusal()
+	if why != "":
+		if why == EMOTE_REFUSED_HEAVY:
+			Game.toast(TEXT_HANDS_BUSY, &"error")
+		return false
+	_emote_sent_msec = Time.get_ticks_msec()
+	_rpc_request_emote.rpc_id(Const.SERVER_PEER_ID, kind)
+	return true
+
+
+## SERVER ONLY. Starts gesture `kind` on this worker for every peer when the rules allow it (get_emote_block, the
+## cooldown); EMOTE_NONE ends the running one. True when it was relayed. Works for bodies without an owner (tests).
+func server_emote(kind: int) -> bool:
+	if not multiplayer.is_server() or not is_inside_tree() or is_queued_for_deletion():
+		return false
+	if kind == EMOTE_NONE:
+		if _emote_kind == EMOTE_NONE:
+			return false
+		_rpc_emote.rpc(EMOTE_NONE, 0.0)
+		return true
+	if kind < EMOTE_POINT or kind > EMOTE_SLUMP or get_emote_block() != "":
+		return false
+	var now := Time.get_ticks_msec()
+	if now < _emote_ready_msec:
+		return false
+	_emote_ready_msec = now + int(maxf(Config.balance.emote_cooldown_sec - EMOTE_COOLDOWN_SLACK_SEC, 0.0) * 1000.0)
+	_rpc_emote.rpc(kind, 0.0)
+	return true
+
+
+## Owner -> host: "start gesture `kind`" (0 = "I stopped"). Only the node's own registered peer is heard.
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_request_emote(kind: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender == 0:
+		sender = Const.SERVER_PEER_ID
+	if sender != peer_id or not Net.players.has(sender):
+		return # a gesture request is only valid on the sender's own body
+	server_emote(kind)
+
+
+## Host -> every peer: gesture `kind` starts on this body, `elapsed` seconds in (a late joiner); 0 ends it.
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_emote(kind: int, elapsed: float) -> void:
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != Const.SERVER_PEER_ID:
+		return # only the host relays gestures
+	if not is_inside_tree():
+		return
+	if kind == EMOTE_NONE:
+		_emote_end_local()
+		return
+	if kind < EMOTE_POINT or kind > EMOTE_SLUMP or not is_finite(elapsed):
+		return
+	_emote_begin_local(kind, clampf(elapsed, 0.0, 86400.0))
+
+
+func _emotes_ready() -> void:
+	if arm_l != null:
+		_emote_arm_l_rest = arm_l.position
+	if arm_r != null:
+		_emote_arm_r_rest = arm_r.position
+	if body_model != null:
+		_emote_model_rest = body_model.transform
+	_emote_face_rest = face.position
+	_emote_socket_rest = body_hand_socket.position
+	staggered.connect(_emotes_on_staggered)
+	GameState.backroom_changed.connect(_emotes_on_backroom_changed)
+	if Net.is_host:
+		Net.peer_registered.connect(_emotes_on_peer_registered)
+
+
+## Owner, every physics frame (from _physics_process): the gesture keys and what cancels a running gesture.
+func _emotes_physics(_can_move: bool) -> void:
+	if _emote_kind != EMOTE_NONE and _emote_should_cancel():
+		_emote_stop_owner()
+		return
+	if not _emote_input_enabled():
+		return
+	for i in EMOTE_ACTIONS.size():
+		if Input.is_action_just_pressed(EMOTE_ACTIONS[i]):
+			request_emote(i + 1)
+			return
+
+
+## Every peer, every frame (end of _process, after the remote walk / arm animation): the clock and the pose.
+func _emotes_process(delta: float) -> void:
+	if _emote_kind != EMOTE_NONE:
+		_emote_time += delta
+		if _emote_kind != EMOTE_SLUMP and _emote_time >= Config.balance.emote_sec:
+			_emote_end_local()
+	if _emote_pose == EMOTE_NONE:
+		return
+	var want := 0.0
+	if _emote_kind != EMOTE_NONE and (_emote_kind == EMOTE_SLUMP or _emote_time < Config.balance.emote_sec - EMOTE_OUT_SEC):
+		want = 1.0
+	var ease_sec := _emote_in_sec(_emote_pose) if want > _emote_weight else EMOTE_OUT_SEC
+	_emote_weight = move_toward(_emote_weight, want, delta / maxf(ease_sec, 0.01))
+	if _emote_weight <= 0.0 and _emote_kind == EMOTE_NONE:
+		if _emote_posed:
+			_emote_restore()
+		_emote_pose = EMOTE_NONE
+		_emote_update_fp_arm(0.0)
+		return
+	var w := smoothstep(0.0, 1.0, _emote_weight)
+	_emote_apply_pose(delta, w)
+	_emote_update_fp_arm(w)
+
+
+## Owner: the body was moved without walking (a teleport, from _teleport_local).
+func _emotes_cancel_owner() -> void:
+	if is_local():
+		_emote_stop_owner()
+
+
+func _emote_in_sec(kind: int) -> float:
+	return EMOTE_SLUMP_IN_SEC if kind == EMOTE_SLUMP else EMOTE_IN_SEC
+
+
+## Keys work with no UI lock, or under the back-room lock alone (the worker in there can still gesture).
+func _emote_input_enabled() -> bool:
+	if not is_local():
+		return false
+	if not Game.is_ui_locked():
+		return true
+	return Game.is_ui_locked_by(Const.UI_LOCK_BACKROOM) and Game.get_ui_lock_sources().size() == 1
+
+
+func _emote_walking() -> bool:
+	return Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back").length_squared() > 0.01
+
+
+## Owner: anything that ends a running gesture (see the header).
+func _emote_should_cancel() -> bool:
+	if get_emote_block() != "" or crouching != _emote_crouch0:
+		return true
+	var drift := global_position - _emote_anchor
+	drift.y = 0.0
+	if not drift.is_finite() or drift.length() > EMOTE_DRIFT_M:
+		return true
+	return _input_enabled() and (_emote_walking() or Input.is_action_just_pressed(&"jump") \
+			or Input.is_action_just_pressed(&"crouch"))
+
+
+## Owner: ends the running gesture and tells the host (the request first: on the host's own body it is relayed at
+## once, before the local state is gone).
+func _emote_stop_owner() -> void:
+	if _emote_kind == EMOTE_NONE:
+		return
+	_rpc_request_emote.rpc_id(Const.SERVER_PEER_ID, EMOTE_NONE)
+	_emote_end_local()
+
+
+func _emotes_on_staggered(_by_peer: int) -> void:
+	_emote_end_local()
+
+
+func _emotes_on_backroom_changed(changed_peer: int, _active: bool) -> void:
+	if changed_peer == peer_id:
+		_emote_end_local()
+
+
+## HOST: a late joiner gets this body's running gesture.
+func _emotes_on_peer_registered(new_peer: int) -> void:
+	if _emote_kind == EMOTE_NONE or new_peer == peer_id or not is_inside_tree() or not multiplayer.is_server():
+		return
+	if multiplayer.get_peers().has(new_peer):
+		_rpc_emote.rpc_id(new_peer, _emote_kind, _emote_time)
+
+
+func _emote_begin_local(kind: int, elapsed: float) -> void:
+	var previous := _emote_kind
+	if _emote_pose == EMOTE_NONE or _emote_weight <= 0.0:
+		_emote_snap = true
+	_emote_kind = kind
+	_emote_time = elapsed
+	_emote_pose = kind
+	_emote_left = get_held_item() != null
+	_emote_anchor = global_position
+	_emote_crouch0 = crouching
+	if kind == EMOTE_SLUMP:
+		_emote_probe_wall()
+		_emote_probe_left = SIT_PROBE_SEC
+		if previous != EMOTE_SLUMP:
+			_emote_snap = true
+	if elapsed >= _emote_in_sec(kind):
+		_emote_weight = 1.0
+	if elapsed < EMOTE_SOUND_LATE_SEC:
+		if is_local():
+			Sfx.play(&"emote")
+		else:
+			Sfx.play(&"emote", get_chest_position())
+	if previous != EMOTE_NONE:
+		emote_ended.emit(previous)
+	emote_started.emit(kind)
+
+
+func _emote_end_local() -> void:
+	if _emote_kind == EMOTE_NONE:
+		return
+	var kind := _emote_kind
+	_emote_kind = EMOTE_NONE
+	emote_ended.emit(kind)
+
+
+func _crouch_camera_y() -> float:
+	return lerpf(STAND_CAMERA_Y, CROUCH_CAMERA_Y, _crouch_blend)
+
+
+func _emote_apply_pose(delta: float, w: float) -> void:
+	_emote_posed = true
+	var t := _emote_time
+	var out_sign := -1.0 if _emote_left else 1.0 # +z swings ArmR out, -z swings ArmL out
+	var tl := Vector3.ZERO
+	var tr := Vector3.ZERO
+	var wl := 0.0
+	var wr := 0.0
+	var lift := 0.0
+	var lean := 0.0
+	var tilt := 0.0
+	var back := 0.0
+	var squash := 1.0
+	var widen := 1.0
+	var sitting := _emote_pose == EMOTE_SLUMP
+	match _emote_pose:
+		EMOTE_POINT:
+			var aim := Vector3(clampf(head.rotation.x + PI * 0.5 - ARM_REST_FORWARD, -0.2, 2.9), POINT_INWARD * out_sign, 0.0)
+			if _emote_left:
+				tl = aim
+				wl = 1.0
+			else:
+				tr = aim
+				wr = 1.0
+			lean = POINT_LEAN
+		EMOTE_WAVE:
+			var rock := sin(TAU * WAVE_HZ * maxf(t - 0.3, 0.0)) * WAVE_SWAY * clampf((t - 0.3) / 0.3, 0.0, 1.0)
+			var raised := Vector3(WAVE_RAISE, 0.0, out_sign * (WAVE_OUT + rock))
+			if _emote_left:
+				tl = raised
+				wl = 1.0
+			else:
+				tr = raised
+				wr = 1.0
+			tilt = -out_sign * WAVE_TILT
+		EMOTE_SHRUG:
+			var up := smoothstep(0.0, 0.3, t) * lerpf(1.0, 0.45, smoothstep(0.7, 1.6, t))
+			lift = SHRUG_LIFT * up
+			tilt = SHRUG_TILT * up
+			tl = Vector3(SHRUG_ARM.x, 0.0, -SHRUG_ARM.z)
+			wl = 1.0
+			if not _emote_left:
+				tr = SHRUG_ARM
+				wr = 1.0
+		EMOTE_SLUMP:
+			tl = Vector3(SLUMP_ARM.x, 0.0, -SLUMP_ARM.z)
+			wl = 1.0
+			if not _emote_left:
+				tr = SLUMP_ARM
+				wr = 1.0
+			_emote_probe_left -= delta
+			if _emote_probe_left <= 0.0:
+				_emote_probe_left = SIT_PROBE_SEC
+				_emote_probe_wall()
+			var lean_to := SIT_HUNCH
+			var back_to := 0.0
+			if _emote_wall < SIT_WALL_REACH:
+				lean_to = SIT_LEAN_BACK
+				back_to = clampf(_emote_wall - SIT_BACK_CLEAR, 0.0, SIT_BACK_MAX)
+			if _emote_snap:
+				_emote_lean = lean_to
+				_emote_back = back_to
+			else:
+				var k_sit := 1.0 - exp(-6.0 * delta)
+				_emote_lean = lerpf(_emote_lean, lean_to, k_sit)
+				_emote_back = lerpf(_emote_back, back_to, k_sit)
+			lean = _emote_lean
+			back = _emote_back
+			squash = SIT_SQUASH * (1.0 + SIT_BREATH * sin(TAU * SIT_BREATH_HZ * t))
+			widen = SIT_WIDEN
+	if _emote_snap:
+		_emote_snap = false
+		_emote_tgt_l = tl
+		_emote_tgt_r = tr
+		_emote_tw_l = wl
+		_emote_tw_r = wr
+	else:
+		var k := 1.0 - exp(-14.0 * delta)
+		_emote_tgt_l = _emote_tgt_l.lerp(tl, k)
+		_emote_tgt_r = _emote_tgt_r.lerp(tr, k)
+		_emote_tw_l = move_toward(_emote_tw_l, wl, 6.0 * delta)
+		_emote_tw_r = move_toward(_emote_tw_r, wr, 6.0 * delta)
+	if arm_l != null and arm_r != null:
+		if is_local(): # nobody else poses the local body's arms (its owner only sees their shadow)
+			arm_l.rotation = Vector3.ZERO
+			arm_r.rotation = Vector3.ZERO
+		arm_l.rotation = arm_l.rotation.lerp(_emote_tgt_l, w * _emote_tw_l)
+		arm_r.rotation = arm_r.rotation.lerp(_emote_tgt_r, w * _emote_tw_r)
+		arm_l.position = _emote_arm_l_rest + Vector3.UP * lift * w
+		arm_r.position = _emote_arm_r_rest + Vector3.UP * lift * w
+	# The body model: total height / width while sitting whatever the crouch is ($Visual carries the crouch squash).
+	var crouch_sq := lerpf(1.0, CROUCH_HEIGHT / STAND_HEIGHT, _crouch_blend)
+	var crouch_wide := lerpf(1.0, 1.08, _crouch_blend)
+	var sy := lerpf(1.0, squash / crouch_sq, w) if sitting else 1.0
+	var sxz := lerpf(1.0, widen / crouch_wide, w) if sitting else 1.0
+	var bend := Basis.from_euler(Vector3(lean * w, 0.0, tilt * w))
+	var change := Transform3D(bend * Basis.from_scale(Vector3(sxz, sy, sxz)), Vector3(0.0, 0.0, back * w))
+	if body_model != null:
+		body_model.transform = _emote_model_rest * change
+	# The face rides on the head (position and lean) but keeps its size: the mood does not change.
+	var follow := head.rotation.x * FACE_PITCH_FACTOR if not is_local() else 0.0
+	var head_at := (_emote_model_rest * change * _emote_model_rest.affine_inverse()) * _emote_face_rest
+	face.transform = Transform3D(Basis.from_euler(Vector3(lean * w + follow, 0.0, tilt * w)), head_at)
+	_emote_write_heights(crouch_sq * sy, lerpf(_crouch_camera_y(), SIT_CAMERA_Y, w) if sitting else _crouch_camera_y(), back * w)
+
+
+## The name label, the body's item socket and the head (the camera, for the local worker) at a total body height.
+func _emote_write_heights(total_squash: float, head_y: float, back: float) -> void:
+	name_label.position.y = (STAND_LABEL_Y + _hat_label_lift) * total_squash
+	body_hand_socket.position = Vector3(_emote_socket_rest.x, STAND_BODY_SOCKET_Y * total_squash, _emote_socket_rest.z + back)
+	head.position.y = head_y
+
+
+func _emote_restore() -> void:
+	_emote_posed = false
+	_emote_tw_l = 0.0
+	_emote_tw_r = 0.0
+	if arm_l != null and arm_r != null:
+		if is_local():
+			arm_l.rotation = Vector3.ZERO
+			arm_r.rotation = Vector3.ZERO
+		arm_l.position = _emote_arm_l_rest
+		arm_r.position = _emote_arm_r_rest
+	if body_model != null:
+		body_model.transform = _emote_model_rest
+	var follow := head.rotation.x * FACE_PITCH_FACTOR if not is_local() else 0.0
+	face.transform = Transform3D(Basis(Vector3.RIGHT, follow), _emote_face_rest)
+	_emote_write_heights(lerpf(1.0, CROUCH_HEIGHT / STAND_HEIGHT, _crouch_blend), _crouch_camera_y(), 0.0)
+
+
+## Slump: the distance to the wall straight behind the body (chest height, world layer), INF when none within reach.
+func _emote_probe_wall() -> void:
+	_emote_wall = INF
+	if not is_inside_tree():
+		return
+	var behind := global_basis.z
+	behind.y = 0.0
+	if not behind.is_finite() or behind.length_squared() < 0.000001:
+		return
+	behind = behind.normalized()
+	var from := global_position + Vector3.UP * CHEST_HEIGHT_CROUCHED
+	var query := PhysicsRayQueryParameters3D.create(from, from + behind * SIT_WALL_REACH, Const.LAYER_WORLD)
+	query.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty():
+		_emote_wall = from.distance_to(hit["position"])
+
+
+## Local worker: shows / hides the first-person point arm (`w` = the pose ease) and keeps it on the right layer.
+func _emote_update_fp_arm(w: float) -> void:
+	var show := w > 0.0 and _emote_pose == EMOTE_POINT and is_local() and camera != null and camera.is_current()
+	if not show:
+		if _emote_fp_arm != null and is_instance_valid(_emote_fp_arm):
+			_emote_fp_arm.visible = false
+			if _emote_fp_registered:
+				remove_view_model_user(_emote_fp_arm)
+		_emote_fp_registered = false
+		return
+	if _emote_fp_arm == null or not is_instance_valid(_emote_fp_arm):
+		_emote_fp_arm = _emote_build_fp_arm()
+		_emote_fp_on_vm = -1
+	var vm := uses_view_model()
+	if (1 if vm else 0) != _emote_fp_on_vm:
+		_emote_fp_on_vm = 1 if vm else 0
+		for n in _emote_fp_arm.find_children("*", "GeometryInstance3D", true, false):
+			(n as GeometryInstance3D).layers = VIEW_MODEL_LAYER if vm else WORLD_RENDER_LAYER
+	if vm and not _emote_fp_registered:
+		add_view_model_user(_emote_fp_arm)
+		_emote_fp_registered = true
+	elif not vm and _emote_fp_registered:
+		remove_view_model_user(_emote_fp_arm)
+		_emote_fp_registered = false
+	if player_color != _emote_fp_color:
+		_emote_fp_color = player_color
+		var sleeve := _emote_fp_arm.get_node_or_null(^"Sleeve") as MeshInstance3D
+		if sleeve != null:
+			sleeve.material_override = Toon.tint(player_color)
+	_emote_fp_arm.visible = true
+	var side := -1.0 if _emote_left else 1.0
+	var shoulder := Vector3(FP_ARM_SHOULDER.x * side, FP_ARM_SHOULDER.y - (1.0 - w) * FP_ARM_DROP, FP_ARM_SHOULDER.z)
+	_emote_fp_arm.transform = Transform3D(Basis.looking_at(FP_ARM_AIM - shoulder, Vector3.UP), shoulder)
+
+
+## The first-person arm, built along -Z from the shoulder: sleeve, glove cuff, mitt, one finger out, the thumb on top.
+func _emote_build_fp_arm() -> Node3D:
+	var arm := Node3D.new()
+	arm.name = FP_ARM_NAME
+	var glove: Material = Toon.lib(&"brown")
+	var along := Basis(Vector3.RIGHT, PI * 0.5) # a capsule / cylinder's Y axis turned onto -Z
+	var sleeve := CapsuleMesh.new()
+	sleeve.radius = 0.062
+	sleeve.height = 0.46
+	sleeve.radial_segments = 16
+	sleeve.rings = 4
+	_emote_fp_part(arm, "Sleeve", sleeve, Toon.tint(player_color), Transform3D(along, Vector3(0.0, 0.0, -0.23)), true)
+	var cuff := CylinderMesh.new()
+	cuff.top_radius = 0.071
+	cuff.bottom_radius = 0.071
+	cuff.height = 0.05
+	cuff.radial_segments = 16
+	cuff.rings = 1
+	_emote_fp_part(arm, "Cuff", cuff, glove, Transform3D(along, Vector3(0.0, 0.0, -0.44)), false)
+	var mitt := SphereMesh.new()
+	mitt.radius = 0.08
+	mitt.height = 0.16
+	mitt.radial_segments = 16
+	mitt.rings = 8
+	_emote_fp_part(arm, "Mitt", mitt, glove, Transform3D(Basis.from_scale(Vector3(1.0, 0.85, 1.15)), Vector3(0.0, 0.0, -0.51)), true)
+	var finger := CapsuleMesh.new()
+	finger.radius = 0.024
+	finger.height = 0.14
+	finger.radial_segments = 12
+	finger.rings = 2
+	_emote_fp_part(arm, "Finger", finger, glove, Transform3D(along, Vector3(0.0, 0.02, -0.6)), true)
+	var thumb := SphereMesh.new()
+	thumb.radius = 0.028
+	thumb.height = 0.056
+	thumb.radial_segments = 10
+	thumb.rings = 5
+	_emote_fp_part(arm, "Thumb", thumb, glove, Transform3D(Basis.IDENTITY, Vector3(0.0, 0.055, -0.49)), true)
+	_emote_fp_color = player_color
+	camera.add_child(arm)
+	return arm
+
+
+func _emote_fp_part(parent: Node3D, part_name: String, mesh: Mesh, mat: Material, xf: Transform3D, outline: bool) -> void:
+	var mi := MeshInstance3D.new()
+	mi.name = part_name
+	mi.mesh = mesh
+	mi.material_override = mat
+	if outline:
+		mi.material_overlay = Toon.outline(true)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.transform = xf
+	parent.add_child(mi)
+
+# --- end M18 emotes ----------------------------------------------------------------------------------------------------
 
 # --- M12 flame (flame agent): set on fire by the flamethrower -----------------------------------------------------
 

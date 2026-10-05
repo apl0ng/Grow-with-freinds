@@ -480,7 +480,7 @@ func _section_pause_voice() -> void:
 			and is_equal_approx(pm.volume_slider.value, clampf(vol0, PauseMenu.VOLUME_MIN_DB, PauseMenu.VOLUME_MAX_DB)),
 			"controls reflect Voice (mic %s, ptt %s, %.0f dB)" % [enabled0, ptt0, vol0])
 	check(pm.no_mic_label.visible == (not Voice.is_mic_available()), "'No microphone found.' follows Voice.is_mic_available()")
-	check(pm.controls_label_2.text == "RMB throw · F shove · MMB ping · T chat · V talk", "M10 controls line")
+	check(pm.controls_label_2.text == "RMB throw · F shove · MMB ping · T chat · V talk · 1-4 gestures", "M10 controls line (+ the M18 gesture keys)")
 	pm.mic_toggle.button_pressed = not enabled0
 	check(Voice.enabled == (not enabled0), "Microphone toggle writes Voice.enabled")
 	pm.ptt_toggle.button_pressed = not ptt0
