@@ -40,7 +40,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp economy polish variety variety_mp
   hats hats_mp finale finale_mp mayhem3 mayhem3_mp cart cart_mp quit
   radio radio_mp emotes emotes_mp spores spores_mp
-  settings settings_mp
+  settings settings_mp onboarding onboarding_mp
   qa_mouse_x11)
 
 ONLY=""
@@ -59,7 +59,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 11 14 15 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 98 99; do
+  for off in 11 12 13 14 15 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 98 99; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -399,6 +399,11 @@ run_suite spores_mp       260 "$LOGDIR/sporesmp/*.log" env SPORES_MP_PORT=$((BAS
 run_suite settings        200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/settings_body.gd --port=$((BASE + 14)) --settings-file=user://settings_test_$((BASE + 14)).cfg --round-sec=900 --timeout=180
 rm -rf "$LOGDIR/settingsmp"; mkdir -p "$LOGDIR/settingsmp"
 run_suite settings_mp     260 "$LOGDIR/settingsmp/*.log" env SETTINGS_MP_PORT=$((BASE + 15)) SETTINGS_MP_LOGS="$LOGDIR/settingsmp" tools/tests/settings_mp.sh
+# M19 onboarding: the guided first shift on a solo host with fake workers (--guide, a temp career file) (+12); host with
+# a record + a client without one + a late joiner (+13).
+run_suite onboarding      200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/onboarding_body.gd --port=$((BASE + 12)) --guide --run=B5VP --career-file=user://onboarding_test_$((BASE + 12)).cfg --round-sec=900 --timeout=180
+rm -rf "$LOGDIR/onboardingmp"; mkdir -p "$LOGDIR/onboardingmp"
+run_suite onboarding_mp   240 "$LOGDIR/onboardingmp/*.log" env ONBOARDING_MP_PORT=$((BASE + 13)) ONBOARDING_MP_LOGS="$LOGDIR/onboardingmp" tools/tests/onboarding_mp.sh
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120

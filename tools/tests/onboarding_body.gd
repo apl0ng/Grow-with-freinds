@@ -502,9 +502,9 @@ func _test_start_over() -> void:
 	Career.clear_record()
 	_remove(_path)
 	guide.set(&"_session_off", false) # what a fresh session would have
-	var emitted := [0]
-	var count := func(_key: StringName) -> void: emitted[0] += 1
-	Settings.changed.connect(count)
+	# M19 lead: the real Settings (merged) emits `changed` when guidance's dynamic default flips at the end of a first
+	# shift without writing anything, so "nothing written" is counted as file writes, not as signals.
+	var writes0 := int(Settings.call(&"get_write_count")) if Settings.has_method(&"get_write_count") else 0
 	GameState.request_start_round()
 	await wait_until(func() -> bool: return GameState.is_playing(), 3.0, "shift 1 runs")
 	await _settle()
@@ -512,8 +512,8 @@ func _test_start_over() -> void:
 	GameState.time_left = 0.05
 	await wait_until(func() -> bool: return GameState.is_round_over(), 3.0, "the shift ends")
 	await wait_frames(2)
-	check(emitted[0] == 0 and not guide.is_wanted(), "the shift ends: nothing written to Settings (a `-s` run), guidance off for the session")
-	Settings.changed.disconnect(count)
+	var writes := (int(Settings.call(&"get_write_count")) if Settings.has_method(&"get_write_count") else 0) - writes0
+	check(writes == 0 and not guide.is_wanted(), "the shift ends: nothing written to Settings (a `-s` run), guidance off for the session")
 	guide.settings_override = fake
 	await _new_run()
 

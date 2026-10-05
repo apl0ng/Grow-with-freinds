@@ -302,6 +302,7 @@ func sync_record() -> void:
 		return
 	record_job.text = String(career.call(&"get_title")) if career.has_method(&"get_title") else ""
 	record_job.visible = record_job.text != ""
+	record_job.custom_minimum_size.x = _record_line_width()  # M19 lead: it wraps too
 	for child: Node in record_lines.get_children():
 		record_lines.remove_child(child)
 		child.queue_free()
@@ -314,10 +315,20 @@ func sync_record() -> void:
 		label.theme_type_variation = &"SubtleLabel"
 		label.add_theme_font_size_override(&"font_size", RECORD_FONT_SIZE)
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART # the card keeps its width: a long line wraps
+		label.custom_minimum_size = Vector2(_record_line_width(), 0.0)  # M19 lead: a wrapping label needs a width
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		record_lines.add_child(label)
 	_hats_sync_record(career) # M16 hats
 	_career_place_record.call_deferred()
+
+
+## M19 lead: the width a Record line wraps at (the card's own width less its panel margins). A wrapping Label with no
+## width of its own was measured before the card had one after M19's pause menu changes: every line wrapped a letter
+## at a time and the card grew to 2500 px.
+func _record_line_width() -> float:
+	var panel := record_card.get_theme_stylebox(&"panel")
+	var margins := panel.get_minimum_size().x if panel != null else 0.0
+	return maxf(record_card.custom_minimum_size.x - margins, 120.0)
 
 
 ## What the Record card shows, top to bottom: the job title, then the lines ([] while it is hidden; tests).
