@@ -63,6 +63,11 @@ const QUIT_WATCHDOG_SEC := 2.0
 var _quitting := false
 
 
+## The game's version (project setting application/config/version), "0.0.0" when unset. The main menu shows it.
+func get_version() -> String:
+	return String(ProjectSettings.get_setting("application/config/version", "0.0.0"))
+
+
 ## True once quit_gracefully() has started.
 func is_quitting() -> bool:
 	return _quitting

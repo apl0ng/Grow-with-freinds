@@ -11,6 +11,7 @@ config_version=5
 [application]
 
 config/name="Grow With Friends"
+config/version="0.18.0"
 config/description="4-player co-op first-person quota farming game."
 run/main_scene="res://scenes/main_menu/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
@@ -33,6 +34,7 @@ Comms="*res://scripts/core/comms.gd"
 Lan="*res://scripts/core/lan.gd"
 WindowsFirewall="*res://scripts/core/windows_firewall.gd"
 Career="*res://scripts/core/career.gd"
+Settings="*res://scripts/core/settings.gd"
 
 [audio]
 

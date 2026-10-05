@@ -222,6 +222,10 @@ extends Resource
 @export var emote_sec: float = 2.4
 @export var emote_cooldown_sec: float = 1.0
 
+@export_group("M19")
+## The first-shift guide: a step the crew has not done is said once more after this many seconds.
+@export var guide_step_timeout_sec: float = 25.0
+
 @export_group("Networking")
 @export var default_port: int = 7777
 @export var max_players: int = 4
