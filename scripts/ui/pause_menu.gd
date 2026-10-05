@@ -30,6 +30,10 @@ const CONTROL_HINTS: Array = [
 	["Sprint", &"sprint", "Shift"],
 	["Crouch", &"crouch", "Ctrl"],
 ]
+# --- M18 emotes ---
+## The gesture keys (Player.EMOTE_ACTIONS on the number keys 1 to 4) at the end of the second controls line.
+const TEXT_CONTROLS_M18_EMOTES := " · 1-4 gestures"
+# --- end M18 emotes ---
 
 var _locked: bool = false
 ## Frame in which someone else released the UI lock: the same key press must not reopen us.
@@ -61,7 +65,7 @@ func _ready() -> void:
 	leave_button.pressed.connect(_on_leave_pressed)
 	Game.ui_lock_changed.connect(_on_ui_lock_changed)
 	controls_label.text = _build_controls_text()
-	controls_label_2.text = TEXT_CONTROLS_M10
+	controls_label_2.text = TEXT_CONTROLS_M10 + TEXT_CONTROLS_M18_EMOTES # M18 emotes
 	# M10 voice settings (Voice contract surface; guarded so a renamed field never breaks the menu).
 	volume_slider.min_value = VOLUME_MIN_DB
 	volume_slider.max_value = VOLUME_MAX_DB

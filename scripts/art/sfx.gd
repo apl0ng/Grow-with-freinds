@@ -1007,6 +1007,18 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_fade_in(b, 0.002)
 			_fade_out(b, 0.04)
 		# --- end M17 cart ---
+		# --- M18 emotes ---
+		&"emote":  # a gesture: the sleeve of a stiff work jacket lifts and settles, a glove brushes the apron. Dry, close, short
+			b = _buf(0.44)
+			_noise(b, rng, 0.0, 0.24, 0.6, 0.3, 0.05, 0.06, 1.6)                    # the sleeve lifts: a slow canvas swish
+			_noise(b, rng, 0.03, 0.18, 0.3, 0.62, 0.28, 0.03, 2.5)                   # the grain of the weave
+			_noise(b, rng, 0.2, 0.2, 0.5, 0.26, 0.04, 0.03, 2.2)                     # and settles back
+			_noise(b, rng, 0.22, 0.06, 0.18, 0.7, 0.3, 0.004, 5.0)                   # leather on canvas
+			_lowpass(b, 0.5)
+			_dc_block(b)
+			_fade_in(b, 0.003)
+			_fade_out(b, 0.05)
+		# --- end M18 emotes ---
 		# --- M12 lead: the flamethrower and its consequences (dull and physical, nothing heroic) ------------------
 		&"flame":  # the loop while the trigger is held: a muffled roar with a slow rumble under it
 			b = _buf(0.8)
