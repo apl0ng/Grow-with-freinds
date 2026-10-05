@@ -28,6 +28,7 @@ var _player_scene: PackedScene = null
 func _ready() -> void:
 	_player_scene = load(PLAYER_SCENE_PATH) as PackedScene
 	player_spawner.spawn_function = _spawn_player
+	add_child(Spores.new())  # M18 spores: World/Spores on every peer (Black Damp's clouds and who is fogged)
 
 func get_player(peer_id: int) -> Player:
 	if players_root == null:

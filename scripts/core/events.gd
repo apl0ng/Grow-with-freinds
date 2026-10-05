@@ -1519,6 +1519,7 @@ func server_fire_lane(lane: Dictionary, first: bool = false) -> Dictionary:
 		plot.stage_progress = maxf(plot.stage_progress - maxf(b.driveby_tray_loss, 0.0), 0.0)
 		_rpc_tray_shot.rpc(String(plot.name), centre)
 		trays.append(String(plot.name))
+	Spores.server_lane_shot(from, end, DRIVEBY_TRAY_RADIUS)  # M18 spores: a round over a ripe Black Damp tray puffs it
 	_driveby_shots += 1
 	_rpc_shot.rpc(from, end, flags, glass_at)
 	return out

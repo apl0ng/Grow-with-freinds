@@ -88,6 +88,21 @@ heavy = true
 trait_text = "Heavy."
 unlock_round = 4
 
+[sub_resource type="Resource" id="Resource_m18dp"]
+resource_name = "Black Damp"
+script = ExtResource("2_75r0e")
+id = &"damp"
+display_name = "Black Damp"
+description = "Slow. Pays well. Disturb a ripe tray and you breathe it."
+cost = 80
+grow_time_multiplier = 1.8
+sale_value_per_unit = 245
+color = Color(0.26, 0.29, 0.22, 1)
+mutation_chance = 0.05
+trait_text = "Spores."
+unlock_round = 3
+spores = true
+
 [sub_resource type="Resource" id="Resource_htc7v"]
 resource_name = "Cheap Fertilizer"
 script = ExtResource("3_njojm")
@@ -121,7 +136,7 @@ effect_per_level = 0.1
 
 [resource]
 script = ExtResource("1_e7bv1")
-seeds = Array[ExtResource("2_75r0e")]([SubResource("Resource_j68rn"), SubResource("Resource_icusp"), SubResource("Resource_2bvcb"), SubResource("Resource_m12ns"), SubResource("Resource_m12cr"), SubResource("Resource_m12br")])
+seeds = Array[ExtResource("2_75r0e")]([SubResource("Resource_j68rn"), SubResource("Resource_icusp"), SubResource("Resource_2bvcb"), SubResource("Resource_m12ns"), SubResource("Resource_m12cr"), SubResource("Resource_m12br"), SubResource("Resource_m18dp")])
 upgrades = Array[ExtResource("3_njojm")]([SubResource("Resource_htc7v"), SubResource("Resource_4r1k0"), SubResource("Resource_h2r3a")])
 base_quota = 350
 quota_scale = 1.82

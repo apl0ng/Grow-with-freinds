@@ -40,8 +40,11 @@ func refresh() -> void:
 	_clear(verdicts_box)
 	_row_peers.clear()
 	_verdict_texts = PackedStringArray()
+	var fog_column := _spores_has_column()  # M18 spores: a FOGGED column on a shift that fogged somebody
+	grid.columns = COLUMNS.size() + (1 if fog_column else 0)  # M18 spores
 	for col: Array in COLUMNS:
 		grid.add_child(_cell(String(col[0]), bool(col[1]), &"SubtleLabel", 0, Color.WHITE, false))
+	if fog_column: grid.add_child(_cell(TEXT_FOGGED, true, &"SubtleLabel", 0, Color.WHITE, false))  # M18 spores
 	for peer_id: int in Story.get_report_peers():
 		_row_peers.append(peer_id)
 		var color: Color = Net.get_player_color(peer_id)
@@ -59,6 +62,7 @@ func refresh() -> void:
 		grid.add_child(_number(str(GameState.get_stat(peer_id, Const.STAT_WRITE_UPS))))
 		grid.add_child(_number(TEXT_THROWS_HITS % [GameState.get_stat(peer_id, Const.STAT_THROWS),
 				GameState.get_stat(peer_id, Const.STAT_HITS)]))
+		if fog_column: grid.add_child(_number(str(GameState.get_stat(peer_id, Spores.STAT_FOGGED))))  # M18 spores
 	if Story.has_method(&"get_report_verdicts"):
 		_verdict_texts = Story.get_report_verdicts()
 	for text in _verdict_texts:
@@ -104,6 +108,27 @@ func get_job_text() -> String:
 # --- end M15 career ------------------------------------------------------------------------------------------------
 
 
+# --- M18 spores: the FOGGED column ------------------------------------------------------------------------------------
+# After THROWS/HITS, only on a shift where somebody breathed Black Damp's spores (GameState stat Spores.STAT_FOGGED, the
+# times each worker was fogged); every other shift keeps the seven columns it always had.
+
+const TEXT_FOGGED := "FOGGED"
+
+
+## True when the table shows the FOGGED column right now.
+func has_fogged_column() -> bool:
+	return grid != null and grid.columns > COLUMNS.size()
+
+
+func _spores_has_column() -> bool:
+	for peer_id: int in Story.get_report_peers():
+		if GameState.get_stat(peer_id, Spores.STAT_FOGGED) > 0:
+			return true
+	return false
+
+# --- end M18 spores ----------------------------------------------------------------------------------------------------
+
+
 ## Peer ids shown, in row order (tests).
 func get_row_peers() -> Array[int]:
 	return _row_peers.duplicate()
@@ -114,9 +139,9 @@ func get_verdict_texts() -> PackedStringArray:
 	return _verdict_texts.duplicate()
 
 
-## Text of one cell: `row` 0 = header, `column` 0..6 (tests). "" when out of range.
+## Text of one cell: `row` 0 = header, `column` 0..6 (7 = FOGGED when shown) (tests). "" when out of range.
 func get_cell_text(row: int, column: int) -> String:
-	var index := row * COLUMNS.size() + column
+	var index := row * grid.columns + column  # M18 spores: the grid's own width (COLUMNS, plus FOGGED when shown)
 	if index < 0 or index >= grid.get_child_count():
 		return ""
 	var label := grid.get_child(index) as Label

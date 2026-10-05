@@ -517,6 +517,7 @@ func _server_step_flight(item: Item) -> void:
 		query.hit_from_inside = true
 		var wall := space.intersect_ray(query)
 		if not wall.is_empty():
+			Spores.server_flight_struck(wall.get("collider") as Node)  # M18 spores: an item that strikes a ripe Black Damp tray
 			_server_end_flight(item, wall["position"], t1)
 			return
 	# 3. Flew too long, or fell out of the world.

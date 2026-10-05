@@ -248,13 +248,13 @@ func _test_shift_one(b: BalanceConfig) -> void:
 			"the chip row sits right under the payment panel, in its own container")
 
 	step("unlocks")
-	var expected := {&"budget": 1, &"purple": 1, &"creeper": 1, &"golden": 2, &"nightshift": 3, &"brick": 4}
+	var expected := {&"budget": 1, &"purple": 1, &"creeper": 1, &"golden": 2, &"nightshift": 3, &"brick": 4, &"damp": 3}  # M18 spores: Black Damp from shift 3
 	var unlock_ok := true
 	for id: StringName in expected:
 		if GameState.get_unlock_round(id) != int(expected[id]) or GameState.is_strain_unlocked(id) != (int(expected[id]) <= 1):
 			unlock_ok = false
-	check(unlock_ok, "Budget, Purple, Creeper from shift 1; Golden 2, Night Shift 3, Floor Brick 4")
-	check(GameState.is_strain_unlocked(&"nonsense") and GameState.get_new_strains(1).is_empty() and _same(GameState.get_new_strains(3), [&"nightshift"]), "an unknown strain is never locked; shift 3 brings Night Shift")
+	check(unlock_ok, "Budget, Purple, Creeper from shift 1; Golden 2, Night Shift and Black Damp 3, Floor Brick 4")
+	check(GameState.is_strain_unlocked(&"nonsense") and GameState.get_new_strains(1).is_empty() and _same(GameState.get_new_strains(3), [&"nightshift", &"damp"]), "an unknown strain is never locked; shift 3 brings Night Shift and Black Damp")
 	GameState.server_add_money(1000)
 	await wait_frames(1)
 	stand_near(_shop, 1.3)
@@ -714,7 +714,7 @@ func _test_shifts(b: BalanceConfig) -> void:
 	check(_hud.round_end.report.get_verdict_texts().has("Conditions: Short clock."), "the shift report says which conditions ran")
 	var previous: Array[StringName] = GameState.get_conditions()
 	var previous_market: Dictionary = GameState.get_market()
-	var names := {2: "Golden Kush", 3: "Night Shift", 4: "Floor Brick"}
+	var names := {2: "Golden Kush", 3: "Night Shift, Black Damp", 4: "Floor Brick"}  # M18 spores: Black Damp comes with Night Shift
 	var everything: Dictionary = {}
 	for n in range(2, 9):
 		step("shift %d" % n)
