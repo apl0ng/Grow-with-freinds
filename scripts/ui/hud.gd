@@ -194,6 +194,7 @@ func _ready() -> void:
 	_m15_lead_ready() # M15 lead: the centre banner follows the payment column's bottom edge
 	_finale_ready() # M17 finale: the payment panel's title reads FINAL NOTICE on the run's last shift
 	_radio_hud_ready() # M18 radio: "RADIO" next to the talk mark in the WORKERS rows while that worker is on the radio
+	_onboarding_ready() # M19 onboarding: the guide's hint line at the bottom centre, under the prompt
 
 	_ui_locked = Game.is_ui_locked()
 	_stats_ready = GameState.phase != GameState.Phase.MENU
@@ -1208,6 +1209,95 @@ func _radio_make_tag(entry: Dictionary) -> Label:
 	return label
 
 # --- end M18 radio -------------------------------------------------------------------------------------------------
+
+
+# --- M19 onboarding --- the guide's hint line -----------------------------------------------------------------------
+# One line at the bottom centre, under the interaction prompt: World/HUD/Root/GuideHint (a HudPanel) holding
+# GuideHint/Label. It shows Story.guide.get_hint_text() (scripts/core/guide.gd): the current step of the guided first
+# shift with its key ("E · buy seeds at the window"), the payment line for a few seconds at the end, and the van's
+# line once in the alley. Local to this peer; hidden while any UI lock is up (pause, supply window, end screen, back
+# room) and in the menu; never takes the mouse. It sits in Root's draw order right after the prompt panel (under the
+# overlays). At 1280 x 720 the panel spans x 430..850 from y 620 down (one line ends near y 660, a wrapped second
+# line near 686): below the prompt (its bottom edge is y 610), right of the chat (x <= 416), left of the toasts
+# (x >= 904), far under the top column (the centre banner, the event banner, the job line, the chips).
+
+const GUIDE_HINT_NAME := "GuideHint"
+## Panel width and its top edge measured up from the bottom of the 720 px frame.
+const GUIDE_HINT_WIDTH: float = 420.0
+const GUIDE_HINT_FROM_BOTTOM: float = 100.0
+const GUIDE_HINT_FONT_SIZE: int = 20
+
+var _guide_hint: PanelContainer
+var _guide_hint_label: Label
+
+
+func _onboarding_ready() -> void:
+	_guide_hint = PanelContainer.new()
+	_guide_hint.name = GUIDE_HINT_NAME
+	_guide_hint.theme_type_variation = &"HudPanel"
+	_guide_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_guide_hint.anchor_left = 0.5
+	_guide_hint.anchor_right = 0.5
+	_guide_hint.anchor_top = 1.0
+	_guide_hint.anchor_bottom = 1.0
+	_guide_hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_guide_hint.grow_vertical = Control.GROW_DIRECTION_END
+	_guide_hint.visible = false
+	_guide_hint_label = Label.new()
+	_guide_hint_label.name = "Label"
+	_guide_hint_label.theme_type_variation = &"HudLabel"
+	_guide_hint_label.add_theme_font_size_override(&"font_size", GUIDE_HINT_FONT_SIZE)
+	_guide_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_guide_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_guide_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_guide_hint.add_child(_guide_hint_label)
+	root_control.add_child(_guide_hint)
+	_onboarding_place()
+	root_control.move_child(_guide_hint, prompt_panel.get_index() + 1)
+	var guide: Node = Story.guide
+	if guide != null and guide.has_signal(&"hint_changed"):
+		guide.connect(&"hint_changed", _onboarding_on_hint)
+	Game.ui_lock_changed.connect(_onboarding_on_hint)
+	GameState.phase_changed.connect(_onboarding_on_hint)
+	_onboarding_refresh()
+
+
+## The hint line's text as the guide has it now ("" = hidden).
+func get_guide_hint_text() -> String:
+	var guide: Node = Story.guide
+	return String(guide.call(&"get_hint_text")) if guide != null and guide.has_method(&"get_hint_text") else ""
+
+
+## The hint line's panel (tests measure its rect).
+func get_guide_hint() -> PanelContainer:
+	return _guide_hint
+
+
+func _onboarding_on_hint(_arg: Variant = null) -> void:
+	_onboarding_refresh()
+
+
+func _onboarding_refresh() -> void:
+	if _guide_hint == null:
+		return
+	var text := get_guide_hint_text()
+	if _guide_hint_label.text != text:
+		_guide_hint_label.text = text
+		_onboarding_place()
+	_guide_hint.visible = text != "" and not Game.is_ui_locked() and GameState.phase != GameState.Phase.MENU
+
+
+## Width fixed, top edge fixed, the height follows the text (a wrapped line grows the panel downwards, never up into
+## the prompt).
+func _onboarding_place() -> void:
+	var pad := _guide_hint.get_theme_stylebox(&"panel").get_minimum_size().x if _guide_hint.has_theme_stylebox(&"panel") else 32.0
+	_guide_hint_label.custom_minimum_size = Vector2(maxf(GUIDE_HINT_WIDTH - pad, 1.0), 0.0)
+	_guide_hint.offset_left = -GUIDE_HINT_WIDTH * 0.5
+	_guide_hint.offset_right = GUIDE_HINT_WIDTH * 0.5
+	_guide_hint.offset_top = -GUIDE_HINT_FROM_BOTTOM
+	_guide_hint.offset_bottom = -GUIDE_HINT_FROM_BOTTOM
+
+# --- end M19 onboarding --------------------------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------------------------

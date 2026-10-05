@@ -161,6 +161,7 @@ func _ready() -> void:
 	_mayhem3_setup()  # M17 mayhem3: the scale, the phone (region after the M15 mayhem2 one)
 	_career_setup()  # M15 career: the shift's job (region at the end of the file)
 	_finale_setup()  # M17 finale: the final notice (region at the end of the file)
+	_onboarding_setup()  # M19 onboarding: the guided first shift (scripts/core/guide.gd; region after the M18 spores one)
 
 
 func _process(delta: float) -> void:
@@ -1359,6 +1360,67 @@ func _spores_report_verdicts(peers: Array) -> PackedStringArray:
 		out.append(line("verdict_fogged") % Net.get_player_name(best))
 	return out
 # --- end M18 spores ----------------------------------------------------------------------------------------------
+
+
+# --- M19 onboarding --- the guided first shift --------------------------------------------------------------------
+# The steps live in scripts/core/guide.gd (class Guide); _ready() creates it as this node's child (`guide`,
+# /root/Story/Guide) and Story lends it the Boss. A guide line is said at his window on THIS peer only (no RPC: each
+# player gets their own guide), never over another line (the guide waits until he has been quiet ONBOARDING_GAP_SEC),
+# stays up ONBOARDING_BARK_SEC (longer than his own lines: it is read from across the room) and lands in last_bark /
+# bark_log / bark_shown like any line. It counts for the rate limit like a PROGRESS line; the normal lines are
+# untouched and still happen. The alley board and the van reach the guide through the two helpers below.
+
+## The guide speaks only after the Boss has been quiet this long.
+const ONBOARDING_GAP_SEC: float = 3.0
+## A guide line stays up above the Boss this long.
+const ONBOARDING_BARK_SEC: float = 4.5
+
+## The guided first shift (scripts/core/guide.gd), created in _ready().
+var guide: Guide = null
+
+
+func _onboarding_setup() -> void:
+	guide = Guide.new()
+	guide.name = "Guide"
+	add_child(guide)
+
+
+## True when the Boss has been quiet for ONBOARDING_GAP_SEC (Story's own clock: tests skip it with tick()).
+func onboarding_boss_free() -> bool:
+	return _clock - _last_at >= ONBOARDING_GAP_SEC
+
+
+## The guide's line at the Boss's window, on this peer only. A queued normal line keeps its place in the queue.
+func onboarding_say(text: String) -> void:
+	if text.strip_edges() == "":
+		return
+	_last_at = _clock
+	_last_weight = Weight.PROGRESS
+	last_bark = text
+	bark_log.append(text)
+	if bark_log.size() > BARK_LOG_MAX:
+		bark_log.remove_at(0)
+	var boss := find_boss()
+	if boss != null:
+		if boss.has_method(&"bark") and boss.get_method_argument_count(&"bark") >= 2:
+			boss.call(&"bark", text, ONBOARDING_BARK_SEC)
+		elif boss.has_method(&"bark"):
+			boss.call(&"bark", text)
+		else:
+			Game.toast(BOSS_TOAST_FORMAT % text, &"info")
+	bark_shown.emit(text)
+
+
+## The alley board's first NEXT line for this player ("" for none): AlleyBoard.get_next_lines() puts it on top.
+func onboarding_alley_line() -> String:
+	return guide.get_alley_line() if guide != null else ""
+
+
+## Van._ready hands the van over: the guide shows its line once when this player first comes near its doors.
+func onboarding_watch_van(van: Node3D) -> void:
+	if guide != null:
+		guide.watch_van(van)
+# --- end M19 onboarding -------------------------------------------------------------------------------------------
 
 
 # --- M14 loop: strain traits and the drying rack -----------------------------------------------------------------

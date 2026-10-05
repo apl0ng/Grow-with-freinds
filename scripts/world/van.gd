@@ -54,6 +54,7 @@ func _ready() -> void:
 	Net.players_changed.connect(_on_players_changed)
 	GameState.transition_started.connect(_on_transition_started)
 	GameState.phase_changed.connect(_on_phase_changed)
+	Story.onboarding_watch_van(self)  # M19 onboarding: a first-timer's hint line says what the van is, once, near its doors
 
 
 func _process(delta: float) -> void:
