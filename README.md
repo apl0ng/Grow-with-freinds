@@ -65,9 +65,8 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   wants $40: hold E on him to pay out of cash on hand, or he takes the dearest bundle on the floor, and with no
   bundle the plant that is furthest along).
 - The alley has a ball, a hoop with a counter, and the board (last shift, next shift, your record).
-- The payment due (M15): $350 for the first shift, then it climbs fast ($1,325, $2,535, $4,174, $6,592, $10,429 for
-  one worker; 10% more for each extra worker). The sixth shift needs favors and cured bundles. `--no-replay` turns
-  the conditions, the market, the unlocks and the jobs off.
+- The payment due climbs every shift (M15, retuned in M18: see below); the last shifts need favors and cured
+  bundles. `--no-replay` turns the conditions, the market, the unlocks and the jobs off.
 - The floor moves (M16): the crates and pallets on the dock, in the main room and in the hall stand differently each
   run (four arrangements). Every run has a four-character code on the alley board. Type a friend's code into the run
   code field under Open the floor, or press THIS WEEK, and the host deals the same run: the same conditions, market,
@@ -93,6 +92,16 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   shoves the chute with F or throws something at it), and the wall phone in the main room rings (hold E to answer
   for a tip about the next event, a minute of cheaper seeds, or a wrong number; let it ring and $30 comes out of
   cash on hand).
+- Radios (M18): two walkie-talkies hang on a shelf in the main room. Hold one and talk, and every other radio on the
+  floor carries your voice, crackling, wherever it lies, the back room included.
+- Black Damp (M18), the seventh strain, is sold from shift three: it pays $245 a unit and grows slowly. A ripe tray
+  puffs spores when it is harvested, uprooted, burnt, shot or hit. Whoever breathes them sees grey, hears through
+  cotton and coughs for nine seconds (half that crouched), and everyone else hears the coughing.
+- Gestures (M18): number keys 1 to 4: point (the arm follows where you look), a tired half-wave, a shrug, and sitting
+  down against whatever is behind you until you move.
+- The payment due (M18): $350, then x1.82 + 500 a shift for one worker, so a careful worker alone can clear the
+  four-shift debt about half the time. A crew pays more, most in the middle of the run (four workers: x1.46 in
+  shift 1, x2.27 in shift 3, x1.40 in shift 6).
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows

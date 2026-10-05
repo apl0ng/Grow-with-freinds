@@ -1305,8 +1305,8 @@ economy2 extends the existing `economy` suite. Every suite that runs with `--rep
 - `Const.ITEM_RADIO` (&"radio").
 - Input actions `emote_1` .. `emote_4` on the number keys 1 to 4.
 - `BalanceConfig` group "M18": `radio_count` 2, `radio_volume_db` -4, `spore_radius` 2.6, `spore_fog_sec` 9,
-  `spore_cloud_sec` 6, `emote_sec` 2.4, `emote_cooldown_sec` 1.0; and `quota_team_growth` (default 0: what each
-  worker beyond the first adds to the payment grows by this much per shift; `quota_for_round` already reads it).
+  `spore_cloud_sec` 6, `emote_sec` 2.4, `emote_cooldown_sec` 1.0; and `quota_team_growth` (replaced by the per-shift
+  team table: see "M18 as delivered").
 - Sfx names with default blips: `radio_on`, `radio_off`, `radio_static` (loop), `spore_puff`, `cough`, `emote`.
 
 ### Radio (radio agent) — an item, its model, voice.gd region, room.tscn marker, HUD region
@@ -1418,3 +1418,54 @@ playtest), L2, R4, part of D1 and R5.
 - A capture tool `tools/tests/m19_shots_body.gd` (windowed, for the lead) that stages the five busiest moments.
 - The spores (M18) are part of the audit: the tell over a ripe Black Damp tray counts as its telegraph.
 
+
+### M18 as delivered (integration notes, lead, 2026-10-05)
+Four branches merged (radio, economy2, emotes, spores). The session ended twice during the wave (a machine sleep and
+a session end); the agents were resumed with SendMessage and finished from their worktrees.
+
+**Radio (radio).** `Radio` items (`scripts/items/radio.gd`), two on `Decor/RadioShelf` (north-west corner of the main
+room, next to the wall phone; sign "RADIOS / PUT THEM BACK"), spawned at the first shift start like the hand truck,
+put back when lying outside the play areas, replaced when missing, despawned on START OVER. The host decides who is
+on the radio (accepted frames from a peer holding a radio; ends 0.4 s after the last frame) and syncs it with
+`Voice._rpc_radio(peer, on)` (replayed to late joiners). Every peer plays accepted frames at every OTHER radio: one
+generator + `RadioVoice<sender>` player per (sender, radio), on a runtime bus "Radio" (band 380-2800 Hz, overdrive,
+into "Voice"), bit-crush and crackle in the samples. Clicks and static are the radio's own players (Sfx.play
+swallows a duplicate within 40 ms; play_loop is capped). The RADIO tag shows in the WORKERS row of anyone on the
+radio. Nobody transmits from the back room (items are dropped there); radios lying anywhere receive.
+`Voice.is_on_radio(peer)`, `get_radio_listeners()`, `get_radio_peers()`, `is_transmitting_on_radio()`, signal
+`radio_changed`.
+
+**The payment (economy2).** `quota_team_growth` (the lead's prep) is gone: the model showed a flat or growing
+per-worker raise could not keep the middle of a run hard without breaking the shift 6 clears. Now
+`quota_team_factor(shift, workers) = 1 + max(a(shift) * m(workers), 0)` from `quota_team_by_shift` [0.40, 0.75,
+1.10, 0.85, 0.60, 0.35] and `quota_team_by_size` [1.0, 1.05, 1.15]; empty tables fall back to the flat
+`quota_per_extra_player`. The solo curve is 350, x1.82 + **500** (was 688): solo 350 / 1137 / 2159 / 3610 / 5840 /
+9489; four workers x1.46 / x1.86 / x2.27 / x1.98 / x1.69 / x1.40. Model results: a careful solo worker clears the
+four-shift run 3 of 5 (was 0: since M15's shift 1 at $350 the floor was not ready for shift 2); two careful workers
+3 of 5; three and four careful workers 5 of 5 with favors and the racks, 0 without the racks; four average workers
+reach the final notice and do not clear; nobody clears without favors. Four average workers in shift 3: x1.77 the
+payment (was x2.65). A careful solo worker without the racks clears 2 of 5 (allowed for one worker). The lead
+dropped one target the model proved infeasible (an average crew clearing only with favors and racks).
+
+**Gestures (emotes).** `Player.request_emote(kind)` (owner), `server_emote(kind)` (host), `_rpc_request_emote` /
+`_rpc_emote(kind, elapsed)`; `EMOTE_POINT` / `WAVE` / `SHRUG` / `SLUMP`. The point follows the synced head pitch.
+With a normal item in hand the left arm gestures; heavy carries and a burning flamethrower refuse ("Both hands are
+busy."). Gestures work in the back room. Starting while walking or in the air is refused; any movement ends a
+gesture. Slump squashes the body to 0.58 and leans back against a wall within 1 m; the capsule keeps its height.
+The first-person point arm is `Head/Camera/PointArm` on the view-model layer; slump lowers the camera to 0.85.
+
+**Black Damp (spores).** Strain `damp`: $80, x1.8 growth, one unit at $245, mutation 0.05, from shift 3, trait
+"Spores." (`SeedDef.spores`). `World/Spores` (`Spores`, `scripts/core/spores.gd`) on every peer. A ripe tray puffs on
+harvest, uproot, fire, a drive-by round within 0.75 m, or a thrown item; a hanging cloud does not puff again. Caught
+within `spore_radius` on the same floor with no wall between (the pen fence lets spores through), not in the back
+room; crouched halves it; standing in the cloud tops it up. Fog: a grey, edge-blurred overlay on CanvasLayer 0, a
+650 Hz low-pass on Master (removed by identity), coughs at the worker's head every 2.4-3.8 s on every peer, a haze on
+remote fogged workers. Ripe Black Damp trays show drifting motes (`GrowPlot/Visual/SporeTell`) so the tell is
+visible. The shift report gets a FOGGED column only on a shift where somebody was fogged. `Const.STAT_FOGGED`
+(lead). With replay off Black Damp is sold from shift 1 like every strain. The economy suite still holds with it.
+
+**Suites and ports.** radio +36 / radio_mp +37, spores +38 / spores_mp +39, emotes +40 / emotes_mp +49; economy
+carries the payment targets. `tools/tests/m18_shots_body.gd` is the capture tool.
+
+**Known gaps.** None of the M18 sounds has been heard by a human (radio clicks and static, spore puff, cough,
+gesture). The radio filter itself is unheard. `qa_m12_4p` still has its own restock race (host 78, peer 77).
