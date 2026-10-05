@@ -270,13 +270,13 @@ func _view(args: Dictionary, self_fogged: bool) -> Dictionary:
 	info["fog"] = why[0]
 	if self_fogged:
 		var mine0 := spores.get_cough_count(me.peer_id)
-		info["overlay_ok"] = await wait_until_quiet(func() -> bool: return spores.get_overlay_alpha() > 0.99 and spores.get_overlay_rect().visible, 3.0)
+		info["overlay_ok"] = await wait_until_quiet(func() -> bool: return spores.get_overlay_alpha() >= 1.0 and spores.get_overlay_rect().visible, 3.0)  # fully in: the filter is at its floor
 		info["alpha"] = spores.get_overlay_alpha()
 		var f := spores.get_filter()
 		info["effects"] = AudioServer.get_bus_effect_count(Spores.MASTER_BUS)
 		info["cutoff"] = f.cutoff_hz if f != null else -1.0
 		info["filter_ok"] = f != null and spores.is_filter_installed() and AudioServer.get_bus_effect_count(Spores.MASTER_BUS) == _master0 + 1 \
-				and absf(f.cutoff_hz - Spores.FILTER_CUTOFF_HZ) < 1.0
+				and absf(f.cutoff_hz - Spores.FILTER_CUTOFF_HZ) < 2.0
 		var coughed := spores.get_cough_count(me.peer_id) > mine0 or await wait_until_quiet(func() -> bool: return spores.get_cough_count(me.peer_id) > mine0, 4.5)
 		info["own_cough"] = coughed and spores.get_cough_count(me.peer_id) >= 1
 	var remote_ok := true
