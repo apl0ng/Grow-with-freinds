@@ -340,3 +340,13 @@ the pull, the release itself) and the milestones that close it: M18 (in progress
 (onboarding, settings, readability), M20 "One more run" (debt levels, the run summary, achievements, economy3),
 M21 "The informant" (an optional hidden-role mode), M22 "Release hardening" (performance, a soak, shipping), then a
 release candidate the user plays with friends.
+
+## M19 The first ten minutes: onboarding, settings, readability (in progress, 2026-10-05)
+RELEASE.md M19; CONTRACTS.md "M19".
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 19.0 | Prep: the Settings autoload stub, the version 0.18.0 and Game.get_version, guide_step_timeout_sec | lead | done |
+| 19.1 | The guided first shift (the Boss and the HUD walk a new crew through the loop once), the van explained once; onboarding + onboarding_mp suites | onboarding | in progress |
+| 19.2 | Settings: sensitivity, invert Y, field of view, volume buses, display, guidance; the OPTIONS card; the version on the menu; settings + settings_mp suites | settings | in progress |
+| 19.3 | The disruption audit against RELEASE D1, "what it cost" lines in the report, a decluttered HUD, a capture tool; readability + readability_mp suites | readability | in progress |
+| 19.4 | Integration: merges, captures of a whole first run, the audit table in CONTRACTS, full run, export | lead | pending |

@@ -1361,3 +1361,60 @@ economy2 extends the existing `economy` suite. Every suite that runs with `--rep
   the racks; nobody clears without cured bundles. Solo numbers must not move (team size 1 is unaffected by the field).
 - Pin the new targets and the payment table in the `economy` suite; update the flow / econ pins that follow.
 - A seventh strain (Black Damp, shift 3) lands in parallel: keep the model tolerant of a strain it does not know yet.
+
+## M19 — the first ten minutes: onboarding, settings, readability (lead prep)
+RELEASE.md, M19. Three agents in worktrees `.claude/worktrees/<agent>19` on `m19/<agent>`: **onboarding**,
+**settings**, **readability**. tools/dev/AGENT_RULES.md applies (milestone M19, base ports onboarding 9100,
+settings 9200, readability 9300). Test ports: onboarding +12 / onboarding_mp +13, settings +14 / settings_mp
++15, readability +16 / readability_mp +17. Release bar lines this wave closes: L1 (pending a human
+playtest), L2, R4, part of D1 and R5.
+
+### Prep already in place (lead)
+- Autoload `Settings` (scripts/core/settings.gd), a stub with the agreed API (below) that returns defaults, so
+  onboarding and readability can call it before the settings branch merges.
+- `application/config/version` in project.godot ("0.18.0") and `Game.get_version() -> String`. The settings
+  agent puts it on the main menu (a small grey line under the title, "v0.18.0").
+- BalanceConfig group "M19": `guide_step_timeout_sec` (a step the crew has not done is repeated after this).
+
+### Settings (settings agent) — scripts/core/settings.gd (replaces the stub), the OPTIONS card, its consumers
+- One file `user://settings.cfg` (the menu already keeps name / ip / port in its section "menu": keep that
+  section and its format). Sections `controls`, `video`, `audio`, `game`. Read at start, written on change,
+  tolerant of junk (a bad value reads as the default, never an error line).
+- Values and API (all `Settings.*`, signal `changed(key: StringName)`):
+  - `mouse_sensitivity` (the player reads it instead of `Config.balance.mouse_sensitivity`, which becomes the
+    default), `invert_y`, `fov` (60..100, the camera and the view-model camera),
+  - `master_db`, `sfx_db`, `voice_db` on the buses Master / SFX / Voice (create the SFX bus if Sfx players do not
+    have one yet, and route Sfx through it; the existing mute and the voice volume slider become views of these),
+  - `fullscreen`, `window_scale` (1x / 1.5x / 2x of 1280x720, windowed), `vsync`,
+  - `guidance` (bool, the onboarding agent's toggle).
+  - `get_value(key, default)`, `set_value(key, value)`, `reset_to_defaults()`.
+- An OPTIONS card reachable from the main menu and the pause menu (keyboard and mouse), flat copy, the same look as
+  the ON BREAK card; the controls text moves onto it (read-only list of the keys, incl. 1-4 gestures).
+- `--mute`, `--no-mic` and the command-line overrides still win and are never saved.
+
+### Onboarding (onboarding agent) — a guide region in story.gd, a HUD region, the alley board
+- The first shift of a first run walks the crew through the loop once: buy seeds at the window, plant, water from
+  the tank, wait (the growth stages), harvest, deposit at the chute, the payment. One step at a time, as a line from
+  the Boss (his window, flat: "Window's there. Seeds cost money.") and a HUD hint line with the key ("E · buy");
+  a step advances when anybody on the crew does it; a step not done in `guide_step_timeout_sec` is said once more.
+- Who gets it: a player whose record has no shift worked (`Career.get_record("shifts") == 0`), or anyone with
+  `Settings.guidance` on (default on until the first shift is worked, then off; the toggle is on the OPTIONS card).
+  Each peer decides for itself; the Boss's guide line is local to that player (no RPC), the step state follows
+  what the host syncs (sales, plants, water, harvests).
+- The alley: the first time, the board's NEXT column says what the van is ("Get in the back. The shift starts when
+  everyone is in."), and the van's prompt says it once.
+- Never in the way: no modal, no pause, nothing blocks input; disruptions still happen (the first shift already has
+  a long first-event delay: keep it).
+
+### Readability (readability agent) — events.gd / story.gd / hud.gd regions, the shift report, a capture tool
+- A disruption audit: for every one of the fourteen event kinds, the hostile plant, the spores and the drive-by
+  lanes: its telegraph (seconds of warning before it costs anything, the sound, the banner, the tell), its answer
+  (the player action), its copy (banner, hint, toast, Boss line). Fix every one that misses RELEASE.md D1 (3 s of
+  warning; the answer named in the hint; two-second copy). Pin each telegraph time in a suite.
+- The shift report gains a short "what it cost" line per disruption that cost money or plants ("The raid took two
+  bundles. $360."), at most three lines, the dearest first.
+- The busiest moments decluttered: toasts stack at most three; the event banner, the job line, the chips and the
+  centre banner never overlap at 1280x720 (a check in the suite that measures their rects).
+- A capture tool `tools/tests/m19_shots_body.gd` (windowed, for the lead) that stages the five busiest moments.
+- The spores (M18) are part of the audit: the tell over a ripe Black Damp tray counts as its telegraph.
+
