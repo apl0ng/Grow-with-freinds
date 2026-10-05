@@ -166,6 +166,8 @@ const AUDIT_SEC := 3.0
 const WATER_OFF_STALL_SHARE := 0.1
 const LEAK_STALL_SHARE := 0.3
 const DRIVEBY_TRAY_SHARE := 0.2
+## M19 lead: seconds a worker is down for a drive-by besides the firing itself (drops at the last moment).
+const DRIVEBY_DUCK_SEC := 2.5
 ## Seconds a worker spends getting a bundle out of sight before a raid; what a lost bundle is worth.
 const RAID_STASH_SEC := 4.0
 const LOST_BUNDLE_VALUE := 150.0
@@ -420,7 +422,9 @@ static func event_costs(cfg: BalanceConfig, workers: int, skill: int) -> Array[D
 	else:
 		add.call("leak", cfg.leak_sec, 0.0, 0.0, LEAK_STALL_SHARE * cfg.leak_empty_sec, 0.0, 0.0, 0.0)
 	# Drive-by: everyone is down for the length of it, the trays in the lane lose stage progress, the Boss bills the glass.
-	var driveby := cfg.driveby_warning_sec + cfg.driveby_sec
+	# M19 lead: a worker drops at the last moment, whatever the warning: a longer warning (3.5 s since M19) leaves more
+	# time to keep working, it does not cost more. DRIVEBY_DUCK_SEC is what M18 priced (the old 2.5 s warning).
+	var driveby := DRIVEBY_DUCK_SEC + cfg.driveby_sec
 	add.call("driveby", driveby, driveby, 0.0, DRIVEBY_TRAY_SHARE * cfg.driveby_tray_loss * mean_stage, 0.0, float(cfg.driveby_fine), 0.0)
 	add.call("raid", cfg.raid_warning_sec + cfg.raid_sec, RAID_STASH_SEC, 0.0, 0.0, 0.0, float(sk["raid_loss"]) * LOST_BUNDLE_VALUE, 0.0)
 	# Sprinklers: no sprinting on a wet floor, but every tray is watered for nothing.

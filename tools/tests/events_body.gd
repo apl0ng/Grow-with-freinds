@@ -167,7 +167,8 @@ func _test_scheduler(b: BalanceConfig) -> void:
 		Events.EVENT_INSPECTION:
 			check(params.has("seconds") and params.has("speed"), "inspection params carry seconds + speed")
 		Events.EVENT_POWER_CUT:
-			check(params.has("max_seconds") and not Events.is_power_on(), "power cut params carry max_seconds, power off")
+			# M19 readability: a scheduled power cut flickers first (Events.get_tell_sec); the power goes at the end of the tell.
+			check(params.has("max_seconds") and (not Events.is_power_on() or Events.is_in_tell()), "power cut params carry max_seconds, power off (or flickering first)")
 		Events.EVENT_AUDIT:
 			check(params.has("raise"), "audit params carry raise")
 		Events.EVENT_RAT:
