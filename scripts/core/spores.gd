@@ -51,6 +51,10 @@ const CAUSE_FIRE: StringName = &"fire"
 const CAUSE_SHOT: StringName = &"shot"
 const CAUSE_HIT: StringName = &"hit"
 const CAUSES: Array[StringName] = [CAUSE_HARVEST, CAUSE_UPROOT, CAUSE_FIRE, CAUSE_SHOT, CAUSE_HIT]
+## A drive-by round puffs a ripe tray when it passes this close to its centre (flat). The ripe plant's collider is a 1 m
+## box on the world layer, so a round that strikes it is cut at its face, up to 0.71 m from the centre: the drive-by's
+## own tray radius (0.6 m) would miss a round that grazes the plant.
+const SHOT_REACH := 0.75
 ## A crouched worker breathing through his sleeve is fogged this share of spore_fog_sec.
 const CROUCH_FACTOR := 0.5
 ## A worker counts as on the cloud's floor within this many metres of height.
@@ -282,12 +286,13 @@ static func puff_plot(plot: GrowPlot, cause: StringName) -> bool:
 	return sp != null and sp.server_puff(plot, cause)
 
 
-## Host, from Events.server_fire_lane: every READY spore tray within `radius` (flat) of the round's path from `from` to
-## `end` puffs (CAUSE_SHOT). Returns how many did.
+## Host, from Events.server_fire_lane: every READY spore tray within `radius` (flat; at least SHOT_REACH) of the round's
+## path from `from` to `end` puffs (CAUSE_SHOT). Returns how many did.
 static func server_lane_shot(from: Vector3, end: Vector3, radius: float) -> int:
 	var sp := get_instance()
 	if sp == null or not sp._is_host():
 		return 0
+	radius = maxf(radius, SHOT_REACH)
 	var count := 0
 	var a := Vector2(from.x, from.z)
 	var b := Vector2(end.x, end.z)

@@ -268,6 +268,10 @@ func _test_causes(b: BalanceConfig) -> void:
 	Events.server_fire_lane({"from": c + Vector3(0.0, 1.25, -1.3), "to": c + Vector3(0.0, 1.25, 1.3)})
 	check(_puffs.size() == 1 and spores.get_cloud_count() == 1, "a second round while its cloud hangs: no second puff")
 	_clear()
+	var graze := Events.server_fire_lane({"from": c + Vector3(0.45, 1.25, -1.3), "to": c + Vector3(0.45, 1.25, 1.3)})
+	check(bool(graze["blocked"]) and _puffs == [["GrowPlot5", Spores.CAUSE_SHOT]],
+			"a round that grazes the plant 0.45 m off its centre is stopped by it and puffs it too (reach %.2f m)" % Spores.SHOT_REACH)
+	_clear()
 
 	step("cause: a thrown item")
 	var p6 := _plot(6)
