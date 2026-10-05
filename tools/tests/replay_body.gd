@@ -335,12 +335,14 @@ func _test_terms(b: BalanceConfig) -> void:
 			"the row is laid out under the payment panel, centred, one line high (y %.0f, %.0f px high)" % [row.position.y, row.size.y])
 	var chip := _hud.get_condition_chips().get_child(0) as Control
 	check(chip != null and chip.size.x > 60.0 and chip.size.x < 200.0, "one pill, as wide as its two words (%.0f px)" % (chip.size.x if chip != null else 0.0))
-	# The team grows while they wait: the re-price keeps the condition's share.
-	Net.players[9] = {"name": "Late", "color": Net.PALETTE[0]}
+	# The team changes while they wait: the re-price keeps the condition's share. (M18 economy2: a worker leaves; the
+	# team table holds its last value past four workers, so a fifth one no longer moves the price.)
+	var fourth: Dictionary = Net.players[4]
+	Net.players.erase(4)
 	Net.players_changed.emit()
-	var plain5 := GameState.get_quota_for(1)
-	check(plain5 > plain and GameState.quota == int(round(plain5 * 0.85)), "a fifth worker: $%d due (85%% of $%d)" % [GameState.quota, plain5])
-	Net.players.erase(9)
+	var plain3 := GameState.get_quota_for(1)
+	check(plain3 < plain and GameState.quota == int(round(plain3 * 0.85)), "a worker leaves: $%d due (85%% of $%d)" % [GameState.quota, plain3])
+	Net.players[4] = fourth
 	Net.players_changed.emit()
 	check(GameState.quota == int(round(plain * 0.85)), "and back")
 	toasts.clear()

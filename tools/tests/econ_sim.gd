@@ -178,7 +178,7 @@ const WATERING_SEC := 2.0
 ## (cure_bonus was looked at and left alone; it is listed so a later change of it shows up against the baseline.)
 const M14_NUMBERS: Dictionary = {
 	"base_quota": 350, "quota_scale": 1.5, "quota_add": 150, "quota_per_extra_player": 0.2,
-	"quota_team_growth": 0.0,  # M18 economy2: M14 had a flat raise
+	"quota_team_by_shift": [], "quota_team_by_size": [],  # M18 economy2: M14 had a flat raise
 	"cure_sec": 20.0, "cure_bonus": 0.4,
 	"seeds": {"purple": {"sale_value_per_unit": 130}, "golden": {"sale_value_per_unit": 120}},
 }
@@ -340,6 +340,10 @@ static func with_numbers(cfg: BalanceConfig, numbers: Dictionary) -> BalanceConf
 					var fields: Dictionary = per_seed[id]
 					for f: String in fields:
 						s.set(f, fields[f])
+		elif out.get(key) is Array:  # M18 economy2: a typed array field (the team tables) takes the values, typed
+			var arr := (out.get(key) as Array).duplicate()
+			arr.assign(numbers[key])
+			out.set(key, arr)
 		else:
 			out.set(key, numbers[key])
 	return out
@@ -1522,8 +1526,12 @@ static func crew_makes(crew: Dictionary, shift: int, at_least: int = 3) -> bool:
 
 ## GameState.FINAL_LOOK_AT: the share of the final notice's clock that has run when the host looks at the payment.
 const FINAL_LOOK_AT := 0.5
-## The team numbers M15 to M17 shipped (a flat +10% a worker beyond the first): the "before" of the M18 retune.
-const M17_NUMBERS: Dictionary = {"quota_per_extra_player": 0.1, "quota_team_growth": 0.0}
+## The payment as M15 to M17 shipped it (350, x1.82 + 688 a shift; a flat +10% a worker beyond the first): the
+## "before" of the M18 retune.
+const M17_NUMBERS: Dictionary = {
+	"base_quota": 350, "quota_scale": 1.82, "quota_add": 688, "quota_per_extra_player": 0.1,
+	"quota_team_by_shift": [], "quota_team_by_size": [],
+}
 
 
 ## The run's last shift for a team of `workers` (BalanceConfig.final_shift_by_team; 6 when the table is empty).
@@ -1582,7 +1590,15 @@ static func all_teams(cfg: BalanceConfig, opt: Dictionary = {}) -> Array:
 
 ## The payment's team factor in `shift` for `workers`: quota_for_round(shift, workers) / quota_for_round(shift, 1).
 static func team_factor(cfg: BalanceConfig, shift: int, workers: int) -> float:
-	return float(cfg.quota_for_round(shift, workers)) / maxf(float(cfg.quota_for_round(shift, 1)), 1.0)
+	return cfg.quota_team_factor(shift, workers)
+
+
+## One line for a config's payment: the solo curve and the team numbers.
+static func describe_payment(cfg: BalanceConfig) -> String:
+	var team := "+%d%% a worker beyond the first" % roundi(cfg.quota_per_extra_player * 100.0)
+	if not cfg.quota_team_by_shift.is_empty():
+		team = "team table %s by shift x %s for 2 / 3 / 4 workers" % [cfg.quota_team_by_shift, str(cfg.quota_team_by_size) if not cfg.quota_team_by_size.is_empty() else "1 / 2 / 3"]
+	return "base %d, x%.2f + %d a shift, %s" % [cfg.base_quota, cfg.quota_scale, cfg.quota_add, team]
 
 
 ## The printed run table: per team, per shift of its run, mean deposits by the buzzer / payment due and how many of the
@@ -1591,8 +1607,7 @@ static func format_runs(cfg: BalanceConfig, title: String, opt: Dictionary = {},
 	if teams.is_empty():
 		teams = all_teams(cfg, opt)
 	var lines: PackedStringArray = []
-	lines.append("== %s: +%d%% a worker, growing %.1f points a shift; final notice at shift %s by team size" % [title,
-			roundi(cfg.quota_per_extra_player * 100.0), cfg.quota_team_growth * 100.0, cfg.final_shift_by_team])
+	lines.append("== %s: %s; final notice at shift %s by team size" % [title, describe_payment(cfg), cfg.final_shift_by_team])
 	lines.append("   deposits by the buzzer / payment due, campaigns of %d that met it; reached / cleared the final notice, raised at half time" % JITTERS.size())
 	for skill in teams.size():
 		for wi in (teams[skill] as Array).size():
@@ -1632,8 +1647,7 @@ static func format_table(cfg: BalanceConfig, title: String, opt: Dictionary = {}
 	if crews.is_empty():
 		crews = all_crews(cfg, opt)
 	var lines: PackedStringArray = []
-	lines.append("== %s: base %d, x%.2f + %d a shift, +%d%% a worker, cure %.0f s for +%d%%" % [title, cfg.base_quota,
-			cfg.quota_scale, cfg.quota_add, roundi(cfg.quota_per_extra_player * 100.0), cfg.cure_sec, roundi(cfg.cure_bonus * 100.0)])
+	lines.append("== %s: %s, cure %.0f s for +%d%%" % [title, describe_payment(cfg), cfg.cure_sec, roundi(cfg.cure_bonus * 100.0)])  # M18 economy2: describe_payment
 	lines.append("   deposits by the buzzer / payment due, campaigns of %d that met it, mean second it was met; main strain, bottleneck" % JITTERS.size())
 	for skill in crews.size():
 		for wi in (crews[skill] as Array).size():

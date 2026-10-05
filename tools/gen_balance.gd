@@ -27,17 +27,18 @@ func _init() -> void:
 		_upgrade(&"big_can", "Dented Cans", "+2 charges on every can per level. They leak a little.", 80, 1.5, 2, Const.EFFECT_CAN_CAPACITY, 2.0),
 		_upgrade(&"sweet_talk", "Better Cut", "Deposits pay 10% more per level. He keeps the rest.", 200, 1.7, 3, Const.EFFECT_SALE_BONUS, 0.10),
 	]
-	# M15 economy: the payment due for ten trays and cured bundles (500, 1325, 2431, 4030, 6489, 10457 solo; +10% a
-	# worker), and a cure that takes long enough for the six hooks to be a choice. Numbers from tools/tests/econ_sim.gd,
-	# pinned by tools/tests/economy_body.gd.
+	# M15 economy: the payment due for ten trays and cured bundles, and a cure that takes long enough for the six hooks
+	# to be a choice. Numbers from tools/tests/econ_sim.gd, pinned by tools/tests/economy_body.gd.
+	# M18 economy2: the solo curve is 350, x1.82 + 500 a shift (350 / 1137 / 2159 / 3610 / 5840 / 9489; M15 to M17 had
+	# + 688): a careful worker alone clears the four-shift run about half the time. A team pays 1 + a(shift) x m(size):
+	# a by shift rises to shift 3 and falls after it (a full crew is strongest against the payment in the middle of a
+	# run), m for two / three / four workers grows slower than the team (ten trays saturate at about three workers).
 	b.base_quota = 350
 	b.quota_scale = 1.82
-	b.quota_add = 688
-	# M18 economy2: what a worker beyond the first adds shrinks by the shift, 35% in shift 1 to 10% in shift 6 (M15 to
-	# M17: a flat 10%). Full crews are strongest against the payment in the middle of a run; by shift 6 the solo curve
-	# has caught up with what ten trays can make. Pinned by tools/tests/economy_body.gd.
-	b.quota_per_extra_player = 0.35
-	b.quota_team_growth = -0.05
+	b.quota_add = 500
+	b.quota_per_extra_player = 0.1
+	b.quota_team_by_shift = [0.4, 0.75, 1.1, 0.85, 0.6, 0.35]
+	b.quota_team_by_size = [1.0, 1.05, 1.15]
 	b.cure_sec = 45.0
 	var err := ResourceSaver.save(b, "res://data/balance.tres")
 	print("balance.tres saved: ", error_string(err))

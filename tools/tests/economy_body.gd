@@ -15,25 +15,37 @@ extends "res://tools/tests/smoke_base.gd"
 ##             not for every dear bundle: six hooks)
 ## It prints the model's table for the M14 numbers and for the shipped ones. A later change of a number that breaks
 ## a target fails here; the model's assumptions are in the header of econ_sim.gd.
-## M18 (economy2): the payment for a team and each team's own run (to its final notice, Sim.run_team, with the
-## half-time look). Pinned: the payment table and its shrinking raise; four average workers reach the final notice
-## and do not clear it without favors or without the racks; three or four careful workers clear it with both and not
-## without either; nobody of one, three or four clears without cured bundles; the middle of the run is tighter for
-## full crews than in M17. Targets the model shows out of reach are printed as GAP lines, not checked.
+## M18 (economy2): the solo curve (+ 500 a shift), the team table (BalanceConfig.quota_team_by_shift / _by_size) and
+## each team's own run (to its final notice, Sim.run_team, with the half-time look). Pinned: the payment table; the
+## team factor never under 1, rising to shift 3 and falling after it; a careful solo worker clears the four-shift run
+## about half the time and an average one does not; two careful workers clear five shifts about half the time; three
+## or four careful workers clear with favors and the racks and not without the racks; four average workers reach the
+## final notice and do not clear; nobody clears without favors; nobody on a team clears without cured bundles; four
+## average workers in shift 3 have at most about twice the payment.
 
 const Sim := preload("res://tools/tests/econ_sim.gd")
 
 ## quota_for_round(shift, workers): rows = shifts 1 to 6, columns = 1 to 4 workers.
-## M18 economy2: +35% a worker beyond the first in shift 1, five points less each shift, +10% in shift 6 (the M17
-## number: M15 to M17 had +10% in every shift, so the last row did not move).
+## M18 economy2: 350, x1.82 + 500 alone; a team pays 1 + a(shift) x m(size) of it (TEAM_BY_SHIFT, TEAM_BY_SIZE).
 const QUOTA_TABLE: Array = [
-	[350, 473, 595, 717],
-	[1325, 1723, 2120, 2518],
-	[2535, 3169, 3803, 4437],
-	[4174, 5009, 5844, 6678],
-	[6592, 7581, 8570, 9559],
+	[350, 490, 497, 511],
+	[1137, 1990, 2032, 2118],
+	[2159, 4535, 4653, 4891],
+	[3610, 6678, 6832, 7139],
+	[5840, 9344, 9520, 9870],
+	[9489, 12810, 12976, 13309],
+]
+## The payment as M15 to M17 had it (350, x1.82 + 688; +10% a worker): Sim.M17_NUMBERS must give exactly this.
+const M17_QUOTA_TABLE: Array = [
+	[350, 385, 420, 455],
+	[1325, 1458, 1590, 1723],
+	[2535, 2789, 3042, 3296],
+	[4174, 4591, 5009, 5426],
+	[6592, 7251, 7911, 8570],
 	[10429, 11472, 12515, 13558],
 ]
+const TEAM_BY_SHIFT: Array[float] = [0.4, 0.75, 1.1, 0.85, 0.6, 0.35]
+const TEAM_BY_SIZE: Array[float] = [1.0, 1.05, 1.15]
 const CAREFUL := 0
 const AVERAGE := 1
 const SLOPPY := 2
@@ -113,12 +125,12 @@ func _total(crew: Dictionary, from_shift: int = 1, to_shift: int = 6) -> float:
 # --- numbers ---------------------------------------------------------------------------------------------------------
 
 func _test_numbers() -> void:
-	check(_b.base_quota == 350 and is_equal_approx(_b.quota_scale, 1.82) and _b.quota_add == 688,
-			"payment due: %d, x%.2f + %d a shift (M14: 350, x1.5 + 150)" % [_b.base_quota, _b.quota_scale, _b.quota_add])
-	# M18 economy2: the raise for a worker beyond the first shrinks by the shift (M15 to M17: +10% flat).
-	check(is_equal_approx(_b.quota_per_extra_player, 0.35) and is_equal_approx(_b.quota_team_growth, -0.05),
-			"+%d%% a worker beyond the first in shift 1, %+d points a shift (M17: +10%% flat; M14: +20%% flat)" % [
-			roundi(_b.quota_per_extra_player * 100.0), roundi(_b.quota_team_growth * 100.0)])
+	# M18 economy2: + 500 a shift (M15 to M17: + 688), and the team table in place of the flat raise.
+	check(_b.base_quota == 350 and is_equal_approx(_b.quota_scale, 1.82) and _b.quota_add == 500,
+			"payment due: %d, x%.2f + %d a shift (M17: 350, x1.82 + 688; M14: 350, x1.5 + 150)" % [_b.base_quota, _b.quota_scale, _b.quota_add])
+	check(_floats_are(_b.quota_team_by_shift, TEAM_BY_SHIFT) and _floats_are(_b.quota_team_by_size, TEAM_BY_SIZE) and is_equal_approx(_b.quota_per_extra_player, 0.1),
+			"a team adds %s of the payment by shift, x %s for two / three / four workers (the fallback, unused: +%d%% a worker; M17: +10%% flat, M14: +20%% flat)" % [
+			_b.quota_team_by_shift, _b.quota_team_by_size, roundi(_b.quota_per_extra_player * 100.0)])
 	check(is_equal_approx(_b.cure_sec, 45.0) and is_equal_approx(_b.cure_bonus, 0.4),
 			"a cure takes %.0f s for +%d%% (M14: 20 s, +40%%)" % [_b.cure_sec, roundi(_b.cure_bonus * 100.0)])
 	var purple := _b.get_seed(&"purple")
@@ -137,7 +149,7 @@ func _test_numbers() -> void:
 	# The baseline is the shipped config with exactly the retuned numbers put back.
 	var before := Sim.baseline(_b)
 	check(before.base_quota == 350 and is_equal_approx(before.quota_scale, 1.5) and before.quota_add == 150
-			and is_equal_approx(before.quota_per_extra_player, 0.2) and is_equal_approx(before.quota_team_growth, 0.0) and is_equal_approx(before.cure_sec, 20.0)
+			and is_equal_approx(before.quota_per_extra_player, 0.2) and before.quota_team_by_shift.is_empty() and before.quota_team_by_size.is_empty() and is_equal_approx(before.cure_sec, 20.0)
 			and before.get_seed(&"purple").sale_value_per_unit == 130 and before.get_seed(&"golden").sale_value_per_unit == 120,
 			"Sim.baseline() is the M14 economy")
 	check(is_equal_approx(_b.quota_scale, 1.82) and purple.sale_value_per_unit == 140, "and it is a copy: the live resource is untouched")
@@ -317,9 +329,8 @@ func _test_sixth_shift() -> void:
 			opt["workers"] = c[1]
 			var crew := Sim.run_crew(_b, opt)
 			var r: Dictionary = crew["shifts"][5]
-			# M18 economy2: against the payment the model plays (with the expected audit), not the bare formula: the
-			# tighter middle carries more cash into shift 6 and three careful workers without the racks now end $78 over
-			# the bare number and still short of the payment.
+			# M18 economy2: against the payment the model plays (with the expected audit), which is what "made" means
+			# here, not the bare formula (a tighter middle carries more cash into shift 6; the margin is thin).
 			var due := float(r["quota"]) * float(Sim.event_tax(_b, c[1], c[0], 6)["quota_factor"])
 			check(int(r["made"]) == 0 and float(r["high"]) < due and Sim.crew_shifts_made(crew) < 6,
 					"%s, %s x%d: at best $%.0f against $%.0f in shift 6 ($%d and the expected audit; %d shifts in a row)" % [
@@ -449,25 +460,26 @@ func _test_cure() -> void:
 
 
 # --- M18 economy2: the payment for a team, each team through its own run -----------------------------------------------
-## CONTRACTS.md "M18", "Economy 2". A run ends at the team's final notice (Sim.final_shift: 4 / 5 / 6 / 6); Sim.run_team
-## plays each crew through exactly that run, five times, with the half-time look on the last shift. Nothing here counts
-## the strains: a seventh one changes the numbers, not the shape of the checks.
+## CONTRACTS.md "M18", "Economy 2" and the lead's follow-up (a per-shift team table, the solo run clearable). A run ends
+## at the team's final notice (Sim.final_shift: 4 / 5 / 6 / 6); Sim.run_team plays each crew through exactly that run,
+## five times, with the half-time look on the last shift. Nothing here counts the strains: a seventh one changes the
+## numbers, not the shape of the checks.
 
 func _run_m18() -> void:
-	step("M18: the payment for a team shrinks by the shift")
-	_test_team_raise()
+	step("M18: the payment for a team (the team table)")
+	_test_team_table()
 	var m17 := Sim.with_numbers(_b, Sim.M17_NUMBERS)
-	step("M18: the model, M17 team numbers, each team through its own run (before)")
+	step("M18: the model, M17 payment, each team through its own run (before)")
 	var before := Sim.all_teams(m17)
-	print(Sim.format_runs(m17, "M17 numbers", {}, before))
+	print(Sim.format_runs(m17, "M17 payment", {}, before))
 	_test_runs_before(before)
 	await get_tree().process_frame
-	step("M18: the model, shipped numbers, each team through its own run (after)")
+	step("M18: the model, shipped payment, each team through its own run (after)")
 	_teams = Sim.all_teams(_b)
-	print(Sim.format_runs(_b, "shipped numbers", {}, _teams))
+	print(Sim.format_runs(_b, "shipped payment", {}, _teams))
 	await get_tree().process_frame
 	_variants = {}
-	var lines: PackedStringArray = ["   the same runs without favors / without the racks (shipped numbers):"]
+	var lines: PackedStringArray = ["   the same runs without favors / without the racks (shipped payment):"]
 	for v: Array in [["no favors", {"favors": false}], ["no racks", {"racks": false}]]:
 		for c: Array in [[CAREFUL, 1], [CAREFUL, 2], [CAREFUL, 3], [CAREFUL, 4], [AVERAGE, 3], [AVERAGE, 4]]:
 			var opt: Dictionary = (v[1] as Dictionary).duplicate()
@@ -481,18 +493,20 @@ func _run_m18() -> void:
 			lines.append(line + " || reached %d, cleared %d" % [int(team["reached"]), int(team["cleared"])])
 		await get_tree().process_frame
 	print("\n".join(lines))
-	step("target: four average workers who split up reach the final notice, and do not clear it without favors and the racks")
-	_test_runs_average()
-	step("target: three or four careful workers clear the final notice with favors and the racks, not without either")
+	step("target: a careful solo worker clears the four-shift run about half the time; an average one does not")
+	_test_runs_solo()
+	step("target: two careful workers clear their five shifts about half the time")
+	_test_runs_two()
+	step("target: three or four careful workers clear the final notice with favors and the racks, not without the racks")
 	_test_runs_careful()
-	step("target: nobody clears without cured bundles")
-	_test_runs_no_cure()
-	step("the middle of the run is tighter for full crews than in M17")
+	step("target: four average workers who split up reach the final notice and do not clear it")
+	_test_runs_average()
+	step("target: nobody clears without favors; nobody on a team clears without cured bundles")
+	_test_runs_without()
+	step("target: the middle of the run, four average workers in shift 3 have at most about twice the payment")
 	_test_middle(before, m17)
 	step("the final notice's half-time look is in the model")
 	_test_look()
-	step("gaps: targets the model shows out of reach (printed, not checked)")
-	_print_gaps()
 
 
 func _variant_key(name: String, skill: int, workers: int) -> String:
@@ -509,56 +523,79 @@ func _final_row(team: Dictionary) -> Dictionary:
 	return rows[rows.size() - 1] if not rows.is_empty() else {"deposits": 0.0, "high": 0.0, "quota": 0, "made": 0, "cured": 0}
 
 
-func _test_team_raise() -> void:
+func _floats_are(got: Array[float], want: Array[float]) -> bool:
+	if got.size() != want.size():
+		return false
+	for i in got.size():
+		if not is_equal_approx(got[i], want[i]):
+			return false
+	return true
+
+
+func _test_team_table() -> void:
+	# The fallback: with both tables empty the formula is the flat raise of M15 to M17, to the dollar.
 	var m17 := Sim.with_numbers(_b, Sim.M17_NUMBERS)
-	var solo_same := true
-	var shrinks := true
-	var last_same := true
+	var same := true
+	for n in M17_QUOTA_TABLE.size():
+		for p in range(1, 5):
+			same = same and m17.quota_for_round(n + 1, p) == int(M17_QUOTA_TABLE[n][p - 1])
+	check(same and m17.quota_team_by_shift.is_empty(), "empty tables: the M17 payment to the dollar (quota_per_extra_player in every shift, workers - 1)")
+	# Never below 1: one worker always 1.0; any shift (a game with no final notice runs on), any team size.
+	var floor_ok := true
+	var solo_ok := true
+	for n in range(0, 41):
+		solo_ok = solo_ok and is_equal_approx(_b.quota_team_factor(n, 1), 1.0) and is_equal_approx(_b.quota_team_factor(n, 0), 1.0)
+		for p in range(2, 9):
+			floor_ok = floor_ok and _b.quota_team_factor(n, p) >= 1.0
+	var negative := Sim.with_numbers(_b, {"quota_team_by_shift": [0.4, -0.5], "quota_team_by_size": [1.0]})
+	floor_ok = floor_ok and is_equal_approx(negative.quota_team_factor(2, 3), 1.0) and is_equal_approx(negative.quota_team_factor(9, 4), 1.0)
+	check(solo_ok, "one worker (or none) pays the solo number in every shift, 0 to 40")
+	check(floor_ok, "a team's factor is never under 1 (shifts 0 to 40, two to eight workers; a negative table entry reads as 1)")
+	# The shape: up to shift 3, down after it; more workers pay more in every shift; past the table the last value holds.
+	var hump := true
+	var bigger := true
+	for p in range(2, 5):
+		for n in range(1, 3):
+			hump = hump and Sim.team_factor(_b, n + 1, p) > Sim.team_factor(_b, n, p)
+		for n in range(3, 6):
+			hump = hump and Sim.team_factor(_b, n + 1, p) < Sim.team_factor(_b, n, p)
 	for n in range(1, 7):
-		solo_same = solo_same and _b.quota_for_round(n, 1) == m17.quota_for_round(n, 1)
-		for p in range(2, 5):
-			if n < 6:
-				shrinks = shrinks and Sim.team_factor(_b, n + 1, p) < Sim.team_factor(_b, n, p)
-			else:
-				last_same = last_same and _b.quota_for_round(n, p) == m17.quota_for_round(n, p)
-	check(solo_same, "a worker alone pays what he paid in M17 in every shift (the team fields do not touch one worker)")
-	check(shrinks, "for two, three and four workers the team's part of the payment shrinks shift by shift")
-	check(absf(Sim.team_factor(_b, 1, 4) - 2.05) < 0.01 and absf(Sim.team_factor(_b, 6, 4) - 1.3) < 0.01,
-			"four workers pay x%.2f the solo payment in shift 1, x%.2f in shift 6 (M17: x1.30 in both)" % [
-			Sim.team_factor(_b, 1, 4), Sim.team_factor(_b, 6, 4)])
-	check(last_same, "shift 6 is the M17 payment for every team: the end of a full crew's run did not move")
-	# The raise runs out after shift 7; no run gets that far (the final notice comes first).
-	var gone_at := 0
-	for n in range(1, 40):
-		if _b.quota_for_round(n, 2) <= _b.quota_for_round(n, 1):
-			gone_at = n
-			break
-	var longest := 0
-	for p in range(1, 5):
-		longest = maxi(longest, Sim.final_shift(_b, p))
-	check(gone_at > longest, "the raise for a team is gone at shift %d; the longest run ends at shift %d" % [gone_at, longest])
+		bigger = bigger and Sim.team_factor(_b, n, 2) < Sim.team_factor(_b, n, 3) and Sim.team_factor(_b, n, 3) < Sim.team_factor(_b, n, 4)
+	check(hump, "for two, three and four workers the team's part rises to shift 3 and falls after it (x%.2f, x%.2f, x%.2f in shifts 1 / 3 / 6 for four)" % [
+			Sim.team_factor(_b, 1, 4), Sim.team_factor(_b, 3, 4), Sim.team_factor(_b, 6, 4)])
+	check(bigger, "in every shift three workers pay more than two and four more than three")
+	check(is_equal_approx(Sim.team_factor(_b, 9, 4), Sim.team_factor(_b, 6, 4)) and is_equal_approx(Sim.team_factor(_b, 3, 7), Sim.team_factor(_b, 3, 4)),
+			"past the table the last value holds: shift 9 pays the shift 6 factor, seven workers the four-worker one")
 
 
 func _test_runs_before(teams: Array) -> void:
 	var a4: Dictionary = teams[AVERAGE][3]["shifts"][2]
 	check(float(a4["deposits"]) > 2.4 * float(a4["quota"]),
 			"M17: four average workers deposit $%.0f against $%d in shift 3 (the slack this answers)" % [a4["deposits"], a4["quota"]])
-	var c2: Dictionary = teams[CAREFUL][1]
-	check(int(c2["cleared"]) == Sim.JITTERS.size(), "M17: two careful workers clear their five shifts in every campaign")
-	var c4: Dictionary = teams[CAREFUL][3]
-	check(int(c4["cleared"]) >= 3, "M17: four careful workers clear the final notice (%d of %d)" % [int(c4["cleared"]), Sim.JITTERS.size()])
+	check(int(teams[CAREFUL][0]["cleared"]) == 0, "M17: a careful solo worker never clears the four-shift run (shift 2: $%.0f against $%d)" % [
+			teams[CAREFUL][0]["shifts"][1]["deposits"], teams[CAREFUL][0]["shifts"][1]["quota"]])
+	check(int(teams[CAREFUL][1]["cleared"]) == Sim.JITTERS.size(), "M17: two careful workers clear their five shifts in every campaign")
 
 
-func _test_runs_average() -> void:
-	var team: Dictionary = _teams[AVERAGE][3]
+func _test_runs_solo() -> void:
+	var team: Dictionary = _teams[CAREFUL][0]
+	check(int(team["final"]) == 4 and int(team["cleared"]) >= 2 and int(team["cleared"]) <= 3,
+			"a careful solo worker clears the run in %d of %d campaigns (shift 4: $%.0f against $%d)" % [
+			int(team["cleared"]), Sim.JITTERS.size(), _final_row(team)["deposits"], _final_row(team)["quota"]])
+	var plain: Dictionary = _teams[AVERAGE][0]
+	check(int(plain["shifts"][0]["made"]) == Sim.JITTERS.size() and int(plain["cleared"]) == 0,
+			"an average solo worker makes shift 1 (%d of %d) and never clears (shift 2: $%.0f against $%d)" % [
+			int(plain["shifts"][0]["made"]), Sim.JITTERS.size(), plain["shifts"][1]["deposits"], plain["shifts"][1]["quota"]])
+	print("      for the record: alone without the racks %d of %d clear (allowed: the racks are a walk away for one worker)" % [
+			int(_variant("no racks", CAREFUL, 1)["cleared"]), Sim.JITTERS.size()])
+
+
+func _test_runs_two() -> void:
+	var team: Dictionary = _teams[CAREFUL][1]
 	var r := _final_row(team)
-	check(int(team["final"]) == 6 and int(team["reached"]) >= 3, "four average workers reach the final notice (shift %d) in %d of %d campaigns" % [
-			int(team["final"]), int(team["reached"]), Sim.JITTERS.size()])
-	for name: String in ["no favors", "no racks"]:
-		var v := _variant(name, AVERAGE, 4)
-		check(int(v["cleared"]) == 0, "%s, four average workers: no campaign clears (%d reach the final notice)" % [name, int(v["reached"])])
-	print("      for the record: with favors and the racks they clear %d of %d ($%.0f against $%d at the final notice); three average workers reach it in %d, clear it in %d" % [
-			int(team["cleared"]), Sim.JITTERS.size(), r["deposits"], r["quota"], int(_teams[AVERAGE][2]["reached"]), int(_teams[AVERAGE][2]["cleared"])])
+	check(int(team["final"]) == 5 and int(team["cleared"]) >= 2 and int(team["cleared"]) <= 3,
+			"two careful workers clear their five shifts in %d of %d campaigns (shift 5: $%.0f against $%d)" % [
+			int(team["cleared"]), Sim.JITTERS.size(), r["deposits"], r["quota"]])
 
 
 func _test_runs_careful() -> void:
@@ -568,30 +605,35 @@ func _test_runs_careful() -> void:
 		check(int(team["final"]) == 6 and int(team["cleared"]) >= 3, "%d careful workers clear the final notice in %d of %d campaigns ($%.0f against $%d)" % [
 				workers, int(team["cleared"]), Sim.JITTERS.size(), r["deposits"], r["quota"]])
 		check(int(r["cured"]) > 0, "they cure on the way (%d cured bundles at the final notice over the five)" % int(r["cured"]))
-		for name: String in ["no favors", "no racks"]:
-			var v := _variant(name, CAREFUL, workers)
-			var vr := _final_row(v)
-			check(int(v["cleared"]) == 0, "%s, %d careful workers: no campaign clears (at best $%.0f by the buzzer; $%d due before the audit and the look)" % [
-					name, workers, vr["high"], vr["quota"]])
-	var two: Dictionary = _teams[CAREFUL][1]
-	check(int(two["final"]) == 5 and int(two["cleared"]) >= 2, "two careful workers can clear their five shifts (%d of %d; the target is about half: see the gaps)" % [
-			int(two["cleared"]), Sim.JITTERS.size()])
-
-
-func _test_runs_no_cure() -> void:
-	for workers in [1, 3, 4]:
 		var v := _variant("no racks", CAREFUL, workers)
-		check(int(v["cleared"]) == 0, "careful x%d without the racks: no campaign clears its run (%d reach the final notice)" % [workers, int(v["reached"])])
-	for workers in [3, 4]:
-		var v := _variant("no racks", AVERAGE, workers)
-		check(int(v["cleared"]) == 0, "average x%d without the racks: none (%d reach the final notice)" % [workers, int(v["reached"])])
+		var vr := _final_row(v)
+		check(int(v["cleared"]) == 0, "without the racks, %d careful workers: no campaign clears (at best $%.0f by the buzzer; $%d due before the audit and the look)" % [
+				workers, vr["high"], vr["quota"]])
+
+
+func _test_runs_average() -> void:
+	var team: Dictionary = _teams[AVERAGE][3]
+	var r := _final_row(team)
+	check(int(team["final"]) == 6 and int(team["reached"]) >= 3 and int(team["cleared"]) == 0,
+			"four average workers reach the final notice in %d of %d campaigns and clear it in none ($%.0f against $%d)" % [
+			int(team["reached"]), Sim.JITTERS.size(), r["deposits"], r["quota"]])
+	print("      for the record: three average workers reach it in %d, clear it in %d" % [int(_teams[AVERAGE][2]["reached"]), int(_teams[AVERAGE][2]["cleared"])])
+
+
+func _test_runs_without() -> void:
+	for c: Array in [[CAREFUL, 1], [CAREFUL, 2], [CAREFUL, 3], [CAREFUL, 4], [AVERAGE, 3], [AVERAGE, 4]]:
+		var v := _variant("no favors", c[0], c[1])
+		check(int(v["cleared"]) == 0, "without favors, %s x%d: no campaign clears (%d reach the final notice)" % [Sim.SKILL_NAMES[c[0]], c[1], int(v["reached"])])
+	for c: Array in [[CAREFUL, 2], [AVERAGE, 3], [AVERAGE, 4]]:
+		var v := _variant("no racks", c[0], c[1])
+		check(int(v["cleared"]) == 0, "without the racks, %s x%d: no campaign clears (%d reach the final notice)" % [Sim.SKILL_NAMES[c[0]], c[1], int(v["reached"])])
 	var sloppy := 0
 	for team: Dictionary in _teams[SLOPPY]:
 		sloppy += int(team["cleared"])
 	check(not bool(Sim.SKILLS[SLOPPY]["racks"]) and sloppy == 0, "sloppy crews (no racks by habit): none, of any size")
 	var uncured: PackedStringArray = []
 	for skill in _teams.size():
-		for wi in (_teams[skill] as Array).size():
+		for wi in range(1, (_teams[skill] as Array).size()):
 			var team: Dictionary = _teams[skill][wi]
 			if int(team["cleared"]) == 0:
 				continue
@@ -614,7 +656,7 @@ func _test_middle(before: Array, m17: BalanceConfig) -> void:
 	var then: Dictionary = before[AVERAGE][3]["shifts"][2]
 	var ratio_now := float(now["deposits"]) / float(now["quota"])
 	var ratio_then := float(then["deposits"]) / float(then["quota"])
-	check(ratio_now < ratio_then * 0.8 and int(now["made"]) == Sim.JITTERS.size() and float(now["low"]) > float(now["quota"]) * 1.1,
+	check(ratio_now <= 2.0 and int(now["made"]) == Sim.JITTERS.size() and float(now["low"]) > float(now["quota"]) * 1.1,
 			"four average workers in shift 3: $%.0f against $%d (x%.2f; M17 $%.0f against $%d, x%.2f), all five make it, the slowest with a tenth to spare" % [
 			now["deposits"], now["quota"], ratio_now, then["deposits"], then["quota"], ratio_then])
 	var later := true
@@ -643,26 +685,8 @@ func _test_look() -> void:
 				where.append("%s x%d" % [Sim.SKILL_NAMES[skill], wi + 1])
 	check(raised > 0, "the look raised the final notice in %d campaigns of the table; %d of them would have paid it as it was %s" % [raised, lost, where])
 	var plain := Sim.run_team(_b, {"workers": 1, "skill": CAREFUL, "final_look": false})
-	print("      for the record: a careful solo worker meets shift 4 in %d of %d with the look, %d without it" % [
-			int(_final_row(_teams[CAREFUL][0])["made"]), Sim.JITTERS.size(), int(_final_row(plain)["made"])])
-
-
-func _print_gaps() -> void:
-	var solo: Dictionary = _teams[CAREFUL][0]
-	var s2: Dictionary = solo["shifts"][1]
-	print("   GAP  a careful solo worker clears %d of %d runs (target: about half). The run ends at shift 2: $%.0f against $%d, %d of %d meet it. The solo payment is not moved by the team fields." % [
-			int(solo["cleared"]), Sim.JITTERS.size(), s2["deposits"], s2["quota"], int(s2["made"]), Sim.JITTERS.size()])
-	var two: Dictionary = _teams[CAREFUL][1]
-	var t5: Dictionary = two["shifts"][4]
-	var f5: Dictionary = _teams[CAREFUL][3]["shifts"][4]
-	var need := float(t5["deposits"]) / float(_b.quota_for_round(5, 1))
-	print("   GAP  two careful workers clear %d of %d runs (target: about half), %d of %d without the racks (target: none). About half at shift 5 is about x%.2f the solo payment ($%.0f deposited); the same raise for each worker beyond the first asks four workers x%.2f ($%.0f) where four careful workers deposit $%.0f. A raise linear in the workers beyond the first cannot hold both." % [
-			int(two["cleared"]), Sim.JITTERS.size(), int(_variant("no racks", CAREFUL, 2)["cleared"]), Sim.JITTERS.size(), need, t5["deposits"],
-			1.0 + 3.0 * (need - 1.0), float(_b.quota_for_round(5, 1)) * (1.0 + 3.0 * (need - 1.0)), f5["deposits"]])
-	var avg := _final_row(_teams[AVERAGE][3])
-	var dry := _final_row(_variant("no racks", CAREFUL, 4))
-	print("   GAP  four average workers clear %d of %d with favors and the racks: at the final notice they deposit $%.0f, four careful workers without the racks $%.0f (at best $%.0f). One payment cannot let the first through and stop the second." % [
-			int(_teams[AVERAGE][3]["cleared"]), Sim.JITTERS.size(), avg["deposits"], dry["deposits"], dry["high"]])
+	print("      for the record: a careful solo worker clears %d of %d with the look, %d without it" % [
+			int(_teams[CAREFUL][0]["cleared"]), Sim.JITTERS.size(), int(plain["cleared"])])
 # --- end M18 economy2 ---------------------------------------------------------------------------------------------------
 
 
