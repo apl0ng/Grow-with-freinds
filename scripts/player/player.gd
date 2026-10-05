@@ -272,6 +272,7 @@ func _ready() -> void:
 	Net.players_changed.connect(_on_players_changed)
 	_emotes_ready() # M18 emotes
 	_hats_ready() # M16 hats
+	_settings_ready() # M19 settings: the local camera's field of view
 
 # --- Public API ---------------------------------------------------------------------------------------------
 
@@ -440,7 +441,8 @@ func server_teleport(xform: Transform3D) -> void:
 
 ## Owner only: applies a mouse-look delta in screen pixels (yaw on the body, pitch on the head, +-89 deg).
 func apply_look_input(relative: Vector2) -> void:
-	var sens: float = Config.balance.mouse_sensitivity
+	var sens: float = _settings_sensitivity() # M19 settings (was Config.balance.mouse_sensitivity, now its default)
+	relative = _settings_look(relative) # M19 settings: invert Y
 	rotate_y(-relative.x * sens)
 	head.rotation.x = clampf(head.rotation.x - relative.y * sens, -MAX_PITCH, MAX_PITCH)
 
@@ -448,6 +450,44 @@ func apply_look_input(relative: Vector2) -> void:
 func respawn() -> void:
 	if is_local():
 		_teleport_local(_get_spawn_transform())
+
+# --- M19 settings: the player's own look and field of view -----------------------------------------------------------
+# Settings (autoload) holds this machine's preferences; nothing here is synced. The local worker's look reads
+# mouse_sensitivity and invert_y on every mouse move; its camera takes `fov` at spawn and whenever it changes, and the
+# view-model camera copies it (sync_view_model). Remote workers' cameras are never current here and keep the scene's.
+
+## Radians of look per pixel of mouse movement: the player's setting (Config.balance.mouse_sensitivity by default).
+func _settings_sensitivity() -> float:
+	return float(Settings.get_value(&"mouse_sensitivity", Config.balance.mouse_sensitivity))
+
+
+## The mouse delta as this player wants it (invert_y flips the vertical).
+func _settings_look(relative: Vector2) -> Vector2:
+	if bool(Settings.get_value(&"invert_y", false)):
+		relative.y = -relative.y
+	return relative
+
+
+func _settings_ready() -> void:
+	if not is_local():
+		return
+	_settings_apply_fov()
+	Settings.changed.connect(_on_settings_changed)
+
+
+func _on_settings_changed(key: StringName) -> void:
+	if key == &"fov":
+		_settings_apply_fov()
+
+
+## The local camera's field of view from the settings (60..100); the view-model camera follows.
+func _settings_apply_fov() -> void:
+	if camera == null:
+		return
+	camera.fov = clampf(float(Settings.get_value(&"fov", camera.fov)), Settings.FOV_MIN, Settings.FOV_MAX)
+	sync_view_model()
+
+# --- end M19 settings ------------------------------------------------------------------------------------------------
 
 # --- M10: stagger / shove -----------------------------------------------------------------------------------------
 

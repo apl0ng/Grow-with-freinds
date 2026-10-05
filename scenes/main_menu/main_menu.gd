@@ -2,7 +2,9 @@ extends Control
 ## Main menu: player name, host / join by IP + port, status line (fed by Game.return_to_menu), how-to blurb.
 ## Copy is the factory's (STYLE.md "Mood & tone"): host = "Open the floor", join = "Report for shift",
 ## quit = "Walk out (you can't)". The title hangs slightly crooked and sways a little; it does not bounce.
-## Remembers the last name / ip / port in user://settings.cfg (section "menu"; other sections are preserved).
+## Remembers the last name / ip / port in user://settings.cfg (section "menu"; other sections are preserved). M19: the
+## file is the Settings autoload's (Settings.path: `--settings-file=<path>` points both at a test file); a small grey
+## version line sits under the title, and Options (beside the quit button) opens the OPTIONS card.
 ##
 ## Command line (after "--"), consumed once per process via Game.cli_auto_start_used:
 ##   --host                 host automatically       --join[=IP]  join automatically (default 127.0.0.1)
@@ -64,6 +66,7 @@ func _ready() -> void:
 	_load_settings()
 	_apply_cli_overrides()
 	_run_ready() # M16 variety: the run code row
+	_settings_ready() # M19 settings: the version line and the OPTIONS card
 	host_button.pressed.connect(_on_host_pressed)
 	join_button.pressed.connect(_on_join_pressed)
 	quit_button.pressed.connect(_on_quit_pressed)
@@ -311,7 +314,7 @@ func _show_status(text: String, kind: StringName) -> void:
 
 func _load_settings() -> void:
 	var cfg := ConfigFile.new()
-	var ok := cfg.load(SETTINGS_PATH) == OK
+	var ok := cfg.load(_settings_file()) == OK # M19 settings
 	var saved_name := String(cfg.get_value(SETTINGS_SECTION, "name", "")) if ok else ""
 	var saved_ip := String(cfg.get_value(SETTINGS_SECTION, "ip", DEFAULT_IP)) if ok else DEFAULT_IP
 	var saved_port := int(cfg.get_value(SETTINGS_SECTION, "port", Config.balance.default_port)) if ok \
@@ -323,13 +326,14 @@ func _load_settings() -> void:
 
 func _save_settings() -> void:
 	var cfg := ConfigFile.new()
-	cfg.load(SETTINGS_PATH) # keep other sections; a missing file is fine
+	var path := _settings_file() # M19 settings
+	cfg.load(path) # keep other sections; a missing file is fine
 	cfg.set_value(SETTINGS_SECTION, "name", name_edit.text.strip_edges())
 	cfg.set_value(SETTINGS_SECTION, "ip", ip_edit.text.strip_edges())
 	cfg.set_value(SETTINGS_SECTION, "port", int(port_spin.value))
-	var err := cfg.save(SETTINGS_PATH)
+	var err := cfg.save(path)
 	if err != OK:
-		push_warning("MainMenu: could not save %s (%s)" % [SETTINGS_PATH, error_string(err)])
+		push_warning("MainMenu: could not save %s (%s)" % [path, error_string(err)])
 
 func _apply_cli_overrides() -> void:
 	if Config.has_arg("name"):
@@ -352,6 +356,47 @@ func _apply_fallback_styles() -> void:
 func _has_variation(variation: StringName) -> bool:
 	var t := theme if theme != null else ThemeDB.get_project_theme()
 	return t != null and t.get_type_variation_base(variation) != &""
+
+
+# --- M19 settings: the version line and the OPTIONS card ---------------------------------------------------------------
+# %Version under the title reads "v" + Game.get_version(). Options (%OptionsButton, beside the quit button and before it
+# in the keyboard path) opens %Options, the OPTIONS card (scenes/ui/options_card.tscn, with its own dim): the menu's
+# column hides while it is up; Escape or its BACK closes it and the keyboard goes back to Options.
+
+const TEXT_VERSION := "v%s"
+
+@onready var version_label: Label = %Version
+@onready var options_button: Button = %OptionsButton
+@onready var options: OptionsCard = %Options
+@onready var _menu_center: Control = $Center
+
+
+func _settings_ready() -> void:
+	version_label.text = TEXT_VERSION % Game.get_version()
+	options_button.pressed.connect(open_options)
+	options.closed.connect(_on_options_closed)
+
+
+## Opens the OPTIONS card over the menu.
+func open_options() -> void:
+	if options.is_open():
+		return
+	_menu_center.visible = false
+	options.open()
+
+
+func _on_options_closed() -> void:
+	_menu_center.visible = true
+	if is_inside_tree():
+		options_button.grab_focus.call_deferred()
+
+
+## The file name / ip / port live in: the Settings autoload's (user://settings.cfg unless --settings-file says).
+func _settings_file() -> String:
+	var path := String(Settings.get(&"path"))
+	return path if path != "" else SETTINGS_PATH
+
+# --- end M19 settings --------------------------------------------------------------------------------------------------
 
 
 # --- M16 variety: the run code ---------------------------------------------------------------------------------------

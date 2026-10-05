@@ -77,7 +77,7 @@ for sc in "${SCENARIOS[@]}"; do
   echo "== $sc (port $port)"
   case $sc in
     solo)
-      launch solo net_solo.gd --port=$port
+      launch solo net_solo.gd --port=$port --settings-file=user://net_test_settings_$port.cfg
       ;;
     pair)
       launch pair_host net_host.gd --port=$port --scenario=pair

@@ -185,9 +185,10 @@ func _run_solo() -> void:
 	_check(Game.world == null and get_tree().get_first_node_in_group(Game.MENU_GROUP) != null, "second return to menu")
 	await _test_menu_settings()
 
-## The menu remembers name / ip / port in user://settings.cfg (the real file is backed up and restored).
+## The menu remembers name / ip / port in the Settings file (M19: net_test.sh passes --settings-file, so this is a test
+## file and the player's user://settings.cfg is never touched; without it the file is backed up and restored).
 func _test_menu_settings() -> void:
-	var path: String = "user://settings.cfg"
+	var path: String = String(Settings.get(&"path"))
 	var had_file := FileAccess.file_exists(path)
 	var backup := FileAccess.get_file_as_string(path) if had_file else ""
 	var menu := get_tree().get_first_node_in_group(Game.MENU_GROUP)

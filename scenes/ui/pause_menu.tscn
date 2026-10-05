@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="1_pause"]
+[ext_resource type="PackedScene" path="res://scenes/ui/options_card.tscn" id="2_options"]
 
 [node name="PauseMenu" type="Control"]
 visible = false
@@ -58,21 +59,33 @@ layout_mode = 2
 focus_neighbor_left = NodePath(".")
 focus_neighbor_top = NodePath("../LeaveButton")
 focus_neighbor_right = NodePath(".")
-focus_neighbor_bottom = NodePath("../LeaveButton")
-focus_next = NodePath("../LeaveButton")
+focus_neighbor_bottom = NodePath("../OptionsButton")
+focus_next = NodePath("../OptionsButton")
 focus_previous = NodePath("../LeaveButton")
 theme_type_variation = &"BigButton"
 text = "BACK TO WORK"
 
-[node name="LeaveButton" type="Button" parent="Center/Card/VBox"]
+[node name="OptionsButton" type="Button" parent="Center/Card/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_left = NodePath(".")
 focus_neighbor_top = NodePath("../ResumeButton")
 focus_neighbor_right = NodePath(".")
+focus_neighbor_bottom = NodePath("../LeaveButton")
+focus_next = NodePath("../LeaveButton")
+focus_previous = NodePath("../ResumeButton")
+theme_type_variation = &"BigButton"
+text = "OPTIONS"
+
+[node name="LeaveButton" type="Button" parent="Center/Card/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_neighbor_left = NodePath(".")
+focus_neighbor_top = NodePath("../OptionsButton")
+focus_neighbor_right = NodePath(".")
 focus_neighbor_bottom = NodePath("../ResumeButton")
 focus_next = NodePath("../ResumeButton")
-focus_previous = NodePath("../ResumeButton")
+focus_previous = NodePath("../OptionsButton")
 theme_type_variation = &"DangerButton"
 text = "CLOCK OUT (MAIN MENU)"
 
@@ -189,15 +202,7 @@ theme_override_constants/separation = 4
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"SubtleLabel"
-text = "Controls"
-horizontal_alignment = 1
-autowrap_mode = 3
-
-[node name="ControlsLabel2" type="Label" parent="Center/Card/VBox/Controls/ControlsBox"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"SubtleLabel"
-text = "RMB throw · F shove · MMB ping · T chat · V talk"
+text = "Keys, mouse, screen and sound: OPTIONS."
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -249,3 +254,8 @@ mouse_filter = 2
 theme_type_variation = &"SubtleLabel"
 theme_override_font_sizes/font_size = 16
 text = "Issued: 0 of 7"
+
+[node name="Options" parent="." instance=ExtResource("2_options")]
+unique_name_in_owner = true
+layout_mode = 1
+own_dim = false

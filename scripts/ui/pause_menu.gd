@@ -8,9 +8,11 @@ extends Control
 ## Keyboard focus stays on its own two buttons (focus neighbours in the scene): the round-end overlay can be open
 ## underneath, and Tab / arrows must never reach its NEXT SHIFT / START OVER through the pause card.
 ## M10: a VOICE card (Voice autoload, contract surface only): "Microphone" (Voice.enabled), "Push to talk (V)"
-## (Voice.push_to_talk), "Voice volume" slider VOLUME_MIN_DB..VOLUME_MAX_DB (Voice.output_volume_db), an input meter
-## fed by Voice.input_level_changed, "No microphone found." while not Voice.is_mic_available(); values are re-read
-## every time the menu opens. Plus a second controls line: "RMB throw · F shove · MMB ping · T chat · V talk".
+## (Voice.push_to_talk), "Voice volume" slider VOLUME_MIN_DB..VOLUME_MAX_DB, an input meter fed by
+## Voice.input_level_changed, "No microphone found." while not Voice.is_mic_available(); values are re-read every time
+## the menu opens. M19 settings: the Sound toggle and the voice volume slider are views of the Settings autoload
+## (`muted`, `voice_db`); the key list moved to the OPTIONS card (%Options, scenes/ui/options_card.tscn), opened with
+## the OPTIONS button between BACK TO WORK and CLOCK OUT; the Controls panel keeps a one-line pointer to it.
 
 ## Emitted after the menu closed and released its lock (the HUD hands the keyboard back to the round-end overlay).
 signal closed
@@ -20,20 +22,8 @@ const VOLUME_MIN_DB: float = -30.0
 const VOLUME_MAX_DB: float = 6.0
 const TEXT_VOLUME := "%+d dB"
 const TEXT_NO_MIC := "No microphone found."
-const TEXT_CONTROLS_M10 := "RMB throw · F shove · MMB ping · T chat · V talk"
-## Controls hint rows: [label, action, fallback key text].
-const CONTROL_HINTS: Array = [
-	["Move", &"move_forward", "WASD"],
-	["Interact", &"interact", "E"],
-	["Drop", &"drop", "Q"],
-	["Jump", &"jump", "Space"],
-	["Sprint", &"sprint", "Shift"],
-	["Crouch", &"crouch", "Ctrl"],
-]
-# --- M18 emotes ---
-## The gesture keys (Player.EMOTE_ACTIONS on the number keys 1 to 4) at the end of the second controls line.
-const TEXT_CONTROLS_M18_EMOTES := " · 1-4 gestures"
-# --- end M18 emotes ---
+## M19 settings: the Controls panel's one line (the keys themselves are on the OPTIONS card, incl. 1-4 gestures).
+const TEXT_CONTROLS_POINTER := "Keys, mouse, screen and sound: OPTIONS."
 
 var _locked: bool = false
 ## Frame in which someone else released the UI lock: the same key press must not reopen us.
@@ -44,7 +34,6 @@ var _other_unlock_frame: int = -1
 @onready var leave_button: Button = %LeaveButton
 @onready var host_note: Label = %HostNote
 @onready var controls_label: Label = %ControlsLabel
-@onready var controls_label_2: Label = %ControlsLabel2
 @onready var mic_toggle: CheckButton = %MicToggle
 @onready var ptt_toggle: CheckButton = %PttToggle
 @onready var sound_toggle: CheckButton = %SoundToggle
@@ -64,8 +53,7 @@ func _ready() -> void:
 	resume_button.pressed.connect(_on_resume_pressed)
 	leave_button.pressed.connect(_on_leave_pressed)
 	Game.ui_lock_changed.connect(_on_ui_lock_changed)
-	controls_label.text = _build_controls_text()
-	controls_label_2.text = TEXT_CONTROLS_M10 + TEXT_CONTROLS_M18_EMOTES # M18 emotes
+	controls_label.text = TEXT_CONTROLS_POINTER # M19 settings
 	# M10 voice settings (Voice contract surface; guarded so a renamed field never breaks the menu).
 	volume_slider.min_value = VOLUME_MIN_DB
 	volume_slider.max_value = VOLUME_MAX_DB
@@ -79,6 +67,7 @@ func _ready() -> void:
 		voice.connect(&"input_level_changed", _on_input_level_changed)
 	sync_voice_controls()
 	_career_ready() # M15 career: the Record card
+	_settings_ready() # M19 settings: the OPTIONS button and card
 
 
 func _exit_tree() -> void:
@@ -88,6 +77,8 @@ func _exit_tree() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed(&"pause") or event.is_echo():
 		return
+	if options.is_open():
+		return # M19 settings: Escape closes the OPTIONS card first (the card handles it)
 	if visible:
 		close()
 		get_viewport().set_input_as_handled()
@@ -135,6 +126,7 @@ func close() -> void:
 	if not visible:
 		return
 	visible = false
+	options.close(true) # M19 settings: the OPTIONS card goes with the menu
 	_set_locked(false)
 	Sfx.play(&"ui_close")
 	closed.emit()
@@ -169,7 +161,9 @@ func _on_ui_lock_changed(locked: bool) -> void:
 func sync_voice_controls() -> void:
 	var voice: Node = _voice()
 	_syncing_voice = true
-	sound_toggle.button_pressed = not Config.is_muted()
+	# M19 settings: Sound is a view of Settings `muted` (`--mute` holds it off and the toggle cannot change that).
+	sound_toggle.button_pressed = not Settings.is_mute_forced() and not bool(Settings.get_value(&"muted", false))
+	sound_toggle.disabled = Settings.is_mute_forced()
 	if voice == null:
 		mic_toggle.disabled = true
 		ptt_toggle.disabled = true
@@ -179,7 +173,7 @@ func sync_voice_controls() -> void:
 	else:
 		mic_toggle.button_pressed = bool(voice.get(&"enabled"))
 		ptt_toggle.button_pressed = bool(voice.get(&"push_to_talk"))
-		var db := clampf(float(voice.get(&"output_volume_db")), VOLUME_MIN_DB, VOLUME_MAX_DB)
+		var db := clampf(float(Settings.get_value(&"voice_db", 0.0)), VOLUME_MIN_DB, VOLUME_MAX_DB) # M19 settings
 		volume_slider.value = db
 		volume_value.text = TEXT_VOLUME % roundi(db)
 		var mic_ok := bool(voice.call(&"is_mic_available")) if voice.has_method(&"is_mic_available") else false
@@ -199,11 +193,11 @@ func _on_mic_toggled(pressed: bool) -> void:
 	Sfx.play(&"ui_click")
 
 
-## Sound: the master mute (saved by Config; `--mute` on the command line is the unsaved version).
+## Sound: the master mute, Settings `muted` (M19; `--mute` on the command line is the unsaved version and wins).
 func _on_sound_toggled(pressed: bool) -> void:
 	if _syncing_voice:
 		return
-	Config.set_muted(not pressed)
+	Settings.set_value(&"muted", not pressed) # M19 settings (was Config.set_muted)
 	if pressed:
 		Sfx.play(&"ui_click")
 
@@ -221,9 +215,7 @@ func _on_volume_changed(value: float) -> void:
 	volume_value.text = TEXT_VOLUME % roundi(value)
 	if _syncing_voice:
 		return
-	var voice: Node = _voice()
-	if voice != null:
-		voice.set(&"output_volume_db", value)
+	Settings.set_value(&"voice_db", value) # M19 settings: it applies the Voice bus (was Voice.output_volume_db)
 
 
 func _on_input_level_changed(level: float) -> void:
@@ -239,6 +231,41 @@ func _set_locked(locked: bool) -> void:
 		return
 	_locked = locked
 	Game.set_ui_lock(LOCK_SOURCE, locked)
+
+
+# --- M19 settings: the OPTIONS card ---------------------------------------------------------------------------------
+# OPTIONS (%OptionsButton, between BACK TO WORK and CLOCK OUT in the card's closed focus loop) opens %Options, the
+# OPTIONS card (scenes/ui/options_card.tscn, without its own dim: ours is under it). While it is up the ON BREAK card
+# and the Record card are hidden and the pause lock stays held; Escape or its BACK closes it and the keyboard goes back
+# to OPTIONS. Closing the menu closes the card with it.
+
+@onready var options_button: Button = %OptionsButton
+@onready var options: OptionsCard = %Options
+@onready var _break_center: Control = $Center
+
+
+func _settings_ready() -> void:
+	options_button.pressed.connect(open_options)
+	options.closed.connect(_on_options_closed)
+
+
+## Opens the OPTIONS card over the break (only while the menu is open).
+func open_options() -> void:
+	if not visible or options.is_open():
+		return
+	_break_center.visible = false
+	record_card.visible = false
+	options.open()
+
+
+func _on_options_closed() -> void:
+	_break_center.visible = true
+	sync_record()
+	sync_voice_controls()
+	if visible and is_inside_tree():
+		options_button.grab_focus.call_deferred()
+
+# --- end M19 settings -----------------------------------------------------------------------------------------------
 
 
 # --- M15 career: the Record card ------------------------------------------------------------------------------------
@@ -335,13 +362,3 @@ func get_record_issued_text() -> String:
 	return record_issued.text if record_card.visible and record_issued.visible else ""
 
 # --- end M16 hats ---------------------------------------------------------------------------------------------------
-
-
-static func _build_controls_text() -> String:
-	var parts: PackedStringArray = []
-	for row: Array in CONTROL_HINTS:
-		var key_text: String = row[2]
-		if row[1] != &"move_forward":
-			key_text = HUD.action_key_text(row[1], row[2])
-		parts.append("%s: %s" % [row[0], key_text])
-	return "   ".join(parts)

@@ -480,7 +480,11 @@ func _section_pause_voice() -> void:
 			and is_equal_approx(pm.volume_slider.value, clampf(vol0, PauseMenu.VOLUME_MIN_DB, PauseMenu.VOLUME_MAX_DB)),
 			"controls reflect Voice (mic %s, ptt %s, %.0f dB)" % [enabled0, ptt0, vol0])
 	check(pm.no_mic_label.visible == (not Voice.is_mic_available()), "'No microphone found.' follows Voice.is_mic_available()")
-	check(pm.controls_label_2.text == "RMB throw · F shove · MMB ping · T chat · V talk · 1-4 gestures", "M10 controls line (+ the M18 gesture keys)")
+	# M19 settings: the keys moved onto the OPTIONS card; the ON BREAK card keeps one line pointing there.
+	check(pm.controls_label.text == "Keys, mouse, screen and sound: OPTIONS.", "controls: the ON BREAK pointer line ('%s')" % pm.controls_label.text)
+	var keys := pm.options.get_key_texts()
+	check(keys.has("RMB throw") and keys.has("F shove") and keys.has("MMB ping") and keys.has("T chat") and keys.has("V talk")
+			and keys.has("1-4 gestures"), "the M10 keys (+ the M18 gesture keys) on the OPTIONS card (%s)" % ", ".join(keys))
 	pm.mic_toggle.button_pressed = not enabled0
 	check(Voice.enabled == (not enabled0), "Microphone toggle writes Voice.enabled")
 	pm.ptt_toggle.button_pressed = not ptt0
@@ -496,8 +500,9 @@ func _section_pause_voice() -> void:
 			"pause card with the voice section fits 1280x720 with margin (%s)" % pause_rect)
 	Voice.enabled = enabled0
 	Voice.push_to_talk = ptt0
-	Voice.output_volume_db = vol0
+	Settings.set_value(&"voice_db", vol0) # M19 settings: the voice volume is a setting (it applies the Voice bus)
 	pm.sync_voice_controls()
-	check(pm.mic_toggle.button_pressed == enabled0 and is_equal_approx(pm.volume_slider.value, vol0), "sync_voice_controls re-reads Voice")
+	check(pm.mic_toggle.button_pressed == enabled0 and is_equal_approx(pm.volume_slider.value, vol0) and is_equal_approx(Voice.output_volume_db, vol0),
+			"sync_voice_controls re-reads Voice and the voice volume setting")
 	await _tap(KEY_ESCAPE)
 	check(not pm.is_open() and not Game.is_ui_locked(), "pause menu closed")
