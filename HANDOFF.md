@@ -62,7 +62,7 @@ per-worker shift stats and a shift report with verdicts; pings (MMB) and text ch
 runs unless `--events` is passed. Design: FRIENDSLOP.md; contracts: CONTRACTS.md "M10"; tasks: PLAN.md "M10".
 
 ## Read these (in order)
-PLAN.md (status, decisions, milestone notes) · CONTRACTS.md (system interfaces) · STYLE.md (look + copy tone) ·
+RELEASE.md (the road to 1.0, the release bar) · PLAN.md (status, decisions, milestone notes) · CONTRACTS.md (system interfaces) · STYLE.md (look + copy tone) ·
 MODELING.md (Blender pipeline) · FRIENDSLOP.md (why M10 is shaped the way it is) · CLAUDE.md (rules for agents).
 
 ## Architecture in one paragraph

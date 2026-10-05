@@ -1,6 +1,7 @@
 # Grow With Friends — notes for coding agents
 
-Read PLAN.md (status + decisions), CONTRACTS.md (interfaces), STYLE.md (look + copy tone), MODELING.md (models).
+Read RELEASE.md (the road to 1.0: the release bar and the milestones), PLAN.md (status + decisions), CONTRACTS.md
+(interfaces), STYLE.md (look + copy tone), MODELING.md (models).
 
 - Engine: Godot 4.7.2 (`godot` must be on PATH for the tools; a headless Linux build works). No editor is needed:
   scenes are hand-written text `.tscn` files; models are built by `python3 tools/blender/build.py` (bpy 4.2 module).

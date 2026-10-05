@@ -333,3 +333,10 @@ The user asked for "more" after M17 (2026-10-04); the lead chose this scope: FRI
 | 18.3 | Gestures: point, half-wave, shrug, slump; emotes + emotes_mp suites | emotes | in progress |
 | 18.4 | The payment for full crews grows by shift (quota_team_growth) against the final notice; economy suite | economy2 | in progress |
 | 18.5 | Integration: merges, test_all registration, captures in the real renderer, README, full run, export | lead | pending |
+
+## Road to 1.0 (2026-10-05)
+The user asked for goals that get the game to release: RELEASE.md holds the release bar (the loop, the disruption,
+the pull, the release itself) and the milestones that close it: M18 (in progress), M19 "The first ten minutes"
+(onboarding, settings, readability), M20 "One more run" (debt levels, the run summary, achievements, economy3),
+M21 "The informant" (an optional hidden-role mode), M22 "Release hardening" (performance, a soak, shipping), then a
+release candidate the user plays with friends.
