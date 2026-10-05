@@ -4,7 +4,10 @@
 You are the lead developer on this Godot 4.7.2 project. The user wants the game launched and played on their PC,
 and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of 2026-09-29.
 
-0. State (2026-10-05): M10 to M18 merged; RELEASE.md is the road to 1.0 (M19 to M22). M18 (CONTRACTS "M18 as
+0. State (2026-10-05): M10 to M19 merged (version 0.19.0); RELEASE.md is the road to 1.0 (M20 to M22 left). M19
+   (CONTRACTS "M19 as delivered"): the guided first shift (Guide), the OPTIONS card and the Settings autoload
+   (`--settings-file` in tests: never the real file), every scheduled disruption warns 3 s first, the report's
+   WHAT IT COST lines. M18 (CONTRACTS "M18 as
    delivered"): walkie-talkies, Black Damp (spores that fog workers), four gestures on 1-4, and the payment for a
    crew from a per-shift table (solo x1.82 + 500). M17 (CONTRACTS "M17" and "M17 as delivered", FRIENDSLOP section 11): a
    run ends at the final notice (shift 4 / 5 / 6 by team size; PAID IN FULL, NEW RUN, debts cleared, the eyeshade),
@@ -24,8 +27,8 @@ and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of
    starts in the alley (--no-lobby for the old start). M12 (CONTRACTS "M12", FRIENDSLOP section 7) added six strains
    with mutation chances, the hostile plant (Hostiles autoload), the break-glass flamethrower (EmergencyCabinet +
    Flamethrower item, `use_item` on LMB) and three disruption events (head count, water main off, shortage).
-   94 suites in tools/test_all.sh, all green on this PC except the skipped X11 mouse suite (last full run
-   2026-10-05, 16247 checks, about 25 minutes). The export templates are installed; `tools\export.ps1`
+   100 suites in tools/test_all.sh, all green on this PC except the skipped X11 mouse suite (last full run
+   2026-10-05, 16963 checks, about 27 minutes). The export templates are installed; `tools\export.ps1`
    cuts `export\GrowWithFriends-win64.zip`. The real `user://career.cfg` is the user's: tests and capture tools pass
    `--career-file=<temp>` and never touch it. Next candidates: FRIENDSLOP 11.4, PLAN.md "M11" and "Things the user
    may ask for next".
@@ -39,7 +42,7 @@ and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of
 3. `launch.ps1` was rewritten 2026-09-29 (parameter sets, `-Mute`, `-Firewall`, `-NoDownload`, first-run `--import`);
    `launch.sh` is the Linux / macOS / Git Bash equivalent (`--host`, `--join ip[:port]`, `--players N`, `--mute`).
 4. Tests on Windows: Git Bash, `export GODOT="/c/Users/ap_lo/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe"`,
-   then `tools/test_all.sh` (94 suites, about 25 minutes; the X11 mouse suite is skipped) or `--only a,b`. NEVER run
+   then `tools/test_all.sh` (100 suites, about 27 minutes; the X11 mouse suite is skipped) or `--only a,b`. NEVER run
    Godot without `--headless` from a script (it opens the game on the user's screen). In PowerShell never name a
    function parameter `$args`.
 5. Models on this PC: Blender 5.2 through `"/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background
@@ -77,7 +80,7 @@ everything else is server-validated. Spawned nodes are never reparented. Held it
 socket; the local player's held item renders in a view-model layer (render layer 10) so it never clips walls.
 
 ## Testing
-- `tools/test_all.sh`: 94 suites, all green on this PC after M18 (2026-10-05, 16247 checks). Includes multi-process ENet tests, a
+- `tools/test_all.sh`: 100 suites, all green on this PC after M19 (2026-10-05, 16963 checks). Includes multi-process ENet tests, a
   4-player stress test, review regression suites, and the M10 suites (discipline, voice_test/voice_mp, physics/
   physics_mp, ui_m10/ui_m10_mp, events/events_mp).
 - `tools/check.sh` loads every resource; `tools/smoke.sh` runs a solo loop and a host+client pair.
