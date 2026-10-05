@@ -478,6 +478,16 @@ func _test_report_and_round_end() -> void:
 	check(row > 0 and report.call(&"get_cell_text", row, 7) == str(GameState.get_stat(BOB, Spores.STAT_FOGGED)) and report.call(&"get_cell_text", row, 0) == "Bob",
 			"Bob's row: fogged %s" % report.call(&"get_cell_text", row, 7))
 	check((report.call(&"get_verdict_texts") as PackedStringArray).has(VERDICT % "Bob"), "the report shows the verdict")
+	await wait_frames(2)
+	var card: Control = report as Control  # the outermost panel round the report: the round-end card itself
+	var up: Node = report
+	while up != null and up is Control:
+		if up is PanelContainer:
+			card = up as Control
+		up = up.get_parent()
+	var screen := Vector2(float(ProjectSettings.get_setting("display/window/size/viewport_width")), float(ProjectSettings.get_setting("display/window/size/viewport_height")))
+	var need := card.get_combined_minimum_size()
+	check(need.x <= screen.x and need.y <= screen.y, "the round-end card (%s) still fits the %s window with the eighth column (needs %s)" % [card.name, screen, need])
 
 
 func _test_reset() -> void:
