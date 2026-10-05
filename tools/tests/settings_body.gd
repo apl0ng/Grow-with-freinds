@@ -430,10 +430,38 @@ func _section_main_menu() -> void:
 	await wait_sec(0.5)
 	var card_rect := options.card.get_global_rect()
 	check(get_viewport().get_visible_rect().encloses(card_rect) and card_rect.size.y <= 680.0, "the card fits 1280 x 720 (%s)" % card_rect)
+	_audit_copy(options)
 	options.back_button.pressed.emit()
 	await wait_frames(2)
 	check(not options.is_open() and center.visible, "BACK closes it")
 	check(Game.world == null and not Game.is_ui_locked(), "the menu needs no lock")
+
+
+const CHEER_WORDS: PackedStringArray = ["nice", "great", "awesome", "congrat", "well done", "good job", "yay", "woo", "amazing", "wonderful", "enjoy", "fun"]
+
+
+## Every string on the card (labels, buttons, toggles, the constants) is flat: no exclamation marks, no cheer.
+func _audit_copy(options: OptionsCard) -> void:
+	var texts: PackedStringArray = []
+	for n: Node in options.find_children("*", "Label", true, false):
+		texts.append((n as Label).text)
+	for n: Node in options.find_children("*", "BaseButton", true, false):
+		if n is Button:
+			texts.append((n as Button).text)
+	for key: Variant in (options.get_script() as GDScript).get_script_constant_map():
+		var v: Variant = (options.get_script() as GDScript).get_script_constant_map()[key]
+		if v is String:
+			texts.append(String(v))
+	texts.append(PauseMenu.TEXT_CONTROLS_POINTER)
+	var bad: PackedStringArray = []
+	for t in texts:
+		var lower := t.to_lower()
+		if t.contains("!"):
+			bad.append(t)
+		for w in CHEER_WORDS:
+			if lower.contains(w):
+				bad.append("%s (%s)" % [t, w])
+	check(texts.size() > 40 and bad.is_empty(), "%d strings on the card: flat (%s)" % [texts.size(), bad])
 
 
 # --- host ------------------------------------------------------------------------------------------------------------------
