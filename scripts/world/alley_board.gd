@@ -100,6 +100,7 @@ func get_last_shift_lines() -> PackedStringArray:
 func get_next_lines() -> PackedStringArray:
 	var out := PackedStringArray([TEXT_NEXT % GameState.round_number, TEXT_DUE % GameState.quota])
 	if GameState.is_final_shift(): out.insert(0, TEXT_FINAL)  # M17 finale: the run's last shift heads the column
+	if Story.onboarding_alley_line() != "": out.insert(0, Story.onboarding_alley_line())  # M19 onboarding: a first-timer's first line says what the van is
 	var src: Object = briefing_source if briefing_source != null and is_instance_valid(briefing_source) else GameState
 	if src.has_method(&"get_shift_briefing"):
 		out.append_array(_clean_lines(src.call(&"get_shift_briefing"), MAX_BRIEFING))
