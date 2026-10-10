@@ -1790,7 +1790,7 @@ func _mayhem_reset_local() -> void:
 ## The scheduler's weight of `kind` right now: WEIGHTS x the active conditions' `event_weight:<kind>` (looked up by
 ## the kind's name, so it works for every kind in WEIGHTS, whoever added it). 0 for an unknown kind.
 func get_weight(kind: StringName) -> int:
-	var base := int(WEIGHTS.get(kind, 0))
+	var base := Chill.get_event_weight(kind) if Config.chill_enabled else int(WEIGHTS.get(kind, 0))  # M20 chill: the chill mix
 	if base <= 0:
 		return 0
 	return maxi(int(round(float(base) * GameState.condition_value(StringName("event_weight:%s" % kind), 1.0))), 0)

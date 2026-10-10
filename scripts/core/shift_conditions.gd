@@ -279,10 +279,10 @@ static func are_compatible(a: StringName, b: StringName) -> bool:
 
 ## How many conditions shift `round_n` gets: none before `from_round`, `per_shift` from there, one more from
 ## EXTRA_FROM_ROUND.
-static func count_for_round(round_n: int, from_round: int, per_shift: int) -> int:
+static func count_for_round(round_n: int, from_round: int, per_shift: int, extra_from: int = EXTRA_FROM_ROUND) -> int:
 	if round_n < maxi(from_round, 1) or per_shift <= 0:
 		return 0
-	return per_shift + (1 if round_n >= EXTRA_FROM_ROUND else 0)
+	return per_shift + (1 if round_n >= extra_from else 0)  # M20 chill: extra_from (BalanceConfig.conditions_extra_from_round)
 
 
 ## Rolls `count` conditions. Never one of `previous` (the shift before: compared without parameters), never an

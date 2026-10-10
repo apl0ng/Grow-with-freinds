@@ -351,13 +351,23 @@ RELEASE.md M19; CONTRACTS.md "M19".
 | 19.3 | The disruption audit against RELEASE D1, "what it cost" lines in the report, a decluttered HUD, a capture tool; readability + readability_mp suites | readability | done (138 + 70 checks; the audit table in tools/tests/readability_audit.md) |
 | 19.4 | Integration: merges, captures of a whole first run, the audit table in CONTRACTS, full run, export | lead | done (100 suites, 16963 checks green; version 0.19.0; export re-cut) |
 
-## M20 One more run: debt levels, the run summary, achievements, economy3 (in progress, 2026-10-05)
+## M20 One more run: debt levels, the run summary, achievements, economy3 (shelved, 2026-10-10)
 RELEASE.md M20 (P1, P2, P3); CONTRACTS.md "M20".
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | 20.0 | Prep: BalanceConfig group "M20 debt" (the five levels' modifier numbers) | lead | done |
-| 20.1 | Debt levels 1-5: the picker in the alley, the modifiers, the chip, the run code, the record, a hat per level; debt + debt_mp suites | debt | in progress |
-| 20.2 | The run summary page: the run's numbers, the three worst moments, per-worker lines, next on file, personal bests; summary + summary_mp suites | summary | in progress |
-| 20.3 | Twenty achievements, the Record card count and page, three hats; achievements + achievements_mp suites | achievements | in progress |
-| 20.4 | The economy model at each debt level; the modifier numbers tuned; economy suite | economy3 | in progress |
-| 20.5 | Integration: merges, captures, docs, full run, export | lead | pending |
+| 20.1 | Debt levels 1-5: the picker in the alley, the modifiers, the chip, the run code, the record, a hat per level; debt + debt_mp suites | debt | shelved |
+| 20.2 | The run summary page: the run's numbers, the three worst moments, per-worker lines, next on file, personal bests; summary + summary_mp suites | summary | shelved |
+| 20.3 | Twenty achievements, the Record card count and page, three hats; achievements + achievements_mp suites | achievements | shelved |
+| 20.4 | The economy model at each debt level; the modifier numbers tuned; economy suite | economy3 | shelved |
+| 20.5 | Integration: merges, captures, docs, full run, export | lead | shelved |
+
+Shelved 2026-10-10: the user asked for the game to be "simpler and chill" (the game itself, they said when asked).
+Debt levels, the run summary, achievements and economy3 add systems; their work in progress is kept, unmerged, on
+the branches m20/debt, m20/summary, m20/achievements and m20/economy3 (one WIP commit each).
+
+## M20 Chill: a simpler, calmer game (done, 2026-10-10)
+The user: "make it simpler and chill" (the game itself). CONTRACTS.md "M20 chill".
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 20c.1 | The chill preset (scripts/core/chill.gd), on by default in a windowed run (--chill / --no-chill): seven kinds of trouble, less often, gentler, no market, one condition from shift 3, plants walk off half as often, payments x0.85; chill suite | lead | done |

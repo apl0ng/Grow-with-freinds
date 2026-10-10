@@ -111,6 +111,10 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 - Every disruption warns first (M19): at least three seconds before it costs anything (the lights flicker before a
   power cut, the audit counts down, the rat waits, the scale still reads right), and every banner hint says what to
   do. The shift report ends with what the trouble cost, the three dearest first.
+- Chill by default (M20): the game you launch is the simpler, calmer one. Seven kinds of trouble instead of fourteen
+  (the Boss walking the floor, the power going out, the leak, the rival crew, the rat, the phone, the sprinklers), less
+  often and gentler, no market, one shift condition at a time from shift three, plants walk off half as often, and the
+  payments are 15% lower. `--no-chill` plays the full game.
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows

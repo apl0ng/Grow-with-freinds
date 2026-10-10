@@ -1509,7 +1509,7 @@ menu while they are open (`HUD.are_toasts_under_cards()`; the report's last line
 `tools/tests/m19_shots_body.gd` (the busiest moments) and `tools/tests/m19_menu_shots_body.gd` (menus, options, the
 guide) are the capture tools.
 
-## M20 — one more run: debt levels, the run summary, achievements, economy3 (lead prep)
+## M20 — one more run: debt levels, the run summary, achievements, economy3 (lead prep; SHELVED 2026-10-10, see "M20 chill")
 RELEASE.md, M20 (closes P1, P2, P3). Four agents in worktrees `.claude/worktrees/<agent>20` on `m20/<agent>`:
 **debt**, **summary**, **achievements**, **economy3**. tools/dev/AGENT_RULES.md applies (milestone M20; base ports
 debt 9100, summary 9200, achievements 9300, economy3 9400). Test ports: debt +18 / debt_mp +19, summary +1 /
@@ -1577,3 +1577,20 @@ economy3 tunes their values in data/balance.tres (CRLF, hand-edited) and tools/g
   agree on the field names through CONTRACTS (the debt agent owns the code, economy3 the numbers): if a field the
   model needs is missing, report it instead of editing debt code.
 - Pins in the economy suite; a table per level in the report.
+
+## M20 chill — a simpler, calmer game (lead, 2026-10-10)
+The user asked for the game itself to be "simpler and chill". `Chill` (scripts/core/chill.gd) is a preset of
+BalanceConfig values and an event mix that Config applies to `Config.balance` at start-up when
+`Config.chill_enabled`: on in a windowed run, off under --headless (every older suite tests the full game),
+`--chill` / `--no-chill` force it. Nothing is deleted: the full game is the data in data/balance.tres.
+- Events: `Chill.EVENT_WEIGHTS` (inspection 15, power cut 20, leak 15, drive-by 10, rat 15, phone 10, sprinklers 15;
+  every other kind 0) through `Events.get_weight`; first event at 60 s, gaps 75-140 s, no speed-up through a run.
+- Gentler: back room 15 s, write-up fine $10, no drive-by bill, at most one hostile plant, fog 6 s, every strain
+  walks off half as often (`Chill.MUTATION_SCALE`).
+- Simpler: no market (`market_swing` 0), conditions from shift 3 and never two at once
+  (`BalanceConfig.conditions_extra_from_round`, read by `ShiftConditions.count_for_round`).
+- Payments x0.85 (`BalanceConfig.quota_multiplier`, read by `quota_for_round`). The economy model with the preset:
+  careful crews of every size clear their run 5 of 5, four average workers 4 of 5, three average 1 of 5; an average
+  worker alone or in pairs still struggles (the early end of an easy first shift; a full-clock shift was tried in the
+  model and is not a fair test there: its crews sell everything instead of holding bundles for the next shift).
+- Suite `chill` (+5) pins all of it, the economy targets included.

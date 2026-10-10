@@ -25,6 +25,9 @@ var replay_enabled: bool = false
 ## M16: the run code the host asked for (--run=<code>, or typed into the host panel). "" = the host rolls one.
 ## RunSeed.from_code() turns it into the run's seed (CONTRACTS "M16", Variety).
 var run_code: String = ""
+## M20 chill: the simpler, calmer game (scripts/core/chill.gd) applied to `balance` at start-up. On in a windowed run,
+## off under --headless (the suites test the full game); --chill forces it on, --no-chill off.
+var chill_enabled: bool = false
 
 func _ready() -> void:
 	balance = load(BALANCE_PATH) as BalanceConfig
@@ -82,6 +85,13 @@ func _apply_overrides() -> void:
 		replay_enabled = false
 	if user_args.has("run"):
 		run_code = str(user_args["run"]).strip_edges()
+	chill_enabled = DisplayServer.get_name() != "headless"
+	if user_args.has("chill"):
+		chill_enabled = true
+	if user_args.has("no-chill"):
+		chill_enabled = false
+	if chill_enabled:
+		Chill.apply(balance)
 	if user_args.has("mute"):
 		set_muted(true, false)
 	if user_args.has("fast"):

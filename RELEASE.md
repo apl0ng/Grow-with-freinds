@@ -5,6 +5,13 @@ release this game with a full enjoyable gameplay loop, ways to disrupt the gamep
 playstyle." This file is the target. PLAN.md tracks the tasks; CONTRACTS.md the interfaces; FRIENDSLOP.md the
 design reasons. Every milestone below ends with the release bar items it closes.
 
+## Direction (2026-10-10)
+The user asked for the game itself to be "simpler and chill". A windowed game now plays the chill preset by default
+(CONTRACTS "M20 chill"): seven kinds of trouble instead of fourteen, less often and gentler, no market, one condition
+at a time from shift three, payments a crew can make. The full game is still there (`--no-chill`, and every suite
+tests it). Read the bar below with that in mind: D2 is two or three disruptions a shift, not five; M20 "One more run"
+(debt levels, achievements) is shelved because it adds systems; the run summary may come back in a small form.
+
 ## What 1.0 is
 
 One to four friends, one evening, one run. A run is four to six shifts against a payment that only goes up, and it

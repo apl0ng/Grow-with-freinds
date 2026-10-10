@@ -832,7 +832,7 @@ func _replay_roll(r: Dictionary, round_n: int, previous: Array) -> void:
 				mutating = true
 	var events: Node = get_node_or_null(^"/root/Events")
 	var events_on: bool = events != null and bool(events.call(&"are_events_enabled"))
-	var count := ShiftConditions.count_for_round(round_n, b.conditions_from_round, b.conditions_per_shift)
+	var count := ShiftConditions.count_for_round(round_n, b.conditions_from_round, b.conditions_per_shift, b.conditions_extra_from_round) # M20 chill
 	count = _final_condition_count(round_n, count) # M17 finale: the final notice always has two (when any are rolled)
 	r["conditions"] = ShiftConditions.roll(count, previous, replay_rng, events_on, on_sale, mutating)
 	if round_n >= maxi(b.conditions_from_round, 1):

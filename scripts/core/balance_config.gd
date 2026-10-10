@@ -231,6 +231,12 @@ extends Resource
 ## The first-shift guide: a step the crew has not done is said once more after this many seconds.
 @export var guide_step_timeout_sec: float = 25.0
 
+@export_group("M20 chill")
+## Every payment due x this (1 = the full game; the chill preset lowers it).
+@export var quota_multiplier: float = 1.0
+## From this shift on a shift rolls one more condition (ShiftConditions.EXTRA_FROM_ROUND; the chill preset: never).
+@export var conditions_extra_from_round: int = 5
+
 @export_group("M20 debt")
 ## Debt levels (CONTRACTS "M20"): level 1 is the game as tuned in M18; each level adds one modifier on top of the
 ## ones before it. The debt agent reads these; economy3 tunes them (values in data/balance.tres).
@@ -266,7 +272,7 @@ func get_upgrade(id: StringName) -> UpgradeDef:
 func quota_for_round(round_number: int, player_count: int = 1) -> int:
 	var n: int = max(round_number, 1)
 	var base := base_quota * pow(quota_scale, n - 1) + quota_add * (n - 1)
-	return int(round(base * quota_team_factor(n, player_count)))
+	return int(round(base * quota_team_factor(n, player_count) * quota_multiplier))  # M20 chill: quota_multiplier
 
 ## M18: what the payment of shift `round_number` is multiplied by for `player_count` workers: 1.0 for one worker (or
 ## none), otherwise 1 + a(shift) * m(players) from quota_team_by_shift / quota_team_by_size (see their comments),
