@@ -4,7 +4,10 @@
 You are the lead developer on this Godot 4.7.2 project. The user wants the game launched and played on their PC,
 and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of 2026-09-29.
 
-0. State (2026-10-05): M10 to M19 merged (version 0.19.0); RELEASE.md is the road to 1.0 (M20 to M22 left). M19
+0. State (2026-10-10): M10 to M19 merged, then the CHILL pivot (version 0.20.0): the user asked for the game itself
+   to be "simpler and chill"; a windowed run plays the chill preset (scripts/core/chill.gd, CONTRACTS "M20 chill",
+   memory game-direction-simpler-chill); `--no-chill` and every suite play the full game. M20 "One more run" is
+   shelved on branches m20/*. RELEASE.md is the road to 1.0 (M21, M22 left). M19
    (CONTRACTS "M19 as delivered"): the guided first shift (Guide), the OPTIONS card and the Settings autoload
    (`--settings-file` in tests: never the real file), every scheduled disruption warns 3 s first, the report's
    WHAT IT COST lines. M18 (CONTRACTS "M18 as

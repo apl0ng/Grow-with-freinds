@@ -1097,7 +1097,12 @@ func _case_forged(hostile_id: int) -> void:
 		expect_error(s)
 	var r := await run_cmd(_ids["c"], "forged_m12", {"victim": _ids["a"], "hostile": hostile_id, "flame": loose}, 20.0)
 	await wait_until(func() -> bool: return expected_errors_seen(), 5.0, "the engine rejected every authority-only M12 RPC")
-	var diff := _m12_diff(before, _m12_state(), 0.01)
+	var after := _m12_state()
+	# The cabinet's restock is a whole-second countdown and the forged commands take a few seconds: it may tick (the
+	# "host 78, peer 77" failure seen in four full runs). Counting down is not a change; anything else still is.
+	if bool(before["broken"]) and bool(after["broken"]) and int(after["restock"]) <= int(before["restock"]):
+		after["restock"] = before["restock"]
+	var diff := _m12_diff(before, after, 0.01)
 	check(diff == "" and canonical_state() == canon, "nothing changed on the host %s" % diff)
 	check(_ignited.size() == ignited0 and int(r.get("local_ignites", -1)) == 0, "the forged ignite ran nowhere, not even on Charlie's own screen")
 	check(_has_toast(r.get("toasts", []), "Too far"), "breaking the glass from across the room got 'Too far.' %s" % [r.get("toasts", [])])
