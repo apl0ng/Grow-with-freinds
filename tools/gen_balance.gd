@@ -15,11 +15,11 @@ func _init() -> void:
 		_seed(&"golden", "Golden Kush", "Long grow. Double yield. He counts these.", 90, 1.6, 2, 125, Color(1.0, 0.8, 0.25), 0.1,
 				{"counted": true, "trait_text": "Counted."}, 2),
 		# M12 strains: the mutation chance is rolled once when the plant becomes READY (CONTRACTS "M12").
-		_seed(&"nightshift", "Night Shift", "Dark. Pays the most. One in three gets up and leaves the tray.", 70, 1.2, 1, 210, Color(0.36, 0.2, 0.56), 0.35,
+		_seed(&"nightshift", "Night Shift", "Dark. Pays the most. Some of them get up and leave the tray.", 70, 1.2, 1, 210, Color(0.36, 0.2, 0.56), 0.35,
 				{"dark_growth_multiplier": 2.0, "trait_text": "Grows in the dark."}, 3),
 		_seed(&"creeper", "Creeper", "Cheap. Quick. It twitches. Some of them walk.", 30, 0.8, 1, 70, Color(0.2, 0.72, 0.64), 0.12,
 				{"spread_chance": 0.33, "trait_text": "Spreads."}),
-		_seed(&"brick", "Floor Brick", "Slow. Heavy. Three units a plant. One in five walks off with them.", 120, 2.0, 3, 110, Color(0.72, 0.36, 0.2), 0.2,
+		_seed(&"brick", "Floor Brick", "Slow. Heavy. Three units a plant. Some walk off with them.", 120, 2.0, 3, 110, Color(0.72, 0.36, 0.2), 0.2,
 				{"heavy": true, "trait_text": "Heavy."}, 4),
 		# M18 spores: a READY tray puffs a spore cloud when it is disturbed (scripts/core/spores.gd); a small mutation chance.
 		_seed(&"damp", "Black Damp", "Slow. Pays well. Disturb a ripe tray and you breathe it.", 80, 1.8, 1, 245, Color(0.26, 0.29, 0.22), 0.05,

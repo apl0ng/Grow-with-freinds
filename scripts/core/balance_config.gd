@@ -236,6 +236,8 @@ extends Resource
 @export var quota_multiplier: float = 1.0
 ## From this shift on a shift rolls one more condition (ShiftConditions.EXTRA_FROM_ROUND; the chill preset: never).
 @export var conditions_extra_from_round: int = 5
+## The final notice rolls at least this many conditions (when its shift rolls any; the chill preset: 1).
+@export var final_conditions: int = 2
 
 @export_group("M20 debt")
 ## Debt levels (CONTRACTS "M20"): level 1 is the game as tuned in M18; each level adds one modifier on top of the

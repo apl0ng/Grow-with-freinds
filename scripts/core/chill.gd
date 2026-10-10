@@ -35,6 +35,7 @@ const VALUES: Dictionary = {
 	&"market_swing": 0.0,
 	&"conditions_from_round": 3,
 	&"conditions_extra_from_round": 99,
+	&"final_conditions": 1,
 	# A payment a crew can make.
 	&"quota_multiplier": 0.85,
 }

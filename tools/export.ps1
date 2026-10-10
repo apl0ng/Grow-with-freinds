@@ -171,19 +171,25 @@ function Write-ReadmeTxt([string]$Path, [string]$GameVersion) {
 }
 
 function New-ShareZip([string]$GameVersion) {
-    <# Packs export\GrowWithFriends*.exe, PLAYER_GUIDE.md and README.txt (all at the zip's top level) into
+    <# Packs export\GrowWithFriends*.exe, PLAYER_GUIDE.md, README.txt, THIRD_PARTY_LICENSES.txt and CREDITS.md (all at the
+       zip's top level) into
        export\GrowWithFriends-<version>-win64.zip, then copies it to the old fixed name export\GrowWithFriends-win64.zip
        (links already shared point there). Returns the two paths. #>
     $exes = @(Get-ChildItem -LiteralPath $OutDir -Filter "GrowWithFriends*.exe" -File | ForEach-Object { $_.FullName })
     if ($exes.Count -eq 0) { throw "No GrowWithFriends*.exe in $OutDir to pack." }
     $guide = Join-Path $ProjectDir "PLAYER_GUIDE.md"
     if (-not (Test-Exe $guide)) { throw "PLAYER_GUIDE.md not found in $ProjectDir (it ships in the zip)." }
+    $licences = Join-Path $ProjectDir "THIRD_PARTY_LICENSES.txt"
+    if (-not (Test-Exe $licences)) { throw "THIRD_PARTY_LICENSES.txt not found in $ProjectDir (Godot's MIT and the font's OFL notices must ship): run godot --headless --path . -s res://tools/gen_licenses.gd" }
+    $credits = Join-Path $ProjectDir "CREDITS.md"
     $readme = Join-Path $OutDir "README.txt"
     Write-ReadmeTxt $readme $GameVersion
     $zipVersioned = Join-Path $OutDir ("GrowWithFriends-" + $GameVersion + "-win64.zip")
     $zipFixed = Join-Path $OutDir "GrowWithFriends-win64.zip"
     foreach ($z in @($zipVersioned, $zipFixed)) { if (Test-Path -LiteralPath $z) { Remove-Item -LiteralPath $z -Force } }
-    Compress-Archive -LiteralPath ($exes + @($guide, $readme)) -DestinationPath $zipVersioned
+    $extra = @($guide, $readme, $licences)
+    if (Test-Exe $credits) { $extra += $credits }
+    Compress-Archive -LiteralPath ($exes + $extra) -DestinationPath $zipVersioned
     Copy-Item -LiteralPath $zipVersioned -Destination $zipFixed -Force
     return @($zipVersioned, $zipFixed)
 }

@@ -955,7 +955,7 @@ func _mayhem_report_verdicts(peers: Array) -> PackedStringArray:
 
 ## The bill after a drive-by: the whole fine, what cash on hand covered of it, or nothing at all.
 func _mayhem_on_driveby_billed(fine: int, taken: int) -> void:
-	if not _in_session():
+	if not _in_session() or fine <= 0:  # M22 lead: no bill (the chill game), no toast and no line
 		return
 	var text := mayhem_bill_line(fine, taken)
 	if taken > 0:

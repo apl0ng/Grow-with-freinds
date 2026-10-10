@@ -1972,7 +1972,7 @@ func _final_condition_count(round_n: int, count: int) -> int:
 	var last := _final_host_shift()
 	if count <= 0 or last <= 0 or round_n < last:
 		return count
-	return maxi(count, FINAL_CONDITIONS)
+	return maxi(count, Config.balance.final_conditions)  # M22 lead: a BalanceConfig value (FINAL_CONDITIONS is its default; chill: 1)
 
 
 ## HOST, from _server_end_round (the end state `s` is built, its phase not yet set): paying the final notice clears it.

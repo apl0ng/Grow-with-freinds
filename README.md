@@ -22,7 +22,7 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   shift by itself on the host, `--first-event=<kind>` and `--event-delay=<sec>` steer the first shift event (playtests).
 - Controls: WASD move · Shift sprint · Space jump · Ctrl/C crouch · mouse look · E interact · LMB use the held item (hold: the flamethrower) · Q / G drop ·
   RMB / R throw · F shove · MMB / X ping · T chat · V push-to-talk · Enter starts the shift (host) · Esc pause (or
-  closes the supply window). Voice, chat and ping settings live in the pause menu.
+  closes the supply window) · 1-4 gestures. Voice and Sound are on the break card; keys, mouse, screen and volumes in OPTIONS.
 - Friendslop pass (M10, see FRIENDSLOP.md): proximity voice chat, throwing and shoving, worker collision, random shift
   events (the Boss walks the floor and writes up skimmers and loiterers, power cuts with a fuse box, audits, a rat;
   M12: head counts, the water main going off, supply shortages of the strain you planted most),
@@ -46,7 +46,7 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   during a power cut, Creeper can leave a seedling behind, Floor Brick is heavy to carry.
 - Two more things go wrong on a shift (M14): the tank springs a leak (hold E on it to patch it before it runs dry,
   and do not sprint through the puddle), and a rival crew pulls up outside and shoots the floor up for six seconds
-  (get down or get behind a crate; trays in the way lose growth and the Boss bills the floor for the glass).
+  (get down or get behind a crate; trays in the way lose growth and, in the full game, the Boss bills the floor for the glass).
 - No two shifts alike (M15): from the second shift on, the board in the alley posts what is different today before
   anyone gets in the van. One condition a shift, two from shift five: dry air, a twitchy batch, a buyer for one
   strain, seed clearance, inspection week, bad wiring, a short clock, overtime, a slick floor, thin walls, a heat
@@ -96,7 +96,7 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   floor carries your voice, crackling, wherever it lies, the back room included.
 - Black Damp (M18), the seventh strain, is sold from shift three: it pays $245 a unit and grows slowly. A ripe tray
   puffs spores when it is harvested, uprooted, burnt, shot or hit. Whoever breathes them sees grey, hears through
-  cotton and coughs for nine seconds (half that crouched), and everyone else hears the coughing.
+  cotton and coughs for nine seconds (six in the chill game; half that crouched), and everyone else hears the coughing.
 - Gestures (M18): number keys 1 to 4: point (the arm follows where you look), a tired half-wave, a shrug, and sitting
   down against whatever is behind you until you move.
 - The payment due (M18): $350, then x1.82 + 500 a shift for one worker, so a careful worker alone can clear the
@@ -113,8 +113,10 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   do. The shift report ends with what the trouble cost, the three dearest first.
 - Chill by default (M20): the game you launch is the simpler, calmer one. Seven kinds of trouble instead of fourteen
   (the Boss walking the floor, the power going out, the leak, the rival crew, the rat, the phone, the sprinklers), less
-  often and gentler, no market, one shift condition at a time from shift three, plants walk off half as often, and the
-  payments are 15% lower. `--no-chill` plays the full game.
+  often and gentler, no market, one shift condition at a time from shift three (the final notice too), plants walk off
+  half as often (the angry plant and Black Damp's spores are still there), and the payments are 15% lower.
+  `--no-chill` plays the full game: the audit, the head count, the water main, the shortage, the raid, the collector,
+  the scale, the market and the drive-by bill described above only happen there.
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows
@@ -138,7 +140,12 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   4.7.2 export templates once (about 1 GB): the script offers to download them (resumable, so a dropped connection just needs a re-run; `-DownloadTemplates` skips
   the question).
   Friends unzip and run the exe; one hosts, the others join by IP (UDP port 7777 must be reachable).
+- The zip is `export\GrowWithFriends-<version>-win64.zip` (also written as `GrowWithFriends-win64.zip` for links already
+  shared): the exe, PLAYER_GUIDE.md, README.txt, THIRD_PARTY_LICENSES.txt and CREDITS.md. `-PackageOnly` re-packs
+  without exporting. THIRD_PARTY_LICENSES.txt comes from `godot --headless --path . -s res://tools/gen_licenses.gd`
+  (re-run it after an engine upgrade). The exe carries the game's name, version and icon (export_presets.cfg).
 
 ## Docs
-PLAN.md (status, decisions, milestone notes) · CONTRACTS.md (system interfaces) · STYLE.md (art + copy rules) ·
-MODELING.md (Blender pipeline).
+RELEASE.md (the road to 1.0) · PLAN.md (status, decisions, milestone notes) · CONTRACTS.md (system interfaces) ·
+STYLE.md (art + copy rules) · MODELING.md (Blender pipeline). Release material: PLAYER_GUIDE.md (ships in the zip),
+CREDITS.md, STORE.md, tools/CLEAN_PC_CHECK.md.
