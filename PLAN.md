@@ -371,3 +371,15 @@ The user: "make it simpler and chill" (the game itself). CONTRACTS.md "M20 chill
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | 20c.1 | The chill preset (scripts/core/chill.gd), on by default in a windowed run (--chill / --no-chill): seven kinds of trouble, less often, gentler, no market, one condition from shift 3, plants walk off half as often, payments x0.85; chill suite | lead | done |
+
+## M21 The informant (shelved, 2026-10-10)
+Not started: a hidden-role mode is the opposite of the chill direction the user asked for.
+
+## M22 Release hardening: performance, a soak, shipping (in progress, 2026-10-10)
+RELEASE.md M22 (R1, R2, R3, R5, R6); CONTRACTS.md "M22". On the chill game; no new systems.
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 22.1 | Headless CPU and network budgets in the worst chill moments, hotspots fixed, a windowed fps tool; perf suite | perf | in progress |
+| 22.2 | A UDP proxy (latency, jitter, loss), a soak runner (host + three clients, bots, the van, a rejoin, the final notice): long mode and soak + soak_mp suites | soak | in progress |
+| 22.3 | PLAYER_GUIDE.md, the zip with the guide and the version, a clean-PC checklist, STORE.md, a store capture tool, CREDITS.md | ship | in progress |
+| 22.4 | Integration: merges, the fps and store captures, the full suite three times in a row, export, release notes | lead | pending |

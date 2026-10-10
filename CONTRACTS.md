@@ -1594,3 +1594,49 @@ BalanceConfig values and an event mix that Config applies to `Config.balance` at
   worker alone or in pairs still struggles (the early end of an easy first shift; a full-clock shift was tried in the
   model and is not a fair test there: its crews sell everything instead of holding bundles for the next shift).
 - Suite `chill` (+5) pins all of it, the economy targets included.
+
+## M22 — release hardening: performance, a soak, shipping (lead prep, 2026-10-10)
+RELEASE.md M22 (R1, R2, R3, R5, R6), on the chill game (CONTRACTS "M20 chill"). No new game systems (memory /
+the user: simpler and chill). Three agents in worktrees `.claude/worktrees/<agent>22` on `m22/<agent>`: **perf**,
+**soak**, **ship**. tools/dev/AGENT_RULES.md applies (milestone M22; base ports perf 9100, soak 9200, ship 9300).
+Test ports: perf +6, soak +7 / +8 (+9 for the proxy), ship none. Suites that should play the chill game pass
+`--chill` (headless runs default to the full game).
+
+### Performance (perf agent) — R3
+- Headless CPU budget: a host with four workers (one local, three fake) during the worst moments of the chill game
+  (the sprinklers' particles, a drive-by, a hostile plant, a Black Damp cloud, two radios carrying, three voice
+  emitters, the shift report) keeps its frame (process + physics) under 4 ms on this PC; find and fix the top
+  hotspots (per-frame allocations, group / node scans in _process, string building, needless RPC traffic). Measure
+  with Time.get_ticks_usec around real frames and with Performance monitors; report before / after.
+- Network budget: bytes per second host -> client during a busy chill shift (Performance / ENet statistics) with
+  a target the agent states and meets (well under 64 KB/s per client).
+- A windowed benchmark tool for the lead (`tools/tests/perf_shots_body.gd`, dry-run headless): stages the same worst
+  moments on the real renderer and prints the fps (Performance.TIME_FPS, min over 3 s) per moment.
+- Suite `perf` (+6): the budgets with generous margins (headless on a loaded machine: assert 3x the measured value,
+  never flaky) and the hotspot fixes pinned where they can be (e.g. no node scan per frame).
+
+### Soak (soak agent) — R2
+- A UDP proxy tool (`tools/tests/udp_proxy.gd`, a -s script) between clients and the host that adds latency,
+  jitter and loss (e.g. 80 ms +- 20, 2% loss) so the game is tested on a bad connection.
+- A soak runner (`tools/tests/soak.sh`): host + three clients (two behind the proxy), the chill game with the lobby,
+  scripted bots that work the loop (buy, plant, water, harvest, deposit), ride the van, throw, shove, gesture, use a
+  radio; one client leaves and rejoins mid-shift; the host plays through the final notice. A long mode (45 min,
+  for the lead, not in test_all) and a short mode (about 6 min) registered as suites `soak` (+7) and `soak_mp`
+  (+8: the short mode with the proxy). They fail on any unannounced ERROR, a desync (the canonical state differs
+  between peers at checkpoints), a stuck player, or a crash / non-zero exit.
+- Every error found is fixed (in the owner's code region with a tagged hook) or announced with a reason.
+
+### Ship (ship agent) — R5, R6
+- `PLAYER_GUIDE.md`: one page for players of the chill game: what the game is, how to host and join (the firewall
+  prompt, UDP 7777, LAN list, run codes), the loop in six lines, the keys, what can go wrong and what to do, the
+  options. Flat tone (STYLE.md), no exclamation marks.
+- `tools/export.ps1` puts PLAYER_GUIDE.md (and a short README.txt with the version) into the zip next to the exe;
+  the zip name carries the version (`GrowWithFriends-0.20.0-win64.zip`); the old name is still written too (the
+  user may have shared links to it) or replaced (decide and say).
+- A clean-PC checklist (`tools/CLEAN_PC_CHECK.md`) the user can follow on a friend's PC.
+- Store material: `STORE.md` (a one-line pitch, a short and a long description, tags, system requirements, in the
+  game's tone) and a capture tool `tools/tests/store_shots_body.gd` (windowed, for the lead; dry-run headless) that
+  stages eight good-looking moments of the chill game at 1920x1080.
+- `CREDITS.md`: who made what (everything is made for this game: procedural sounds, Blender-built models, the font:
+  check its licence in the repo and name it).
+- No suite needed; `tools/check.sh` must pass and export.ps1 must parse.
