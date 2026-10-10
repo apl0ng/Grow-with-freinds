@@ -112,7 +112,7 @@ Goal: the end of a run pulls the crew into the next one.
   careful full crew about half the time and level 5 rarely.
 - Closes: P1, P2, P3.
 
-### M21 "The informant"
+### M21 "The informant" (SHELVED 2026-10-10: a hidden traitor is not chill; see "Direction")
 Goal: the friends themselves become the disruption (D3), the one mode people will talk about afterwards.
 - **informant** agent: an optional mode for three or four players (host toggle in the alley): at the start of a
   run one worker is secretly the informant. They see a private line, earn their own record by getting others
