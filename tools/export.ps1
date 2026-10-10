@@ -7,16 +7,21 @@
     (about 1 GB once, in %APPDATA%\Godot\export_templates\4.7.2.stable\); with -DownloadTemplates the script fetches
     the official templates archive from github.com/godotengine and installs just the Windows ones.
     Friends run the exe (no Godot needed); one of you hosts, the others join by IP (port 7777 must be reachable).
+    The zip holds the exe, PLAYER_GUIDE.md and a README.txt (name, version, how to start), all at its top level. It is
+    written as export\GrowWithFriends-<version>-win64.zip (config/version in project.godot) and again, the same bytes,
+    as export\GrowWithFriends-win64.zip, the old name, so links already shared keep working.
 
 .EXAMPLE
     .\tools\export.ps1                      # export (asks to download the templates when missing)
     .\tools\export.ps1 -DownloadTemplates   # download the templates without asking, then export
     .\tools\export.ps1 -DebugBuild          # a debug build (console window, verbose errors)
+    .\tools\export.ps1 -PackageOnly         # no export: re-pack the zips from the exe already in export\
 #>
 [CmdletBinding()]
 param(
     [switch]$DownloadTemplates,
     [switch]$DebugBuild,
+    [switch]$PackageOnly,
     [string]$GodotPath = ""
 )
 
@@ -128,19 +133,79 @@ function Install-Templates {
     Write-Host "Templates installed in $TemplatesDir"
 }
 
-$godot = Find-Godot
-Write-Host "Using Godot: $godot"
-Install-Templates
-New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-# The output folder sits inside the project: a .gdignore keeps Godot from importing what lands there (audition WAVs).
-$gdIgnore = Join-Path $OutDir ".gdignore"
-if (-not (Test-Path $gdIgnore)) { [IO.File]::WriteAllText($gdIgnore, "") }
-$mode = if ($DebugBuild) { "--export-debug" } else { "--export-release" }
-Write-Host "Exporting ($mode) to $OutExe ..."
-$p = Start-Process -FilePath $godot -ArgumentList @("--headless", "--path", "`"$ProjectDir`"", $mode, "`"$Preset`"", "`"$OutExe`"") -WorkingDirectory $ProjectDir -Wait -PassThru -WindowStyle Hidden
-if ($p.ExitCode -ne 0 -or -not (Test-Exe $OutExe)) { throw "Export failed (exit $($p.ExitCode)). Run it without -WindowStyle Hidden in the script, or export from the editor, to see the message." }
-$zipOut = Join-Path $OutDir "GrowWithFriends-win64.zip"
-if (Test-Path $zipOut) { Remove-Item $zipOut -Force }
-Compress-Archive -Path (Join-Path $OutDir "GrowWithFriends*.exe") -DestinationPath $zipOut
-Write-Host "Done: $OutExe"
-Write-Host "Share:  $zipOut  (friends unzip and run; one hosts, the others join by IP on port 7777)"
+function Get-GameVersion {
+    <# config/version in project.godot's [application] section (e.g. 0.20.0): it names the zip and heads README.txt. #>
+    $inApplication = $false
+    foreach ($line in [IO.File]::ReadAllLines((Join-Path $ProjectDir "project.godot"))) {
+        $t = $line.Trim()
+        if ($t.StartsWith("[")) { $inApplication = ($t -eq "[application]"); continue }
+        if ($inApplication -and $t -match '^config/version\s*=\s*"([^"]*)"$') {
+            $v = $Matches[1]
+            if ($v -notmatch '^[0-9A-Za-z][0-9A-Za-z._-]*$') { throw "project.godot: config/version '$v' cannot go in a file name." }
+            return $v
+        }
+    }
+    throw "project.godot has no config/version in [application]: the zip is named after it."
+}
+
+function Write-ReadmeTxt([string]$Path, [string]$GameVersion) {
+    <# The short README.txt that goes into the zip next to the exe (ASCII, CRLF: Notepad on any Windows reads it). #>
+    $lines = @(
+        "Grow With Friends $GameVersion",
+        "",
+        "One to four workers, one run of four to six shifts. You owe the Boss. Work it off.",
+        "",
+        "How to start",
+        "1. Unzip it first (right-click, Extract All). Do not run the game from inside the zip.",
+        "2. Run GrowWithFriends.exe. Nothing to install.",
+        "   If Windows says ""Windows protected your PC"": More info, then Run anyway.",
+        "3. One of you hosts: Open the floor. Windows asks once for administrator",
+        "   permission to let friends in on UDP port 7777. Yes.",
+        "4. The others join by IP: type the host's IP under Host IP, then Report for shift.",
+        "   On the same network the host's floor is listed under Floors open nearby.",
+        "   Over the internet the host forwards UDP port 7777 on the router to their PC.",
+        "",
+        "Keys, trouble, options: PLAYER_GUIDE.md (plain text; open it with Notepad)."
+    )
+    [IO.File]::WriteAllText($Path, (($lines -join "`r`n") + "`r`n"), [Text.Encoding]::ASCII)
+}
+
+function New-ShareZip([string]$GameVersion) {
+    <# Packs export\GrowWithFriends*.exe, PLAYER_GUIDE.md and README.txt (all at the zip's top level) into
+       export\GrowWithFriends-<version>-win64.zip, then copies it to the old fixed name export\GrowWithFriends-win64.zip
+       (links already shared point there). Returns the two paths. #>
+    $exes = @(Get-ChildItem -LiteralPath $OutDir -Filter "GrowWithFriends*.exe" -File | ForEach-Object { $_.FullName })
+    if ($exes.Count -eq 0) { throw "No GrowWithFriends*.exe in $OutDir to pack." }
+    $guide = Join-Path $ProjectDir "PLAYER_GUIDE.md"
+    if (-not (Test-Exe $guide)) { throw "PLAYER_GUIDE.md not found in $ProjectDir (it ships in the zip)." }
+    $readme = Join-Path $OutDir "README.txt"
+    Write-ReadmeTxt $readme $GameVersion
+    $zipVersioned = Join-Path $OutDir ("GrowWithFriends-" + $GameVersion + "-win64.zip")
+    $zipFixed = Join-Path $OutDir "GrowWithFriends-win64.zip"
+    foreach ($z in @($zipVersioned, $zipFixed)) { if (Test-Path -LiteralPath $z) { Remove-Item -LiteralPath $z -Force } }
+    Compress-Archive -LiteralPath ($exes + @($guide, $readme)) -DestinationPath $zipVersioned
+    Copy-Item -LiteralPath $zipVersioned -Destination $zipFixed -Force
+    return @($zipVersioned, $zipFixed)
+}
+
+$GameVersion = Get-GameVersion
+if ($PackageOnly) {
+    if (-not (Test-Exe $OutExe)) { throw "-PackageOnly packs an exe that is already exported: $OutExe is missing. Run without -PackageOnly." }
+    Write-Host "Packing $OutExe (no export) ..."
+} else {
+    $godot = Find-Godot
+    Write-Host "Using Godot: $godot"
+    Install-Templates
+    New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+    # The output folder sits inside the project: a .gdignore keeps Godot from importing what lands there (audition WAVs).
+    $gdIgnore = Join-Path $OutDir ".gdignore"
+    if (-not (Test-Path $gdIgnore)) { [IO.File]::WriteAllText($gdIgnore, "") }
+    $mode = if ($DebugBuild) { "--export-debug" } else { "--export-release" }
+    Write-Host "Exporting ($mode) to $OutExe ..."
+    $p = Start-Process -FilePath $godot -ArgumentList @("--headless", "--path", "`"$ProjectDir`"", $mode, "`"$Preset`"", "`"$OutExe`"") -WorkingDirectory $ProjectDir -Wait -PassThru -WindowStyle Hidden
+    if ($p.ExitCode -ne 0 -or -not (Test-Exe $OutExe)) { throw "Export failed (exit $($p.ExitCode)). Run it without -WindowStyle Hidden in the script, or export from the editor, to see the message." }
+}
+$zips = New-ShareZip $GameVersion
+Write-Host "Done: $OutExe (version $GameVersion)"
+Write-Host "Share:  $($zips[0])  (friends unzip and run; one hosts, the others join by IP on port 7777)"
+Write-Host "        $($zips[1])  (the same zip under the old name, for links already shared)"
