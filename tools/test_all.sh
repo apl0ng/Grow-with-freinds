@@ -41,6 +41,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   hats hats_mp finale finale_mp mayhem3 mayhem3_mp cart cart_mp quit
   radio radio_mp emotes emotes_mp spores spores_mp
   settings settings_mp onboarding onboarding_mp readability readability_mp chill perf
+  soak soak_mp
   qa_mouse_x11)
 
 ONLY=""
@@ -59,7 +60,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 5 6 11 12 13 14 15 16 17 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 98 99; do
+  for off in 5 6 7 8 9 11 12 13 14 15 16 17 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 98 99; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -415,6 +416,13 @@ run_suite chill           300 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/chill_body
 # M22 perf: the headless frame budget in the worst moments of the chill game (four workers) and the network budget (a
 # client process this suite starts), the M22 fixes pinned (+6).
 run_suite perf            300 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/perf_body.gd --port=$((BASE + 6)) --chill --replay --run=B5VP --career-file=user://perf_test_$((BASE + 6)).cfg --settings-file=user://perf_settings_$((BASE + 6)).cfg --timeout=280
+# M22 soak: host + three clients play the chill game through the van to PAID IN FULL (scripted workers, checkpoints, a
+# mid-shift rejoin, the host leaving last; about 5.5 min) on +7; the same with Alpha and Bravo behind
+# tools/tests/udp_proxy.gd (80 ms +- 20 each way, 2% loss) on +8 (proxy +9).
+rm -rf "$LOGDIR/soak"; mkdir -p "$LOGDIR/soak"
+run_suite soak            780 "$LOGDIR/soak/*.log" env SOAK_PORT=$((BASE + 7)) SOAK_LOGS="$LOGDIR/soak" tools/tests/soak.sh
+rm -rf "$LOGDIR/soakmp"; mkdir -p "$LOGDIR/soakmp"
+run_suite soak_mp         780 "$LOGDIR/soakmp/*.log" env SOAK_PORT=$((BASE + 8)) SOAK_PROXY=1 SOAK_LOGS="$LOGDIR/soakmp" tools/tests/soak.sh
 if command -v xvfb-run >/dev/null 2>&1; then
   run_suite qa_mouse_x11  150 "" xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --rendering-driver opengl3 \
     --rendering-method gl_compatibility --audio-driver Dummy "${BODY[@]}" --body=$TESTS/qa_mouse_body.gd --port=$((BASE + 73)) --timeout=120
