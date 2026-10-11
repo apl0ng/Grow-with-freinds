@@ -1640,3 +1640,35 @@ Test ports: perf +6, soak +7 / +8 (+9 for the proxy), ship none. Suites that sho
 - `CREDITS.md`: who made what (everything is made for this game: procedural sounds, Blender-built models, the font:
   check its licence in the repo and name it).
 - No suite needed; `tools/check.sh` must pass and export.ps1 must parse.
+
+### M22 as delivered (integration notes, lead, 2026-10-10)
+Three branches merged (ship, perf, soak) plus the lead's release-blocker fixes. No game system was added.
+
+**Ship.** PLAYER_GUIDE.md (one page, the chill game), STORE.md, CREDITS.md, tools/CLEAN_PC_CHECK.md,
+tools/tests/store_shots_body.gd (eight store shots at 1920x1080, windowed; `--borderless` on a 1080p screen).
+tools/export.ps1: `GrowWithFriends-<version>-win64.zip` plus the same zip under the old fixed name, holding the exe,
+PLAYER_GUIDE.md, README.txt (generated: name, version, how to start), THIRD_PARTY_LICENSES.txt and CREDITS.md;
+`-PackageOnly` re-packs without exporting. **Lead:** tools/gen_licenses.gd writes THIRD_PARTY_LICENSES.txt from
+`Engine.get_license_text / get_copyright_info / get_license_info` (Godot's MIT notice, 102 components including the
+Open Sans font the theme falls back to, 19 licence texts); export.ps1 refuses to pack without it. export_presets.cfg
+has `modify_resources` on and the version fields filled: the exe is "Grow With Friends" with the project icon in the
+firewall prompt, Task Manager and its properties (checked on a real export). Bump `config/version` and the two
+`application/*_version` preset fields together. Lead chill fixes from the ship report: the final notice rolls
+`BalanceConfig.final_conditions` (chill 1), no drive-by toast or line without a bill, no odds in the strain texts.
+
+**Perf.** The headless host frame was already 0.7-1.1 ms in every moment of the chill game with four workers
+(budget 4 ms); fixes: mu-law / radio tables in Voice (79 -> 7 us a frame), cached tray nodes in Events and
+Hostiles (no per-frame tree scans), the shift report refreshes its labels instead of rebuilding them (3.7 -> 0.18
+ms). Network: about 6 KB/s per client for the game state, about 18 KB/s per talking voice (G.711, 16 kHz). Windowed
+on the user's RTX 4070 SUPER (tools/tests/perf_shots_body.gd, vsync off, measured while the soak ran): min fps 62-274
+across the eight moments (R3: at least 60); the first moments show one-off ~30 ms frames (first-time shader
+compilation, most likely). Suite `perf` (+6). Known: a ~12 ms frame when the report opens (Career's save, the first
+build of the rows) and ~5 ms when the sprinklers start (particle preprocess).
+
+**Soak.** tools/tests/udp_proxy.gd (latency, jitter, loss, seeded) and tools/tests/soak.sh (host + three clients,
+scripted workers through the van to PAID IN FULL, checkpoints comparing every peer's state, a mid-shift rejoin, the
+host leaving last, a leak watch). Short mode in suites `soak` (+7) and `soak_mp` (+8, proxy +9: 80 ms +- 20, 2%
+loss), about 5.5 min each; long mode `SOAK_MINUTES=45 tools/tests/soak.sh` ran 42.2 min with no error, desync, stuck
+worker or crash (R2 on four local processes). The soak found no game bug. Known: static memory rises ~20-25 MB in
+the first shift then ~2.4 MB a shift (caches, node and object counts flat); a client that crashes and rejoins a full
+four-player floor before ENet times its old peer out (5-30 s) may be refused as "full" (not seen).

@@ -117,6 +117,11 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   half as often (the angry plant and Black Damp's spores are still there), and the payments are 15% lower.
   `--no-chill` plays the full game: the audit, the head count, the water main, the shortage, the raid, the collector,
   the scale, the market and the drive-by bill described above only happen there.
+- Release checks (M22): suite `perf` keeps the headless host frame under 4 ms and the per-client traffic under budget
+  in the chill game's worst moments (`tools/tests/perf_shots_body.gd` measures the frame rate on the real renderer);
+  `tools/tests/soak.sh` has a host and three clients play the chill game through the van to PAID IN FULL with scripted
+  workers, comparing every peer's state at checkpoints (`SOAK_MINUTES=45` for the long run, two clients behind
+  `tools/tests/udp_proxy.gd`: 80 ms +- 20 each way, 2% loss).
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows

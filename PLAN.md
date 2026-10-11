@@ -379,7 +379,7 @@ Not started: a hidden-role mode is the opposite of the chill direction the user 
 RELEASE.md M22 (R1, R2, R3, R5, R6); CONTRACTS.md "M22". On the chill game; no new systems.
 | ID | Task | Owner | Status |
 |---|---|---|---|
-| 22.1 | Headless CPU and network budgets in the worst chill moments, hotspots fixed, a windowed fps tool; perf suite | perf | in progress |
-| 22.2 | A UDP proxy (latency, jitter, loss), a soak runner (host + three clients, bots, the van, a rejoin, the final notice): long mode and soak + soak_mp suites | soak | in progress |
-| 22.3 | PLAYER_GUIDE.md, the zip with the guide and the version, a clean-PC checklist, STORE.md, a store capture tool, CREDITS.md | ship | in progress |
+| 22.1 | Headless CPU and network budgets in the worst chill moments, hotspots fixed, a windowed fps tool; perf suite | perf | done (host frame 0.7-1.1 ms, about 6 KB/s a client; min 62 fps windowed; 72 checks) |
+| 22.2 | A UDP proxy (latency, jitter, loss), a soak runner (host + three clients, bots, the van, a rejoin, the final notice): long mode and soak + soak_mp suites | soak | done (no game error found; long mode 42 min clean) |
+| 22.3 | PLAYER_GUIDE.md, the zip with the guide and the version, a clean-PC checklist, STORE.md, a store capture tool, CREDITS.md | ship | done (the lead fixed both release blockers: the licence file, the exe identity) |
 | 22.4 | Integration: merges, the fps and store captures, the full suite three times in a row, export, release notes | lead | pending |

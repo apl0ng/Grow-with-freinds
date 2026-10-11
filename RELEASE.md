@@ -12,6 +12,15 @@ at a time from shift three, payments a crew can make. The full game is still the
 tests it). Read the bar below with that in mind: D2 is two or three disruptions a shift, not five; M20 "One more run"
 (debt levels, achievements) is shelved because it adds systems; the run summary may come back in a small form.
 
+## Status of the bar (2026-10-10, after M22)
+- True: L2, L3 (chill and full), L5, D1, D2 (chill), D4 except the user hearing the sounds, P3 (jobs, the final notice,
+  hats, titles, the weekly code), R2 (42 min on four local processes, two behind a lossy proxy), R3 (min 62 fps on the
+  user's GPU; 0.7-1.1 ms headless host frame), R4, R5 except the clean-PC check.
+- Needs the user: L1 (a crew with no instructions), R5's clean-PC check (tools/CLEAN_PC_CHECK.md), D4's sounds
+  (export/audition), R6's channel and price.
+- Lead, before 1.0: R1 (the full suite three runs in a row), R6's screenshots (tools/tests/store_shots_body.gd) and the
+  30-second clip; P1 / P2 are shelved with M20 (the run summary may come back small).
+
 ## What 1.0 is
 
 One to four friends, one evening, one run. A run is four to six shifts against a payment that only goes up, and it
