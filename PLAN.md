@@ -394,3 +394,12 @@ simple". FRIENDSLOP.md section 13 (the research); CONTRACTS.md "M23".
 | 23.2 | Help a friend up, who-is-talking marks, TODAY's run, a slump while down, the chill bite 2 s; social + social_mp suites | social | done (158 + 63 checks) |
 | 23.3 | Bundles bruise when they hit hard (not into the chute); fragile + fragile_mp suites | fragile | done (133 + 71 checks) |
 | 23.4 | Integration: merges, captures (the slump follow-up, store shot 7 now help-up), docs, full run, export | lead | done (108 suites, 18151 checks; version 0.22.0; no job for an event the mix never deals; the bruise thud louder) |
+
+## M24 The chill curve and the clip (in progress, 2026-10-11)
+The user: "proceed". CONTRACTS.md "M24". No new systems.
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 24.0 | Prep: BalanceConfig.quota_shift_scale / quota_shift_factor | lead | done |
+| 24.1 | The chill payment curve: average crews of every size reach and usually clear the final notice; chill suite | curve | in progress |
+| 24.2 | A 30-second store clip (Movie Maker, scripted like the store shots) | clip | in progress |
+| 24.3 | Integration: merges, the full suite three runs in a row (R1), docs, export | lead | pending |

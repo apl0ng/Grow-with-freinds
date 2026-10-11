@@ -1769,3 +1769,43 @@ truck's total, the market, cured, the job, STAT_DEPOSITED, the collector and the
 and leaning, a grey overlay. A bruising landing plays `bruise` (lead: -4 dB) instead of `drop`. The thrower's first
 bruise of a shift: "Bruised. It pays less." The hand truck keeps bruises (a fifth cargo field only when above 0; the
 four-field form still decodes). `ItemManager.bundle_bruised(item, bruises, thrower)`.
+
+## M24 — the chill curve and the clip (lead prep, 2026-10-11)
+The user: "proceed" (after M23). Two agents in worktrees `.claude/worktrees/<agent>24` on `m24/<agent>`: **curve**,
+**clip**. tools/dev/AGENT_RULES.md applies (milestone M24; base ports curve 9100, clip 9200). Memory note
+game-direction-simpler-chill applies: no new systems, nothing that adds menus or rules.
+
+### Prep already in place (lead)
+- `BalanceConfig.quota_shift_scale: Array[float]` (group "M20 chill"; empty = 1.0 in every shift, the full game) and
+  `quota_shift_factor(n) -> float` (shifts past the end use the last value; at least 0.05), multiplied into
+  `quota_for_round`.
+
+### Curve (curve agent) — chill.gd (yours this wave), econ_sim.gd, the chill suite
+Why: in the chill game (CONTRACTS "M20 chill", "M23 as delivered") average crews of one and two almost never reach
+the final notice. Shift 1 is paid in a minute or two (the shift ends the moment it is paid, so little stands in the
+trays for shift 2) and shift 2's payment is three to four times shift 1's: average x2 makes shift 2 one time in five.
+- Shape the chill payment curve with `quota_shift_scale` (and `quota_multiplier`; per-size tables
+  `quota_team_by_shift` / `quota_team_by_size` in `Chill.VALUES` only if the model says the sizes need different
+  shapes). The full game (data/balance.tres) does not change: the economy suite must stay green untouched.
+- Targets, the economy model with the chill preset, each team to its final notice, five runs: careful x1-x4 clear
+  5/5; average x1-x4 reach the final notice at least 4/5 and clear at least 3/5 (x4 stays at 4/5 or better); every
+  payment is higher than the one before it for every team size (the number only goes up); sloppy crews make the first
+  shift at least 3/5 at every size if that costs none of the targets above (say so if it does).
+- If the model shows the early end of shift 1 is the cliff and the curve alone cannot fix it, report that with
+  numbers before changing anything else (no change to end_round_on_quota_met without the lead).
+- The chill suite pins the targets and the curve (the payments of shifts 1-6 for one to four workers).
+
+### Clip (clip agent) — a new capture tool; no game code
+- `tools/tests/store_clip_body.gd`: a 30-second (28-32 s) clip of the chill game at 1920x1080 recorded with Godot's
+  Movie Maker (`--write-movie <abs path>.avi` with a fixed 30 fps), staged like tools/tests/store_shots_body.gd (fake
+  workers, forced events, a scripted camera): the alley and the van, the floor at work (plant, water, harvest, a throw
+  into the chute), one trouble (the power cut or the sprinklers), the drive-by warning with the crew on the floor, a
+  bundle bruised and a worker knocked down and helped up, the supply window, PAID IN FULL. The game's own HUD and
+  copy; no title cards. Cuts between beats are fine; camera moves are slow.
+- Sound: the clip carries the game's sound only if Movie Maker records it without playing it on the PC's speakers
+  (the user's standing rule: automated runs are silent). Establish that from the engine (the audio driver Movie Maker
+  uses) before any run without `--mute`; when unsure, `--mute` and say the clip is silent.
+- Windowed runs only when no non-headless Godot is running (check first with
+  `Get-CimInstance Win32_Process -Filter "Name like 'Godot%'"`); a headless run stages every beat and records
+  nothing (the dry run). On this 1920x1080 screen use `--borderless`.
+- If `ffmpeg` is on PATH, also write an MP4 next to the AVI; do not download anything.

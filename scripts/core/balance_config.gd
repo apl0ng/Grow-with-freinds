@@ -238,6 +238,9 @@ extends Resource
 @export var conditions_extra_from_round: int = 5
 ## The final notice rolls at least this many conditions (when its shift rolls any; the chill preset: 1).
 @export var final_conditions: int = 2
+## M24: shift n's payment x quota_shift_scale[n - 1] (shifts past the end use the last value). Empty = 1.0 in every
+## shift (the full game); the chill preset shapes its curve with it (an easy first shift no longer leaves a cliff).
+@export var quota_shift_scale: Array[float] = []
 
 @export_group("M23")
 ## Strains never sold, rolled or shown (the chill preset turns some off: fewer to learn). Empty = every strain.
@@ -299,7 +302,14 @@ func get_enabled_seeds() -> Array[SeedDef]:
 func quota_for_round(round_number: int, player_count: int = 1) -> int:
 	var n: int = max(round_number, 1)
 	var base := base_quota * pow(quota_scale, n - 1) + quota_add * (n - 1)
-	return int(round(base * quota_team_factor(n, player_count) * quota_multiplier))  # M20 chill: quota_multiplier
+	return int(round(base * quota_team_factor(n, player_count) * quota_multiplier * quota_shift_factor(n)))  # M20 chill: quota_multiplier; M24: the shift scale
+
+## M24: what shift `round_number`'s payment is multiplied by from quota_shift_scale (1.0 when it is empty; shifts past
+## the end of the table use its last value; never below 0.05).
+func quota_shift_factor(round_number: int) -> float:
+	if quota_shift_scale.is_empty():
+		return 1.0
+	return maxf(quota_shift_scale[mini(maxi(round_number, 1), quota_shift_scale.size()) - 1], 0.05)
 
 ## M18: what the payment of shift `round_number` is multiplied by for `player_count` workers: 1.0 for one worker (or
 ## none), otherwise 1 + a(shift) * m(players) from quota_team_by_shift / quota_team_by_size (see their comments),
