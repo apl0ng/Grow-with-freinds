@@ -117,7 +117,23 @@ func get_next_lines() -> PackedStringArray:
 ## dealt the same run. "" when there is none (replay off, or before the host's state arrived).
 func get_run_line() -> String:
 	var code := GameState.get_run_code()
-	return TEXT_RUN % code if code != "" else ""
+	return (TEXT_RUN % code) + _social_today_suffix() if code != "" else ""  # M23 social: "Run 7K2M. Today's run."
+
+
+# --- M23 social: today's run -------------------------------------------------------------------------------------------
+# The run line gets "Today's run." when the run's seed is today's (RunSeed.daily on this peer's clock, UTC): what the
+# main menu's TODAY button fills in. Read on every refresh, so it turns over at midnight UTC with the board up.
+
+const TEXT_TODAY := "Today's run."
+
+
+## " Today's run." when the run is today's, else "".
+func _social_today_suffix() -> String:
+	if RunSeed.is_daily(GameState.get_run_seed(), int(Time.get_unix_time_from_system())):
+		return " " + TEXT_TODAY
+	return ""
+
+# --- end M23 social ----------------------------------------------------------------------------------------------------
 
 
 ## The shift's job as the board posts it ("Job: three cured bundles. $60."); "" when there is none (replay off, or

@@ -49,6 +49,7 @@ func _ready() -> void:
 func try_interact() -> void:
 	if not _is_local_player():
 		return
+	if _social_try_help(): return # M23 social: E on a worker who is down helps them up
 	if not _is_valid_target(current_target):
 		_set_target(null)
 		return
@@ -195,6 +196,41 @@ func _set_shove_target(target: Player) -> void:
 	shove_target = target
 	shove_target_changed.emit(target)
 
+# --- M23 social: help a friend up ----------------------------------------------------------------------------------
+# The worker under the crosshair (the shove ray: shove_range, walls block) who is down on this peer (stunned: the
+# stagger fx mirrors it everywhere) and nearer than the interactable hit: the prompt reads "[E] Help Dale up" (greyed
+# while Player.can_request_help_up() is false) and E asks the host (Player.request_help_up). F still shoves.
+
+const TEXT_HELP_UP := "[%s] Help %s up"
+
+
+## The worker under the crosshair who is down and nearer than the interactable hit, or null.
+func get_help_target() -> Player:
+	if shove_target == null or not is_instance_valid(shove_target) or not shove_target.is_inside_tree():
+		return null
+	if current_target != null and not (_shove_distance < _target_distance):
+		return null
+	return shove_target if shove_target.is_stunned() else null
+
+
+## try_interact(): true when E went to a worker who is down (asked or not, nothing behind them is used).
+func _social_try_help() -> bool:
+	var target := get_help_target()
+	if target == null:
+		return false
+	player.request_help_up(target.peer_id)
+	return true
+
+
+## _update_prompt(), with a worker as the prompt: true when they are down and the help prompt was set.
+func _social_help_prompt() -> bool:
+	if not shove_target.is_stunned():
+		return false
+	_set_prompt(TEXT_HELP_UP % [HUD.action_key_text(&"interact", "E"), shove_target.display_name], player.can_request_help_up())
+	return true
+
+# --- end M23 social ------------------------------------------------------------------------------------------------
+
 ## Variant parameter on purpose: passing a freed object to a typed parameter is a script error.
 func _is_valid_target(target: Variant) -> bool:
 	if not is_instance_valid(target):
@@ -216,6 +252,7 @@ func _set_target(target: Interactable) -> void:
 func _update_prompt() -> void:
 	# M10: a worker nearer than the interactable under the crosshair (or with nothing else there) is the prompt.
 	if shove_target != null and (current_target == null or _shove_distance < _target_distance):
+		if _social_help_prompt(): return # M23 social: "[E] Help Dale up" over a worker who is down
 		_set_prompt("[%s] Shove %s" % [HUD.action_key_text(&"shove", "F"), shove_target.display_name], not player.is_stunned())
 		return
 	if current_target == null:

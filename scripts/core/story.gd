@@ -829,6 +829,7 @@ func get_report_verdicts() -> PackedStringArray:
 			out.append(line(String(entry[1])) % Net.get_player_name(best))
 	out.append_array(_mayhem_report_verdicts(peers))  # M14 mayhem: shot / slips (region below)
 	out.append_array(_spores_report_verdicts(peers))  # M18 spores: fogged (region after the M17 mayhem3 one)
+	out.append_array(_social_report_verdicts(peers))  # M23 social: who helped people up (region after the M18 spores one)
 	out.append_array(_replay_report_lines())  # M15 replay: which conditions ran (region at the end of the file)
 	return out
 
@@ -1361,6 +1362,39 @@ func _spores_report_verdicts(peers: Array) -> PackedStringArray:
 		out.append(line("verdict_fogged") % Net.get_player_name(best))
 	return out
 # --- end M18 spores ----------------------------------------------------------------------------------------------
+
+
+# --- M23 social --- helping people up ------------------------------------------------------------------------------
+## The shift report's line for the worker who helped people up most often (Const.STAT_HELPED; ties: the lowest id), when
+## anybody did. A verdict line rather than a column: the table is already seven or eight columns wide at 1280x720.
+## Installed at construction like the spores lines.
+const SOCIAL_LINES: Dictionary = {
+	"verdict_helped": "%s helped people up the most.",
+}
+
+var _social_lines_installed: bool = _social_install_lines()
+
+
+func _social_install_lines() -> bool:
+	for key in SOCIAL_LINES:
+		if not lines.has(key):
+			lines[key] = SOCIAL_LINES[key]
+	return true
+
+
+func _social_report_verdicts(peers: Array) -> PackedStringArray:
+	var out := PackedStringArray()
+	var best: int = 0
+	var best_amount: int = 0
+	for id: int in peers:
+		var amount: int = GameState.get_stat(id, Const.STAT_HELPED)
+		if amount > best_amount:
+			best = id
+			best_amount = amount
+	if best_amount > 0:
+		out.append(line("verdict_helped") % Net.get_player_name(best))
+	return out
+# --- end M23 social ------------------------------------------------------------------------------------------------
 
 
 # --- M19 onboarding --- the guided first shift --------------------------------------------------------------------

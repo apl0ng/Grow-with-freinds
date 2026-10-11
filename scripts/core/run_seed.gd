@@ -85,6 +85,31 @@ static func weekly(unix_time: int) -> int:
 	return posmod(week * 104729 + 6007, SEED_COUNT) + 1
 
 
+# --- M23 social: today's run --------------------------------------------------------------------------------------------
+# PEAK's daily mountain (FRIENDSLOP 13): the main menu's TODAY button fills in today's code and the alley board says
+# "Today's run." under it. weekly() stays for compatibility (older notes and links).
+
+## daily(): day index * DAILY_MUL + DAILY_ADD, folded into the seed range. DAILY_MUL is coprime to 31 (and so to
+## SEED_COUNT, 31 ** 4), which makes the map a bijection over SEED_COUNT consecutive days.
+const DAILY_MUL: int = 611953
+const DAILY_ADD: int = 50923
+
+
+## The seed of the UTC day `unix_time` (seconds) falls in, midnight to midnight UTC: the same for everyone that day,
+## another one the next. No two days within SEED_COUNT days (about 2,500 years) share one.
+static func daily(unix_time: int) -> int:
+	@warning_ignore("integer_division")
+	var day := (unix_time - posmod(unix_time, DAY_SEC)) / DAY_SEC
+	return posmod(posmod(day, SEED_COUNT) * DAILY_MUL + DAILY_ADD, SEED_COUNT) + 1
+
+
+## True when `run_seed` is the run of the UTC day `unix_time` falls in (0 or less is no run: false).
+static func is_daily(run_seed: int, unix_time: int) -> bool:
+	return normalize(run_seed) != 0 and normalize(run_seed) == daily(unix_time)
+
+# --- end M23 social -----------------------------------------------------------------------------------------------------
+
+
 ## An independent sub-seed for the consumer `name` (&"replay:3", &"cover", ...): never 0, always positive, the same
 ## for the same pair, unrelated for any other pair.
 static func stream(run_seed: int, name: StringName) -> int:

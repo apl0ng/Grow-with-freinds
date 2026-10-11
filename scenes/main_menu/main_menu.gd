@@ -405,6 +405,8 @@ func _settings_file() -> String:
 # and the host rolls a random run. The row comes after the buttons in the tree, so the keyboard path it always had
 # (Name, IP, Port, Open the floor, Report for shift) is untouched and the new stops come after it. Shown only when
 # runs exist (Config.replay_enabled). The code is not kept in settings.cfg: a run is asked for, not a habit.
+# M23 social: the button is TODAY now (node %WeekButton kept): it fills in RunSeed.daily, the run everyone gets on that
+# UTC day (PEAK's daily mountain, FRIENDSLOP 13); the alley board says "Today's run." under such a run.
 
 const TEXT_RUN_OK := "Run %s."
 const TEXT_RUN_JUNK := "Not a code. Random run."
@@ -434,7 +436,7 @@ func _on_week_pressed() -> void:
 	if _busy:
 		return
 	Sfx.play(&"ui_click")
-	run_edit.text = RunSeed.to_code(RunSeed.weekly(int(Time.get_unix_time_from_system())))
+	run_edit.text = RunSeed.to_code(RunSeed.daily(int(Time.get_unix_time_from_system())))  # M23 social: TODAY (was THIS WEEK)
 	_refresh_run_hint()
 
 

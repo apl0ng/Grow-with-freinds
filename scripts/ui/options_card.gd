@@ -24,7 +24,7 @@ const KEY_ROWS: Array = [
 	[&"sprint", "Shift", "sprint"],
 	[&"jump", "Space", "jump"],
 	[&"crouch", "Ctrl", "crouch"],
-	[&"", "E / LMB", "use"],
+	[&"", "E / LMB", "use, help up"],  # M23 social: E on a worker who is down stands them up
 	[&"drop", "Q", "drop"],
 	[&"", "RMB", "throw"],
 	[&"shove", "F", "shove"],
