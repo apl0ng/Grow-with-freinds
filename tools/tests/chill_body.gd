@@ -170,6 +170,15 @@ func _test_four(b: BalanceConfig, full: BalanceConfig) -> void:
 	var job := Contracts.build(Contracts.ID_STRAIN, {"team": 1, "round": 3, "strain": &"creeper", "reward": 60})
 	check(String(job.get("strain", "")) == "budget" and not _names_off(String(job.get("text", ""))),
 			"a strain job handed Creeper names the first strain on sale instead: '%s'" % job.get("text", ""))
+	# M23 lead: the job pool offers no event the chill mix never deals (no raid), and keeps the ones it does
+	var ctx := GameState._career_context()
+	ctx["events"] = true
+	var kinds: Array = ctx.get("event_kinds", [])
+	check(not kinds.has(Contracts.NEED_RAID) and kinds.has(Contracts.NEED_LEAK) and kinds.has(Contracts.NEED_DRIVEBY),
+			"the job context knows the chill mix deals leaks and drive-bys, never a raid (%s)" % [kinds])
+	var offered := Contracts.pool(ctx)
+	check(not offered.has(Contracts.ID_RAID) and offered.has(Contracts.ID_LEAK) and offered.has(Contracts.ID_DRIVEBY),
+			"so the raid job is never on offer and the leak and drive-by jobs are (%s)" % [offered])
 
 
 # --- the supply window ------------------------------------------------------------------------------------------------

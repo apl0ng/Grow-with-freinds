@@ -32,11 +32,12 @@ extends RefCounted
 ## Goals of the counted jobs grow with the team: base + one per extra worker ("variety" stays at three strains).
 ##
 ## Jobs that need something the shift may never bring ("burn", "leak", "driveby", "raid") are only offered when it can
-## happen at all (events on in this session; a strain on sale that can turn hostile); "clean" is only offered with
-## events on as well (without inspections it could not be lost), "keep" only when something can take a plant (events
-## on, or a strain on sale that walks), "variety" only with VARIETY_STRAINS strains on sale. When half the shift has gone
-## without it the host swaps the job for one that needs nothing (fallback_id: "clean" while nobody has been written
-## up, else "cash"), so the reward is never out of reach because of the dice.
+## happen at all (events on in this session and the kind in the mix, ctx "event_kinds"; a strain on sale that can
+## turn hostile); "clean" is only offered with events on as well (without inspections it could not be lost), "keep"
+## only when something can take a plant (events on, or a strain on sale that walks), "variety" only with
+## VARIETY_STRAINS strains on sale. When half the shift has gone without it the host swaps the job for one that needs
+## nothing (fallback_id: "clean" while nobody has been written up, else "cash"), so the reward is never out of reach
+## because of the dice.
 
 const JUDGE_SPOT: StringName = &"spot"
 const JUDGE_END: StringName = &"end"
@@ -214,6 +215,8 @@ static func pool(ctx: Dictionary) -> Array[StringName]:
 			NEED_LEAK, NEED_DRIVEBY, NEED_RAID: # M16 polish: + raid
 				if not bool(ctx.get("events", false)):
 					continue
+				if not (def["need"] in ctx.get("event_kinds", [def["need"]])):
+					continue # M23 lead: an event the mix never deals (the chill game has no raid), so never on offer
 			NEED_HOSTILE:
 				if not bool(ctx.get("can_mutate", false)):
 					continue

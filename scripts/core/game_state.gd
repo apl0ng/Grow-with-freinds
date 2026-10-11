@@ -1455,11 +1455,17 @@ func _career_context() -> Dictionary:
 			can_mutate = true
 	var events := get_node_or_null(^"/root/Events")
 	var events_on := events != null and events.has_method(&"are_events_enabled") and bool(events.call(&"are_events_enabled"))
+	var event_kinds: Array = [] # M23 lead: the event jobs' kinds this mix can deal (Events.get_weight above 0)
+	if events != null and events.has_method(&"get_weight"):
+		for kind: StringName in [Contracts.NEED_LEAK, Contracts.NEED_DRIVEBY, Contracts.NEED_RAID]:
+			if int(events.call(&"get_weight", kind)) > 0:
+				event_kinds.append(kind)
 	return {
 		"team": get_team_size(), "round": round_number, "money": money, "owed": maxi(quota - round_sales, 0),
 		"reward": maxi(Config.balance.contract_reward, 0),
 		"strain": on_sale[_career_rng.randi_range(0, on_sale.size() - 1)] if not on_sale.is_empty() else &"",
 		"events": events_on, "can_mutate": can_mutate,
+		"event_kinds": event_kinds, # M23 lead
 		"strains": on_sale.size(), # M16 polish: "variety" needs three on sale
 		"early_ok": Config.balance.round_length_sec >= Contracts.EARLY_SECONDS * 3.0,
 	}
