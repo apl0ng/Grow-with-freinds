@@ -3001,7 +3001,7 @@ func _read_note_trucks() -> void:
 			var strain := StringName(str((entry as Dictionary).get("strain_id", "")))
 			var amount := int((entry as Dictionary).get("amount", 1))
 			var cured := bool((entry as Dictionary).get("cured", false))
-			values.append([TurnInStation.compute_sale_value(Config.balance.get_seed(strain), amount, mult, cured), String(strain)])
+			values.append([TurnInStation.compute_sale_value(Config.balance.get_seed(strain), amount, mult, cured, int((entry as Dictionary).get("bruises", 0))), String(strain)]) # M23 fragile: bruises
 		_read_truck_values[String(item.name)] = values
 
 

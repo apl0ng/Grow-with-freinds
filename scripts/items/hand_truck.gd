@@ -16,7 +16,7 @@ extends Item
 ## of the holder, tipped back HELD_TILT_DEG about its axle, turned with the holder's body (not the look pitch).
 ##
 ## The load. `cargo` (synced, host-owned, spawn state on) is an Array of plain Dictionaries, bottom first:
-##   {"strain_id": String, "amount": int, "cured": bool, "dry_left": float}
+##   {"strain_id": String, "amount": int, "cured": bool, "dry_left": float}   (+ "bruises": int when bruised, M23 fragile)
 ## everything a bundle carries that matters once it is off a rack (Product: strain, amount, cured, the drying it still
 ## needs). No item nodes ride on the truck: loading despawns the bundle through the item system and appends its data;
 ## unloading spawns a bundle with exactly that data. Every peer draws the load from `cargo`: product_bundle.glb
@@ -90,12 +90,14 @@ var _load_height: float = 0.0
 
 # --- reading the load (any peer) --------------------------------------------------------------------------------------
 
-## The load, bottom first, as copies: {"strain_id": StringName, "amount": int, "cured": bool, "dry_left": float}.
+## The load, bottom first, as copies: {"strain_id": StringName, "amount": int, "cured": bool, "dry_left": float}
+## (M23 fragile: plus "bruises": int on a bruised bundle's entry).
 func get_load() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for e: Dictionary in cargo:
 		out.append({"strain_id": StringName(String(e["strain_id"])), "amount": int(e["amount"]),
 				"cured": bool(e["cured"]), "dry_left": float(e["dry_left"])})
+		if int(e.get("bruises", 0)) > 0: out[-1]["bruises"] = int(e["bruises"]) # M23 fragile
 	return out
 
 
@@ -164,7 +166,8 @@ static func encode_cargo(entries: Array) -> String:
 	for v in entries:
 		var e := clean_entry(v)
 		if not e.is_empty():
-			parts.append("%s|%d|%d|%.2f" % [e["strain_id"], e["amount"], 1 if e["cured"] else 0, e["dry_left"]])
+			parts.append("%s|%d|%d|%.2f" % [e["strain_id"], e["amount"], 1 if e["cured"] else 0, e["dry_left"]]
+					+ ("|%d" % int(e["bruises"]) if e.has("bruises") else "")) # M23 fragile: a fifth field, only when bruised
 	return ";".join(parts)
 
 
@@ -174,7 +177,8 @@ static func decode_cargo(text: String) -> Array:
 		var f := part.split("|")
 		if f.size() < 4:
 			continue
-		var e := clean_entry({"strain_id": f[0], "amount": f[1].to_int(), "cured": f[2] == "1", "dry_left": f[3].to_float()})
+		var e := clean_entry({"strain_id": f[0], "amount": f[1].to_int(), "cured": f[2] == "1", "dry_left": f[3].to_float(),
+				"bruises": f[4].to_int() if f.size() > 4 else 0}) # M23 fragile
 		if not e.is_empty():
 			out.append(e)
 	return out
@@ -202,8 +206,11 @@ static func clean_entry(v: Variant) -> Dictionary:
 	var left := float(dry) if (dry is float or dry is int) else 0.0
 	if not is_finite(left):
 		left = 0.0
-	return {"strain_id": s, "amount": clampi(int(n), 1, 999), "cured": d.get("cured", false) == true,
+	var out := {"strain_id": s, "amount": clampi(int(n), 1, 999), "cured": d.get("cured", false) == true,
 			"dry_left": clampf(left, 0.0, 3600.0)}
+	var knocks: Variant = d.get("bruises", 0) # M23 fragile: a bruised bundle keeps its bruises on the truck (key only when > 0)
+	if (knocks is int or knocks is float) and is_finite(float(knocks)) and int(knocks) > 0: out["bruises"] = mini(int(knocks), Product.BRUISE_WIRE_MAX) # M23 fragile
+	return out
 
 
 # --- Interactable overrides -------------------------------------------------------------------------------------------
@@ -383,7 +390,7 @@ func server_load(bundle: Item, peer_id: int) -> bool:
 	if _load_denial(bundle, maxi(peer_id, 0)) != "":
 		return false
 	var entry := clean_entry({"strain_id": bundle.get(&"strain_id"), "amount": bundle.get(&"amount"),
-			"cured": bundle.get(&"cured"), "dry_left": _exact_dry_left(bundle)})
+			"cured": bundle.get(&"cured"), "dry_left": _exact_dry_left(bundle), "bruises": TurnInStation.get_bruises(bundle)}) # M23 fragile: bruises
 	if entry.is_empty():
 		return false
 	items.server_despawn_item(bundle)
@@ -648,6 +655,7 @@ func _build_load() -> void:
 static func bag_color(entry: Dictionary) -> Color:
 	var def: SeedDef = Config.balance.get_seed(StringName(String(entry.get("strain_id", ""))))
 	var c := Toon.grade(def.color if def != null else Product.UNKNOWN_COLOR)
+	c = Product.bruised_color(c, int(entry.get("bruises", 0))) # M23 fragile: a bruised bag is darker too
 	return c.darkened(Product.CURED_DARKEN) if entry.get("cured", false) == true else c
 
 
@@ -659,6 +667,7 @@ func _server_pop(items: ItemManager, peer_id: int, at: Vector3) -> Item:
 		props["cured"] = true
 	if float(entry["dry_left"]) > 0.0:
 		props["dry_left"] = float(entry["dry_left"])
+	if int(entry.get("bruises", 0)) > 0: props["bruises"] = int(entry["bruises"]) # M23 fragile: unloading restores them
 	var product := items.server_spawn_item(Const.ITEM_PRODUCT, props, at, peer_id)
 	if product == null:
 		return null

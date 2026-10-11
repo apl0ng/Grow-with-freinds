@@ -50,9 +50,9 @@ func get_strain_name() -> String:
 	var def := get_seed()
 	return def.display_name if def != null else "Unmarked product"
 
-## "<Strain> x<amount>", e.g. "Purple Haze x2".
+## "<Strain> x<amount>", e.g. "Purple Haze x2"; M23 fragile: "Purple Haze x2, bruised" once it took a knock.
 func get_display_name() -> String:
-	return "%s x%d" % [get_strain_name(), amount]
+	return "%s x%d" % [get_strain_name(), amount] + get_bruise_tag() # M23 fragile
 
 ## M14 loop: what the worker needs to know about the bundle in hand or under the crosshair: "Heavy", "Cured",
 ## "Drying 14 s" (on a hook), "6 s to dry" (taken off early). "" for a plain fresh bundle.
@@ -78,12 +78,13 @@ func is_drying() -> bool:
 	return rack and not cured
 
 ## M14 loop: the floating label over a bundle that lies or hangs somewhere: "x2", "x2 · 14 s" on a hook, "Cured x2".
+## M23 fragile: ", bruised" after any of them once it took a knock ("Cured x2, bruised").
 func get_tag_text() -> String:
 	if cured:
-		return "Cured x%d" % amount
+		return "Cured x%d" % amount + get_bruise_tag() # M23 fragile
 	if rack:
-		return "x%d · %d s" % [amount, ceili(dry_left)]
-	return "x%d" % amount
+		return "x%d · %d s" % [amount, ceili(dry_left)] + get_bruise_tag() # M23 fragile
+	return "x%d" % amount + get_bruise_tag() # M23 fragile
 
 ## props: {"strain_id": StringName, "amount": int} plus, optionally, the M14 drying state {"rack": bool,
 ## "dry_left": float, "cured": bool}. Other keys (e.g. a precomputed "value") are ignored.
@@ -93,9 +94,11 @@ func apply_props(props: Dictionary) -> void:
 	rack = bool(props.get("rack", rack))
 	dry_left = float(props.get("dry_left", dry_left))
 	cured = bool(props.get("cured", cured))
+	var knocks: Variant = props.get("bruises", bruises) # M23 fragile
+	bruises = int(knocks) if (knocks is int or knocks is float) else bruises # M23 fragile
 
 ## The drying keys only appear once they differ from a fresh bundle's, so a plain bundle's props stay the two it
-## always had.
+## always had (M23 fragile: so does "bruises").
 func get_props() -> Dictionary:
 	var props := {"strain_id": String(strain_id), "amount": amount}
 	if rack:
@@ -104,6 +107,8 @@ func get_props() -> Dictionary:
 		props["dry_left"] = dry_left
 	if cured:
 		props["cured"] = true
+	if bruises > 0:
+		props["bruises"] = bruises # M23 fragile
 	return props
 
 func _set_strain_id(value: StringName) -> void:
@@ -158,6 +163,7 @@ func _refresh_visuals() -> void:
 	var color := Toon.grade(def.color if def != null else UNKNOWN_COLOR)
 	if cured:
 		color = color.darkened(CURED_DARKEN) # M14 loop: dried buds are darker
+	color = bruised_color(color, bruises) # M23 fragile: and knocked ones darker again
 	var model := _cluster as Toonify
 	if model != null and model.tint != color: # (the drying countdown refreshes the label twice a second: no re-toonify)
 		model.tint = color # any other TINT part of the bundle model
@@ -182,6 +188,152 @@ func _refresh_visuals() -> void:
 	_label.position.y = _label_rest_y * s
 	_label.text = get_tag_text()
 	_label.visible = not is_held()
+	_fragile_refresh(s) # M23 fragile: the dent and the grubby bag
+
+
+# --- M23 fragile ----------------------------------------------------------------------------------------------------------
+# CONTRACTS "M23", "Fragile"; FRIENDSLOP 13 (R.E.P.O.'s fragile cargo: the fumble and the cost are the same moment).
+# A bundle that hits the floor, a wall, a station or a worker at speed takes a bruise. Every flight ends through one
+# impact path (ItemManager, its "M23 fragile" region): the speed the bundle had when it struck is_bruising_impact() (a
+# throw always is; so is anything falling from more than BRUISE_FALL_M), so the host calls server_bruise(). A flight that
+# ends at the deposit chute (a chute shot, sold or refused) never bruises; nor does a drop (Q), a hang on a rack, the hand
+# truck or anything a station puts down: none of them is a flight.
+# `bruises` (synced, host-owned, spawn state on; after `flight_serial` in the replication config, so a client has the
+# landing first) counts the knocks, at most Config.balance.bruise_max. Each takes bruise_share of the bundle's value off,
+# ADDITIVE: 1 - bruise_share x bruises (the shipped 0.2 / 2: -20 %, then -40 %), TurnInStation.bruise_factor() inside
+# compute_sale_value. So the chute, its prompt, the hand truck's total, the market, cured, the job, the stats, the
+# collector and the cost ledger all see the bruised value. Every peer, from the setter: the `bruise` thud and a little
+# grey dust where it struck; the buds a shade darker, the bag squashed and leaning (the dent) under a grubby overlay; the
+# names gain ", bruised" (", badly bruised" from two). The hand truck keeps "bruises" in its cargo entries.
+
+## Anything that strikes at least as fast as a fall from this high (metres) bruises: sqrt(2 g h), about 5.4 m/s.
+const BRUISE_FALL_M: float = 1.5
+## How much darker each bruise makes the strain colour (after the cure's darkening), at most BRUISE_DARKEN_MAX.
+const BRUISE_DARKEN: float = 0.15
+const BRUISE_DARKEN_MAX: float = 0.45
+## The dent, per bruise: the bundle squashed (added to its scale on x / y / z) and leaning over (degrees about z).
+const BRUISE_DENT := Vector3(0.05, -0.11, 0.04)
+const BRUISE_LEAN_DEG: float = 7.0
+## The dent stops growing after this many bruises (whatever bruise_max says).
+const BRUISE_DENT_MAX: int = 3
+## A bruised bundle's bag is drawn once more through this grey, multiplied: a grubbier, darker bag.
+const BRUISE_GRIME := Color(0.72, 0.69, 0.7)
+## Never more than this many, whatever arrives over the wire (the value only counts up to bruise_max).
+const BRUISE_WIRE_MAX: int = 9
+## The thrower's toast (ItemManager: the first bundle of theirs that bruises in a shift).
+const TOAST_BRUISED := "Bruised. It pays less."
+
+## M23 fragile, synced (server authority): knocks taken (0 = clean). Only server_bruise() raises it; spawn props carry it
+## (a bundle off the hand truck).
+var bruises: int = 0:
+	set = _set_bruises
+
+static var _grime: StandardMaterial3D = null
+var _bag_meshes: Array[MeshInstance3D] = []
+var _bag_meshes_found: bool = false
+
+
+func is_bruised() -> bool:
+	return bruises > 0
+
+
+## True while another knock would still count (fewer than bruise_max).
+func can_bruise() -> bool:
+	return bruises < maxi(Config.balance.bruise_max, 0)
+
+
+## What the bruises leave of the bundle's value (1.0 clean).
+func get_bruise_factor() -> float:
+	return TurnInStation.bruise_factor(bruises)
+
+
+## ", bruised" / ", badly bruised" / "" (clean).
+func get_bruise_tag() -> String:
+	return bruise_tag(bruises)
+
+
+static func bruise_tag(count: int) -> String:
+	if count <= 0:
+		return ""
+	return ", bruised" if count == 1 else ", badly bruised"
+
+
+## The strain colour of a bundle (or a bag on the hand truck) with `count` bruises: darker per bruise.
+static func bruised_color(color: Color, count: int) -> Color:
+	if count <= 0:
+		return color
+	return color.darkened(minf(BRUISE_DARKEN * float(count), BRUISE_DARKEN_MAX))
+
+
+## The speed (m/s) at which a strike bruises: as fast as a fall from BRUISE_FALL_M.
+static func get_bruise_speed() -> float:
+	return sqrt(2.0 * absf(Item.FLIGHT_GRAVITY.y) * BRUISE_FALL_M)
+
+
+## True when something moving at `velocity` as it strikes bruises.
+static func is_bruising_impact(velocity: Vector3) -> bool:
+	return velocity.is_finite() and velocity.length() >= get_bruise_speed()
+
+
+## SERVER. One more bruise, up to bruise_max. True when it took one (the setter plays the thud on every peer).
+func server_bruise() -> bool:
+	if not is_inside_tree() or not multiplayer.is_server():
+		push_error("Product.server_bruise called on a client")
+		return false
+	if is_queued_for_deletion() or has_meta(TurnInStation.SOLD_META) or not can_bruise():
+		return false
+	bruises += 1
+	return true
+
+
+func _set_bruises(value: int) -> void:
+	value = clampi(value, 0, BRUISE_WIRE_MAX)
+	if value == bruises:
+		return
+	var knocked := value > bruises
+	bruises = value
+	if knocked and is_node_ready() and is_inside_tree():
+		# Every peer (the setter runs from the sync too, after the landing): a soft, damp thud and a little grey dust.
+		Sfx.play(&"bruise", global_position)
+		Juice.puff(global_position + Vector3.UP * 0.15, Juice.GLOOM, 3)
+	_notify_props_changed()
+
+
+## From _refresh_visuals (`s` = the amount's scale): the dent (squashed, leaning) and the grubby bag, or neither.
+func _fragile_refresh(s: float) -> void:
+	var n := clampi(bruises, 0, BRUISE_DENT_MAX)
+	if n > 0:
+		_cluster.scale = Vector3.ONE * s + BRUISE_DENT * (s * float(n))
+		_cluster.rotation = Vector3(0.0, 0.0, deg_to_rad(BRUISE_LEAN_DEG * float(n)))
+	elif _cluster.rotation != Vector3.ZERO:
+		_cluster.rotation = Vector3.ZERO
+	var grime: Material = _get_grime() if n > 0 else null
+	for mesh in _get_bag_meshes():
+		if mesh.material_overlay != grime:
+			mesh.material_overlay = grime
+
+
+## The bag's meshes (everything in the model but the buds and the ink outline hulls), found once.
+func _get_bag_meshes() -> Array[MeshInstance3D]:
+	if not _bag_meshes_found:
+		_bag_meshes_found = true
+		for n in _cluster.find_children("*", "MeshInstance3D", true, false):
+			var mesh := n as MeshInstance3D
+			if mesh != null and not mesh.has_meta(&"toonify_outline") and not _buds.is_ancestor_of(mesh):
+				_bag_meshes.append(mesh)
+	return _bag_meshes
+
+
+## One shared material for every bruised bag: unshaded grey, multiplied over the bag (a darker, grubbier plastic).
+static func _get_grime() -> StandardMaterial3D:
+	if _grime == null:
+		_grime = StandardMaterial3D.new()
+		_grime.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_grime.blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+		_grime.albedo_color = BRUISE_GRIME
+	return _grime
+
+# --- end M23 fragile ------------------------------------------------------------------------------------------------------
 
 
 # --- M17 cart -----------------------------------------------------------------------------------------------------------

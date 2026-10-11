@@ -1277,6 +1277,20 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_fade_in(b, 0.002)
 			_fade_out(b, 0.05)
 		# --- end M16 polish ---
+		# --- M23 fragile ---
+		&"bruise":  # a bundle lands hard: a damp bag of product slaps the concrete, gives, and the plastic settles. Soft, wet, short
+			b = _buf(0.36)
+			_tone(b, 0.0, 0.16, 125.0, 52.0, 0.85, Wave.SINE, 0.002, 6.0)            # the weight of it, no ring
+			_noise(b, rng, 0.0, 0.09, 0.9, 0.16, 0.02, 0.001, 6.5)                   # the damp slap, muffled
+			_tone(b, 0.008, 0.07, 290.0, 170.0, 0.2, Wave.SINE, 0.002, 5.0)          # what is inside gives a little
+			_noise(b, rng, 0.05, 0.14, 0.22, 0.55, 0.3, 0.01, 5.0)                   # the plastic settles
+			for t: float in [0.09, 0.14, 0.2]:                                       # and crinkles once or twice
+				_noise(b, rng, t, 0.015, 0.12, 0.7, 0.4, 0.0005, 9.0)
+			_lowpass(b, 0.42)
+			_dc_block(b)
+			_fade_in(b, 0.002)
+			_fade_out(b, 0.05)
+		# --- end M23 fragile ---
 		# --- M17 finale ---
 		&"paid_in_full":  # the run is over: the ledger's pages run out, the book shuts, one rubber stamp. No bell, no tune.
 			b = _buf(1.15)
