@@ -268,8 +268,9 @@ static func decode_mulaw(bytes: PackedByteArray) -> PackedFloat32Array:
 	var out := PackedFloat32Array()
 	var n := bytes.size()
 	out.resize(n)
+	var table := _perf_mulaw() # M22 perf: one table read per sample instead of a decode call
 	for i in n:
-		out[i] = _decode_mulaw_byte(bytes[i])
+		out[i] = table[bytes[i]] # M22 perf (the same values: _decode_mulaw_byte, once per byte value)
 	return out
 
 static func _decode_mulaw_byte(b: int) -> float:
@@ -281,6 +282,62 @@ static func _decode_mulaw_byte(b: int) -> float:
 	if sign != 0:
 		sample = -sample
 	return float(sample) / 32768.0
+
+# --- M22 perf ---
+# The receive path decoded every sample of every frame through a function call (about 80 us a frame here, 150 frames a
+# second with three workers talking), and the radio treatment crushed each one again. A mu-law byte has 256 values:
+# these tables hold, per byte value, exactly what those calls returned (the sample, the sample as a stereo pair, the
+# crushed radio sample in double precision), built once on first use.
+static var _perf_mulaw_table := PackedFloat32Array()
+static var _perf_stereo_table := PackedVector2Array()
+static var _perf_crushed_table := PackedFloat64Array()
+
+
+## byte -> _decode_mulaw_byte(byte).
+static func _perf_mulaw() -> PackedFloat32Array:
+	if _perf_mulaw_table.size() != 256:
+		var t := PackedFloat32Array()
+		t.resize(256)
+		for b in 256:
+			t[b] = _decode_mulaw_byte(b)
+		_perf_mulaw_table = t
+	return _perf_mulaw_table
+
+
+## byte -> Vector2(sample, sample): decode_mulaw and the mono -> stereo copy of the proximity path in one read.
+static func _perf_stereo() -> PackedVector2Array:
+	if _perf_stereo_table.size() != 256:
+		var mono := _perf_mulaw()
+		var t := PackedVector2Array()
+		t.resize(256)
+		for b in 256:
+			t[b] = Vector2(mono[b], mono[b])
+		_perf_stereo_table = t
+	return _perf_stereo_table
+
+
+## byte -> roundf(sample * RADIO_CRUSH_LEVELS) / RADIO_CRUSH_LEVELS, the first step of the radio treatment.
+static func _perf_crushed() -> PackedFloat64Array:
+	if _perf_crushed_table.size() != 256:
+		var mono := _perf_mulaw()
+		var t := PackedFloat64Array()
+		t.resize(256)
+		for b in 256:
+			t[b] = roundf(mono[b] * RADIO_CRUSH_LEVELS) / RADIO_CRUSH_LEVELS
+		_perf_crushed_table = t
+	return _perf_crushed_table
+
+
+## A frame of mu-law bytes as the stereo samples the proximity outputs queue (decode_mulaw + the copy, one pass).
+static func perf_decode_stereo(bytes: PackedByteArray) -> PackedVector2Array:
+	var table := _perf_stereo()
+	var out := PackedVector2Array()
+	var n := bytes.size()
+	out.resize(n)
+	for i in n:
+		out[i] = table[bytes[i]]
+	return out
+# --- end M22 perf ---
 
 ## Reads the settings file (`settings_path`); values missing from it fall back to the defaults.
 func load_settings() -> void:
@@ -990,11 +1047,11 @@ func _radio_release_out(o: RadioOut) -> void:
 
 ## Decodes `frame` through the radio treatment into the output's jitter queue.
 func _radio_queue(o: RadioOut, frame: PackedByteArray) -> void:
-	var mono := decode_mulaw(frame)
+	var crushed := _perf_crushed() # M22 perf: the crushed sample of each byte value from a table (the same numbers)
 	var stereo := PackedVector2Array()
-	stereo.resize(mono.size())
-	for i in mono.size():
-		var s := roundf(mono[i] * RADIO_CRUSH_LEVELS) / RADIO_CRUSH_LEVELS
+	stereo.resize(frame.size())
+	for i in frame.size():
+		var s: float = crushed[frame[i]] # M22 perf (was roundf(decoded sample * RADIO_CRUSH_LEVELS) / RADIO_CRUSH_LEVELS)
 		s += (o.rng.randf() * 2.0 - 1.0) * RADIO_HISS
 		if o.rng.randf() < RADIO_CRACKLE_CHANCE:
 			o.crackle = o.rng.randf_range(RADIO_CRACKLE_MIN, RADIO_CRACKLE_MAX) * (1.0 if o.rng.randf() < 0.5 else -1.0)
@@ -1273,11 +1330,7 @@ func _queue_playback(peer_id: int, frame: PackedByteArray, gap: int = 0) -> void
 			o.queue.append(fill)
 			_stats_concealed += 1
 			level *= 0.5
-	var mono := decode_mulaw(frame)
-	var stereo := PackedVector2Array()
-	stereo.resize(mono.size())
-	for i in mono.size():
-		stereo[i] = Vector2(mono[i], mono[i])
+	var stereo := perf_decode_stereo(frame) # M22 perf: one table read per sample (was decode_mulaw + a mono -> stereo copy)
 	o.queue.append(stereo)
 	o.last_frame = stereo if stereo.size() == FRAME_SAMPLES else PackedVector2Array()
 	while o.queue.size() > JITTER_MAX_FRAMES:

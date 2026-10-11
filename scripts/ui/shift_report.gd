@@ -36,6 +36,10 @@ func _ready() -> void:
 
 ## Rebuilds the table + verdicts from GameState / Net / Story.
 func refresh() -> void:
+	if _perf_refresh_in_place():  # M22 perf: the same shape as last time: the labels already there take the new texts
+		_career_refresh_job()
+		_read_refresh_costs()
+		return
 	_clear(grid)
 	_clear(verdicts_box)
 	_row_peers.clear()
@@ -75,6 +79,56 @@ func refresh() -> void:
 	verdicts_box.visible = not _verdict_texts.is_empty()
 	_career_refresh_job() # M15 career: whether the shift's job was done
 	_read_refresh_costs() # M19 readability: what the shift's disruptions cost (under the table)
+
+
+# --- M22 perf ---
+# refresh() runs when the card opens and again on every stats / players change while it is up, and it freed and made
+# every label each time (about forty with four workers: a few milliseconds on the frame the card opens). When the table
+# keeps its shape (the same columns, the same workers in the same order, as many verdict lines as before), the labels
+# already there take the new texts and name colours instead: the same labels with the same settings as a rebuild would
+# make. Any other change rebuilds as before.
+
+## How often refresh() rebuilt the labels, and how often it updated them in place (tests).
+var perf_rebuilds: int = 0
+var perf_in_place: int = 0
+
+
+## True when the table and the verdicts were brought up to date in place (refresh() then only does the job and costs).
+func _perf_refresh_in_place() -> bool:
+	var fog_column := _spores_has_column()
+	var columns := COLUMNS.size() + (1 if fog_column else 0)
+	var peers := Story.get_report_peers()
+	var verdicts: PackedStringArray = Story.get_report_verdicts() if Story.has_method(&"get_report_verdicts") else PackedStringArray()
+	if grid.columns != columns or peers != _row_peers or grid.get_child_count() != columns * (peers.size() + 1) \
+			or verdicts_box.get_child_count() != verdicts.size():
+		perf_rebuilds += 1
+		return false
+	var index := columns  # the header row keeps its fixed texts
+	for peer_id: int in peers:
+		var worker_name := Net.get_player_name(peer_id)
+		if not Net.players.has(peer_id):
+			worker_name = TEXT_LEFT % worker_name
+		var color: Color = Net.get_player_color(peer_id)
+		var name_cell := grid.get_child(index) as Label
+		name_cell.text = worker_name
+		if not name_cell.has_theme_color_override(&"font_color") or name_cell.get_theme_color(&"font_color") != color:
+			name_cell.add_theme_color_override(&"font_color", color)
+		var values: PackedStringArray = [HUD.format_money(GameState.get_stat(peer_id, Const.STAT_DEPOSITED)),
+				str(GameState.get_stat(peer_id, Const.STAT_PLANTED)), str(GameState.get_stat(peer_id, Const.STAT_WATERED)),
+				str(GameState.get_stat(peer_id, Const.STAT_HARVESTED)), str(GameState.get_stat(peer_id, Const.STAT_WRITE_UPS)),
+				TEXT_THROWS_HITS % [GameState.get_stat(peer_id, Const.STAT_THROWS), GameState.get_stat(peer_id, Const.STAT_HITS)]]
+		if fog_column:
+			values.append(str(GameState.get_stat(peer_id, Spores.STAT_FOGGED)))
+		for k in values.size():
+			(grid.get_child(index + 1 + k) as Label).text = values[k]
+		index += columns
+	_verdict_texts = verdicts
+	for k in verdicts.size():
+		(verdicts_box.get_child(k) as Label).text = verdicts[k]
+	verdicts_box.visible = not verdicts.is_empty()
+	perf_in_place += 1
+	return true
+# --- end M22 perf ---
 
 
 # --- M15 career: the shift's job on the report ---------------------------------------------------------------------
