@@ -1,7 +1,7 @@
 extends "res://tools/tests/smoke_base.gd"
 ## M23 social in-game screenshots on the REAL renderer (lead tool, not a suite): the talk mark over a worker near and at
-## 10 m, over a radio carrying a voice, the "[E] Help Dale up" prompt, a helper's reach seen from the side, and the
-## helper's own view (the camera dip) right after E.
+## 10 m, over a radio carrying a voice, the "[E] Help Dale up" prompt over Dale slumped, the helper's own view (the camera
+## dip) right after E, Dale down seen from the side and, 0.08 s after Carl's help, Carl's reach with Dale coming up.
 ##   godot --rendering-method forward_plus --resolution 1280x720 --position 1400,800 --path . \
 ##       -s res://tools/tests/run_test.gd -- --body=res://tools/tests/social_shots_body.gd --out=<abs dir> \
 ##       --port=7977 --mute --no-mic --replay --run=B5VP --career-file=user://social_shots.cfg \
@@ -86,8 +86,8 @@ func _run() -> void:
 	await wait_sec(0.8)
 
 	step("help a friend up")
-	dale.place_at(Transform3D(Basis(Vector3.UP, PI), Vector3(-3.0, 0.05, 1.8)))
-	_look(Vector3(-3.0, 0.0, 3.0), Vector3(-3.0, 1.2, 1.8))
+	dale.place_at(Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(-3.0, 0.05, 1.8)))  # side-on: the slump in profile
+	_look(Vector3(-3.0, 0.0, 3.4), Vector3(-3.0, 0.75, 1.8))
 	await wait_sec(0.3)
 	Player.server_stagger(dale, Vector3.FORWARD, false, 0, 6.0)
 	await wait_sec(0.6)
@@ -95,16 +95,18 @@ func _run() -> void:
 	_me.request_help_up(DALE)
 	await wait_sec(0.1)
 	await _shot("5_help_first_person")
-	await wait_sec(Config.balance.help_up_cooldown_sec)
+	await wait_until(func() -> bool: return dale.can_be_staggered(), 8.0, "Dale can go down again")
 	carl.place_at(Transform3D(Basis(Vector3.UP, -PI * 0.5), Vector3(-1.8, 0.05, 1.8)))
 	dale.place_at(Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(-3.0, 0.05, 1.8)))
 	_look(Vector3(-2.4, 0.0, 5.2), Vector3(-2.4, 1.1, 1.8))
 	await wait_sec(0.4)
-	Player.server_stagger(carl, Vector3.RIGHT, false, 0, 6.0)
-	await wait_sec(0.5)
-	check(dale.server_help_up(carl), "Dale helps Carl up")
-	await wait_sec(Player.HELP_REACH_SEC * 0.45)
-	await _shot("6_help_reach_side")
+	Player.server_stagger(dale, Vector3.LEFT, false, 0, 6.0)
+	await wait_sec(0.6)
+	check(dale.get_slump() >= 1.0, "Dale is down")
+	await _shot("6_down_side")
+	check(carl.server_help_up(dale), "Carl helps Dale up")
+	await wait_sec(0.08)
+	await _shot("7_help_reach_side")
 	finish()
 
 

@@ -17,6 +17,10 @@ extends "res://tools/tests/qa_base.gd"
 ##                 input event) stands him up at once (the host's view and the body's), helped_up(1), STAT_HELPED for
 ##                 the helper, the help_up sound at his chest, the helper's reach and camera dip; a fake worker helps
 ##                 the host up (the host's own body: its camera lifts; Bob's arm reaches)
+##   down          a stunned body slumps ($Visual sunk, tipped forward and to the side) within SLUMP_IN_SEC, the capsule,
+##                 the label and the body's place untouched; it eases back up after the stun, and after a help-up long
+##                 before the stun would have ended; my own body too, with my camera dropped (the head and the capsule
+##                 stay); a 0.35 s shove is a quick dip
 ##   refusals      not down, out of reach, a wall between, the helper down, either one in the back room, helping
 ##                 yourself, a request for another worker's body, an unknown target, the cooldown (and after it)
 ##   the report    "Tester helped people up the most." in the verdicts, flat
@@ -68,6 +72,7 @@ func _run() -> void:
 	_lengthen_stuns(b)
 	await _test_help_kinds(b)
 	await _test_fake_helper(b)
+	await _test_slump()
 	await _test_refusals(b)
 	await _test_cooldown(b)
 	_test_report()
@@ -268,6 +273,75 @@ func _test_fake_helper(b: BalanceConfig) -> void:
 	check(not bob.is_helping() and absf(bob.arm_r.rotation.x) < 0.2, "and back down (%.2f)" % bob.arm_r.rotation.x)
 	await wait_sec(b.help_up_cooldown_sec)
 
+
+func _test_slump() -> void:
+	step("down: the body slumps (Bob, a remote body here)")
+	_put(bob, BOB_AT)
+	_put(carl, FAR_AT)
+	_put_me(ME_AT, 0.0)
+	await wait_until(func() -> bool: return bob.can_be_staggered() and me.can_be_staggered(), 8.0, "Bob and I can go down")
+	await wait_physics(2)
+	var shape := bob.collision.shape as CapsuleShape3D
+	var shape_h := shape.height
+	var shape_at := bob.collision.position
+	var label_at := bob.name_label.position
+	var feet := bob.global_position
+	check(is_zero_approx(bob.get_slump()) and absf(bob.visual.position.y) < 0.02 and is_zero_approx(bob.visual.rotation.x), "standing: no slump")
+	Player.server_stagger(bob, Vector3.FORWARD, false, 0, 1.0)
+	await wait_sec(Player.SLUMP_IN_SEC + 0.08)
+	check(bob.get_slump() >= 1.0 and bob.visual.position.y < -0.35 and bob.visual.rotation.x < -0.25 and absf(bob.visual.rotation.z) > 0.1,
+			"down: sunk %.2f m, tipped forward %.2f, to the side %.2f" % [-bob.visual.position.y, -bob.visual.rotation.x, bob.visual.rotation.z])
+	check(is_equal_approx(shape.height, shape_h) and bob.collision.position.is_equal_approx(shape_at) and bob.collision.shape == shape,
+			"the capsule is untouched (%.2f m)" % shape.height)
+	check(bob.name_label.position.is_equal_approx(label_at) and bob.global_position.is_equal_approx(feet), "the name label and the body's own place stay")
+	await wait_until(func() -> bool: return not bob.is_stunned(), 2.0, "the stun runs out")
+	var up := await _watch_getting_up(bob)
+	check(bool(up[0]), "getting up eases over %d ms" % int(up[1]))
+	check(is_zero_approx(bob.get_slump()) and absf(bob.visual.position.y) < 0.02 and is_zero_approx(bob.visual.rotation.x), "back up after the stun")
+
+	step("down, then helped up")
+	await wait_until(func() -> bool: return bob.can_be_staggered(), 4.0, "Bob can go down again")
+	Player.server_stagger(bob, Vector3.FORWARD, false, 0, 5.0)
+	await wait_sec(0.3)
+	check(bob.get_slump() >= 1.0 and bob.visual.position.y < -0.35, "down for a long stun")
+	check(me.server_help_up(bob), "I help him up")
+	up = await _watch_getting_up(bob)
+	check(bool(up[0]), "pulled up: it eases over %d ms" % int(up[1]))
+	check(is_zero_approx(bob.get_slump()) and absf(bob.visual.position.y) < 0.02 and is_zero_approx(bob.visual.rotation.x), "standing long before the stun would have ended")
+
+	step("my own body down: the camera drops too")
+	var cam_at := me.camera.position
+	var head_at := me.head.position
+	var my_shape_h := (me.collision.shape as CapsuleShape3D).height
+	Player.server_stagger(me, Vector3.BACK, false, 0, 1.0)
+	me.velocity = Vector3.ZERO
+	await wait_sec(Player.SLUMP_IN_SEC + 0.08)
+	check(me.get_slump() >= 1.0 and me.visual.position.y < -0.35 and me.visual.rotation.x < -0.25, "my body (its shadow) slumps")
+	check(me.camera.position.y < cam_at.y - 0.2 and me.head.position.is_equal_approx(head_at) and is_equal_approx((me.collision.shape as CapsuleShape3D).height, my_shape_h),
+			"my camera drops %.2f m; the head and the capsule stay" % (cam_at.y - me.camera.position.y))
+	await wait_until(func() -> bool: return not me.is_stunned(), 2.0, "my stun runs out")
+	await wait_sec(Player.SLUMP_OUT_SEC + 0.08)
+	check(me.camera.position.is_equal_approx(cam_at) and absf(me.visual.position.y) < 0.001 and is_zero_approx(me.visual.rotation.z), "and everything is back where it was")
+
+	step("a shove: a quick dip")
+	await wait_until(func() -> bool: return bob.can_be_staggered(), 8.0, "Bob can go down again")
+	Player.server_stagger(bob, Vector3.FORWARD, false, 0, 0.35)
+	var deepest := 0.0
+	var t0 := Time.get_ticks_msec()
+	while (bob.is_stunned() or bob.get_slump() > 0.0) and Time.get_ticks_msec() - t0 < 2000:
+		deepest = maxf(deepest, bob.get_slump())
+		await get_tree().process_frame
+	check(deepest >= 1.0 and is_zero_approx(bob.get_slump()), "all the way down and up again in %d ms" % (Time.get_ticks_msec() - t0))
+
+
+## Frame by frame until `p` stands again (at most 1 s): [eased (a frame between down and up was drawn), ms].
+func _watch_getting_up(p: Player) -> Array:
+	var t0 := Time.get_ticks_msec()
+	var eased := false
+	while p.get_slump() > 0.0 and Time.get_ticks_msec() - t0 < 1000:
+		await get_tree().process_frame
+		eased = eased or (p.get_slump() > 0.0 and p.get_slump() < 1.0)
+	return [eased and is_zero_approx(p.get_slump()), Time.get_ticks_msec() - t0]
 
 func _test_refusals(b: BalanceConfig) -> void:
 	step("refusals")

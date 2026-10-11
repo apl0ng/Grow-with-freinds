@@ -37,6 +37,9 @@ const VALUES: Dictionary = {
 	&"write_up_fine": 10,
 	&"driveby_fine": 0,
 	&"hostile_max": 1,
+	# M23 social: the angry plant's bite keeps a worker down long enough for a friend to help them up (E). It cannot bite
+	# a worker who is down: its next bite waits for the stagger immunity (the stun + 1 s), and after two it calms down.
+	&"hostile_bite_stun_sec": 2.0,
 	&"spore_fog_sec": 6.0,
 	# Fewer things to keep track of: no market, no shift conditions (M23: none at all, so no chips and no board lines
 	# for them; the two below only matter if conditions come back), four strains.

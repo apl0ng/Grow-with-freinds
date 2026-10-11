@@ -8,6 +8,8 @@ extends "res://tools/tests/qa_base.gd"
 ##                  Black Damp are known (get_seed) but never on sale, never bought, never on a supply card, a jar,
 ##                  the board, a briefing, a toast, a job, a shortage, a buyer or the market (the dice are rolled
 ##                  hundreds of times per shift, the buyer and the market with conditions forced on)
+##   the bite       (M23 social) an angry plant's bite keeps a worker down 2 s (the full game 1 s), long enough for a
+##                  friend to help him up; it never bites him again while he is down (the stun + the immunity)
 ##   the window     the four cards in one row at 1280x720: the window fits, no scroll bar, the plain hint, every tag
 ##                  and name whole, the FAVORS tab the same size
 ##   the run        six shifts: no condition, no chip, the briefing exactly "New at the window: ..." on 2 and 3; the
@@ -77,6 +79,7 @@ func _run() -> void:
 	check(flat, "no market: every strain deposits at its own price (%s)" % [GameState.get_market()])
 	check(GameState.quota == b.quota_for_round(1, 3), "the shift's payment is the chill one ($%d)" % GameState.quota)
 
+	await _test_bite(b, full)  # M23 social
 	await _test_window(b)
 	await _test_run(b)
 	_test_economy(b)
@@ -400,6 +403,48 @@ static func _fits(label: Label) -> bool:
 		return false
 	var need := label.get_theme_font(&"font").get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, label.get_theme_font_size(&"font_size")).x
 	return need <= label.size.x + 0.5
+
+
+# --- M23 social: the bite -----------------------------------------------------------------------------------------------
+
+## The chill bite keeps a worker down hostile_bite_stun_sec (2 s, the full game 1 s): long enough for a friend to press E.
+## The plant never bites a worker who is down: its own cooldown runs out first, the stagger immunity (the stun + 1 s)
+## holds it off, and the second bite comes only once he has been up a moment; after two it calms down.
+func _test_bite(b: BalanceConfig, full: BalanceConfig) -> void:
+	step("the bite: down long enough to be helped up, never bitten while down")
+	check(is_equal_approx(b.hostile_bite_stun_sec, 2.0) and is_equal_approx(full.hostile_bite_stun_sec, 1.0),
+			"a bite keeps a worker down %.1f s (the full game %.1f s)" % [b.hostile_bite_stun_sec, full.hostile_bite_stun_sec])
+	var guard := b.hostile_bite_stun_sec + Player.STAGGER_IMMUNITY_SEC
+	check(b.hostile_bite_cooldown_sec < guard, "the plant's cooldown (%.1f s) is not what keeps it off a downed worker: the immunity (%.1f s) is" % [b.hostile_bite_cooldown_sec, guard])
+	Hostiles.server_despawn_all()
+	var bob := world.get_player(2)
+	var cara := world.get_player(3)
+	if not check(bob != null and cara != null, "Bob and Cara"):
+		return
+	var at := Vector3(-3.0, 0.0, 1.8)
+	bob.place_at(Transform3D(Basis.IDENTITY, Vector3(at.x, 0.05, at.z)))
+	cara.place_at(Transform3D(Basis.IDENTITY, Vector3(8.0, 0.05, -6.0)))
+	me.velocity = Vector3.ZERO
+	me.global_position = Vector3(-9.0, 0.02, 6.5)
+	var bites: Array = []
+	var on_bit := func(_id: int, peer: int) -> void: bites.append([peer, Time.get_ticks_msec()])
+	Hostiles.hostile_bit.connect(on_bit)
+	await wait_frames(2)
+	check(Hostiles.server_spawn(&"budget", at + Vector3(0.0, 0.0, 2.2)) > 0, "an angry plant 2.2 m from Bob")
+	if await wait_until(func() -> bool: return not bites.is_empty(), 8.0, "it bites Bob"):
+		var t0: int = bites[0][1]
+		check(int(bites[0][0]) == 2 and bob.is_stunned(), "Bob is down")
+		await wait_until(func() -> bool: return Time.get_ticks_msec() - t0 >= 1800, 3.0, "1.8 s later")
+		check(bob.is_stunned() and bites.size() == 1, "still down, and not bitten again")
+		await wait_until(func() -> bool: return not bob.is_stunned(), 2.0, "he is up after the stun")
+		var down_ms := Time.get_ticks_msec() - t0
+		check(down_ms >= 1900 and down_ms < 2600 and bites.size() == 1, "after about 2 s (%d ms), bitten once" % down_ms)
+		if await wait_until(func() -> bool: return bites.size() >= 2, 4.0, "the second bite comes once he has been up a moment"):
+			var gap: int = int(bites[1][1]) - t0
+			check(gap >= int(guard * 1000.0) - 60, "%d ms after the first (the stun + the immunity: %d ms)" % [gap, int(guard * 1000.0)])
+	Hostiles.hostile_bit.disconnect(on_bit)
+	Hostiles.server_despawn_all()
+	await wait_frames(2)
 
 
 func _add_worker(id: int, worker_name: String) -> void:

@@ -162,6 +162,7 @@ func _host_main() -> void:
 	check(me.is_stunned(), "host: I am down")
 	var r := await run_cmd(a, "help", {"peer": 1}, 20.0)
 	check(String(r.get("prompt", "")) == "[E] Help Hosty up" and bool(r.get("enabled", false)), "Alpha's prompt: '%s'" % r.get("prompt", ""))
+	check(bool(r.get("slumped", false)) and bool(r.get("stood", false)), "Alpha saw the host slumped while down, and back on his feet after E")
 	await wait_until(func() -> bool: return not me.is_stunned(), 4.0, "host: I am up")
 	check(Time.get_ticks_msec() - t0 < int(STUN_SEC * 1000.0) - 1000, "long before the stun ran out (%d ms)" % (Time.get_ticks_msec() - t0))
 	check(_helped_count(1, a) == 1, "host: helped_up(Alpha) on my body %s" % [_helped])
@@ -183,6 +184,8 @@ func _host_main() -> void:
 	Player.server_stagger(alpha, Vector3.BACK, false, 1, STUN_SEC)
 	t0 = Time.get_ticks_msec()
 	await wait_until(func() -> bool: return alpha.is_stunned(), 3.0, "host: Alpha is down")
+	await wait_sec(0.25)
+	check(alpha.get_slump() >= 1.0 and alpha.visual.position.y < -0.3, "host: Alpha's body is slumped here")
 	await wait_physics(2)
 	var it := me.get_interactor()
 	it.refresh()
@@ -290,7 +293,8 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 			var body := Game.world.get_player(int(args.get("peer", 0)))
 			var down := body != null and await wait_until_quiet(func() -> bool: return body.is_stunned(), 5.0)
 			check(down, "the worker is down on my peer")
-			await wait_physics(2)
+			await wait_sec(0.25)
+			var slumped := body != null and body.get_slump() >= 1.0 and body.visual.position.y < -0.3
 			var it := me.get_interactor()
 			it.refresh()
 			var prompt := it.prompt_text
@@ -306,7 +310,8 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 				sound = sound or _is_help_sound(_helped[i][3], false)
 			await wait_sec(0.12)
 			var dip := me.camera.rotation.x < -0.02
-			ack(seq, {"prompt": prompt, "enabled": enabled, "up": up, "helped": helped, "reach": reach, "dip": dip, "sound": sound})
+			var stood := body != null and await wait_until_quiet(func() -> bool: return is_zero_approx(body.get_slump()), 1.0)
+			ack(seq, {"prompt": prompt, "enabled": enabled, "slumped": slumped, "stood": stood, "up": up, "helped": helped, "reach": reach, "dip": dip, "sound": sound})
 		"helped":
 			var by := int(args.get("by", 0))
 			var got := await wait_until_quiet(func() -> bool: return _helped_count(me.peer_id, by) >= 1, 5.0)
