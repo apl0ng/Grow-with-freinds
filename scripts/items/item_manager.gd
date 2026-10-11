@@ -740,6 +740,8 @@ func server_bruise_bundle(bundle: Product, thrower: int) -> bool:
 	if not _is_live(bundle) or not bundle.server_bruise():
 		return false
 	bundle_bruised.emit(bundle, bundle.bruises, thrower)
+	if thrower > 0:
+		GameState.server_add_stat(thrower, Const.STAT_BRUISED) # M24 lead: the report names who bruised the most
 	if thrower > 0 and not _fragile_told.has(thrower):
 		_fragile_told[thrower] = true
 		if thrower == multiplayer.get_unique_id() or multiplayer.get_peers().has(thrower):

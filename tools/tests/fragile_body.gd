@@ -432,6 +432,12 @@ func _test_toast(b: BalanceConfig) -> void:
 	await _throw(p, LANE + Vector3(0.0, 1.2, 0.0), Vector3(0.0, -5.0, 1.0), BOB)
 	check(_bruised.size() == 1 and _bruised[0][2] == BOB and items.was_told_bruise(BOB), "Bob's throw bruises it: Bob counts as told")
 	check(_toast_count() == told, "no toast here for Bob's (he has no connection, and nothing went wrong)")
+	# M24 lead: every bruise counts for its thrower, and the report names who bruised the most
+	var bob_bruised := GameState.get_stat(BOB, Const.STAT_BRUISED)
+	var host_bruised := GameState.get_stat(1, Const.STAT_BRUISED)
+	check(bob_bruised == 1 and host_bruised > bob_bruised, "each bruise counts for its thrower (host %d, Bob %d)" % [host_bruised, bob_bruised])
+	var verdict := "%s bruised the most product. It shows in the count." % Net.get_player_name(1)
+	check(Array(Story.get_report_verdicts()).has(verdict), "the report names who bruised the most: '%s'" % verdict)
 	items.server_despawn_item(p)
 
 	step("between shifts: a chute shot is refused and lands clean")

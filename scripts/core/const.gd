@@ -51,6 +51,7 @@ const STAT_CURED: StringName = &"cured"           # M14: cured bundles this work
 const STAT_CONTRACTS: StringName = &"contracts"   # M15: contracts met this shift (counted for the host peer: the floor)
 const STAT_FOGGED: StringName = &"fogged"         # M18: times this worker breathed Black Damp's spores (Spores.STAT_FOGGED)
 const STAT_HELPED: StringName = &"helped"         # M23: times this worker helped a knocked-down worker up
+const STAT_BRUISED: StringName = &"bruised"       # M24: bundles this worker bruised (a hard throw or a fall)
 
 # --- M10: write-up reasons (GameState.server_write_up) ---
 const WRITE_UP_SKIMMING: String = "skimming"     # carrying product in the Boss's sight

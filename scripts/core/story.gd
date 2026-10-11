@@ -805,6 +805,7 @@ const M13_LINES: Dictionary = {
 	"verdict_burns": "%s dealt with it. Noted. Not thanked.",
 	"verdict_scorched": "%s burnt stock. The fine came out of cash on hand.",
 	"verdict_bitten": "%s got bitten. No claim was filed.",
+	"verdict_bruised": "%s bruised the most product. It shows in the count.", # M24 lead
 }
 
 
@@ -817,7 +818,7 @@ func _m13_setup() -> void:
 func get_report_verdicts() -> PackedStringArray:
 	var out := _base_report_verdicts()
 	var peers := get_report_peers()
-	for entry: Array in [[Const.STAT_BURNS, "verdict_burns"], [Const.STAT_SCORCHED, "verdict_scorched"], [Const.STAT_BITTEN, "verdict_bitten"]]:
+	for entry: Array in [[Const.STAT_BURNS, "verdict_burns"], [Const.STAT_SCORCHED, "verdict_scorched"], [Const.STAT_BITTEN, "verdict_bitten"], [Const.STAT_BRUISED, "verdict_bruised"]]: # M24 lead: + bruised
 		var best: int = 0
 		var best_amount: int = 0
 		for id in peers:
