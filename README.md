@@ -69,8 +69,9 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   bundles. `--no-replay` turns the conditions, the market, the unlocks and the jobs off.
 - The floor moves (M16): the crates and pallets on the dock, in the main room and in the hall stand differently each
   run (four arrangements). Every run has a four-character code on the alley board. Type a friend's code into the run
-  code field under Open the floor, or press THIS WEEK, and the host deals the same run: the same conditions, market,
-  jobs, order of events and the same crates in the same places (`--run=<code>` does the same from the command line).
+  code field under Open the floor, or press TODAY (M23: one code for everyone that UTC day), and the host deals the
+  same run: the same conditions, market, jobs, order of events and the same crates in the same places (`--run=<code>`
+  does the same from the command line).
 - Issued kit (M16): your record issues hats: a hairnet after the first shift, a paper cap after ten, a yellow hard
   hat for reaching shift three, a traffic cone for three trips to the back room, a bucket for five bites, a welding
   mask for five plants burnt, a bandage for being shot three times. Nothing is bought. Change it at the locker under
@@ -113,10 +114,12 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   do. The shift report ends with what the trouble cost, the three dearest first.
 - Chill by default (M20): the game you launch is the simpler, calmer one. Seven kinds of trouble instead of fourteen
   (the Boss walking the floor, the power going out, the leak, the rival crew, the rat, the phone, the sprinklers), less
-  often and gentler, no market, one shift condition at a time from shift three (the final notice too), plants walk off
-  half as often (the angry plant and Black Damp's spores are still there), and the payments are 15% lower.
+  often and gentler, no market, plants walk off half as often (the angry plant is still there), and the payments are
+  15% lower. Since M23 it also sells four strains (Budget Bud, Purple Haze, Golden Kush from shift two, Night Shift
+  from shift three), has no shift conditions, and the final notice's half-time look raises nothing ("Half the clock.").
   `--no-chill` plays the full game: the audit, the head count, the water main, the shortage, the raid, the collector,
-  the scale, the market and the drive-by bill described above only happen there.
+  the scale, the market, the drive-by bill, the conditions, Creeper, Floor Brick and Black Damp described above only
+  happen there.
 - Release checks (M22): suite `perf` keeps the headless host frame under 4 ms and the per-client traffic under budget
   in the chill game's worst moments (`tools/tests/perf_shots_body.gd` measures the frame rate on the real renderer);
   `tools/tests/soak.sh` has a host and three clients play the chill game through the van to PAID IN FULL with scripted

@@ -29,7 +29,7 @@ const TRAYS: Array = [
 	["GrowPlot1", &"purple", GrowPlot.Stage.READY],
 	["GrowPlot2", &"budget", GrowPlot.Stage.FLOWERING],
 	["GrowPlot3", &"golden", GrowPlot.Stage.VEGETATIVE],
-	["GrowPlot4", &"creeper", GrowPlot.Stage.SEEDLING],
+	["GrowPlot4", &"nightshift", GrowPlot.Stage.SEEDLING], # M23: the chill game sells four strains
 	["GrowPlot5", &"budget", GrowPlot.Stage.READY],
 	["GrowPlot6", &"purple", GrowPlot.Stage.FLOWERING],
 ]
