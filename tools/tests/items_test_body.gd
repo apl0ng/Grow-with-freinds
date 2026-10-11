@@ -198,8 +198,10 @@ func _test_scenes_and_sync_configs() -> void:
 		can: [^".:rest_position", ^".:rest_rotation"] + flight + [^".:holder_id", ^".:charges"],
 		packet: [^".:rest_position", ^".:rest_rotation"] + flight + [^".:holder_id", ^".:strain_id"],
 		# M14 loop: the drying state (`rack` before holder_id: a hang's release already knows it is a hang; see Product).
-		product: [^".:rest_position", ^".:rest_rotation"] + flight + [^".:rack", ^".:holder_id", ^".:strain_id", ^".:amount",
-				^".:dry_left", ^".:cured"],
+		# M23 fragile: `bruises` before flight_serial (a bruise arrives while the bundle is still in the air, so its
+		# landing plays the bruise thud; see Product).
+		product: [^".:rest_position", ^".:rest_rotation", ^".:flight_origin", ^".:flight_velocity", ^".:bruises", ^".:flight_serial",
+				^".:rack", ^".:holder_id", ^".:strain_id", ^".:amount", ^".:dry_left", ^".:cured"],
 	}
 	for item: Item in expected:
 		var sync := item.get_node_or_null(^"Sync") as MultiplayerSynchronizer

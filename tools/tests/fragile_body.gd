@@ -125,6 +125,10 @@ func _test_floor() -> void:
 	check(p.bruises == 0 and p.get_props() == {"strain_id": "purple", "amount": 1} and p.get_display_name() == "Purple Haze x1",
 			"a fresh bundle: no bruises, the two props it always had, '%s'" % p.get_display_name())
 	check(not p.is_bruised() and p.can_bruise() and is_equal_approx(p.get_bruise_factor(), 1.0), "clean: full value")
+	var cfg := (p.get_node(^"Sync") as MultiplayerSynchronizer).replication_config
+	var synced := cfg.get_properties()
+	check(synced.has(^".:bruises") and cfg.property_get_spawn(^".:bruises") and synced.find(^".:bruises") < synced.find(^".:flight_serial"),
+			"`bruises` is synced with the spawn state, before flight_serial (the landing knows)")
 	_bruised.clear()
 	await _throw(p, LANE + Vector3(0.0, 1.2, 0.0), Vector3(0.0, -5.0, 1.5))
 	check(p.bruises == 1 and p.is_bruised() and not p.is_flying() and absf(p.global_position.y) < 0.05, "it lands on the floor with one bruise")
