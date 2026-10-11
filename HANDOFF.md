@@ -4,7 +4,8 @@
 You are the lead developer on this Godot 4.7.2 project. The user wants the game launched and played on their PC,
 and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of 2026-09-29.
 
-0. State (2026-10-10): M10 to M19 merged, then the CHILL pivot (version 0.20.0): the user asked for the game itself
+0. State (2026-10-11): M10 to M19, the CHILL pivot (0.20.0) and M22 release hardening (0.21.0: the licence file and
+   the exe identity in the zip, PLAYER_GUIDE.md, the perf and soak suites) merged: the user asked for the game itself
    to be "simpler and chill"; a windowed run plays the chill preset (scripts/core/chill.gd, CONTRACTS "M20 chill",
    memory game-direction-simpler-chill); `--no-chill` and every suite play the full game. M20 "One more run" is
    shelved on branches m20/*. RELEASE.md is the road to 1.0 (M21, M22 left). M19
@@ -30,8 +31,8 @@ and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of
    starts in the alley (--no-lobby for the old start). M12 (CONTRACTS "M12", FRIENDSLOP section 7) added six strains
    with mutation chances, the hostile plant (Hostiles autoload), the break-glass flamethrower (EmergencyCabinet +
    Flamethrower item, `use_item` on LMB) and three disruption events (head count, water main off, shortage).
-   101 suites in tools/test_all.sh, all green on this PC except the skipped X11 mouse suite (last full run
-   2026-10-10, 16990 checks, about 29 minutes; its one failure, the qa_m12_4p restock race, is fixed). The export templates are installed; `tools\export.ps1`
+   104 suites in tools/test_all.sh, all green on this PC except the skipped X11 mouse suite (last full run
+   2026-10-11, 17473 checks, about 45 minutes with the two soak suites; cart timed out while the PC slept and passes on rerun). The export templates are installed; `tools\export.ps1`
    cuts `export\GrowWithFriends-win64.zip`. The real `user://career.cfg` is the user's: tests and capture tools pass
    `--career-file=<temp>` and never touch it. Next candidates: FRIENDSLOP 11.4, PLAN.md "M11" and "Things the user
    may ask for next".
