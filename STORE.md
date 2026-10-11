@@ -31,9 +31,9 @@ Nobody here is happy. The work is the same every shift and the crew talks the wh
   IP or from the list of floors nearby.
 - Proximity voice chat, two walkie-talkies that carry your voice anywhere on the floor, text chat, pings, and four
   gestures (pointing, a tired wave, a shrug, sitting down).
-- Seven strains, drying racks for a better price, favors from the Boss on your tab, an optional job every shift.
+- Four strains, drying racks for a better price, favors from the Boss on your tab, an optional job every shift.
 - A run is four to six shifts of five minutes. Every run has a four-character code: give it to friends and they
-  get the same shifts. A new code every week.
+  get the same shifts. A new code every day.
 - Your record stays on your PC and issues hats. Nothing is bought.
 
 ## Tags
