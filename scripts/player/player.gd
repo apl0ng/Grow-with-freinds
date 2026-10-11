@@ -1817,6 +1817,17 @@ func _emote_fp_part(parent: Node3D, part_name: String, mesh: Mesh, mat: Material
 ## (a child of the label: it rides the label over a tall hat, a crouch or a slump), shown while Voice.is_speaking(peer)
 ## (Voice.speaking_changed; read once at _ready, so a late joiner's bodies start right). The local worker has none.
 ## Signal driven: nothing per frame.
+##
+## Down (the lead's capture pass: a stunned worker stood upright under "Help Dale up"): while is_stunned() on this peer
+## (the owner's own stun, everyone else's mirror of it) the body slumps as if knocked to one knee: $Visual sinks
+## SLUMP_SINK, tips forward SLUMP_TILT and to one side SLUMP_SIDE (the side from the peer id, the same on every peer),
+## easing in over SLUMP_IN_SEC and back up over SLUMP_OUT_SEC when the stun ends or a friend helps them up (that ease is
+## the "pulled up"). Only $Visual moves: the capsule, the name label and the talk mark stay where they are (readable
+## above the body). $Visual's x tilt is this region's alone; its height and roll are the remote walk bounce's
+## (_animate_body writes them every frame first), so on a remote body the slump is added on top, on the local body
+## (which only casts a shadow) it is written outright. The owner's own camera drops SLUMP_CAMERA_DROP with it (%Camera's
+## position, under the head: the kick tween owns its rotation). No sync of its own, nothing allocated per frame: a worker
+## who is not down and not easing costs one comparison.
 
 ## Every peer: this worker was helped up by `by_peer`.
 signal helped_up(by_peer: int)
@@ -1834,6 +1845,13 @@ const HELP_RESEND_SEC: float = 0.3
 const HELP_PENDING_MS: int = 5000
 ## The talk mark's centre over the name label's centre (m): clear of the label's top.
 const TALK_MARK_ABOVE_LABEL: float = 0.34
+## Down: how far $Visual sinks (m), tips forward and to the side (rad), the eases (s), the owner's camera drop (m).
+const SLUMP_SINK: float = 0.45
+const SLUMP_TILT: float = 0.48
+const SLUMP_SIDE: float = 0.2
+const SLUMP_IN_SEC: float = 0.12
+const SLUMP_OUT_SEC: float = 0.2
+const SLUMP_CAMERA_DROP: float = 0.25
 
 var _help_ready_msec: int = 0              # SERVER: when this worker may help someone up again
 var _help_pending_msec: int = 0            # SERVER: when it ordered this body's owner to stand up (0 = nothing open)
@@ -1842,6 +1860,14 @@ var _help_local_ready_msec: int = 0        # owner: the cooldown as this peer sa
 var _help_reach_left: float = 0.0          # every peer: the reach on this body, seconds left
 var _help_reach_left_arm: bool = false
 var _talk_mark: TalkMark = null
+var _slump: float = 0.0                    # every peer: 0 standing .. 1 down (eased)
+var _slump_drawn: bool = false             # offsets were written last frame (the local body puts them back once)
+var _camera_rest := Vector3.ZERO           # owner: %Camera's own position under the head
+
+
+## How far this body is slumped on this peer (0 standing .. 1 down; eased).
+func get_slump() -> float:
+	return _slump
 
 
 ## The mark over this body (null for the local worker, who has none).
@@ -1986,6 +2012,7 @@ func _help_camera_nudge(pitch_deg: float) -> void:
 ## From _ready: the talk mark over a remote worker.
 func _social_ready() -> void:
 	TalkMark.mark_texture() # drawn once (~12 ms) while the world loads, never the first time a friend talks
+	_camera_rest = camera.position
 	if is_local():
 		return
 	_talk_mark = TalkMark.new()
@@ -2001,8 +2028,10 @@ func _social_on_speaking_changed(speaker: int, speaking: bool) -> void:
 		_talk_mark.set_talking(speaking)
 
 
-## From _process, every peer: the reach on a remote body (after the walk, the hold and the gestures set the arms).
+## From _process, every peer: down or getting up, then the reach on a remote body (after the walk, the hold and the
+## gestures set the body and the arms).
 func _social_process(delta: float) -> void:
+	_slump_process(delta)
 	if _help_reach_left <= 0.0:
 		return
 	_help_reach_left = maxf(_help_reach_left - delta, 0.0)
@@ -2013,6 +2042,31 @@ func _social_process(delta: float) -> void:
 		arm_l.rotation = arm_l.rotation.lerp(Vector3(HELP_REACH_ROTATION.x, -HELP_REACH_ROTATION.y, -HELP_REACH_ROTATION.z), w)
 	else:
 		arm_r.rotation = arm_r.rotation.lerp(HELP_REACH_ROTATION, w)
+
+
+## Down (see the header): eases _slump towards is_stunned() and draws it on $Visual (and the owner's camera).
+func _slump_process(delta: float) -> void:
+	var down := is_stunned()
+	if not down and _slump <= 0.0 and not _slump_drawn:
+		return
+	if down:
+		_slump = minf(_slump + delta / SLUMP_IN_SEC, 1.0)
+	else:
+		_slump = maxf(_slump - delta / SLUMP_OUT_SEC, 0.0)
+	if visual == null:
+		return
+	var w := smoothstep(0.0, 1.0, _slump)
+	var side := SLUMP_SIDE if peer_id % 2 == 1 else -SLUMP_SIDE
+	visual.rotation.x = -SLUMP_TILT * w # nose down: -Z is the front
+	if is_local():
+		visual.position.y = -SLUMP_SINK * w
+		visual.rotation.z = side * w
+		if camera != null:
+			camera.position = _camera_rest + Vector3.DOWN * (SLUMP_CAMERA_DROP * w)
+	else:
+		visual.position.y -= SLUMP_SINK * w # on top of this frame's walk bounce
+		visual.rotation.z += side * w
+	_slump_drawn = _slump > 0.0
 
 # --- end M23 social ----------------------------------------------------------------------------------------------------
 
