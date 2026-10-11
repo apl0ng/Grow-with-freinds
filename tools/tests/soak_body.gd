@@ -30,8 +30,12 @@ extends "res://tools/tests/qa_m10_4p_base.gd"
 ## (SOAK_MINUTES > 0) plays runs back to back until the time box is used up, and in the second run lets shift 2 go
 ## unpaid on purpose (START OVER). The end: Charlie leaves, then the host leaves with Alpha and Bravo still on the floor
 ## (both see "Host disconnected" and a clean menu), every process exits 0.
+## The leak watch: every alley checkpoint each process reports its node, object and orphan node counts, static memory
+## and resource count; the host prints them, a node census of its own tree (first against last) and fails a runaway
+## leak (MAX_MB_PER_SHIFT after the first shift, MAX_ORPHANS).
 ## Fails on: a desync at a checkpoint (after CP_ATTEMPTS tries on a moving state), a stuck worker, a command that is
-## never answered, a lost session, an unannounced engine error (qa_base), a crash or non-zero exit (soak.sh).
+## never answered, a lost session, a runaway leak, an unannounced engine error (qa_base), a crash or non-zero exit
+## (soak.sh).
 
 const Aim := preload("res://tools/tests/alley_aim.gd")
 
@@ -55,6 +59,9 @@ const MIN_FLOOR_SEC := 12.0
 ## The host pays the rest of the payment from outside this close to the end of a shift.
 const TOPUP_AT_SEC := 1.5
 const LEAVE_DELAY_SEC := 2.5
+## The leak watch: static memory growth a shift (after the first) and orphan nodes that fail the soak.
+const MAX_MB_PER_SHIFT := 10.0
+const MAX_ORPHANS := 500
 
 var _minutes: float = 0.0          # 0 = the short mode
 var _seed_base: int = 7
@@ -81,7 +88,9 @@ var _run_lengths: Array[float] = []
 var _host_job_running: bool = false
 var _host_job_result: Dictionary = {}
 var _events_seen: Dictionary = {}  # kind -> count (host)
-var _perf: Dictionary = {}          # worker -> [[nodes, objects, orphan nodes, static MB] at every alley checkpoint]
+var _perf: Dictionary = {}          # worker -> [[nodes, objects, orphan nodes, static MB, resources] at every alley checkpoint]
+var _census0: Dictionary = {}       # host: node class -> count at the first alley checkpoint
+var _census_last: Dictionary = {}   # host: the same at the latest one
 
 # --- every peer ---
 var _bot_on: bool = false
@@ -412,6 +421,15 @@ func _checkpoint(tag: String, ui: bool = false, end_of_shift: bool = false) -> v
 	_judge_health(tag, NAMES["host"], hh, end_of_shift)
 	if end_of_shift:
 		print("      [%s] Hosty: %d of %d requests went through this shift; session %s" % [tag, int(hh.get("shift_done", 0)), int(hh.get("shift_tries", 0)), hh.get("bot", {})])
+	if tag.contains("alley"):
+		var row: PackedStringArray = []
+		for w in _perf:
+			row.append("%s %s" % [w, (_perf[w] as Array).back()])
+		print("SOAK: leak watch [%s] %.1f min, %d items: %s" % [tag, float(Time.get_ticks_msec() - _t0_msec) / 60000.0,
+				Game.world.items.get_items().size() if Game.world != null else -1, "; ".join(row)])
+		_census_last = _census()
+		if _census0.is_empty():
+			_census0 = _census_last
 
 
 ## The stuck-worker rules, on one worker's own report.
@@ -554,13 +572,45 @@ func _summary() -> void:
 			_topups.size(), _topups])
 	print("SOAK_SUMMARY: events %s" % ", ".join(kinds))
 	print("SOAK_SUMMARY: host bot %s" % _bot_report())
+	var growth: Array = []
+	for k in _census_last:
+		var dn := int(_census_last[k]) - int(_census0.get(k, 0))
+		if dn != 0:
+			growth.append([dn, k])
+	growth.sort_custom(func(x: Array, y: Array) -> bool: return int(x[0]) > int(y[0]))
+	print("SOAK_SUMMARY: host node classes, last alley checkpoint against the first: %s" % [growth.slice(0, 14)])
 	for w in _perf:
 		var rows: Array = _perf[w]
-		print("SOAK_SUMMARY: %s nodes / objects / orphan nodes / static MB in the alley: first %s, last %s (%d checkpoints)" % [w, rows.front(), rows.back(), rows.size()])
+		print("SOAK_SUMMARY: %s nodes / objects / orphan nodes / static MB / resources in the alley: first %s, last %s (%d checkpoints)" % [w, rows.front(), rows.back(), rows.size()])
+		# Only a runaway leak fails: the first shift fills the sound and glyph caches, so growth counts from the second
+		# alley checkpoint on, against a generous MAX_MB_PER_SHIFT (the short mode grows about 3 MB a shift).
+		if rows.size() >= 3:
+			var per_shift := float(int(rows.back()[3]) - int(rows[1][3])) / float(rows.size() - 2)
+			check(per_shift <= MAX_MB_PER_SHIFT and int(rows.back()[2]) <= MAX_ORPHANS,
+					"leak watch: %s grows %.1f MB a shift after the first (at most %.0f), %d orphan nodes at the end (at most %d)" % [
+					w, per_shift, MAX_MB_PER_SHIFT, int(rows.back()[2]), MAX_ORPHANS])
 	check(_runs_cleared >= 1, "at least one run played through to PAID IN FULL (%d)" % _runs_cleared)
 	check(_rejoins >= 1, "a worker left and came back in the middle of a shift (%d)" % _rejoins)
 	check(_radio_ok >= 1, "a radio carried at least once (%d of %d)" % [_radio_ok, _radio_pairs])
 	print("SOAK_DONE")
+
+
+## Host: how many nodes of each class are in the tree (the leak watch's census).
+func _census() -> Dictionary:
+	var out := {}
+	var stack: Array[Node] = [get_tree().root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		var c := n.get_class()
+		var sc := n.get_script() as Script
+		if sc != null and sc.resource_path != "":
+			c = sc.resource_path.get_file()
+		if (n is Label or n is Label3D or n is PanelContainer or n is AudioStreamPlayer3D) and n.get_parent() != null:
+			c += "<" + String(n.get_parent().name)
+		out[c] = int(out.get(c, 0)) + 1
+		for ch in n.get_children():
+			stack.append(ch)
+	return out
 
 
 func _peer_named(key: String) -> int:
@@ -726,9 +776,10 @@ static func _diff_states(a: String, b: String) -> String:
 ## This worker's own view of itself (the host judges it: _judge_health).
 func _health() -> Dictionary:
 	var me: Player = Game.local_player
-	# The soak's leak watch: node, object and orphan node counts and static memory of this process.
+	# The soak's leak watch: node, object and orphan node counts, static memory (MB) and resources of this process.
 	var perf := [int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), int(Performance.get_monitor(Performance.OBJECT_COUNT)),
-			int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)), int(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0)]
+			int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)), int(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0),
+			int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT))]
 	var d := {"spawned": me != null and is_instance_valid(me) and me.is_inside_tree(), "registered": Net.players.size(),
 			"perf": perf,
 			"nodes": Game.world.get_players().size() if Game.world != null else 0, "step": _bot_step_name, "bot": _bot_report(),
@@ -1110,9 +1161,18 @@ func _empty_hands() -> void:
 			else:
 				_fail()
 			return
-	# 6. an empty tray of mine (or a spare one) and the cash for a seed
+	# 6. an empty tray of mine (or a spare one): a packet somebody left on the floor, else the cash for a seed
 	var empty := _empty_plot()
 	if empty != null:
+		var packet := _loose_item(Const.ITEM_SEED_PACKET)
+		if packet != null:
+			_bot_step_name = "picking up a seed packet"
+			var sid := packet.get_instance_id()
+			if await _go_to_item(packet, 0.7) and await _use(_obj(sid), func() -> bool: return _held_iid() == sid):
+				_note("pickups")
+			else:
+				_fail()
+			return
 		var strain := _pick_strain()
 		var shop: ShopCounter = station("ShopCounter") as ShopCounter
 		if strain != &"" and shop != null:
@@ -1144,7 +1204,7 @@ func _empty_hands() -> void:
 
 
 func _with_seed(packet_iid: int) -> void:
-	var p := _empty_plot()
+	var p := _empty_plot(true)
 	if p == null:
 		_bot_step_name = "dropping a seed packet (no tray free)"
 		await _drop_held()
@@ -1324,6 +1384,21 @@ func _loose_product() -> Product:
 	return best
 
 
+## The nearest item of `type` lying free on the floor of the play areas.
+func _loose_item(type: StringName) -> Item:
+	var me: Player = Game.local_player
+	var best: Item = null
+	var best_d := INF
+	for it in items_of(type):
+		if it.is_held() or it.is_flying() or it.is_queued_for_deletion() or not Game.world.room.contains_point(it.global_position, 0.3):
+			continue
+		var d := it.global_position.distance_to(me.global_position)
+		if d < best_d:
+			best_d = d
+			best = it
+	return best
+
+
 func _free_can_any() -> WateringCan:
 	var me: Player = Game.local_player
 	var best: WateringCan = null
@@ -1339,14 +1414,21 @@ func _free_can_any() -> WateringCan:
 	return best
 
 
-func _empty_plot() -> GrowPlot:
+## An empty tray to buy a seed for: one of mine, else now and then a spare one. `anywhere` (a seed already in hand):
+## mine, then the spares, then any empty tray on the floor, as a worker with a packet would.
+func _empty_plot(anywhere: bool = false) -> GrowPlot:
 	for p in _my_plots():
 		if p.is_empty() and not p.turning:
 			return p
 	for i in SPARE_PLOTS:
 		var p := plot(i)
-		if p != null and p.is_empty() and not p.turning and _bot_rng.randf() < 0.3:
+		if p != null and p.is_empty() and not p.turning and (anywhere or _bot_rng.randf() < 0.3):
 			return p
+	if anywhere:
+		for i in range(1, Room.GROW_PLOT_COUNT + 1):
+			var p := plot(i)
+			if p != null and p.is_empty() and not p.turning:
+				return p
 	return null
 
 
