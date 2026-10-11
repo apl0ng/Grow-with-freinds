@@ -7,7 +7,7 @@ extends "res://tools/tests/smoke_base.gd"
 ##   4_power_cut         the power cut: the room dark, a worker at the fuse box
 ##   5_sprinklers        the sprinklers over the trays, the crew still in the pen
 ##   6_driveby_warning   a drive-by's warning (tyres outside, the banner), two workers down on the floor
-##   7_black_damp        Black Damp's cloud over a ripe tray, a worker in it (the grey haze round his head)
+##   7_help_up           a worker down by a ripe tray, a bruised bundle at her feet, a friend coming to help her up
 ##   8_paid_in_full      the PAID IN FULL card, four workers on the report
 ##   godot --rendering-method forward_plus --resolution 1920x1080 --path . \
 ##       -s res://tools/tests/run_test.gd -- --body=res://tools/tests/store_shots_body.gd --out=<abs dir> \
@@ -229,25 +229,26 @@ func _run() -> void:
 	_crew[1].crouching = false
 	await wait_sec(3.2)
 
-	step("7: Black Damp's cloud")
+	step("7: a friend down, a bruised bundle, help on the way")
 	_hold_clock()
-	var damp := room.get_station("GrowPlot3") as GrowPlot
-	var spores := Spores.get_instance()
-	if check(damp != null and spores != null, "GrowPlot3 and the spores"):
-		damp.server_reset()
-		check(damp.server_plant(&"damp"), "Black Damp planted")
-		damp.server_water(1.0)
-		damp.stage = GrowPlot.Stage.READY
-		var d := damp.global_position
-		_place(_crew[0], d + Vector3(-0.9, 0.0, 1.0), d + Vector3.UP * 0.6)   # inside the cloud's 2.6 m
-		_look(d + Vector3(-2.6, 0.0, 2.4), d + Vector3(0.0, 0.9, 0.0))       # outside it: the screen stays clear
-		await wait_sec(1.0)
-		check(spores.server_puff(damp, Spores.CAUSE_HIT), "the tray puffs")
-		await wait_sec(0.8)
-		check(spores.is_fogged(int(CREW[0][0])) and not spores.is_fogged(1), "Dale breathes it, the camera does not")
-		await _shot("7_black_damp")
-		spores.server_clear()
-		await wait_sec(1.0)
+	var held: Item = world.items.get_held_by(int(CREW[1][0]))   # Marge's bundle from shot 2: off the floor
+	if held != null:
+		world.items.server_despawn_item(held)
+	var down_at := Vector3(-3.7, 0.0, 1.2)   # the open floor between the tank and the window (social_shots' spot)
+	_place(_crew[1], down_at, down_at + Vector3(1.0, 0.0, 0.0))
+	_place(_crew[0], down_at + Vector3(1.5, 0.0, -0.1), down_at)   # Dale comes over to help her up
+	var dropped: Item = world.items.server_spawn_item(Const.ITEM_PRODUCT,
+			{"strain_id": &"purple", "amount": 2, "bruises": 1}, down_at + Vector3(0.7, 0.3, 0.7), 0)
+	check(dropped != null and (dropped as Product).is_bruised(), "a bruised bundle on the floor")
+	Player.server_stagger(_crew[1], Vector3(-1.0, 0.0, 0.0), false, 0, 6.0)   # knocked away from Dale
+	_look(down_at + Vector3(0.5, 0.0, 4.6), down_at + Vector3(0.5, 0.95, 0.3))
+	await wait_sec(1.0)
+	check(_crew[1].is_stunned() and _crew[1].get_slump() > 0.9, "Marge is down")
+	await _shot("7_help_up")
+	_crew[0].server_help_up(_crew[1])
+	if dropped != null and is_instance_valid(dropped):
+		world.items.server_despawn_item(dropped)
+	await wait_sec(1.0)
 
 	step("8: PAID IN FULL")
 	_hold_clock()
