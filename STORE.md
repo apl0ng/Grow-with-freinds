@@ -22,15 +22,15 @@ Things go wrong about every two minutes, and each one warns you first. The Boss 
 anyone holding product or standing still. The power goes and somebody has to find the breaker. The tank springs a
 leak. A car slows down outside and everyone gets on the floor. A rat gets into a tray. The phone rings and nobody
 wants to answer it. The sprinklers come on and the floor is wet for a while. Sometimes a ripe plant gets up and
-leaves the tray, and the only thing that stops it is in the red cabinet by the fuse box. One strain puffs spores
-when you disturb it. You will cough.
+leaves the tray, and the only thing that stops it is in the red cabinet by the fuse box. Product that hits the floor
+bruises and pays less. When somebody gets knocked down, somebody else has to pick them up.
 
 Nobody here is happy. The work is the same every shift and the crew talks the whole time.
 
 - One to four players on the same network, or online when the host forwards a port. One hosts, the others join by
   IP or from the list of floors nearby.
-- Proximity voice chat, two walkie-talkies that carry your voice anywhere on the floor, text chat, pings, and four
-  gestures (pointing, a tired wave, a shrug, sitting down).
+- Proximity voice chat (a mark over whoever is talking), two walkie-talkies that carry your voice anywhere on the
+  floor, text chat, pings, and four gestures (pointing, a tired wave, a shrug, sitting down).
 - Four strains, drying racks for a better price, favors from the Boss on your tab, an optional job every shift.
 - A run is four to six shifts of five minutes. Every run has a four-character code: give it to friends and they
   get the same shifts. A new code every day.

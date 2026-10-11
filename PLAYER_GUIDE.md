@@ -28,7 +28,9 @@ without the rest). The board on the alley wall shows the last shift, the next on
 3. **Water:** pick up a can, E at the tank to fill it, E on the tray to pour. Dry soil stops growth.
 4. **Wait:** it grows in stages. Keep it wet.
 5. **Harvest:** E with empty hands. A bundle hung on a drying rack in the grow hall for 45 s sells for 40% more.
-6. **Deposit:** E at the chute, or throw it in. Each deposit fills the payment bar and your cash on hand.
+6. **Deposit:** E at the chute, or throw it in. Each deposit fills the payment bar and your cash on hand. A bundle
+   that hits the floor, a wall or a worker hard is bruised and pays a fifth less (two bruises at most); one thrown
+   into the chute is not.
 
 The clock is five minutes. Four strains: Budget Bud and Purple Haze from the start, Golden Kush from shift two,
 Night Shift from shift three. Every shift is the same shift: no special conditions. On the final notice the Boss
@@ -69,6 +71,9 @@ hear it faintly; the floor does not hear you. The flamethrower is in the red cab
 empty hands breaks the glass ($40 out of cash on hand, a write-up if nothing is loose), hold left mouse to fire,
 eight seconds of fuel, a new one after 90 seconds. Burning a co-worker, or a crop with nothing loose, is a write-up.
 Night Shift walks most often, Budget Bud never.
+
+A worker who is knocked down (a bite, a slip, a shove, a hit) slumps for a moment. E on them stands them up at once.
+A small speaker mark floats over whoever is talking, and over a radio carrying a voice.
 
 ## OPTIONS
 On the main menu and on the break card (Esc): mouse speed, invert mouse Y, field of view, fullscreen, window size,
