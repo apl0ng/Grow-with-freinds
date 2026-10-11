@@ -1,8 +1,8 @@
 extends "res://tools/tests/qa_base.gd"
 ## M23 fragile suite (fragile agent): bundles bruise. A single headless host with one fake worker (Bob: a host-side body
 ## without an owning peer), the full game with replay on (the market) at run B5VP.
-##   godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/fragile_body.gd --port=9303
-##       --replay --run=B5VP --career-file=user://fragile_test_9303.cfg --round-sec=900
+##   godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/fragile_body.gd --port=7903
+##       --replay --run=B5VP --career-file=user://fragile_test_7903.cfg --round-sec=900
 ## Pins:
 ##   the rule      bruise speed = a fall from 1.5 m; ADDITIVE value: 1 - bruise_share per bruise up to bruise_max
 ##                 (0.8, 0.6, then no lower); compute_sale_value's new argument; the bruise sound has a recipe
@@ -50,7 +50,7 @@ func _run() -> void:
 	b.contract_reward = 0 # the money below is counted to the dollar
 
 	step("hosting")
-	Game.start_host("Tester", port_arg(9303))
+	Game.start_host("Tester", port_arg(7903))
 	await wait_until(func() -> bool: return Game.world != null and Game.local_player != null, 5.0, "world + local player exist")
 	if Game.world == null:
 		finish(); return
