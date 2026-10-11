@@ -383,3 +383,14 @@ RELEASE.md M22 (R1, R2, R3, R5, R6); CONTRACTS.md "M22". On the chill game; no n
 | 22.2 | A UDP proxy (latency, jitter, loss), a soak runner (host + three clients, bots, the van, a rejoin, the final notice): long mode and soak + soak_mp suites | soak | done (no game error found; long mode 42 min clean) |
 | 22.3 | PLAYER_GUIDE.md, the zip with the guide and the version, a clean-PC checklist, STORE.md, a store capture tool, CREDITS.md | ship | done (the lead fixed both release blockers: the licence file, the exe identity) |
 | 22.4 | Integration: merges, the fps and store captures, the full suite three times in a row, export, release notes | lead | done (104 suites, 17473 checks; version 0.21.0; export re-cut) |
+
+## M23 The friendslop basics, simpler (in progress, 2026-10-11)
+The user: "do more research on hit games and implement features from popular friendslop games and make the game more
+simple". FRIENDSLOP.md section 13 (the research); CONTRACTS.md "M23".
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 23.0 | Prep: BalanceConfig "M23" (disabled strains, bruises, help-up cooldown), STAT_HELPED, Sfx names | lead | done |
+| 23.1 | The chill game: four strains, no conditions, no half-time raise, the supply window on one screen; chill suite | simplify | in progress |
+| 23.2 | Help a friend up, who-is-talking marks, TODAY's run; social + social_mp suites | social | in progress |
+| 23.3 | Bundles bruise when they hit hard (not into the chute); fragile + fragile_mp suites | fragile | in progress |
+| 23.4 | Integration: merges, captures, docs, full run, export | lead | pending |

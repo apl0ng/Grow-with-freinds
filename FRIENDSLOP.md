@@ -270,3 +270,33 @@ building, somebody coughing in a cloud they walked into, and somebody pointing a
 ### 12.5 Next
 - A second way the rooms join; the Boss's own bad day (a shift where he walks the floor the whole time); a vending
   machine in the alley; breaking the scale and the phone on purpose.
+
+## 13. M23: what the hits do, made simple (2026-10-11)
+The user: "do more research on hit games and implement features from popular friendslop games and make the game more
+simple". Research (October 2026) on the 2025-26 hits: R.E.P.O., PEAK, Lethal Company, Schedule I, RV There Yet?,
+Meccha Chameleon. What they share:
+- **One sentence explains it**; onboarding is light; the HUD is light and the information sits in the world.
+- **Physics makes the comedy.** R.E.P.O.'s core is carrying fragile valuables: a friend fumbles a vase the moment a
+  monster turns the corner, so the funny moment and the cost are the same moment. Failure is funnier than winning.
+- **Friends help each other with their hands.** PEAK's players pull each other up ledges; RV There Yet?'s crew patch
+  and winch together. Helping is a verb, not a menu.
+- **Voice is a system.** Proximity voice, walkie-talkies at range (Lethal Company), and indicators that show who is
+  talking when bodies overlap.
+- **A fresh challenge every day.** PEAK's mountain changes daily, so groups come back to try today's.
+- **Short and cheap.** A full evening in one sitting, $5-20, little long-term progression.
+
+What we take, kept small (M23):
+- **Bundles bruise** (R.E.P.O.): a bundle that hits the floor, a wall or a worker hard loses some of its value, and it
+  shows. Throwing a cured bundle across the room to a friend is now a decision, and a fumble is a story.
+- **Help a friend up** (PEAK): a worker knocked down (bitten, shot at, slipped, shoved, hit) is helped up at once by a
+  friend pressing E on them.
+- **Who is talking** (Lethal Company, the Argentics notes): a small mark over the head of whoever is talking, and over
+  a radio that is carrying a voice.
+- **Today's run** (PEAK): the menu's code button becomes TODAY: the same run for everyone that day.
+- **Simpler** (the user, twice now): the chill game sells four strains (Budget Bud, Purple Haze, Golden Kush, Night
+  Shift: the angry plant stays), has no shift conditions and no half-time raise on the final notice.
+
+Sources: insider-gaming.com/best-friendslop-games-you-need-to-play, appmagic.rocks/blog/friendslop-steam-games-2025,
+argentics.io/what-makes-friendslop-games-work-as-art-and-production, en.wikipedia.org/wiki/Friendslop,
+gematsu.com/games/repo, peak.wiki.gg, co-optimus.com (PEAK), reason.com/2025/06/13/schedule-i,
+shacknews.com (Schedule I co-op), uhsarrow.org (Lethal Company), rvthereyet.wiki.gg, 80.lv (Meccha Chameleon).

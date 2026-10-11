@@ -239,6 +239,15 @@ extends Resource
 ## The final notice rolls at least this many conditions (when its shift rolls any; the chill preset: 1).
 @export var final_conditions: int = 2
 
+@export_group("M23")
+## Strains never sold, rolled or shown (the chill preset turns some off: fewer to learn). Empty = every strain.
+@export var disabled_strains: Array[StringName] = []
+## A product bundle that hits something hard loses this share of its value per bruise, at most bruise_max bruises.
+@export var bruise_share: float = 0.2
+@export var bruise_max: int = 2
+## Seconds before the same worker can help someone up again.
+@export var help_up_cooldown_sec: float = 2.0
+
 @export_group("M20 debt")
 ## Debt levels (CONTRACTS "M20"): level 1 is the game as tuned in M18; each level adds one modifier on top of the
 ## ones before it. The debt agent reads these; economy3 tunes them (values in data/balance.tres).

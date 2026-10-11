@@ -1672,3 +1672,52 @@ loss), about 5.5 min each; long mode `SOAK_MINUTES=45 tools/tests/soak.sh` ran 4
 worker or crash (R2 on four local processes). The soak found no game bug. Known: static memory rises ~20-25 MB in
 the first shift then ~2.4 MB a shift (caches, node and object counts flat); a client that crashes and rejoins a full
 four-player floor before ENet times its old peer out (5-30 s) may be refused as "full" (not seen).
+
+## M23 — the friendslop basics, simpler (lead prep, 2026-10-11)
+FRIENDSLOP.md section 13 (the research and what we take). Three agents in worktrees `.claude/worktrees/<agent>23` on
+`m23/<agent>`: **simplify**, **social**, **fragile**. tools/dev/AGENT_RULES.md applies (milestone M23; base ports
+simplify 9100, social 9200, fragile 9300). Test ports: simplify +10, social +1 / social_mp +2, fragile +3 /
+fragile_mp +4. The game players get is the chill one (CONTRACTS "M20 chill"); suites that test the chill game pass
+`--chill` (headless defaults to the full game). Memory note game-direction-simpler-chill applies: small, readable,
+nothing that adds menus or long rules.
+
+### Prep already in place (lead)
+- `BalanceConfig` group "M23": `disabled_strains: Array[StringName]` (empty), `bruise_share` 0.2, `bruise_max` 2,
+  `help_up_cooldown_sec` 2.0; `Const.STAT_HELPED`; Sfx names `bruise` and `help_up` with default blips (recipes in
+  the agents' own blocks).
+
+### Simplify (simplify agent) — chill.gd (yours this wave), the on-sale rule, the supply window, the chill suite
+- The chill game sells four strains: Budget Bud, Purple Haze, Golden Kush, Night Shift (`BalanceConfig.disabled_strains`,
+  empty in the full game; chill sets creeper, brick, damp). A disabled strain is never on sale,
+  never rolled (buyer conditions, jobs that name a strain, shortages, the market), never shown on the supply window
+  and never in the briefing; the economy model ignores it. Unlocks stay (Golden Kush at shift 2, Night Shift at 3).
+- Chill: no shift conditions (`conditions_from_round` 99: no chips, no briefing lines for them) and no half-time raise
+  on the final notice (`final_interim_raise` 0; the half-time line becomes "Half the clock." with no raise).
+- The supply window shows the four strains on one screen at 1280x720 without scrolling.
+- The chill suite pins it all, with the economy model over the four strains: careful crews of every size clear their
+  run, four average workers most of the time (retune `quota_multiplier` if the model says so, and say why).
+
+### Social (social agent) — player region, a world-space talk mark, the run seed, the menu row, the board
+- **Help a friend up:** E on a worker who is down (stunned: bitten, a round, a slip, a shove, a hit) stands them up at
+  once; prompt "Help Dale up"; host-validated (range, both not in the back room, the target really down); both see a
+  short gesture; a cooldown so it cannot be spammed; stats `Const.STAT_HELPED` per worker for the report; cooldown
+  `help_up_cooldown_sec`; the `help_up` sound (your recipe). Works on fake workers (tests) and remote players.
+- **Who is talking:** a small speaker mark over the head (above the name label) of any remote worker Voice says is
+  speaking (`Voice.is_speaking`, `speaking_changed`); over a radio that is carrying a voice (the M18 radio already
+  knows: `Voice.get_radio_listeners`). Never on the local worker's own screen for themselves. Cheap: no per-frame
+  allocations, hidden when nobody talks.
+- **Today's run:** `RunSeed.daily(unix_time) -> int` (the same for everyone on one UTC day); the menu's THIS WEEK button
+  becomes TODAY (keep the field, the hint "Run 7K2M."); the alley board's run line says "Today's run." when the code
+  is today's. The variety suite pins THIS WEEK: update it on purpose.
+- Suites `social` (+1) and `social_mp` (+2: a client helps a host-side worker up and the reverse; a late joiner sees
+  the talk mark).
+
+### Fragile (fragile agent) — product.gd region, the item system's impact path, the chute, the hand truck, sfx
+- **Bundles bruise:** a product bundle that hits the floor, a wall, a station or a worker at speed (a throw, or a fall
+  from more than about 1.5 m) bruises: its value drops by `bruise_share` (0.2) per bruise, at most `bruise_max` (2) bruises. A bundle thrown INTO the chute (a
+  chute shot) does not bruise. The bruise is synced (an item property, late joiners included), shown on the bundle
+  (a darker tint, a dent) and in its label ("Purple Haze x2, bruised"), and the chute pays the bruised value (the sale
+  path, so the market, cured, the job and stats all see it). The hand truck keeps a bundle's bruises in its load.
+- A soft thud (`bruise`; your recipe) and a
+  flat toast for the thrower the first time in a shift ("Bruised. It pays less.").
+- Suites `fragile` (+3) and `fragile_mp` (+4: a client's throw bruises a bundle on every peer; the value matches).

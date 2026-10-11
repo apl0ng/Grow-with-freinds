@@ -95,6 +95,8 @@ const SOUNDS: Array[StringName] = [
 	&"phone_ring", &"phone_pickup", &"scale_hit", &"truck_load", &"paid_in_full",
 	# M18 (lead placeholders: the radio, the spores, gestures)
 	&"radio_on", &"radio_off", &"radio_static", &"spore_puff", &"cough", &"emote",
+	# M23 (lead placeholders: a bruised bundle, helping a worker up)
+	&"bruise", &"help_up",
 ]
 
 ## Sounds synthesised as seamless loops (loop_mode FORWARD over the whole buffer): ambience and walking keys.
@@ -182,6 +184,8 @@ const SETTINGS := {
 	&"spore_puff": [-6.0, 0.06, 8.0],
 	&"cough": [-6.0, 0.08, 7.0],
 	&"emote": [-14.0, 0.05, 5.0],
+	&"bruise": [-8.0, 0.08, 6.0],
+	&"help_up": [-10.0, 0.06, 5.0],
 }
 
 enum Wave { SINE, TRIANGLE, SQUARE, SAW, CHIP }
