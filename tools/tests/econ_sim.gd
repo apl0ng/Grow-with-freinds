@@ -504,7 +504,7 @@ static func event_tax(cfg: BalanceConfig, workers: int, skill: int, shift: int, 
 static func strains_on_sale(cfg: BalanceConfig, shift: int, replay: bool) -> Array[int]:
 	var out: Array[int] = []
 	for i in cfg.seeds.size():
-		if not replay or cfg.seeds[i].unlock_round <= shift:
+		if cfg.is_strain_enabled(cfg.seeds[i].id) and (not replay or cfg.seeds[i].unlock_round <= shift): # M23 simplify: a strain that is off is never planted
 			out.append(i)
 	return out
 
@@ -899,7 +899,7 @@ class Run:
 	## expected audit).
 	func _final_look() -> void:
 		final_looked = true
-		if sales < quota * clampf(cfg.final_interim_share, 0.0, 1.0):
+		if sales < quota * clampf(cfg.final_interim_share, 0.0, 1.0) and cfg.final_interim_raise > 0.0: # M23 simplify: a look that raises nothing is not a raise
 			quota *= 1.0 + maxf(cfg.final_interim_raise, 0.0)
 			final_raised = true
 	# --- end M18 economy2 ---

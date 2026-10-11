@@ -657,7 +657,7 @@ func get_market() -> Dictionary:
 ## False while `strain_id` is not sold yet (SeedDef.unlock_round against the round number; in WAITING that is the
 ## coming shift). Always true with replay off and for an unknown strain.
 func is_strain_unlocked(strain_id: StringName) -> bool:
-	return round_number >= get_unlock_round(strain_id)
+	return Config.balance.is_strain_enabled(strain_id) and round_number >= get_unlock_round(strain_id) # M23 simplify: a strain that is off is never on sale
 
 
 ## The first shift `strain_id` is sold in (1 with replay off).
@@ -704,7 +704,7 @@ func get_new_strains(round_n: int) -> Array[StringName]:
 	if not _replay_on or round_n <= 1:
 		return out
 	for def: SeedDef in Config.balance.seeds:
-		if def != null and def.unlock_round == round_n:
+		if def != null and def.unlock_round == round_n and Config.balance.is_strain_enabled(def.id): # M23 simplify: never "new at the window" when it is off
 			out.append(def.id)
 	return out
 
@@ -823,7 +823,7 @@ func _replay_roll(r: Dictionary, round_n: int, previous: Array) -> void:
 	var on_sale: Array[StringName] = []
 	var mutating := false
 	for def: SeedDef in b.seeds:
-		if def == null:
+		if def == null or not b.is_strain_enabled(def.id): # M23 simplify: a strain that is off is never rolled (the buyer, the market)
 			continue
 		every.append(def.id)
 		if def.unlock_round <= round_n:
@@ -1448,7 +1448,7 @@ func _career_context() -> Dictionary:
 	var on_sale: Array[StringName] = []
 	var can_mutate := false
 	for s: SeedDef in Config.balance.seeds:
-		if s == null or (Config.replay_enabled and s.unlock_round > round_number):
+		if s == null or (Config.replay_enabled and s.unlock_round > round_number) or not Config.balance.is_strain_enabled(s.id): # M23 simplify: no job names a strain that is off
 			continue
 		on_sale.append(s.id)
 		if s.mutation_chance > 0.0:

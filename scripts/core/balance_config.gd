@@ -280,6 +280,22 @@ func get_upgrade(id: StringName) -> UpgradeDef:
 			return u
 	return null
 
+# --- M23 simplify: the strains this game sells ------------------------------------------------------------------------
+## False for a strain this game has turned off (disabled_strains): it is never on sale, never rolled (a buyer, a job,
+## a shortage, the market), never shown at the window or on the board, and the economy model leaves it out. Every
+## consumer asks here. get_seed() still finds it (a bundle or a packet that exists keeps its name and its price).
+func is_strain_enabled(id: StringName) -> bool:
+	return not disabled_strains.has(id)
+
+## The strains this game sells, in balance order: `seeds` without the disabled ones (and without empty entries).
+func get_enabled_seeds() -> Array[SeedDef]:
+	var out: Array[SeedDef] = []
+	for s in seeds:
+		if s != null and not disabled_strains.has(s.id):
+			out.append(s)
+	return out
+# --- end M23 simplify -------------------------------------------------------------------------------------------------
+
 func quota_for_round(round_number: int, player_count: int = 1) -> int:
 	var n: int = max(round_number, 1)
 	var base := base_quota * pow(quota_scale, n - 1) + quota_add * (n - 1)

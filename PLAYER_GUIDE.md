@@ -30,11 +30,11 @@ without the rest). The board on the alley wall shows the last shift, the next on
 5. **Harvest:** E with empty hands. A bundle hung on a drying rack in the grow hall for 45 s sells for 40% more.
 6. **Deposit:** E at the chute, or throw it in. Each deposit fills the payment bar and your cash on hand.
 
-The clock is five minutes. More strains open by shift: Golden Kush at two, Night Shift and Black Damp at three,
-Floor Brick at four. From shift three the board posts one condition a shift (a short clock, overtime, a slick floor),
-two on the final notice, where the Boss also looks at half time: under 40% deposited and the payment goes up a
-tenth. Each shift has one optional job: meet it for $60. Favors (faster growth, bigger cans, a better cut) are on the
-window's second tab. Between shifts the host presses NEXT SHIFT, or START OVER after a miss.
+The clock is five minutes. Four strains: Budget Bud and Purple Haze from the start, Golden Kush from shift two,
+Night Shift from shift three. Every shift is the same shift: no special conditions. On the final notice the Boss
+looks in at half time and says so; the payment does not go up. Each shift has one optional job: meet it for $60.
+Favors (faster growth, bigger cans, a better cut) are on the window's second tab. Between shifts the host presses
+NEXT SHIFT, or START OVER after a miss.
 
 ## Keys
 | Key | Does | Key | Does |
@@ -63,7 +63,6 @@ same kind twice running. Each one warns you first.
 | The phone | Ringing, PHONE | Hold E on it: a tip about the next trouble, cheap seeds for a minute, or a wrong number. | $30 out of cash on hand. |
 | Sprinklers | SPRINKLERS, every tray watered | Walk. Do not sprint. | Sprint on the wet floor and you go down and drop it. |
 | A plant gets up | A ready tray twitches: "GrowPlot 3 is moving." | Harvest it with empty hands inside six seconds. | It walks out, eats trays and bites. Only fire stops it (below). |
-| Black Damp spores | Grey motes over a ripening tray | Crouch when you harvest it. Do not throw things at it. | Grey screen, muffled ears and a cough for 6 s (3 s crouched). |
 
 Three write-ups in a shift and the Boss keeps you in the back room for 15 seconds. You watch the floor (A / D) and
 hear it faintly; the floor does not hear you. The flamethrower is in the red cabinet next to the fuse box: E with
