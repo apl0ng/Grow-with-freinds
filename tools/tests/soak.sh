@@ -10,12 +10,12 @@
 #
 # Modes: short (SOAK_MINUTES unset or 0): one run of six shifts, --round-sec=35 --growth-mult=8, the events
 #   compressed by the host body (first 8 s in, then every 10-16 s). Long (SOAK_MINUTES=N): runs back to back until
-#   about N minutes are used, --round-sec=150 --growth-mult=3, the chill preset's own event timing; run 2 misses
+#   about N minutes are used, --round-sec=170 --growth-mult=3, the chill preset's own event timing; run 2 misses
 #   shift 2 on purpose (START OVER).
 # Knobs: SOAK_PORT (host port; default 7907), SOAK_PROXY (0 / 1), SOAK_SEED (bots and proxy dice, default 7),
 #   SOAK_ROUND_SEC, SOAK_GROWTH, SOAK_DELAY_MS (80), SOAK_JITTER_MS (20), SOAK_LOSS (0.02), SOAK_LOGS (log dir).
-#   SOAK_SELFTEST=desync: Charlie's cash is made to differ from the host's at the first mid-shift checkpoint (the
-#   checker must report it: that run FAILS on purpose; never in test_all).
+#   SOAK_SELFTEST=desync: a watering can's charges are changed on Charlie's peer only at the first mid-shift checkpoint
+#   (the checker must report it: that run FAILS on purpose; never in test_all).
 # test_all.sh: soak = SOAK_PORT=$((BASE + 7)); soak_mp = SOAK_PORT=$((BASE + 8)) SOAK_PROXY=1 (the proxy takes +9).
 # Fails if any process exits non-zero, fails a check, has no RESULT line, or logs an engine/script error its body did
 # not announce ("(expected error next: ...)" / "(up to N error(s) tolerated next: ...)"), or if the proxy fails.
@@ -32,7 +32,7 @@ if [[ "$MINUTES" == "0" ]]; then
   TMO=720
 else
   PROXY="${SOAK_PROXY:-1}"
-  ROUND="${SOAK_ROUND_SEC:-150}"
+  ROUND="${SOAK_ROUND_SEC:-170}"
   GROWTH="${SOAK_GROWTH:-3}"
   TMO=$((MINUTES * 60 + 1500))
 fi
@@ -129,6 +129,7 @@ if [[ -n "$PROXY_PID" ]]; then
   if [[ $pcode -ne 0 || $perrs -ne 0 ]]; then overall=1; fi
 fi
 grep -h "^SOAK_SUMMARY" "$LOGS/soak_host.log" 2>/dev/null | sed 's/^/  /'
+grep -hE "^SOAK: .*(old peer left|back in the menu)" "$LOGS"/soak_*.log 2>/dev/null | sed 's/^/  /'
 echo "  wall clock: $(( $(date +%s) - T0 )) s"
 echo "logs: $LOGS"
 if [[ $overall -eq 0 ]]; then echo "SOAK: PASS"; else echo "SOAK: FAIL"; fi

@@ -9,30 +9,31 @@ extends "res://tools/tests/qa_m10_4p_base.gd"
 ##   --career-file=<own temp> --settings-file=<own temp> --soak-minutes=N (0 = the short mode) --seed=N --timeout=S;
 ##   clients also --join-port=<port they connect to> (the proxy's for the proxied ones).
 ##
-## What every worker does (its bot, one bounded step at a time, walking along Room.get_route at a walking pace, never
-## teleporting on the floor): buys seeds at the window, plants its own trays, fetches a can and waters (refills at the
-## tank), harvests, deposits at the chute (by hand, or now and then a chute shot), hangs a bundle on a drying rack
-## sometimes and deposits it cured later; Charlie loads his bundles on the hand truck and wheels it to the chute; every
-## few seconds something else: a gesture (a slump now and then, then up again), a shove at a coworker, a few seconds
-## of proximity voice (frames through the real send path), a power cut answered at the fuse box. In the alley: the
-## ball at the hoop, gestures, shoves, voice. Once a shift two workers take a radio each and one talks (injected voice
-## frames) while the other listens for it at his radio.
+## What every worker does (its bot, one bounded step at a time, walking along Room.get_route at a walking pace; a walk
+## that runs out of time ends with a step to the spot, counted as walk_timeouts): buys seeds at the window, plants its
+## own trays, fetches a can and waters (refills at the tank), harvests, deposits at the chute (by hand, or now and then
+## a chute shot), hangs a bundle on a drying rack sometimes and deposits it cured later; Charlie loads his bundles on
+## the hand truck and wheels it to the chute; every few seconds something else: a gesture (a slump now and then, then
+## up again), a shove at a coworker, a few seconds of proximity voice (frames through the real send path), a power cut
+## answered at the fuse box. In the alley: the ball at the hoop, gestures, shoves, voice. Once a shift two workers take
+## a radio each and one talks (injected voice frames) while the other listens for it at his radio.
 ##
 ## What the host does: plays the run through the van to the final notice and pays it (PAID IN FULL), topping up the
 ## payment from outside when the bots fall short (the soak tests the wire, not the economy; every top-up is printed);
-## Bravo leaves and joins again in the middle of shift 2 of every run; checkpoints (the alley before every ride, the
-## middle of every shift with the bots paused and growth frozen, every shift report) compare the canonical state of
-## every peer with the host's (qa_base.canonical_state + the run, the conditions, the job, the ledger, the write-ups,
-## the back room, the event, the power, the plants that walk) and every worker's health (in the play areas, not
-## stunned or gesturing for ever, no stray UI lock, the host's copy of the body where the owner has it, some work done
-## each shift). The long mode (SOAK_MINUTES > 0) plays runs back to back until the time box is used up, and in the
-## second run lets shift 2 go unpaid on purpose (START OVER). The end: Charlie leaves, then the host leaves with Alpha
-## and Bravo still on the floor (both see "Host disconnected" and a clean menu), every process exits 0.
+## Bravo leaves and joins again in the middle of a shift once a run (the first shift from 2 on still running after its
+## mid-shift checkpoint); checkpoints (the alley before every ride, the middle of every shift with the bots paused and
+## growth frozen, every shift report) compare the canonical state of every peer with the host's
+## (qa_base.canonical_state + the run, the conditions, the job, the ledger, the write-ups, the back room, the event, the
+## power, the plants that walk, the titles and hats) and every worker's health (in the play areas, not stunned or
+## gesturing for ever, no stray UI lock, the host's copy of the body where the owner has it, a Player node per
+## registered worker, not every request of a shift refused, no bot step running for ever). The long mode
+## (SOAK_MINUTES > 0) plays runs back to back until the time box is used up, and in the second run lets shift 2 go
+## unpaid on purpose (START OVER). The end: Charlie leaves, then the host leaves with Alpha and Bravo still on the floor
+## (both see "Host disconnected" and a clean menu), every process exits 0.
 ## Fails on: a desync at a checkpoint (after CP_ATTEMPTS tries on a moving state), a stuck worker, a command that is
 ## never answered, a lost session, an unannounced engine error (qa_base), a crash or non-zero exit (soak.sh).
 
 const Aim := preload("res://tools/tests/alley_aim.gd")
-const VoiceScript := preload("res://scripts/core/voice.gd")
 
 const SEATS := {"host": 0, "a": 1, "b": 2, "c": 3}
 ## Each worker's own trays (GrowPlot index); 6 and 10 are anybody's.
@@ -80,6 +81,7 @@ var _run_lengths: Array[float] = []
 var _host_job_running: bool = false
 var _host_job_result: Dictionary = {}
 var _events_seen: Dictionary = {}  # kind -> count (host)
+var _perf: Dictionary = {}          # worker -> [[nodes, objects, orphan nodes, static MB] at every alley checkpoint]
 
 # --- every peer ---
 var _bot_on: bool = false
@@ -418,6 +420,10 @@ func _judge_health(tag: String, worker: String, h: Variant, end_of_shift: bool) 
 		check(false, "[%s] %s sent its health" % [tag, worker])
 		return
 	var d: Dictionary = h
+	if tag.contains("alley") and d.get("perf") is Array:
+		if not _perf.has(worker):
+			_perf[worker] = []
+		(_perf[worker] as Array).append(d["perf"])
 	var bad: PackedStringArray = []
 	if not bool(d.get("spawned", false)):
 		bad.append("no Player node of its own")
@@ -533,9 +539,6 @@ func _end_session() -> void:
 	for k in _ids:
 		cmd(int(_ids[k]), "expect_host_leave")
 	await wait_sec(1.0)
-	# The host closes the session while the two clients are still connected; ENet may still flush a packet to a peer it
-	# is resetting (the same note as lobby_mp's departures).
-	allow_error("Unable to send packet on channel 0", 4, true)
 	Game.return_to_menu()
 	await wait_until(func() -> bool: return GameState.phase == GameState.Phase.MENU and not Net.is_online(), 10.0, "host: back in the menu, offline")
 	check_menu_clean("host after leaving")
@@ -551,6 +554,9 @@ func _summary() -> void:
 			_topups.size(), _topups])
 	print("SOAK_SUMMARY: events %s" % ", ".join(kinds))
 	print("SOAK_SUMMARY: host bot %s" % _bot_report())
+	for w in _perf:
+		var rows: Array = _perf[w]
+		print("SOAK_SUMMARY: %s nodes / objects / orphan nodes / static MB in the alley: first %s, last %s (%d checkpoints)" % [w, rows.front(), rows.back(), rows.size()])
 	check(_runs_cleared >= 1, "at least one run played through to PAID IN FULL (%d)" % _runs_cleared)
 	check(_rejoins >= 1, "a worker left and came back in the middle of a shift (%d)" % _rejoins)
 	check(_radio_ok >= 1, "a radio carried at least once (%d of %d)" % [_radio_ok, _radio_pairs])
@@ -605,12 +611,15 @@ func _execute(seq: int, action: String, args: Dictionary) -> void:
 			ack(seq, {"ok": ok})
 		"cp_state":
 			var expect := String(args.get("expect", ""))
-			# Self-test of the checker (never in a suite): --soak-selftest=desync makes this peer's cash differ from the
-			# host's at the first mid-shift checkpoint; the host must report that peer and go on.
+			# Self-test of the checker (never in a suite): --soak-selftest=desync changes a watering can's charges on this
+			# peer only, at the first mid-shift checkpoint (a synced property the host only sends again when it changes there,
+			# unlike the cash, which rides on every GameState broadcast and heals at once); the host must report this peer.
 			if String(Config.get_arg("soak-selftest", "")) == "desync" and not _selftest_done and GameState.is_playing():
-				_selftest_done = true
-				print("  (self-test: this peer's cash is made to differ from the host's)")
-				GameState.money += 7
+				var cans := items_of(Const.ITEM_WATERING_CAN)
+				if not cans.is_empty():
+					_selftest_done = true
+					print("  (self-test: %s's charges are changed on this peer only)" % cans[0].name)
+					(cans[0] as WateringCan).charges += 3
 			var t0 := Time.get_ticks_msec()
 			var ok := await _wait_soak_state(expect, float(args.get("timeout", CP_WAIT)))
 			var info := {"ok": ok, "state": _soak_state(), "ms": Time.get_ticks_msec() - t0}
@@ -698,6 +707,16 @@ static func _diff_states(a: String, b: String) -> String:
 		var x := ta[i] if i < ta.size() else "<none>"
 		var y := tb[i] if i < tb.size() else "<none>"
 		if x != y:
+			# Inside a long token (the items, the plots) name the first entry that differs.
+			var ex := x.split(";")
+			var ey := y.split(";")
+			for j in maxi(ex.size(), ey.size()):
+				var u := ex[j] if j < ex.size() else "<none>"
+				var v := ey[j] if j < ey.size() else "<none>"
+				if u != v:
+					x = u
+					y = v
+					break
 			out.append("host '%s' / peer '%s'" % [x.left(300), y.left(300)])
 			if out.size() >= 3:
 				break
@@ -707,7 +726,11 @@ static func _diff_states(a: String, b: String) -> String:
 ## This worker's own view of itself (the host judges it: _judge_health).
 func _health() -> Dictionary:
 	var me: Player = Game.local_player
+	# The soak's leak watch: node, object and orphan node counts and static memory of this process.
+	var perf := [int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), int(Performance.get_monitor(Performance.OBJECT_COUNT)),
+			int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)), int(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0)]
 	var d := {"spawned": me != null and is_instance_valid(me) and me.is_inside_tree(), "registered": Net.players.size(),
+			"perf": perf,
 			"nodes": Game.world.get_players().size() if Game.world != null else 0, "step": _bot_step_name, "bot": _bot_report(),
 			"step_sec": float(Time.get_ticks_msec() - _bot_step_msec) / 1000.0 if _bot_running and _bot_step_name != "" else 0.0,
 			"shift_done": _shift_done, "shift_tries": _shift_tries, "floor_sec": float(Time.get_ticks_msec() - _shift_floor_msec) / 1000.0 if _shift_floor_msec > 0 else 0.0}
