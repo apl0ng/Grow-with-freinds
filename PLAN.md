@@ -390,7 +390,7 @@ simple". FRIENDSLOP.md section 13 (the research); CONTRACTS.md "M23".
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | 23.0 | Prep: BalanceConfig "M23" (disabled strains, bruises, help-up cooldown), STAT_HELPED, Sfx names | lead | done |
-| 23.1 | The chill game: four strains, no conditions, no half-time raise, the supply window on one screen; chill suite | simplify | in progress |
-| 23.2 | Help a friend up, who-is-talking marks, TODAY's run; social + social_mp suites | social | in progress |
-| 23.3 | Bundles bruise when they hit hard (not into the chute); fragile + fragile_mp suites | fragile | in progress |
-| 23.4 | Integration: merges, captures, docs, full run, export | lead | pending |
+| 23.1 | The chill game: four strains, no conditions, no half-time raise, the supply window on one screen; chill suite | simplify | done (chill 113 checks; payment stays x0.85) |
+| 23.2 | Help a friend up, who-is-talking marks, TODAY's run; social + social_mp suites | social | done (139 + 61 checks); the slump while down in progress |
+| 23.3 | Bundles bruise when they hit hard (not into the chute); fragile + fragile_mp suites | fragile | done (133 + 71 checks) |
+| 23.4 | Integration: merges, captures, docs, full run, export | lead | in progress (merged; no job for an event the mix never deals; the bruise thud louder) |
