@@ -334,12 +334,16 @@ func _set_flight_serial(value: int) -> void:
 		if holder_id == 0:
 			_apply_rest_transform()
 		if is_node_ready() and is_inside_tree() and was_flying:
-			# Landing (STYLE.md: drop / land): thud, bounce, a little dust.
-			Sfx.play(&"drop", global_position)
-			Juice.bounce(get_visual(), 0.3)
-			Juice.puff(global_position, Juice.DUST, 5)
+			_play_landing_effects() # M23 fragile: a hook (a bruised bundle lands with its own thud)
 	if is_node_ready():
 		flight_changed.emit(value != 0)
+
+## Every peer, when a flight ends (STYLE.md: drop / land): thud, bounce, a little dust. M23 fragile: Product swaps the
+## thud for `bruise` when the landing bruised it.
+func _play_landing_effects() -> void:
+	Sfx.play(&"drop", global_position)
+	Juice.bounce(get_visual(), 0.3)
+	Juice.puff(global_position, Juice.DUST, 5)
 
 func _update_collision() -> void:
 	var body := get_collider()

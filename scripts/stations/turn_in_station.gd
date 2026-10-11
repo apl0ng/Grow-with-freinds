@@ -60,6 +60,7 @@ func get_prompt(player: Player) -> String:
 	var seed_def := _get_product_seed(product)
 	var strain := seed_def.display_name if seed_def != null else str(product.get(&"strain_id"))
 	var cured_tag := ", cured" if is_cured(product) else "" # M14 loop: "Deposit Purple Haze x1, cured (+$182)"
+	cured_tag += str(product.call(&"get_bruise_tag")) if product.has_method(&"get_bruise_tag") else "" # M23 fragile: "Deposit Purple Haze x1, cured, bruised (+$157)"
 	return "Deposit %s x%d%s (+$%d)" % [strain, _get_product_amount(product), cured_tag, get_sale_value(product)]
 
 
@@ -150,10 +151,12 @@ func accepts_flight_point(point: Vector3, mouth_radius: float) -> bool:
 
 ## Pure sale formula: round(amount * seed.sale_value_per_unit * multiplier). 0 for unknown seeds / empty stacks.
 ## M14 loop: a cured bundle (it hung on a DryingRack for the whole cure time) pays 1 + Config.balance.cure_bonus.
-static func compute_sale_value(seed_def: SeedDef, amount: int, multiplier: float, cured: bool = false) -> int:
+## M23 fragile: a bruised one pays bruise_factor(bruises) of that (1 - bruise_share per bruise, additive).
+static func compute_sale_value(seed_def: SeedDef, amount: int, multiplier: float, cured: bool = false, bruises: int = 0) -> int:
 	if seed_def == null or amount <= 0:
 		return 0
 	var cure := 1.0 + maxf(Config.balance.cure_bonus, 0.0) if cured else 1.0
+	cure *= bruise_factor(bruises) # M23 fragile
 	return int(round(amount * seed_def.sale_value_per_unit * multiplier * cure * GameState.get_deposit_factor(seed_def.id, cured))) # M15 replay: * today's market and conditions (1.0 with replay off)
 
 
@@ -162,12 +165,33 @@ static func is_cured(product: Item) -> bool:
 	return product != null and is_instance_valid(product) and product.get(&"cured") == true
 
 
+# --- M23 fragile -------------------------------------------------------------------------------------------------------
+# A bruised bundle (Product's "M23 fragile" region) pays less: ADDITIVE, 1 - bruise_share for each bruise up to bruise_max
+# (the shipped 0.2 / 2: 0.8, then 0.6), never below 0. Inside compute_sale_value, so every caller sees it.
+
+## What `bruises` knocks leave of a bundle's value (1.0 for a clean one).
+static func bruise_factor(bruises: int) -> float:
+	var b: BalanceConfig = Config.balance
+	var counted := clampi(bruises, 0, maxi(b.bruise_max, 0))
+	return maxf(1.0 - maxf(b.bruise_share, 0.0) * float(counted), 0.0)
+
+
+## The synced bruise count of a product (duck-typed like the other product reads; 0 for anything else).
+static func get_bruises(product: Item) -> int:
+	if product == null or not is_instance_valid(product):
+		return 0
+	var n: Variant = product.get(&"bruises")
+	return int(n) if (n is int or n is float) else 0
+
+# --- end M23 fragile ---------------------------------------------------------------------------------------------------
+
+
 ## Value of `product` right now, including the team's sale upgrades.
 func get_sale_value(product: Item) -> int:
 	if product == null:
 		return 0
 	return compute_sale_value(_get_product_seed(product), _get_product_amount(product),
-			GameState.get_sale_multiplier() * Events.get_scale_factor(), is_cured(product)) # M14 loop: cured; M17 mayhem3: x the scale (1.0 unless it reads light)
+			GameState.get_sale_multiplier() * Events.get_scale_factor(), is_cured(product), get_bruises(product)) # M14 loop: cured; M17 mayhem3: x the scale (1.0 unless it reads light); M23 fragile: bruises
 
 
 ## The product `player` is holding (null if empty hands, not a product, or already sold).
@@ -292,7 +316,7 @@ func get_load_value(truck: HandTruck) -> int:
 		return 0
 	for entry in truck.get_load():
 		total += compute_sale_value(Config.balance.get_seed(entry["strain_id"]), int(entry["amount"]),
-				GameState.get_sale_multiplier() * Events.get_scale_factor(), bool(entry["cured"])) # M17 lead: and the scale's cut, as each sale has
+				GameState.get_sale_multiplier() * Events.get_scale_factor(), bool(entry["cured"]), int(entry.get("bruises", 0))) # M17 lead: and the scale's cut, as each sale has; M23 fragile: bruises
 	return total
 
 

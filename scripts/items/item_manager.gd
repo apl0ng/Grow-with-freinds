@@ -77,6 +77,7 @@ func _ready() -> void:
 	# Full game reset (RETRY): GameState.game_reset is emitted on every peer; only the host acts on it.
 	if GameState.has_signal(&"game_reset") and not GameState.is_connected(&"game_reset", _on_game_reset):
 		GameState.connect(&"game_reset", _on_game_reset)
+	_fragile_ready() # M23 fragile: who was told about a bruise, per shift
 	spawner = _find_spawner()
 	if spawner == null:
 		push_error("ItemManager: no MultiplayerSpawner with spawn_path pointing at %s" % get_path())
@@ -554,6 +555,7 @@ func _server_end_flight(item: Item, point: Vector3, t_end: float) -> void:
 		var chute := _find_chute_at(point)
 		if chute != null and chute.server_sell_item(item, item.thrower_id):
 			return # sold and despawned
+	_fragile_impact(item, point, t_end) # M23 fragile: a hard strike anywhere but the chute bruises a bundle
 	var rest := _find_flight_landing(item, point, t_end)
 	item.server_set_rest(_to_items_space(rest), Vector3.ZERO)
 	item.flight_serial = 0
@@ -679,6 +681,78 @@ func server_redirect_flight(item: Item, origin: Vector3, velocity: Vector3) -> b
 	return true
 
 # --- end M15 alley -------------------------------------------------------------------------------------------------------
+
+# --- M23 fragile ---------------------------------------------------------------------------------------------------------
+# Bundles bruise (Product's "M23 fragile" region). Every flight ends in _server_end_flight; a product whose flight ends
+# anywhere but the deposit chute (a worker, a wall, the floor, a station, the time cap) is asked how fast it struck:
+# flight_velocity + FLIGHT_GRAVITY * t_end. At Product.get_bruise_speed() (a fall from Product.BRUISE_FALL_M) or more it
+# takes a bruise (Product.server_bruise, up to bruise_max) BEFORE the flight ends here, so on every peer the landing that
+# follows plays the bruise thud instead of the drop (Product's synced setter and _play_landing_effects). A throw
+# always strikes faster than that; a flight that ends at the chute (sold, or refused between shifts) never bruises. The
+# thrower hears about it once a shift: the first of their bundles that bruises in a shift sends that peer alone the flat
+# toast Product.TOAST_BRUISED (_rpc_fragile_toast; a fake worker without a connection gets nothing). Who was told is
+# cleared when a shift starts and on a full reset (host).
+
+## HOST: `item` (a product) took a bruise; `bruises` is its count now, `thrower` the peer who threw it (0 = nobody).
+signal bundle_bruised(item: Item, bruises: int, thrower: int)
+
+## HOST: peer id -> true for every thrower told this shift.
+var _fragile_told: Dictionary = {}
+
+
+func _fragile_ready() -> void:
+	if not GameState.round_started.is_connected(_fragile_on_shift):
+		GameState.round_started.connect(_fragile_on_shift)
+	if not GameState.game_reset.is_connected(_fragile_forget):
+		GameState.game_reset.connect(_fragile_forget)
+
+
+func _fragile_on_shift(_round_number: int) -> void:
+	_fragile_forget()
+
+
+func _fragile_forget() -> void:
+	_fragile_told.clear()
+
+
+## True when `peer_id` was told about a bruise this shift (host).
+func was_told_bruise(peer_id: int) -> bool:
+	return _fragile_told.has(peer_id)
+
+
+## SERVER, from _server_end_flight once the chute did not take the item: a product that struck hard enough is bruised.
+func _fragile_impact(item: Item, point: Vector3, t_end: float) -> void:
+	if not (item is Product) or not _is_live(item):
+		return
+	if point.is_finite() and _find_chute_at(point) != null:
+		return # into the chute's mouth or onto it: the chute never bruises
+	var strike := item.flight_velocity + Item.FLIGHT_GRAVITY * maxf(t_end, 0.0)
+	if Product.is_bruising_impact(strike):
+		server_bruise_bundle(item as Product, item.thrower_id)
+
+
+## SERVER. Bruises `bundle` once (up to bruise_max) for `thrower` (peer id, 0 = nobody): the synced setter does the rest on
+## every peer, and the thrower's first bruise this shift brings the toast. True when it took a bruise.
+func server_bruise_bundle(bundle: Product, thrower: int) -> bool:
+	if not multiplayer.is_server():
+		push_error("ItemManager.server_bruise_bundle called on a client")
+		return false
+	if not _is_live(bundle) or not bundle.server_bruise():
+		return false
+	bundle_bruised.emit(bundle, bundle.bruises, thrower)
+	if thrower > 0 and not _fragile_told.has(thrower):
+		_fragile_told[thrower] = true
+		if thrower == multiplayer.get_unique_id() or multiplayer.get_peers().has(thrower):
+			_rpc_fragile_toast.rpc_id(thrower)
+	return true
+
+
+## The thrower's peer: a bundle of theirs bruised (the first this shift).
+@rpc("authority", "call_local", "reliable")
+func _rpc_fragile_toast() -> void:
+	Game.toast(Product.TOAST_BRUISED, &"info")
+
+# --- end M23 fragile -----------------------------------------------------------------------------------------------------
 
 func _flight_floor_limit() -> float:
 	var bounds := _room_bounds()
