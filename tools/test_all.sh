@@ -422,6 +422,11 @@ run_suite perf            300 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/perf_body.
 run_suite social          240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/social_body.gd --port=$((BASE + 1)) --replay --run=B5VP --career-file=user://social_test_$((BASE + 1)).cfg --settings-file=user://social_settings_$((BASE + 1)).cfg --round-sec=900 --timeout=220
 rm -rf "$LOGDIR/socialmp"; mkdir -p "$LOGDIR/socialmp"
 run_suite social_mp       240 "$LOGDIR/socialmp/*.log" env SOCIAL_MP_PORT=$((BASE + 2)) SOCIAL_MP_LOGS="$LOGDIR/socialmp" tools/tests/social_mp.sh
+# M23 fragile: bundles bruise (the rule, the value through every ledger, the look, the label, the toast, the hand
+# truck, the landing sound) (+3); a client's throw bruises a bundle on every peer, the late joiner, the chute (+4).
+run_suite fragile         240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/fragile_body.gd --port=$((BASE + 3)) --replay --run=B5VP --career-file=user://fragile_test_$((BASE + 3)).cfg --round-sec=900 --timeout=200
+rm -rf "$LOGDIR/fragilemp"; mkdir -p "$LOGDIR/fragilemp"
+run_suite fragile_mp      260 "$LOGDIR/fragilemp/*.log" env FRAGILE_MP_PORT=$((BASE + 4)) FRAGILE_MP_LOGS="$LOGDIR/fragilemp" tools/tests/fragile_mp.sh
 # M22 soak: host + three clients play the chill game through the van to PAID IN FULL (scripted workers, checkpoints, a
 # mid-shift rejoin, the host leaving last; about 5.5 min) on +7; the same with Alpha and Bravo behind
 # tools/tests/udp_proxy.gd (80 ms +- 20 each way, 2% loss) on +8 (proxy +9).

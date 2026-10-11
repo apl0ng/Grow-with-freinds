@@ -184,7 +184,7 @@ const SETTINGS := {
 	&"spore_puff": [-6.0, 0.06, 8.0],
 	&"cough": [-6.0, 0.08, 7.0],
 	&"emote": [-14.0, 0.05, 5.0],
-	&"bruise": [-8.0, 0.08, 6.0],
+	&"bruise": [-4.0, 0.08, 6.0], # M23 lead: it replaces `drop` (-3) on a hard landing; at -8 it measured 7 dB under it
 	&"help_up": [-10.0, 0.06, 5.0],
 }
 
