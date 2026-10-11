@@ -214,7 +214,7 @@ func _tick_mutations(delta: float) -> void:
 		return
 	var playing := GameState.is_playing()
 	var seen: Dictionary = {}
-	for n in get_tree().get_nodes_in_group(Const.GROUP_GROW_PLOTS):
+	for n in _perf_grow_plots(): # M22 perf: the group read again only when it changed (was get_nodes_in_group every physics frame)
 		var plot := n as GrowPlot
 		if plot == null or not plot.is_inside_tree():
 			continue
@@ -228,9 +228,34 @@ func _tick_mutations(delta: float) -> void:
 				plot.server_tick_mutation(delta)
 		elif plot.turning:
 			plot.turning = false
-	for key in _rolled.keys():
-		if not seen.has(key):
-			_rolled.erase(key)
+	if _rolled.size() != seen.size(): # M22 perf: every key seen is in _rolled, so equal sizes leave nothing to erase
+		for key in _rolled.keys():
+			if not seen.has(key):
+				_rolled.erase(key)
+
+
+# --- M22 perf ---
+# The mutation watch runs every physics frame on the host and read the trays from the scene tree's group each time (a
+# new array of every tray, 60 times a second). The list is kept and read again only when the group's size changed or
+# a tray in it left the tree: otherwise it holds the same nodes in the same (tree) order the group would return.
+var _perf_plots: Array[Node] = []
+## How often the tray list was read from the group (tests: once per world, not once per physics frame).
+var perf_group_scans: int = 0
+
+
+## get_tree().get_nodes_in_group(Const.GROUP_GROW_PLOTS), from the kept list while the group is unchanged.
+func _perf_grow_plots() -> Array[Node]:
+	var stale := _perf_plots.size() != get_tree().get_node_count_in_group(Const.GROUP_GROW_PLOTS)
+	if not stale:
+		for n in _perf_plots:
+			if not is_instance_valid(n) or not n.is_inside_tree():
+				stale = true
+				break
+	if stale:
+		perf_group_scans += 1
+		_perf_plots = get_tree().get_nodes_in_group(Const.GROUP_GROW_PLOTS)
+	return _perf_plots
+# --- end M22 perf ---
 
 
 ## Host: position / yaw of every live hostile to every client (unreliable, ~10 Hz).

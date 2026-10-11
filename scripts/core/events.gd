@@ -1102,7 +1102,7 @@ func _track_plantings(count: bool = true) -> void:
 	if room == null:
 		return
 	for i in range(1, Room.GROW_PLOT_COUNT + 1): # M14 level: the hall's trays too
-		var plot := room.get_station("GrowPlot%d" % i) as GrowPlot
+		var plot := _perf_plot(room, i) # M22 perf: the tray node kept from the last look (was get_station("GrowPlot%d" % i) every frame)
 		if plot == null:
 			continue
 		var now: StringName = plot.strain_id if plot.stage != GrowPlot.Stage.EMPTY else &""
@@ -1110,6 +1110,32 @@ func _track_plantings(count: bool = true) -> void:
 		if count and now != &"" and before == &"":
 			_planted[now] = int(_planted.get(now, 0)) + 1
 		_plot_strains[i] = now
+
+
+# --- M22 perf ---
+# tick() looked every tray up by a built name ("GrowPlot%d" % i, a string and two node lookups each) every frame. A
+# room's trays stay where they are: the node found last time is used again while it is still in the tree; another room,
+# a tray that left the tree or one that was never found is looked up by name as before.
+var _perf_plots: Array = []          # index i -> the node room.get_station("GrowPlot<i>") returned
+var _perf_plots_room_id: int = 0
+## How many by-name tray lookups _track_plantings has made (tests: a handful per room, not ten a frame).
+var perf_plot_lookups: int = 0
+
+
+## What room.get_station("GrowPlot%d" % i) returns, from the cache while that node is still in the tree.
+func _perf_plot(room: Room, i: int) -> GrowPlot:
+	if room.get_instance_id() != _perf_plots_room_id:
+		_perf_plots_room_id = room.get_instance_id()
+		_perf_plots.clear()
+	if _perf_plots.size() <= i:
+		_perf_plots.resize(i + 1)
+	var plot: Variant = _perf_plots[i]
+	if plot == null or not is_instance_valid(plot) or not (plot as Node).is_inside_tree():
+		perf_plot_lookups += 1
+		plot = room.get_station("GrowPlot%d" % i) as GrowPlot
+		_perf_plots[i] = plot
+	return plot as GrowPlot
+# --- end M22 perf ---
 
 
 ## Every peer: the event's own sound (the registered M12 names for the interruptions, the alarm for the rest).
