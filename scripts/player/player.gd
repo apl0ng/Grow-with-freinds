@@ -273,6 +273,7 @@ func _ready() -> void:
 	_emotes_ready() # M18 emotes
 	_hats_ready() # M16 hats
 	_settings_ready() # M19 settings: the local camera's field of view
+	_social_ready() # M23 social: the talk mark over a remote worker
 
 # --- Public API ---------------------------------------------------------------------------------------------
 
@@ -789,6 +790,7 @@ func _process(delta: float) -> void:
 			_match_view_model_viewport()
 			sync_view_model()
 	_emotes_process(delta) # M18 emotes
+	_social_process(delta) # M23 social: a helper reaching
 
 func _input_enabled() -> bool:
 	return not Game.is_ui_locked()
@@ -1786,6 +1788,233 @@ func _emote_fp_part(parent: Node3D, part_name: String, mesh: Mesh, mat: Material
 	parent.add_child(mi)
 
 # --- end M18 emotes ----------------------------------------------------------------------------------------------------
+
+# --- M23 social: help a friend up, the talk mark ----------------------------------------------------------------------
+## Help a friend up (CONTRACTS "M23", "Social"; FRIENDSLOP 13, PEAK's helping hands). E on a worker who is down stands
+## them up at once. Down = stunned: a bite, a drive-by round, a slip, a shove, a thrown item and fire all go through
+## Player.server_stagger, so one rule covers them all. The Interactor ("M23 social") shows "[E] Help Dale up" while the
+## worker under the crosshair is stunned on this peer (the stagger fx mirrors the stun on every peer) and calls
+## request_help_up(); the prompt is greyed while this worker could not ask (stunned, in the back room, cooling down).
+##   owner -> host  _rpc_request_help_up(target)  taken only from the node's own registered peer; server_help_up()
+##   host           server_help_up(target)        refused (false, silently, nothing spent): either worker missing or in
+##                                                the back room, the helper stunned, the target not down in the host's
+##                                                view, out of reach (shove_range + HELP_RANGE_SLACK, NaN-safe), a wall
+##                                                between the two chests, the helper's help_up_cooldown_sec. Then the
+##                                                helper's STAT_HELPED +1 and the stun ends the way a stun starts: the
+##                                                host's own view at once, then the target's owner (_rpc_helped_up; an
+##                                                unowned body on the host, a fake worker, is done right there), which
+##                                                broadcasts the cosmetic after its own stagger fx (one sender, in order)
+##   owner -> all   _rpc_help_up_fx(by_peer)      call_local, reliable, from the server or the node's owner only (the
+##                                                stagger fx's rule; the host takes an owner's only after it ordered it):
+##                                                every peer ends its mirror of the stun, plays help_up at the body (2D
+##                                                for the worker themself), bounces it, plays the helper's reach, emits
+##                                                helped_up(by_peer)
+## The reach: the helper's free arm (the left one with an item in the right glove) comes forward and pulls back over
+## HELP_REACH_SEC on every peer that sees the body; the helper's own camera dips, the helped worker's lifts. The stagger
+## immunity that follows a stun is left as it was: a worker just helped up is not knocked straight down again.
+##
+## The talk mark: a TalkMark (scripts/ui/talk_mark.gd) TALK_MARK_ABOVE_LABEL over %NameLabel of every REMOTE worker
+## (a child of the label: it rides the label over a tall hat, a crouch or a slump), shown while Voice.is_speaking(peer)
+## (Voice.speaking_changed; read once at _ready, so a late joiner's bodies start right). The local worker has none.
+## Signal driven: nothing per frame.
+
+## Every peer: this worker was helped up by `by_peer`.
+signal helped_up(by_peer: int)
+
+## Server reach: the helper's and the target's feet at most shove_range + this apart (the shove's own slack).
+const HELP_RANGE_SLACK: float = 1.0
+## The helper's reach (seconds), the arm's pose at its height (ArmR; z mirrored for ArmL), the camera nudges (degrees).
+const HELP_REACH_SEC: float = 0.6
+const HELP_REACH_ROTATION := Vector3(1.25, 0.0, -0.08)
+const HELP_CAMERA_DIP_DEG: float = -5.0
+const HELP_CAMERA_LIFT_DEG: float = 4.0
+## Owner: a second request this soon after the last one is not sent (the host's cooldown is the real rule).
+const HELP_RESEND_SEC: float = 0.3
+## The host forgets an ordered help the owner never confirmed after this long (ms).
+const HELP_PENDING_MS: int = 5000
+## The talk mark's centre over the name label's centre (m): clear of the label's top.
+const TALK_MARK_ABOVE_LABEL: float = 0.34
+
+var _help_ready_msec: int = 0              # SERVER: when this worker may help someone up again
+var _help_pending_msec: int = 0            # SERVER: when it ordered this body's owner to stand up (0 = nothing open)
+var _help_sent_msec: int = -1000000        # owner: the last request
+var _help_local_ready_msec: int = 0        # owner: the cooldown as this peer saw it start (the prompt is greyed)
+var _help_reach_left: float = 0.0          # every peer: the reach on this body, seconds left
+var _help_reach_left_arm: bool = false
+var _talk_mark: TalkMark = null
+
+
+## The mark over this body (null for the local worker, who has none).
+func get_talk_mark() -> TalkMark:
+	return _talk_mark
+
+
+## True while the talk mark over this body is shown.
+func is_talk_mark_shown() -> bool:
+	return _talk_mark != null and _talk_mark.visible
+
+
+## True while this body plays the helper's reach.
+func is_helping() -> bool:
+	return _help_reach_left > 0.0
+
+
+## LOCAL worker: true when E on a worker who is down would ask the host (not stunned, not in the back room, not cooling
+## down, not just asked).
+func can_request_help_up() -> bool:
+	var now := Time.get_ticks_msec()
+	return is_local() and not is_stunned() and not GameState.is_in_backroom(peer_id) and now >= _help_local_ready_msec \
+			and now - _help_sent_msec >= int(HELP_RESEND_SEC * 1000.0)
+
+
+## LOCAL worker: asks the host to stand `target_peer` up (the Interactor's E on a worker who is down). False when it
+## was not sent (see can_request_help_up).
+func request_help_up(target_peer: int) -> bool:
+	if target_peer <= 0 or target_peer == peer_id or not can_request_help_up():
+		return false
+	_help_sent_msec = Time.get_ticks_msec()
+	_rpc_request_help_up.rpc_id(Const.SERVER_PEER_ID, target_peer)
+	return true
+
+
+## SERVER ONLY. This worker helps `target` up (see the header for the rules). True when it was done. Works for bodies
+## without an owner on either side (tests' fake workers).
+func server_help_up(target: Player) -> bool:
+	if not multiplayer.is_server() or not is_inside_tree() or is_queued_for_deletion():
+		return false
+	if target == null or not is_instance_valid(target) or target == self or not target.is_inside_tree() or target.is_queued_for_deletion():
+		return false
+	if is_stunned() or GameState.is_in_backroom(peer_id) or GameState.is_in_backroom(target.peer_id) or not target.is_stunned():
+		return false
+	var d := global_position.distance_to(target.global_position)
+	if not (d <= Config.balance.shove_range + HELP_RANGE_SLACK): # `not <=`: a NaN position is never in reach
+		return false
+	var query := PhysicsRayQueryParameters3D.create(get_chest_position(), target.get_chest_position(), Const.LAYER_WORLD)
+	if not get_world_3d().direct_space_state.intersect_ray(query).is_empty():
+		return false
+	var now := Time.get_ticks_msec()
+	if now < _help_ready_msec:
+		return false
+	_help_ready_msec = now + int(maxf(Config.balance.help_up_cooldown_sec, 0.0) * 1000.0)
+	GameState.server_add_stat(peer_id, Const.STAT_HELPED)
+	target._stun_until_msec = mini(target._stun_until_msec, now) # the host's own view, at once
+	if target.is_local():
+		target._help_up_locally(peer_id)
+	elif target.multiplayer.get_peers().has(target.peer_id):
+		target._help_pending_msec = now
+		target._rpc_helped_up.rpc_id(target.peer_id, peer_id)
+	else:
+		target._help_up_locally(peer_id) # a body without a connected owner: nobody else can stand it up
+	return true
+
+
+## Owner -> host: "help `target_peer` up". Only the node's own registered peer is heard.
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_request_help_up(target_peer: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender == 0:
+		sender = Const.SERVER_PEER_ID
+	if sender != peer_id or not Net.players.has(sender) or not is_inside_tree():
+		return # a help request is only valid on the helper's own body
+	server_help_up(Game.get_player(target_peer))
+
+
+## Server -> the owner of this body: you were helped up by `by_peer` (owner authority: any_peer + a sender check).
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_helped_up(by_peer: int) -> void:
+	if multiplayer.get_remote_sender_id() != Const.SERVER_PEER_ID or not is_local():
+		return
+	_help_up_locally(by_peer)
+
+
+func _help_up_locally(by_peer: int) -> void:
+	_stun_until_msec = mini(_stun_until_msec, Time.get_ticks_msec())
+	_rpc_help_up_fx.rpc(by_peer)
+
+
+## Cosmetic, every peer (see the header). The host takes an owner's broadcast only for a help it ordered.
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_help_up_fx(by_peer: int) -> void:
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != Const.SERVER_PEER_ID and sender != peer_id:
+		return
+	if not is_inside_tree():
+		return
+	var now := Time.get_ticks_msec()
+	if multiplayer.is_server() and sender != 0 and sender != multiplayer.get_unique_id():
+		if _help_pending_msec == 0 or now - _help_pending_msec > HELP_PENDING_MS:
+			return # an owner standing itself up without the host's word
+		_help_pending_msec = 0
+	_stun_until_msec = mini(_stun_until_msec, now)
+	if is_local():
+		Sfx.play(&"help_up")
+		_help_camera_nudge(HELP_CAMERA_LIFT_DEG)
+	else:
+		Sfx.play(&"help_up", get_chest_position())
+		if visual != null:
+			Juice.bounce(visual, 0.2)
+	var helper: Player = Game.get_player(by_peer) if by_peer > 0 else null
+	if helper != null and is_instance_valid(helper) and helper.is_inside_tree() and helper != self:
+		helper._help_reach_begin()
+	helped_up.emit(by_peer)
+
+
+## Every peer: this body reaches for somebody it is helping up.
+func _help_reach_begin() -> void:
+	_help_reach_left = HELP_REACH_SEC
+	_help_reach_left_arm = get_held_item() != null
+	if is_local():
+		_help_local_ready_msec = Time.get_ticks_msec() + int(maxf(Config.balance.help_up_cooldown_sec, 0.0) * 1000.0)
+		_help_camera_nudge(HELP_CAMERA_DIP_DEG)
+
+
+## Local camera: a short pitch nudge on %Camera and back (the stagger kick's tween: one runs at a time).
+func _help_camera_nudge(pitch_deg: float) -> void:
+	if camera == null or not camera.is_inside_tree():
+		return
+	if _kick_tween != null and _kick_tween.is_valid():
+		_kick_tween.kill()
+	camera.rotation = Vector3.ZERO
+	_kick_tween = create_tween()
+	_kick_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_kick_tween.tween_property(camera, ^"rotation", Vector3(deg_to_rad(pitch_deg), 0.0, 0.0), HELP_REACH_SEC * 0.4)
+	_kick_tween.tween_property(camera, ^"rotation", Vector3.ZERO, HELP_REACH_SEC * 0.6)
+
+
+## From _ready: the talk mark over a remote worker.
+func _social_ready() -> void:
+	TalkMark.mark_texture() # drawn once (~12 ms) while the world loads, never the first time a friend talks
+	if is_local():
+		return
+	_talk_mark = TalkMark.new()
+	_talk_mark.name = "TalkMark"
+	_talk_mark.position = Vector3(0.0, TALK_MARK_ABOVE_LABEL, 0.0)
+	name_label.add_child(_talk_mark)
+	Voice.speaking_changed.connect(_social_on_speaking_changed)
+	_talk_mark.set_talking(Voice.is_speaking(peer_id))
+
+
+func _social_on_speaking_changed(speaker: int, speaking: bool) -> void:
+	if speaker == peer_id and _talk_mark != null:
+		_talk_mark.set_talking(speaking)
+
+
+## From _process, every peer: the reach on a remote body (after the walk, the hold and the gestures set the arms).
+func _social_process(delta: float) -> void:
+	if _help_reach_left <= 0.0:
+		return
+	_help_reach_left = maxf(_help_reach_left - delta, 0.0)
+	if is_local() or arm_l == null or arm_r == null:
+		return # the local body is never seen by its owner (its arms only cast a shadow)
+	var w := sin(PI * (1.0 - _help_reach_left / HELP_REACH_SEC))
+	if _help_reach_left_arm:
+		arm_l.rotation = arm_l.rotation.lerp(Vector3(HELP_REACH_ROTATION.x, -HELP_REACH_ROTATION.y, -HELP_REACH_ROTATION.z), w)
+	else:
+		arm_r.rotation = arm_r.rotation.lerp(HELP_REACH_ROTATION, w)
+
+# --- end M23 social ----------------------------------------------------------------------------------------------------
 
 # --- M12 flame (flame agent): set on fire by the flamethrower -----------------------------------------------------
 

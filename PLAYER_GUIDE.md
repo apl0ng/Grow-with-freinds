@@ -15,7 +15,7 @@ and the debt is cleared (PAID IN FULL). Miss any payment and the run starts over
   keep port 7777, press **Report for shift**. Over the internet the host forwards UDP 7777 on their router to their
   PC and gives out their public address. Up to four workers. A friend can join mid-shift.
 - **Run codes:** every run has a four-character code on the alley board. The host types one into **Run code**, or
-  presses **THIS WEEK** for the code everyone gets this week, and deals the same run: the same conditions, jobs,
+  presses **TODAY** for the code everyone gets today (UTC), and deals the same run: the same conditions, jobs,
   order of trouble and crates. Blank means a random run.
 - If the host leaves, the floor closes for everyone.
 
@@ -39,7 +39,7 @@ NEXT SHIFT, or START OVER after a miss.
 ## Keys
 | Key | Does | Key | Does |
 |---|---|---|---|
-| WASD / arrows | move | E / left mouse | use, pick up |
+| WASD / arrows | move | E / left mouse | use, pick up, help up |
 | Shift | sprint | Q / G | drop |
 | Space | jump | right mouse / R | throw |
 | Ctrl / C | crouch | F | shove |

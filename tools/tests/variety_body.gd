@@ -16,8 +16,8 @@ extends "res://tools/tests/qa_base.gd"
 ##   spot on the dock no raid eye sees (and the game's own raid leaves a bundle there and takes one in the open); the
 ##   layouts differ in which lanes the crates stop and in where the dock's safe corner is; a worker a crate lands on
 ##   is put back on their spawn;
-##   the alley board's NEXT column ends with "Run 7K2M." after the job; the menu: the row, the hint, THIS WEEK, the
-##   keyboard path as it was, hosting with a typed code.
+##   the alley board's NEXT column ends with "Run 7K2M." after the job; the menu: the row, the hint, TODAY (M23 social:
+##   was THIS WEEK; it fills in RunSeed.daily now), the keyboard path as it was, hosting with a typed code.
 ##   godot --headless --path . -s res://tools/tests/run_test.gd -- --body=res://tools/tests/variety_body.gd
 ##       --port=7989 --replay --lobby --events --run=7K2M --round-sec=900 [--maps]
 ## --maps prints every layout's dock from above (what the raid sees). Every engine/script error fails the run unless
@@ -704,7 +704,7 @@ func _test_menu() -> void:
 	if not check(row != null and edit != null and hint != null and week != null, "the host panel has %RunRow, %RunEdit, %RunHint, %WeekButton"):
 		menu.queue_free()
 		return
-	check(row.visible and week.text == "THIS WEEK" and edit.placeholder_text == "Blank: random", "the row shows: a field ('%s') and '%s'" % [edit.placeholder_text, week.text])
+	check(row.visible and week.text == "TODAY" and edit.placeholder_text == "Blank: random", "the row shows: a field ('%s') and '%s'" % [edit.placeholder_text, week.text])
 	check(edit.text == "7k 2m" and String(menu.call(&"get_run_code")) == CODE_A and hint.text == "Run %s." % CODE_A, "it starts with the run that was asked for; '%s' reads as %s" % [edit.text, String(menu.call(&"get_run_code"))])
 	edit.text = ""
 	edit.text_changed.emit("")
@@ -712,15 +712,15 @@ func _test_menu() -> void:
 	edit.text = "hello"
 	edit.text_changed.emit("hello")
 	check(String(menu.call(&"get_run_code")) == "" and hint.text == "Not a code. Random run." and not hint.text.contains("!"), "junk: ignored, with a flat hint ('%s')" % hint.text)
-	var before := RunSeed.to_code(RunSeed.weekly(int(Time.get_unix_time_from_system())))
+	var before := RunSeed.to_code(RunSeed.daily(int(Time.get_unix_time_from_system())))  # M23 social: TODAY (was the week's code)
 	week.pressed.emit()
-	var after := RunSeed.to_code(RunSeed.weekly(int(Time.get_unix_time_from_system())))
-	check((edit.text == before or edit.text == after) and String(menu.call(&"get_run_code")) == edit.text and hint.text == "Run %s." % edit.text, "THIS WEEK fills in the week's code (%s)" % edit.text)
+	var after := RunSeed.to_code(RunSeed.daily(int(Time.get_unix_time_from_system())))
+	check((edit.text == before or edit.text == after) and String(menu.call(&"get_run_code")) == edit.text and hint.text == "Run %s." % edit.text, "TODAY fills in today's code (%s)" % edit.text)
 	check(get_viewport().gui_get_focus_owner() == host_button, "the keyboard starts on Open the floor, as before")
 	var port_line := port_spin.get_line_edit()
 	check(port_line.find_next_valid_focus() == host_button and host_button.find_next_valid_focus() == join_button, "Tab: Port, Open the floor, Report for shift, as before")
 	check(join_button.find_next_valid_focus() == edit and edit.find_next_valid_focus() == week and week.find_prev_valid_focus() == edit and edit.find_prev_valid_focus() == join_button,
-			"the run field and THIS WEEK come after them")
+			"the run field and TODAY come after them")
 	var texts := "%s %s %s %s" % [edit.placeholder_text, week.text, "Run code", hint.text]
 	check(not texts.contains("!"), "no exclamation marks")
 

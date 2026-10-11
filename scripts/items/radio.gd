@@ -199,6 +199,40 @@ static func _is_home(point: Vector3, room: Node) -> bool:
 	return bool(room.call(&"contains_point", point, 0.0))
 
 
+# --- M23 social: the talk mark over a radio carrying a voice ----------------------------------------------------------
+# A TalkMark (scripts/ui/talk_mark.gd) floats TALK_MARK_LIFT over this radio, upright whatever way it lies, for exactly
+# as long as it is receiving: Voice sets that on every peer from the host's word (set_receiving, the same state that
+# puts this radio in Voice.get_radio_listeners() and follows Voice.radio_changed), so a late joiner is right as soon as
+# the transmission is replayed to it. Hidden while this peer's own worker holds the radio. Made the first time.
+
+const TALK_MARK_LIFT := Vector3(0.0, 0.45, 0.0)
+
+var _talk_mark: TalkMark = null
+
+
+## The mark over this radio (null until it first received).
+func get_talk_mark() -> TalkMark:
+	return _talk_mark
+
+
+## True while the mark over this radio is shown.
+func is_talk_mark_shown() -> bool:
+	return _talk_mark != null and _talk_mark.visible
+
+
+func _social_refresh_mark() -> void:
+	if _talk_mark == null:
+		if not _receiving or not is_inside_tree():
+			return
+		_talk_mark = TalkMark.new()
+		_talk_mark.name = "TalkMark"
+		add_child(_talk_mark)
+		_talk_mark.follow(self, TALK_MARK_LIFT)
+	_talk_mark.set_talking(_receiving)
+
+# --- end M23 social --------------------------------------------------------------------------------------------------
+
+
 # --- internals -------------------------------------------------------------------------------------------------------
 
 func _build_speakers() -> void:
@@ -220,6 +254,7 @@ func _make_speaker(node_name: String) -> AudioStreamPlayer3D:
 
 
 func _refresh_led() -> void:
+	_social_refresh_mark() # M23 social: the talk mark follows the receiving state
 	var led := get_node_or_null(LED_PATH) as MeshInstance3D
 	if led == null:
 		return

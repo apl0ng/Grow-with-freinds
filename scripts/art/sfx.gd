@@ -1055,6 +1055,19 @@ func _synth(sound: StringName) -> AudioStreamWAV:
 			_fade_in(b, 0.003)
 			_fade_out(b, 0.05)
 		# --- end M18 emotes ---
+		# --- M23 social ---
+		&"help_up":  # a worker hauled to their feet: a glove takes a sleeve, one short grunt of effort, the jacket pulls straight
+			b = _buf(0.56)
+			_noise(b, rng, 0.0, 0.045, 0.55, 0.6, 0.25, 0.002, 6.0)                 # the glove grabs the sleeve
+			_tone(b, 0.07, 0.24, 128.0, 98.0, 0.42, Wave.SAW, 0.025, 3.0, 17.0, 0.03)  # the grunt: low, through a shut mouth
+			_noise(b, rng, 0.07, 0.22, 0.32, 0.35, 0.08, 0.02, 3.5)                  # breath through the nose under it
+			_noise(b, rng, 0.12, 0.32, 0.55, 0.3, 0.05, 0.05, 2.0)                   # the jacket pulls straight: a canvas swish
+			_noise(b, rng, 0.15, 0.24, 0.25, 0.62, 0.28, 0.03, 2.5)                  # the grain of the weave
+			_lowpass(b, 0.5)
+			_dc_block(b)
+			_fade_in(b, 0.003)
+			_fade_out(b, 0.06)
+		# --- end M23 social ---
 		# --- M12 lead: the flamethrower and its consequences (dull and physical, nothing heroic) ------------------
 		&"flame":  # the loop while the trigger is held: a muffled roar with a slow rumble under it
 			b = _buf(0.8)
