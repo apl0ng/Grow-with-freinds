@@ -1869,6 +1869,7 @@ func _career_on_failed(contract: Dictionary) -> void:
 
 const FINALE_LINES: Dictionary = {
 	"final_short": "Half the clock. Not half the money.",
+	"final_half": "Half the clock.", # M23 simplify: the look when it raises nothing (the chill game)
 	"final_on_schedule": "On schedule. Keep it there.",
 	"final_cleared": "That's all of it. I'll think of something.",
 	"toast_final": "Final notice. Pay it and the debt is cleared.",
@@ -1896,6 +1897,7 @@ func _finale_on_round_started(_round_number: int) -> void:
 func _finale_on_look(short: bool, raised: int) -> void:
 	if not _in_session():
 		return
+	if short and raised <= 0: _request("final_half", Weight.MAJOR); return # M23 simplify: nothing went up, so only the clock is said
 	if short:
 		if raised > 0:
 			Game.toast(line("toast_final_raised") % format_money(raised), &"error")

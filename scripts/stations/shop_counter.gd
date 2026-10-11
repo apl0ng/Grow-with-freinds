@@ -215,7 +215,7 @@ func server_buy_seed(peer_id: int, seed_id: StringName) -> Dictionary:
 	if not _server_in_range(player):
 		return _fail(REASON_TOO_FAR)
 	var seed_def: SeedDef = Config.balance.get_seed(seed_id)
-	if seed_def == null:
+	if seed_def == null or not Config.balance.is_strain_enabled(seed_def.id): # M23 simplify: a strain that is off is not sold, whatever a client asks
 		return _fail(REASON_UNKNOWN_SEED)
 	if not GameState.is_strain_unlocked(seed_def.id): # M15 replay: a strain that is not sold yet is refused here, whatever the card showed
 		return _fail(REASON_LOCKED % GameState.get_unlock_round(seed_def.id)) # M15 replay
@@ -350,7 +350,7 @@ static func get_effect_color(effect_key: StringName) -> Color:
 
 ## Tints the jars / front badges with the seed colours from balance.tres and writes the price tags.
 func _decorate_from_balance() -> void:
-	var seeds: Array[SeedDef] = Config.balance.seeds
+	var seeds: Array[SeedDef] = Config.balance.get_enabled_seeds() # M23 simplify: the jars hold what is sold
 	if _jars != null:
 		var i := 0
 		for jar in _jars.get_children():
@@ -456,7 +456,7 @@ func _on_peer_registered(peer_id: int) -> void:
 func _apply_shortage_visual() -> void:
 	if _jars == null:
 		return
-	var seeds: Array[SeedDef] = Config.balance.seeds
+	var seeds: Array[SeedDef] = Config.balance.get_enabled_seeds() # M23 simplify: the jars hold what is sold
 	var i := 0
 	for jar in _jars.get_children():
 		var jar3d := jar as Node3D

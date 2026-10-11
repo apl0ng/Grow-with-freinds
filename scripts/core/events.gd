@@ -988,7 +988,7 @@ func server_headcount() -> Array[int]:
 func pick_shortage_strain() -> StringName:
 	var top := 0
 	for s in Config.balance.seeds:
-		if s != null:
+		if s != null and Config.balance.is_strain_enabled(s.id): # M23 simplify: a strain that is off is never short (and its count never hides the others)
 			top = maxi(top, int(_planted.get(s.id, 0)))
 	var cash: int = GameState.money
 	var best: SeedDef = null

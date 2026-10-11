@@ -216,6 +216,46 @@ func get_scroll_height() -> float:
 # --- end M12 strains ---
 
 
+# --- M23 simplify: four strains on one screen ---------------------------------------------------------------------
+# The chill game sells four strains (BalanceConfig.disabled_strains). Two rows of cards are taller than a 1280x720
+# screen leaves for them (cards ~300 px, the window's chrome 260 px), so up to ROW_MAX_CARDS seed cards stand in ONE
+# row of narrower cards and the page shows whole: no scroll bar, the plain footer hint. More cards keep the scene's
+# three columns and scroll as before (the full game's seven). The favor cards widen to the same page width in that
+# case, so the window keeps its size when the tab changes.
+
+## Up to this many seed cards stand in one row (four in the chill game).
+const ROW_MAX_CARDS := 4
+## A seed card's width in that row: four cards, three gaps, the page margins and the panel's padding come to 1238 px,
+## inside the 1280 px the stretch mode always leaves (the scene's 300 px cards would need 1302).
+const ROW_CARD_WIDTH := 284.0
+
+var _one_row := false
+
+
+## True when the seed page is one row of narrower cards (decided once the cards are built).
+func is_one_row() -> bool:
+	return _one_row
+
+
+## Once the cards exist: four seed cards become one row (three or fewer already are one; five or more scroll).
+func _fit_one_row() -> void:
+	var seeds := _seed_grid.get_child_count()
+	_one_row = seeds > _seed_grid.columns and seeds <= ROW_MAX_CARDS
+	if not _one_row:
+		return
+	_seed_grid.columns = seeds
+	for c in _seed_grid.get_children():
+		(c as Control).custom_minimum_size.x = ROW_CARD_WIDTH
+	var page_w := seeds * ROW_CARD_WIDTH + (seeds - 1) * float(_seed_grid.get_theme_constant(&"h_separation"))
+	var cols := mini(_upgrade_grid.get_child_count(), _upgrade_grid.columns)
+	if cols <= 0:
+		return
+	var favor_w := floorf((page_w - (cols - 1) * float(_upgrade_grid.get_theme_constant(&"h_separation"))) / cols)
+	for c in _upgrade_grid.get_children():
+		(c as Control).custom_minimum_size.x = maxf(favor_w, (c as Control).custom_minimum_size.x)
+# --- end M23 simplify ---------------------------------------------------------------------------------------------
+
+
 ## Hides the window and releases the UI lock. `play_sound` = false for silent teardown.
 func close(play_sound: bool = true) -> void:
 	if not _open:
@@ -290,7 +330,7 @@ func on_purchase_result(ok: bool, message: String, kind: StringName, what_id: St
 # --- Internals ------------------------------------------------------------------------------------------------------
 
 func _build_cards() -> void:
-	for seed_def: SeedDef in Config.balance.seeds:
+	for seed_def: SeedDef in Config.balance.get_enabled_seeds(): # M23 simplify: a strain that is off has no card
 		if seed_def == null:
 			continue
 		var card := CARD_SCENE.instantiate() as ShopCard
@@ -306,6 +346,7 @@ func _build_cards() -> void:
 		card.setup_upgrade(up_def)
 		card.buy_pressed.connect(_on_card_buy_pressed)
 		_cards[_card_key(ShopCounter.KIND_UPGRADE, up_def.id)] = card
+	_fit_one_row() # M23 simplify: four seed cards stand in one row
 
 
 static func _card_key(kind: StringName, id: StringName) -> String:

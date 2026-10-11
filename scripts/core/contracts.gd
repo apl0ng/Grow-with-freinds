@@ -182,9 +182,9 @@ static func build(id: StringName, ctx: Dictionary) -> Dictionary:
 			out["text"] = text % number_words(goal)
 		ID_STRAIN:
 			var strain := StringName(str(ctx.get("strain", "")))
-			var seed_def: SeedDef = Config.balance.get_seed(strain) if strain != &"" else null
-			if seed_def == null and not Config.balance.seeds.is_empty():
-				seed_def = Config.balance.seeds[0]
+			var seed_def: SeedDef = Config.balance.get_seed(strain) if strain != &"" and Config.balance.is_strain_enabled(strain) else null # M23 simplify: never a strain that is off
+			if seed_def == null and not Config.balance.get_enabled_seeds().is_empty(): # M23 simplify
+				seed_def = Config.balance.get_enabled_seeds()[0] # M23 simplify: the first strain on sale
 			out["strain"] = String(seed_def.id) if seed_def != null else ""
 			out["text"] = text % [number_words(goal), seed_def.display_name if seed_def != null else "anything"]
 		ID_CASH:
