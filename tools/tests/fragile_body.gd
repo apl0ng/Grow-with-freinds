@@ -34,7 +34,7 @@ var bob: Player
 var chute: TurnInStation
 var rack1: DryingRack
 var _bruised: Array = []      # [item name, bruises, thrower] from ItemManager.bundle_bruised
-var _knocks: Array = []       # [item name, bruises, the last voice played the bruise stream, that voice's position]
+var _landings: Array = []     # [item name, bruises, bruised in that flight, the landing voice was bruise / drop, -, its position]
 var _sales: Array = []        # [amount, seller]
 var _notes: Array = []        # [strain, amount, cured, value, seller]
 var _watched: Dictionary = {} # item instance id -> bruises seen
@@ -132,12 +132,10 @@ func _test_floor() -> void:
 	check(p.get_props() == {"strain_id": "purple", "amount": 1, "bruises": 1}, "props carry it %s" % [p.get_props()])
 	check(p.get_display_name() == "Purple Haze x1, bruised" and p.get_prompt(me) == "Pick up Purple Haze x1, bruised", "named: '%s'" % p.get_prompt(me))
 	check((p.get_node(^"AmountLabel") as Label3D).text == "x1, bruised", "the floating tag: '%s'" % (p.get_node(^"AmountLabel") as Label3D).text)
-	check(_knocks.size() >= 1 and _knocks[-1][0] == String(p.name) and _knocks[-1][1] == 1 and bool(_knocks[-1][2]),
-			"the bruise thud played (a 3D voice) the moment it took the bruise %s" % [_knocks.back() if not _knocks.is_empty() else []])
-	if not _knocks.is_empty():
-		var at: Vector3 = _knocks[-1][3]
-		check(at.is_finite() and Vector2(at.x - p.global_position.x, at.z - p.global_position.z).length() < 0.6 and at.y < 0.6,
-				"where it struck (%s, landed %s)" % [at, p.global_position])
+	check(_landed(p) == [1, true, true, false], "the landing played the bruise thud instead of the drop (a 3D voice) %s" % [_landed(p)])
+	if not _landings.is_empty():
+		var at: Vector3 = _landings[-1][6]
+		check(at.is_finite() and at.distance_to(p.global_position) < 0.05, "where it landed (%s, landed %s)" % [at, p.global_position])
 	var tint1 := _bud_color(p)
 	var cluster := p.get_node(^"Visual/Cluster") as Node3D
 	check(tint1.get_luminance() < tint0.get_luminance() - 0.02, "the buds are darker (%.3f -> %.3f)" % [tint0.get_luminance(), tint1.get_luminance()])
@@ -160,7 +158,7 @@ func _test_wall() -> void:
 	var p := _bundle(&"budget", 2, LANE)
 	await wait_frames(1)
 	await _throw(p, Vector3(-8.0, 1.2, 2.0), Vector3(-9.0, 1.5, 0.0))
-	check(p.bruises == 1 and p.global_position.x < -9.0, "into the west wall: one bruise, down by the wall (%s)" % p.global_position)
+	check(p.bruises == 1 and p.global_position.x < -9.0 and _landed(p) == [1, true, true, false], "into the west wall: one bruise, down by the wall (%s)" % p.global_position)
 	items.server_despawn_item(p)
 	await wait_frames(1)
 
@@ -178,7 +176,7 @@ func _test_station() -> void:
 	var p := _bundle(&"purple", 1, LANE)
 	await wait_frames(1)
 	await _throw(p, origin, dir * 8.0 + Vector3.UP * 0.4)
-	check(p.bruises == 1 and p.global_position.z > -4.6, "into the counter: one bruise, it lands in front of it (%s)" % p.global_position)
+	check(p.bruises == 1 and p.global_position.z > -4.6 and _landed(p) == [1, true, true, false], "into the counter: one bruise, it lands in front of it (%s)" % p.global_position)
 	items.server_despawn_item(p)
 	await wait_frames(1)
 
@@ -192,7 +190,7 @@ func _test_worker() -> void:
 	var hits0 := GameState.get_stat(1, Const.STAT_HITS)
 	await _throw(p, Vector3(-3.0, 1.0, 3.0), Vector3(0.0, 1.8, -8.0))
 	check(GameState.get_stat(1, Const.STAT_HITS) == hits0 + 1 and bob.is_stunned(), "it hits Bob: he goes down")
-	check(p.bruises == 1 and p.global_position.distance_to(bob.global_position) < 1.5, "and the bundle takes a bruise at his feet")
+	check(p.bruises == 1 and p.global_position.distance_to(bob.global_position) < 1.5 and _landed(p) == [1, true, true, false], "and the bundle takes a bruise at his feet")
 	items.server_despawn_item(p)
 	await wait_until(func() -> bool: return not bob.is_stunned() and bob.can_be_staggered(), 3.0, "Bob gets back up")
 	_put(bob, FAR_BOB)
@@ -204,14 +202,14 @@ func _test_fall() -> void:
 	var p := _bundle(&"budget", 1, LANE)
 	await wait_frames(1)
 	await _throw(p, Vector3(-5.0, 2.0, 3.0), Vector3(0.3, 0.0, 0.0))
-	check(p.bruises == 1, "off 2 m: bruised (%.2f m/s at the floor)" % sqrt(0.09 + 2.0 * 9.8 * 2.0))
+	check(p.bruises == 1 and _landed(p) == [1, true, true, false], "off 2 m: bruised (%.2f m/s at the floor)" % sqrt(0.09 + 2.0 * 9.8 * 2.0))
 	items.server_despawn_item(p)
 	p = _bundle(&"budget", 1, LANE)
 	await wait_frames(1)
 	await _throw(p, Vector3(-5.0, 1.2, 3.0), Vector3(0.3, 0.0, 0.0))
-	check(p.bruises == 0 and absf(p.global_position.y) < 0.05, "off 1.2 m: lands clean")
+	check(p.bruises == 0 and absf(p.global_position.y) < 0.05 and _landed(p) == [0, false, false, true], "off 1.2 m: lands clean, the plain drop thud")
 	await _throw(p, Vector3(-5.0, 0.6, 3.0), Vector3(1.0, 0.5, 0.0))
-	check(p.bruises == 0, "a soft lob: clean")
+	check(p.bruises == 0 and _landed(p) == [0, false, false, true], "a soft lob: clean, the drop thud")
 	items.server_despawn_item(p)
 	await wait_frames(1)
 
@@ -288,6 +286,7 @@ func _test_cap(b: BalanceConfig) -> void:
 	for i in 3:
 		await _throw(p, LANE + Vector3(0.0, 1.2, 0.0), Vector3(0.0, -5.0, 1.0))
 	check(p.bruises == b.bruise_max and not p.can_bruise() and _bruised.size() == 2, "two bruises (bruise_max), bundle_bruised twice %s" % [_bruised])
+	check(_landed(p) == [2, false, false, true], "the third landing is a plain drop (nothing left to bruise) %s" % [_landed(p)])
 	check(p.get_display_name() == "Purple Haze x1, badly bruised" and chute.get_sale_value(p) == TurnInStation.compute_sale_value(b.get_seed(&"purple"), 1, GameState.get_sale_multiplier(), false, 2),
 			"'%s': $%d (x0.6)" % [p.get_display_name(), chute.get_sale_value(p)])
 	check(not items.server_bruise_bundle(p, 1) and p.bruises == 2, "server_bruise_bundle refuses a third")
@@ -472,19 +471,28 @@ func _bundle(strain: StringName, amount: int, at: Vector3, extra: Dictionary = {
 	return p
 
 
-## Records, the moment a watched bundle's bruise count goes up, whether the last Sfx voice is the bruise thud and where.
+## Records every landing of a watched bundle (flight_changed(false) comes right after the landing's effects): its bruise
+## count, whether that flight bruised it, whether the last Sfx voice is the bruise thud or the drop thud, and where.
 func _watch(p: Product) -> void:
 	_watched[p.get_instance_id()] = p.bruises
-	p.props_changed.connect(func() -> void:
-		if not is_instance_valid(p):
+	p.flight_changed.connect(func(flying: bool) -> void:
+		if flying or not is_instance_valid(p):
 			return
 		var was := int(_watched.get(p.get_instance_id(), 0))
-		if p.bruises > was:
-			var v := Sfx.get_last_voice()
-			var is_bruise: bool = v != null and v.get(&"stream") == Sfx.get_stream(&"bruise")
-			var where: Vector3 = (v as Node3D).global_position if v is Node3D else Vector3.INF
-			_knocks.append([String(p.name), p.bruises, is_bruise, where])
+		var v := Sfx.get_last_voice()
+		var stream: Variant = v.get(&"stream") if v != null else null
+		var where: Vector3 = (v as Node3D).global_position if v is Node3D else Vector3.INF
+		_landings.append([String(p.name), p.bruises, p.bruises > was, stream == Sfx.get_stream(&"bruise"), stream == Sfx.get_stream(&"drop"), 0, where])
 		_watched[p.get_instance_id()] = p.bruises)
+
+
+## The last landing of `p`: [bruises, bruised in that flight, the bruise thud, the drop thud] ([] if none).
+func _landed(p: Product) -> Array:
+	for i in range(_landings.size() - 1, -1, -1):
+		var e: Array = _landings[i]
+		if e[0] == String(p.name):
+			return [e[1], e[2], e[3], e[4]]
+	return []
 
 
 ## Throws `it` and waits until it is down (or sold: gone). `sold` = a chute shot (waits for the despawn).

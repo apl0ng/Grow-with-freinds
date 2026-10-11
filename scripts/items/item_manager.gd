@@ -686,7 +686,8 @@ func server_redirect_flight(item: Item, origin: Vector3, velocity: Vector3) -> b
 # Bundles bruise (Product's "M23 fragile" region). Every flight ends in _server_end_flight; a product whose flight ends
 # anywhere but the deposit chute (a worker, a wall, the floor, a station, the time cap) is asked how fast it struck:
 # flight_velocity + FLIGHT_GRAVITY * t_end. At Product.get_bruise_speed() (a fall from Product.BRUISE_FALL_M) or more it
-# takes a bruise (Product.server_bruise, up to bruise_max; the thud plays from the synced setter on every peer). A throw
+# takes a bruise (Product.server_bruise, up to bruise_max) BEFORE the flight ends here, so on every peer the landing that
+# follows plays the bruise thud instead of the drop (Product's synced setter and _play_landing_effects). A throw
 # always strikes faster than that; a flight that ends at the chute (sold, or refused between shifts) never bruises. The
 # thrower hears about it once a shift: the first of their bundles that bruises in a shift sends that peer alone the flat
 # toast Product.TOAST_BRUISED (_rpc_fragile_toast; a fake worker without a connection gets nothing). Who was told is

@@ -80,7 +80,7 @@ func _host_main() -> void:
 	check(String(r.get("name", "")) == "Purple Haze x1, bruised" and String(r.get("tag", "")) == "x1, bruised",
 			"Alpha: '%s', tag '%s'" % [r.get("name", ""), r.get("tag", "")])
 	check(bool(r.get("dented", false)) and bool(r.get("grimy", false)), "Alpha: dented and grubby")
-	check(r.get("knocks", []) == [[1, true]], "Alpha: the thud played when the bruise arrived %s" % [r.get("knocks", [])])
+	check(r.get("knocks", []) == [[1, true]], "Alpha: the landing played the bruise thud (the bruise was there first) %s" % [r.get("knocks", [])])
 	check(int(r.get("toasts", -1)) == 1, "Alpha: 'Bruised. It pays less.' once (%s)" % r.get("toasts", -1))
 	check(int(r.get("value", -1)) == value, "Alpha: the same value ($%s)" % r.get("value", -1))
 	await checkpoint("after the first bruise", ["a"])
@@ -94,6 +94,7 @@ func _host_main() -> void:
 	check(int(r.get("bruises", -1)) == 2 and String(r.get("name", "")) == "Purple Haze x1, badly bruised" and int(r.get("value", -1)) == value,
 			"Alpha: two, '%s', $%s" % [r.get("name", ""), r.get("value", -1)])
 	check(int(r.get("toasts", -1)) == 1, "Alpha: still only the one toast (%s)" % r.get("toasts", -1))
+	check(r.get("knocks", []) == [[1, true], [2, true]], "Alpha: the second landing thudded the same way %s" % [r.get("knocks", [])])
 	await checkpoint("after the second bruise", ["a"])
 
 	step("a bruised bundle on the hand truck")
@@ -258,19 +259,17 @@ func _describe(it: Product) -> Dictionary:
 			"value": chute.get_sale_value(it) if chute != null else -1, "toasts": _toast_count(), "knocks": _knocks.duplicate()}
 
 
-## Client: records [bruises, the last voice played the bruise thud] whenever the bruise count of `it` goes up here.
+## Client: records [bruises, the landing's voice was the bruise thud] at every landing of `it` on this peer
+## (flight_changed(false) comes right after the landing's effects; the bruise arrives first, while it is in the air).
 func _watch(it: Product) -> void:
 	if it.has_meta(&"fragile_watched"):
 		return
 	it.set_meta(&"fragile_watched", true)
-	var seen := [it.bruises]
-	it.props_changed.connect(func() -> void:
-		if not is_instance_valid(it):
+	it.flight_changed.connect(func(flying: bool) -> void:
+		if flying or not is_instance_valid(it):
 			return
-		if it.bruises > int(seen[0]):
-			var v := Sfx.get_last_voice()
-			_knocks.append([it.bruises, v != null and v.get(&"stream") == Sfx.get_stream(&"bruise")])
-		seen[0] = it.bruises)
+		var v := Sfx.get_last_voice()
+		_knocks.append([it.bruises, v != null and v.get(&"stream") == Sfx.get_stream(&"bruise")]))
 
 
 func _toast_count() -> int:

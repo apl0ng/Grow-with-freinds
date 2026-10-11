@@ -198,13 +198,16 @@ func _refresh_visuals() -> void:
 # throw always is; so is anything falling from more than BRUISE_FALL_M), so the host calls server_bruise(). A flight that
 # ends at the deposit chute (a chute shot, sold or refused) never bruises; nor does a drop (Q), a hang on a rack, the hand
 # truck or anything a station puts down: none of them is a flight.
-# `bruises` (synced, host-owned, spawn state on; after `flight_serial` in the replication config, so a client has the
-# landing first) counts the knocks, at most Config.balance.bruise_max. Each takes bruise_share of the bundle's value off,
-# ADDITIVE: 1 - bruise_share x bruises (the shipped 0.2 / 2: -20 %, then -40 %), TurnInStation.bruise_factor() inside
-# compute_sale_value. So the chute, its prompt, the hand truck's total, the market, cured, the job, the stats, the
-# collector and the cost ledger all see the bruised value. Every peer, from the setter: the `bruise` thud and a little
-# grey dust where it struck; the buds a shade darker, the bag squashed and leaning (the dent) under a grubby overlay; the
-# names gain ", bruised" (", badly bruised" from two). The hand truck keeps "bruises" in its cargo entries.
+# `bruises` (synced, host-owned, spawn state on) counts the knocks, at most Config.balance.bruise_max. Each takes
+# bruise_share of the bundle's value off, ADDITIVE: 1 - bruise_share x bruises (the shipped 0.2 / 2: -20 %, then -40 %),
+# TurnInStation.bruise_factor() inside compute_sale_value. So the chute, its prompt, the hand truck's total, the market,
+# cured, the job, the stats, the collector and the cost ledger all see the bruised value.
+# Every peer: the buds a shade darker, the bag squashed and leaning (the dent) under a grubby overlay; the names gain
+# ", bruised" (", badly bruised" from two); the landing's thud is the `bruise` one (a soft, damp thud) instead of `drop`,
+# with a little grey dust. The host bruises a bundle before it ends the flight, and `bruises` comes BEFORE
+# `flight_serial` in the replication config, so on every peer the count goes up while the bundle is still in the air
+# (the setter only marks the landing) and the landing plays the bruise (_play_landing_effects). A bruise outside a
+# flight (a test, a late packet) thuds at once. The hand truck keeps "bruises" in its cargo entries.
 
 ## Anything that strikes at least as fast as a fall from this high (metres) bruises: sqrt(2 g h), about 5.4 m/s.
 const BRUISE_FALL_M: float = 1.5
@@ -231,6 +234,8 @@ var bruises: int = 0:
 static var _grime: StandardMaterial3D = null
 var _bag_meshes: Array[MeshInstance3D] = []
 var _bag_meshes_found: bool = false
+## Every peer: a bruise arrived while the bundle was in the air; its landing plays the bruise thud.
+var _knock_pending: bool = false
 
 
 func is_bruised() -> bool:
@@ -275,7 +280,8 @@ static func is_bruising_impact(velocity: Vector3) -> bool:
 	return velocity.is_finite() and velocity.length() >= get_bruise_speed()
 
 
-## SERVER. One more bruise, up to bruise_max. True when it took one (the setter plays the thud on every peer).
+## SERVER. One more bruise, up to bruise_max. True when it took one (every peer thuds: at the landing while the bundle
+## is in the air, at once otherwise).
 func server_bruise() -> bool:
 	if not is_inside_tree() or not multiplayer.is_server():
 		push_error("Product.server_bruise called on a client")
@@ -293,10 +299,28 @@ func _set_bruises(value: int) -> void:
 	var knocked := value > bruises
 	bruises = value
 	if knocked and is_node_ready() and is_inside_tree():
-		# Every peer (the setter runs from the sync too, after the landing): a soft, damp thud and a little grey dust.
-		Sfx.play(&"bruise", global_position)
-		Juice.puff(global_position + Vector3.UP * 0.15, Juice.GLOOM, 3)
+		# Every peer (the setter runs from the sync too): in the air the landing does it, otherwise right here.
+		if is_flying():
+			_knock_pending = true
+		else:
+			_play_knock()
 	_notify_props_changed()
+
+
+## Every peer: the bruise thud (a soft, damp thud) and a little grey dust where the bundle is.
+func _play_knock() -> void:
+	Sfx.play(&"bruise", global_position)
+	Juice.puff(global_position + Vector3.UP * 0.15, Juice.GLOOM, 3)
+
+
+## Item hook (every peer, the flight just ended): a landing that bruised the bundle thuds softer and wetter.
+func _play_landing_effects() -> void:
+	if not _knock_pending:
+		super()
+		return
+	_knock_pending = false
+	_play_knock()
+	Juice.bounce(get_visual(), 0.3)
 
 
 ## From _refresh_visuals (`s` = the amount's scale): the dent (squashed, leaning) and the grubby bag, or neither.
