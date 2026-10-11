@@ -7,6 +7,8 @@ extends RefCounted
 ## values stay in data/balance.tres, this file only overrides them. The `chill` suite pins it.
 ## M23 (the user, twice: "make the game more simple"): four strains instead of seven, no shift conditions, and the
 ## final notice's half-time look raises nothing.
+## M24 (the curve): the payment due is a share of the full game's that depends on the shift (QUOTA_SHIFT_SCALE)
+## instead of a flat 85%, so average crews of one and two reach their final notice too.
 
 ## The event mix: the trouble the user asked for (the power going out, the leak, the rival crew shooting), the silly
 ## kind (the rat, the phone, the sprinklers) and the Boss walking the floor. Every other kind is off (weight 0).
@@ -24,6 +26,14 @@ const EVENT_WEIGHTS: Dictionary = {
 ## Floor Brick (heavy, slow to carry) and Black Damp (spores). Four are left to learn: Budget Bud, Purple Haze, Golden
 ## Kush (from shift 2) and Night Shift (from shift 3: the plant that gets up and walks stays in the chill game).
 const DISABLED_STRAINS: Array[StringName] = [&"creeper", &"brick", &"damp"]
+
+## M24: the payment due by shift, as a share of the full game's (BalanceConfig.quota_shift_scale; shifts past the end
+## use the last value). Chosen with the economy model (tools/tests/econ_sim.gd; the chill suite pins the payments and
+## the outcome): the first shift is small enough for a sloppy crew to make (a heavier one bought nothing in the model);
+## the second is the gentlest, because a first shift paid early leaves little growing for it; from the third the floor
+## is full. Average crews of every size clear their run in the model with room to spare (a crew 12% quicker or 6%
+## slower still clears 5 of 5), and every payment is still higher than the one before it.
+const QUOTA_SHIFT_SCALE: Array[float] = [0.48, 0.45, 0.56, 0.52, 0.52, 0.69]
 
 ## BalanceConfig field -> the chill value. A typed array field takes its value element by element (apply()).
 const VALUES: Dictionary = {
@@ -50,8 +60,9 @@ const VALUES: Dictionary = {
 	&"disabled_strains": DISABLED_STRAINS,
 	# The final notice: the Boss still looks in at half time, but nothing goes up (the line is "Half the clock.").
 	&"final_interim_raise": 0.0,
-	# A payment a crew can make.
-	&"quota_multiplier": 0.85,
+	# A payment a crew can make (M24: shaped by shift; the multiplier stays 1, the whole curve is the shift scale).
+	&"quota_multiplier": 1.0,
+	&"quota_shift_scale": QUOTA_SHIFT_SCALE,
 }
 
 ## Every strain's chance to get up and walk is multiplied by this.

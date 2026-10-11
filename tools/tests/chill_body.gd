@@ -2,8 +2,10 @@ extends "res://tools/tests/qa_base.gd"
 ## M20 chill, M23 simpler: the simpler, calmer game a windowed run plays by default (scripts/core/chill.gd), on a solo
 ## host with `--chill --replay --run=B5VP` (two fake workers join, so the run's final notice is shift 6):
 ##   the preset     its values on Config.balance (disabled_strains a typed Array[StringName]), plants that walk off
-##                  half as often, the event mix (only the chill kinds ever come up), the payment (85%), no shift
-##                  conditions in any shift, no half-time raise
+##                  half as often, the event mix (only the chill kinds ever come up), no shift conditions in any
+##                  shift, no half-time raise
+##   the payment    (M24 curve) the full game's payment x the shift's factor (Chill.QUOTA_SHIFT_SCALE): the table for
+##                  shifts 1-6 and one to four workers (PAYMENTS), and every payment higher than the one before it
 ##   four strains   Budget Bud, Purple Haze, Golden Kush (shift 2), Night Shift (shift 3); Creeper, Floor Brick and
 ##                  Black Damp are known (get_seed) but never on sale, never bought, never on a supply card, a jar,
 ##                  the board, a briefing, a toast, a job, a shortage, a buyer or the market (the dice are rolled
@@ -14,8 +16,11 @@ extends "res://tools/tests/qa_base.gd"
 ##                  and name whole, the FAVORS tab the same size
 ##   the run        six shifts: no condition, no chip, the briefing exactly "New at the window: ..." on 2 and 3; the
 ##                  final notice's half-time look: short, nothing raised, the Boss says only "Half the clock."
-##   the model      the economy model with the preset over the four strains: careful crews of every size clear
-##                  their run (4 of 5), four average workers most of the time (3 of 5); the table is printed
+##   the model      (M24 curve) the economy model with the preset (the four strains, the chill event mix), each team
+##                  to its final notice, five runs: careful crews of every size clear 5 of 5; average crews of every
+##                  size reach the final notice 4 of 5 and clear 3 of 5 (four workers 4 of 5); sloppy crews of every
+##                  size make the first shift 3 of 5. The table is printed, the M23 curve's (every payment x0.85)
+##                  before it
 ## Every engine/script error fails the run unless announced (qa_base.gd).
 
 const Sim := preload("res://tools/tests/econ_sim.gd")
@@ -31,6 +36,15 @@ const BRIEFINGS: Dictionary = {
 	1: [], 2: ["New at the window: Golden Kush."], 3: ["New at the window: Night Shift."], 4: [], 5: [], 6: [],
 }
 const DICE := 300
+## M24 curve: the payment due, rows = shifts 1 to 6, columns = one to four workers (Sim.quota_table of the preset).
+const PAYMENTS: Array = [
+	[168, 235, 239, 245],
+	[512, 895, 915, 953],
+	[1209, 2539, 2606, 2739],
+	[1877, 3473, 3553, 3712],
+	[3037, 4859, 4950, 5132],
+	[6548, 8839, 8954, 9183],
+]
 
 var world: World
 var hud: HUD
@@ -132,14 +146,27 @@ func _test_events() -> void:
 
 
 func _test_payment(b: BalanceConfig, full: BalanceConfig) -> void:
-	step("the payment and the card")
+	step("the payment curve and the card")
+	# M24 curve: the full game's payment x the shift's factor (quota_multiplier 1: the whole curve is the shift scale).
+	check(full.quota_shift_scale.is_empty() and is_equal_approx(full.quota_multiplier, 1.0) and is_equal_approx(full.quota_shift_factor(3), 1.0),
+			"the full game (data/balance.tres) has no curve: every shift x1")
+	check(str(b.quota_shift_scale) == str(Chill.QUOTA_SHIFT_SCALE) and b.quota_shift_scale.size() == 6,
+			"the chill curve, by shift: %s" % [b.quota_shift_scale])
 	var off: PackedStringArray = []
 	for n in range(1, 7):
 		for w in range(1, 5):
-			if absi(b.quota_for_round(n, w) - roundi(full.quota_for_round(n, w) * b.quota_multiplier)) > 1:
+			var want := roundi(full.quota_for_round(n, w) * b.quota_multiplier * b.quota_shift_factor(n))
+			if absi(b.quota_for_round(n, w) - want) > 1:
 				off.append("shift %d x%d: $%d, full $%d" % [n, w, b.quota_for_round(n, w), full.quota_for_round(n, w)])
-	check(off.is_empty(), "every payment (shifts 1-6, 1-4 workers) is %d%% of the full game's %s" % [roundi(b.quota_multiplier * 100.0), off])
-	check(b.quota_for_round(1, 1) == roundi(full.quota_for_round(1, 1) * b.quota_multiplier), "shift 1 alone: $%d (the full game $%d)" % [b.quota_for_round(1, 1), full.quota_for_round(1, 1)])
+	check(off.is_empty(), "every payment (shifts 1-6, 1-4 workers) is the full game's x its shift's factor %s" % [off])
+	var table := Sim.quota_table(b)
+	check(str(table) == str(PAYMENTS), "the payment due, shifts 1-6 (rows) for one to four workers: %s" % [table])
+	var falls: PackedStringArray = []
+	for w in range(1, 5):
+		for n in range(1, 9):
+			if b.quota_for_round(n + 1, w) <= b.quota_for_round(n, w):
+				falls.append("x%d shift %d $%d -> $%d" % [w, n + 1, b.quota_for_round(n, w), b.quota_for_round(n + 1, w)])
+	check(falls.is_empty(), "the number only goes up: every payment is higher than the one before it (shifts 1-9, every team size) %s" % [falls])
 	var counts := []
 	for n in range(1, 10):
 		counts.append(ShiftConditions.count_for_round(n, b.conditions_from_round, b.conditions_per_shift, b.conditions_extra_from_round))
@@ -373,14 +400,23 @@ func _test_half_time() -> void:
 # --- the economy model ------------------------------------------------------------------------------------------------
 
 func _test_economy(b: BalanceConfig) -> void:
-	step("the economy model with the preset (four strains)")
+	step("the economy model with the preset (four strains, the chill event mix)")
+	var before := Sim.with_numbers(b, {"quota_multiplier": 0.85, "quota_shift_scale": []})
+	print(Sim.format_runs(before, "M23 chill (before M24): every payment x0.85"))
 	var teams := Sim.all_teams(b)
-	print(Sim.format_runs(b, "M23 chill: four strains, no conditions, no half-time raise", {}, teams))
+	print(Sim.format_runs(b, "M24 chill: the payment curve", {}, teams))
+	# M24 curve: the targets (CONTRACTS "M24", "Curve"), each team to its final notice, five runs.
 	for w in range(4):
-		var careful: Dictionary = teams[0][w]
-		check(int(careful["cleared"]) >= 4, "careful x%d clears its run (%d of 5; reached %d)" % [w + 1, int(careful["cleared"]), int(careful["reached"])])
-	check(int(teams[1][3]["cleared"]) >= 3, "four average workers clear most of the time (%d of 5)" % int(teams[1][3]["cleared"]))
-	check(int(teams[1][3]["reached"]) >= 4 and int(teams[1][2]["reached"]) >= 4, "three and four average workers reach the final notice (%d, %d of 5)" % [int(teams[1][2]["reached"]), int(teams[1][3]["reached"])])
+		var careful: Dictionary = teams[Sim.SKILL_CAREFUL][w]
+		check(int(careful["cleared"]) >= 5, "careful x%d clears its run (%d of 5)" % [w + 1, int(careful["cleared"])])
+	for w in range(4):
+		var average: Dictionary = teams[Sim.SKILL_AVERAGE][w]
+		var need := 4 if w == 3 else 3
+		check(int(average["reached"]) >= 4 and int(average["cleared"]) >= need,
+				"average x%d reaches the final notice (%d of 5, at least 4) and clears it (%d of 5, at least %d)" % [w + 1, int(average["reached"]), int(average["cleared"]), need])
+	for w in range(4):
+		var first: Dictionary = (teams[Sim.SKILL_SLOPPY][w]["shifts"] as Array)[0]
+		check(int(first["made"]) >= 3, "sloppy x%d makes the first shift (%d of 5; $%d due, $%.0f deposited by the buzzer on average)" % [w + 1, int(first["made"]), int(first["quota"]), float(first["deposits"])])
 	var raised := 0
 	for row: Array in teams:
 		for team: Dictionary in row:

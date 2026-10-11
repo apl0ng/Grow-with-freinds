@@ -44,7 +44,8 @@ extends RefCounted
 ##
 ## EVENTS AND MUTATIONS (the tax; event_costs() lists every line)
 ##   Events: (round_length - event_first_delay) / (mean event length + mean gap) + 0.5 events a shift, the gap
-##   shrinking by event_gap_shrink_per_round with replay on. Per event, weighted by the M17 scheduler weights:
+##   shrinking by event_gap_shrink_per_round with replay on. Per event, weighted by the M17 scheduler weights (M24: the
+##   chill preset's own mix when Config.chill_enabled, see event_weight()):
 ##   seconds every worker loses (inspection, head count, drive-by, raid), seconds one worker loses (fuse box, rat,
 ##   leak, collector, the scale, the phone), seconds the whole floor stops growing (power cut, a dry tank), cash
 ##   (write-ups, the drive-by bill, the fee of the collector, a bundle lost to a raid, the phone's fine) and the raise
@@ -154,6 +155,21 @@ const EVENT_WEIGHTS: Dictionary = {
 	"inspection": 20, "power_cut": 12, "audit": 7, "rat": 6, "headcount": 9, "water_off": 6, "shortage": 5,
 	"leak": 7, "driveby": 7, "raid": 6, "sprinklers": 5, "collection": 5, "scale": 3, "phone": 2,
 }
+
+
+## M24 curve: the share of the events that are `kind`, in the mix the game deals. With the chill preset on
+## (Config.chill_enabled, as Events.get_weight reads it) that is Chill.EVENT_WEIGHTS: seven kinds, so the model no
+## longer prices an audit's raise, a raid, the collector, the scale, a head count, the water main or a shortage the
+## chill game never deals. Otherwise EVENT_WEIGHTS (the full game, unchanged).
+static func event_weight(kind: String) -> float:
+	if Config.chill_enabled:
+		var total := 0
+		for k: StringName in Chill.EVENT_WEIGHTS:
+			total += Chill.get_event_weight(k)
+		return float(Chill.get_event_weight(StringName(kind))) / float(maxi(total, 1))
+	return float(EVENT_WEIGHTS[kind]) / 100.0
+
+
 ## Seconds a worker loses keeping out of the Boss's sight and on the move during an inspection.
 const INSPECTION_DODGE_SEC := 3.0
 ## Seconds a worker stands on the line before the count ends.
@@ -393,7 +409,7 @@ static func event_costs(cfg: BalanceConfig, workers: int, skill: int) -> Array[D
 	var out: Array[Dictionary] = []
 	var add := func(kind: String, length: float, each_sec: float, one_sec: float, stall_sec: float, dark_sec: float,
 			cash: float, quota_frac: float) -> void:
-		out.append({"kind": kind, "weight": float(EVENT_WEIGHTS[kind]) / 100.0, "length": length, "each_sec": each_sec,
+		out.append({"kind": kind, "weight": event_weight(kind), "length": length, "each_sec": each_sec,  # M24 curve: the chill mix
 				"one_sec": one_sec, "stall_sec": stall_sec, "dark_sec": dark_sec, "cash": cash, "quota_frac": quota_frac})
 	# Inspection: keep moving; a write-up now and then.
 	add.call("inspection", cfg.inspection_sec, INSPECTION_DODGE_SEC, 0.0, 0.0, 0.0,
@@ -1602,7 +1618,13 @@ static func describe_payment(cfg: BalanceConfig) -> String:
 	var team := "+%d%% a worker beyond the first" % roundi(cfg.quota_per_extra_player * 100.0)
 	if not cfg.quota_team_by_shift.is_empty():
 		team = "team table %s by shift x %s for 2 / 3 / 4 workers" % [cfg.quota_team_by_shift, str(cfg.quota_team_by_size) if not cfg.quota_team_by_size.is_empty() else "1 / 2 / 3"]
-	return "base %d, x%.2f + %d a shift, %s" % [cfg.base_quota, cfg.quota_scale, cfg.quota_add, team]
+	var out := "base %d, x%.2f + %d a shift, %s" % [cfg.base_quota, cfg.quota_scale, cfg.quota_add, team]
+	# M24 curve: the chill preset's factors (the full game has neither, so its line is unchanged).
+	if not is_equal_approx(cfg.quota_multiplier, 1.0):
+		out += ", all x%.2f" % cfg.quota_multiplier
+	if not cfg.quota_shift_scale.is_empty():
+		out += ", by shift x%s" % [cfg.quota_shift_scale]
+	return out
 
 
 ## The printed run table: per team, per shift of its run, mean deposits by the buzzer / payment due and how many of the
