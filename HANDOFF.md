@@ -33,8 +33,8 @@ and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of
    starts in the alley (--no-lobby for the old start). M12 (CONTRACTS "M12", FRIENDSLOP section 7) added six strains
    with mutation chances, the hostile plant (Hostiles autoload), the break-glass flamethrower (EmergencyCabinet +
    Flamethrower item, `use_item` on LMB) and three disruption events (head count, water main off, shortage).
-   104 suites in tools/test_all.sh, all green on this PC except the skipped X11 mouse suite (last full run
-   2026-10-11, 17473 checks, about 45 minutes with the two soak suites; cart timed out while the PC slept and passes on rerun). The export templates are installed; `tools\export.ps1`
+   108 suites in tools/test_all.sh, all green on this PC except the skipped X11 mouse suite (last full run
+   2026-10-11 after M23, 18151 checks, about 39 minutes with the two soak suites). The export templates are installed; `tools\export.ps1`
    cuts `export\GrowWithFriends-win64.zip`. The real `user://career.cfg` is the user's: tests and capture tools pass
    `--career-file=<temp>` and never touch it. Next candidates: FRIENDSLOP 11.4, PLAN.md "M11" and "Things the user
    may ask for next".
