@@ -1722,3 +1722,50 @@ nothing that adds menus or long rules.
 - A soft thud (`bruise`; your recipe) and a
   flat toast for the thrower the first time in a shift ("Bruised. It pays less.").
 - Suites `fragile` (+3) and `fragile_mp` (+4: a client's throw bruises a bundle on every peer; the value matches).
+
+### M23 as delivered (integration notes, lead, 2026-10-11)
+Three branches merged (simplify, social, fragile) plus lead fixes. Suites `social` (+1), `social_mp` (+2),
+`fragile` (+3), `fragile_mp` (+4); the port probe covers +1..+4 now.
+
+**Simplify.** `BalanceConfig.is_strain_enabled(id)` and `get_enabled_seeds()` (balance order); `get_seed()` still
+finds a strain that is off, so a bundle or packet that already exists keeps its name and price. One tagged line each
+in `GameState.is_strain_unlocked` (the market, the shortage, the window's cards and the soak bots follow it),
+`get_new_strains`, `_replay_roll`, `_career_context`, `Contracts.build` (a strain job handed a strain that is off
+names the first on sale), `Events.pick_shortage_strain`, `ShopCounter.server_buy_seed` ("Unknown seed.") and its
+jars, `ShopUI._build_cards`, econ_sim. `GrowPlot.server_plant` is not gated (tools may still plant any strain).
+`Chill.DISABLED_STRAINS` creeper, brick, damp; `conditions_from_round` 99; `final_interim_raise` 0: a short crew at
+half time hears "Half the clock." (Story `FINALE_LINES["final_half"]`, keyed on the synced `raised`), the full game is
+unchanged. The supply window puts exactly four seed cards in one row of 284 px cards (`ShopUI.ROW_MAX_CARDS`,
+`is_one_row()`; the favor cards widen to 383 px so the window keeps its width); seven cards keep three columns and
+scroll. Economy model, chill, four strains (of 5 runs): careful x1-x4 clear 5; average x4 clears 4, x3 reaches the
+final notice 5 and clears 0, x1 and x2 reach 1; `quota_multiplier` stays 0.85 (0.80 ends shifts earlier and carries
+less; 0.90 drops average x4 to 2). **Lead:** a job that needs an event is offered only when the mix deals that kind
+(`ctx["event_kinds"]` from `Events.get_weight`; the chill game offered "a raid that takes nothing" with raids off).
+
+**Social.** Every knockdown goes through `Player.server_stagger`, so one rule covers them all. `Player`:
+`signal helped_up(by_peer)`, `can_request_help_up()`, `request_help_up(target_peer) -> bool` (owner),
+`server_help_up(target) -> bool` (host), `is_helping()`, `get_talk_mark()`, `is_talk_mark_shown()`. The host checks
+the sender, neither worker gone or in the back room, the helper not stunned, the target stunned in the host's view,
+range `shove_range` + 1 m, no wall between the chests, `help_up_cooldown_sec`; a refusal is silent. Success:
+`STAT_HELPED` +1, the stun ends on the host at once and then on the target's owner (who broadcasts the cosmetic reach,
+the camera nudges and `help_up`); the stagger immunity is kept. Prompt "[E] Help Dale up" (F still shoves); the
+report's verdict "%s helped people up the most.". `TalkMark` (scripts/ui/talk_mark.gd): a billboard speaker over a
+remote worker's name label (driven by `Voice.speaking_changed`, correct for a late joiner) and over a radio carrying a
+voice; never your own; one shared texture drawn at `_ready`. `RunSeed.daily(unix_time)` / `is_daily(seed, unix_time)`
+(UTC day); the menu's TODAY button (node `%WeekButton`); the board says "Today's run.".
+**Lead follow-up (social):** a worker who is down slumps on every peer while `is_stunned()` (`$Visual` sinks 0.45 m,
+tips 0.48 rad forward and 0.2 rad aside, the side from the peer id; eases in 0.12 s, up 0.2 s, so a help-up reads as
+being pulled up; nothing new is synced); the owner's camera drops 0.25 m; `Player.get_slump()` 0..1. The chill game's
+bite knocks down for 2 s (`Chill.VALUES.hostile_bite_stun_sec`; the full game 1 s): long enough for a friend to
+help; the stagger immunity (stun + 1 s) keeps the plant from biting a worker who is down.
+
+**Fragile.** The host bruises a bundle when a flight ends anywhere but the chute at the speed of a 1.5 m fall or more
+(`Product.BRUISE_FALL_M`, about 5.4 m/s; a throw always does). Never: the chute (a chute shot), Q, a rack, the hand
+truck, a knocked-down worker's dropped bundle. Value: x(1 - `bruise_share` x bruises), at most `bruise_max` (x0.8,
+x0.6), inside `TurnInStation.compute_sale_value(seed, amount, mult, cured, bruises)`, so the chute, its prompt, the
+truck's total, the market, cured, the job, STAT_DEPOSITED, the collector and the cost ledger all see it. `Product`:
+`var bruises` (synced before `flight_serial`, so a client has it when the bundle lands), `server_bruise()`,
+`get_bruise_factor()`, labels "Purple Haze x2, bruised" / "badly bruised"; buds 15% darker a bruise, the bag squashed
+and leaning, a grey overlay. A bruising landing plays `bruise` (lead: -4 dB) instead of `drop`. The thrower's first
+bruise of a shift: "Bruised. It pays less." The hand truck keeps bruises (a fifth cargo field only when above 0; the
+four-field form still decodes). `ItemManager.bundle_bruised(item, bruises, thrower)`.

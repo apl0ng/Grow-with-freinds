@@ -125,6 +125,12 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   `tools/tests/soak.sh` has a host and three clients play the chill game through the van to PAID IN FULL with scripted
   workers, comparing every peer's state at checkpoints (`SOAK_MINUTES=45` for the long run, two clients behind
   `tools/tests/udp_proxy.gd`: 80 ms +- 20 each way, 2% loss).
+- The friendslop basics (M23, from the 2025-26 hits: FRIENDSLOP.md section 13): a worker who is knocked down slumps,
+  and a friend pressing E on them stands them up at once (the report names who helped most; in the chill game a bite
+  keeps you down for two seconds). A small speaker mark floats over whoever is talking and over a radio carrying a
+  voice. A bundle that hits the floor, a wall, a station or a worker hard is bruised: darker, dented, labelled, and
+  the chute pays a fifth less a bruise (two at most); a throw into the chute, a rack, Q and the hand truck keep it
+  whole.
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows
