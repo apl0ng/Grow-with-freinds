@@ -4,11 +4,13 @@
 You are the lead developer on this Godot 4.7.2 project. The user wants the game launched and played on their PC,
 and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of 2026-09-29.
 
-0. State (2026-10-11): M10 to M19, the CHILL pivot (0.20.0) and M22 release hardening (0.21.0: the licence file and
-   the exe identity in the zip, PLAYER_GUIDE.md, the perf and soak suites) merged: the user asked for the game itself
+0. State (2026-10-11): M10 to M19, the CHILL pivot (0.20.0), M22 release hardening (0.21.0: the licence file and
+   the exe identity in the zip, PLAYER_GUIDE.md, the perf and soak suites) and M23 (0.22.0, CONTRACTS "M23 as
+   delivered", FRIENDSLOP 13: the chill game sells four strains with no conditions and no half-time raise; help a
+   friend up (a downed worker slumps), the talk mark, TODAY's code, bundles that bruise) merged: the user asked for the game itself
    to be "simpler and chill"; a windowed run plays the chill preset (scripts/core/chill.gd, CONTRACTS "M20 chill",
    memory game-direction-simpler-chill); `--no-chill` and every suite play the full game. M20 "One more run" is
-   shelved on branches m20/*. RELEASE.md is the road to 1.0 (M21, M22 left). M19
+   shelved on branches m20/*. RELEASE.md is the road to 1.0 (M21 shelved; what is left is mostly the user's: a playtest, a clean PC, the sounds). M19
    (CONTRACTS "M19 as delivered"): the guided first shift (Guide), the OPTIONS card and the Settings autoload
    (`--settings-file` in tests: never the real file), every scheduled disruption warns 3 s first, the report's
    WHAT IT COST lines. M18 (CONTRACTS "M18 as
@@ -18,7 +20,7 @@ and the "friendslop" milestone M10 (FRIENDSLOP.md) is integrated and green as of
    a hand truck on the dock, the scale that reads light and the wall phone (fourteen event kinds). Quitting goes
    through Game.quit_gracefully (an audio shutdown race crashed the exit now and then). M16 (CONTRACTS "M16" and "M16 as delivered", FRIENDSLOP section 10): a
    four-character run code that seeds the card and one of four cover layouts (the host panel's run code field, THIS
-   WEEK, `--run=<code>`), seven hats issued from the record and worn from a locker in the alley, twelve jobs, a cap
+   WEEK (TODAY since M23), `--run=<code>`), seven hats issued from the record and worn from a locker in the alley, twelve jobs, a cap
    on walking plants, a sound audition tool (`tools/tests/sound_demo_body.gd`). Suites that run with --replay pass
    `--run=B5VP` (layout 0, one fixed card). M15 (CONTRACTS "M15" and "M15 as delivered", FRIENDSLOP section 9) is the
    replayability pass: thirteen shift conditions and a per-strain market posted on the alley board before the ride,

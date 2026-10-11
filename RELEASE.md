@@ -11,13 +11,17 @@ The user asked for the game itself to be "simpler and chill". A windowed game no
 at a time from shift three, payments a crew can make. The full game is still there (`--no-chill`, and every suite
 tests it). Read the bar below with that in mind: D2 is two or three disruptions a shift, not five; M20 "One more run"
 (debt levels, achievements) is shelved because it adds systems; the run summary may come back in a small form.
+2026-10-11 (M23): the user asked again for "more simple" and for features from the friendslop hits. The chill game
+now sells four strains and has no shift conditions and no half-time raise; from the hits it took four small things
+(FRIENDSLOP.md section 13): helping a friend up, a mark over whoever is talking, a run code for today, and bundles
+that bruise when they hit hard.
 
-## Status of the bar (2026-10-10, after M22)
+## Status of the bar (2026-10-11, after M23)
 - True: L2, L3 (chill and full), L5, D1, D2 (chill), D4 except the user hearing the sounds, P3 (jobs, the final notice,
-  hats, titles, the weekly code), R2 (42 min on four local processes, two behind a lossy proxy), R3 (min 62 fps on the
-  user's GPU; 0.7-1.1 ms headless host frame), R4, R5 except the clean-PC check.
+  hats, titles, today's code since M23), R2 (42 min on four local processes, two behind a lossy proxy), R3 (min
+  62 fps on the user's GPU; 0.7-1.1 ms headless host frame), R4, R5 except the clean-PC check.
 - Needs the user: L1 (a crew with no instructions), R5's clean-PC check (tools/CLEAN_PC_CHECK.md), D4's sounds
-  (export/audition), R6's channel and price.
+  (export/audition; M23 added `bruise` and `help_up`), R6's channel and price.
 - Lead, before 1.0: R1 (the full suite three runs in a row), R6's screenshots (tools/tests/store_shots_body.gd) and the
   30-second clip; P1 / P2 are shelved with M20 (the run summary may come back small).
 
