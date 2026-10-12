@@ -136,7 +136,7 @@ func _run() -> void:
 	Config.lobby_enabled = true
 	Settings.set_value(&"guidance", false)   # in memory: a scripted run reads and writes no settings file
 	await get_tree().process_frame
-	Game.start_host("Zay", port_arg(7978))
+	Game.start_host("Cara", port_arg(7978))   # a crew name, not the user's
 	if not await _wait(func() -> bool: return Game.world != null and Game.local_player != null, 8.0, "world + local player"):
 		finish()
 		return

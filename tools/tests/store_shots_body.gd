@@ -76,7 +76,7 @@ func _run() -> void:
 			s.mutation_chance = 0.0
 	Config.lobby_enabled = true
 	await get_tree().process_frame
-	Game.start_host("Zay", port_arg(7977))
+	Game.start_host("Cara", port_arg(7977))   # a crew name, not the user's
 	await wait_until(func() -> bool: return Game.world != null and Game.local_player != null, 8.0, "world + local player")
 	if Game.world == null:
 		finish()
