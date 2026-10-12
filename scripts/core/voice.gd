@@ -36,6 +36,7 @@ extends Node
 ##   Headless  is_mic_available() is false, nothing is captured, no errors are printed; the receive path,
 ##             playback nodes and speaking state fully work (the Dummy audio driver still mixes).
 ##   Radio     M18: walkie-talkies carry a transmission to every other radio; see the "M18 radio" region. # M18 radio
+##   Muffle    M25: a wall between a remote speaker and the camera low-passes that voice; see "M25 muffle". # M25 muffle
 ##
 ## Test hooks (tools/tests/voice_test.gd, voice_mp_*.gd):
 ##   debug_inject_frame(peer_id, frame, seq := -1)  runs the receive path as if `peer_id` had sent it
@@ -184,6 +185,7 @@ class Output:
 	var route: StringName = &""
 	var last_pos: Vector3 = Vector3.ZERO
 	var has_pos: bool = false
+	var muffle: Muffle = null               # M25 muffle: this speaker's wall check (made on first use)
 
 
 func _ready() -> void:
@@ -200,6 +202,7 @@ func _process(_delta: float) -> void:
 	var now := Time.get_ticks_msec()
 	_process_capture(now)
 	_process_outputs()
+	_muffle_process(now) # M25 muffle: after the routes and positions are current
 	_radio_process(now) # M18 radio
 	_expire_speaking(now)
 
@@ -1159,6 +1162,227 @@ func _ensure_radio_bus() -> void:
 	AudioServer.set_bus_send(idx, VOICE_BUS if voice_idx != -1 and voice_idx < idx else &"Master")
 
 # --- end M18 radio ------------------------------------------------------------------------------------------------
+
+# --- M25 muffle ---------------------------------------------------------------------------------------------------
+# Voices through walls (CONTRACTS "M25", "Muffle"). A remote worker's proximity voice (its Output player under VoiceOut,
+# never a radio's RadioVoice<sender>) is low-passed and a little quieter while a wall stands between the speaker's head
+# and this peer's listener (the current camera, as _listener_position() finds it).
+#   Walls   One ray from the listener to the emitter (o.last_pos) on Const.LAYER_WORLD, through one shared, cached
+#           PhysicsRayQueryParameters3D. Only architecture stops it: the bodies at MUFFLE_WALL_PATHS under the Room (the
+#           floor, the walls, the ceiling, the Boss's booth partitions, the booth door's leaf, which stays solid) and the
+#           alley (World/Lobby). The chained roller door is part of the dock's south wall; an open doorway is a hole in
+#           the Walls body, so a ray through it is clear. Everything else on that layer (the pen's chain-link fence,
+#           crates, pallets, drums, the van, the trays and the other stations, a hostile plant) goes in the query's
+#           exclude list: what the room and the alley hold once per world, anything else the first time a ray stops on
+#           it (the same ray then goes again, at most MUFFLE_MAX_RECASTS times). Players and items are on other layers.
+#   When    Only for a speaker Voice hears now (is_speaking), on the &"3d" route, within voice_range, at most once per
+#           MUFFLE_CAST_MS per speaker. A silent speaker casts nothing.
+#   Ease    `amount` (0 clear .. 1 muffled) moves to the last ray's answer at 1 / MUFFLE_EASE_SEC per second. The first
+#           ray of a talk spell (the speaker was silent), or the first after the route came back to &"3d" (the route's
+#           own volume just jumped), sets it outright: nothing is playing yet, the jitter buffer still holds the first
+#           frame. The player then has attenuation_filter_cutoff_hz = MUFFLE_CLEAR_HZ * (MUFFLE_HZ / MUFFLE_CLEAR_HZ) ^
+#           amount (an even sweep in pitch) and volume_db = max_db = MUFFLE_DB * amount; attenuation_filter_db keeps the
+#           engine's -24. Why both: Godot's 3D filter cuts above the cutoff by an amount that grows as the distance gain
+#           falls below 1, and it clamps the gain to max_db AFTER adding volume_db. Close up the gain sits at the clamp:
+#           the cutoff alone takes 3-4 dB off at 1 m and volume_db alone changes nothing there; max_db brings the gain
+#           down (quieter close up, and the filter bites), volume_db keeps the voice 4 dB down further out.
+#           Measured on the Voice bus (tools/tests/muffle_body.gd, a 300 Hz / 1 kHz / 3 kHz voice, muffled vs clear at
+#           the same spot): 0.7 m -3 / -20 / -24 dB, 2 m -3 / -22 / -27, 5 m -4 / -26 / -33, 10 m -9 / -33 / -38.
+#           MUFFLE_CLEAR_HZ and 0 dB are the values every voice had before M25. Written only while `amount` moves.
+#   Routes  Only &"3d" is ever muffled. Off it (the back room) the cutoff and max_db go back to the clear values at once
+#           and volume_db stays _apply_route's: &"faint", &"full" and &"mute" are exactly what they were.
+#   Cost    intersect_ray's answer (one Dictionary) per ray, at most 1000 / MUFFLE_CAST_MS a second per talking speaker;
+#           nothing else is allocated per frame (a speaker's state is made once with its Output).
+# Test hooks: get_muffle_amount(peer_id), get_muffle_stats().
+
+## A ray per talking speaker at most this often (ms).
+const MUFFLE_CAST_MS: int = 100
+## Clear -> muffled (and back) takes this long (s).
+const MUFFLE_EASE_SEC: float = 0.15
+## Clear: AudioStreamPlayer3D's default cutoff (5 kHz), the voice as it was.
+const MUFFLE_CLEAR_HZ: float = 5000.0
+## Muffled: the filter cuts from 700 Hz up; volume_db and max_db at MUFFLE_DB (see the Ease note).
+const MUFFLE_HZ: float = 700.0
+const MUFFLE_DB: float = -4.0
+## A ray that stops on something new that is not a wall goes again at most this many times.
+const MUFFLE_MAX_RECASTS: int = 3
+## The exclude list is built afresh once it holds more than this many bodies.
+const MUFFLE_EXCLUDE_MAX: int = 256
+## What counts as a wall: these bodies under the Room, and MUFFLE_LOBBY_WALL_PATHS under World/Lobby.
+const MUFFLE_WALL_PATHS: Array[NodePath] = [^"Floor", ^"Walls", ^"Ceiling", ^"Decor/Booth", ^"Decor/BackRoomDoor/Body"]
+const MUFFLE_LOBBY_WALL_PATHS: Array[NodePath] = [^"Floor", ^"Walls"]
+
+## One speaker's wall check (Output.muffle).
+class Muffle:
+	var amount: float = 0.0         # what the player has now: 0 clear .. 1 muffled
+	var target: float = 0.0         # the last ray's answer
+	var next_cast_ms: int = 0
+	var talking: bool = false       # heard on the last pass
+	var fresh: bool = true          # the next ray opens a talk spell: its answer is taken outright
+
+var _muffle_query: PhysicsRayQueryParameters3D = null
+var _muffle_exclude: Array[RID] = []    # everything on LAYER_WORLD that is not a wall (this world)
+var _muffle_walls: Dictionary = {}      # instance id -> true for the wall bodies of this world
+var _muffle_world_id: int = 0
+var _muffle_last_ms: int = 0
+var _muffle_casts: int = 0
+var _muffle_recasts: int = 0
+
+
+# --- test hooks ---
+
+## How muffled `peer_id`'s voice is right now (0 clear .. 1 muffled; 0 without an output).
+func get_muffle_amount(peer_id: int) -> float:
+	var o: Output = _outputs.get(peer_id)
+	if o == null or o.muffle == null:
+		return 0.0
+	return o.muffle.amount
+
+
+## {casts (rays sent, recasts included), recasts, walls (wall bodies known), excluded (bodies the ray ignores)}.
+func get_muffle_stats() -> Dictionary:
+	return {
+		"casts": _muffle_casts,
+		"recasts": _muffle_recasts,
+		"walls": _muffle_walls.size(),
+		"excluded": _muffle_exclude.size(),
+	}
+
+
+# --- hook (_process, after _process_outputs) ---
+
+func _muffle_process(now: int) -> void:
+	var dt := clampf(float(now - _muffle_last_ms) / 1000.0, 0.0, 0.1)
+	_muffle_last_ms = now
+	if _outputs.is_empty():
+		return
+	var listener := Vector3.ZERO
+	var have_listener := false
+	var range_sq := Config.balance.voice_range * Config.balance.voice_range
+	for k in _outputs:
+		var o: Output = _outputs[k]
+		if not is_instance_valid(o.player) or not o.player.is_inside_tree():
+			continue
+		if o.muffle == null:
+			o.muffle = Muffle.new()
+		var m := o.muffle
+		if o.route != ROUTE_3D:
+			m.talking = false
+			if m.amount != 0.0 or m.target != 0.0:
+				m.amount = 0.0
+				m.target = 0.0
+				_muffle_clear_filter(o.player)
+			continue
+		if not _speaking.has(o.peer_id) or not o.has_pos:
+			m.talking = false
+		else:
+			if not m.talking:
+				m.talking = true
+				m.fresh = true
+				m.next_cast_ms = now
+			if now >= m.next_cast_ms:
+				m.next_cast_ms = now + MUFFLE_CAST_MS
+				if not have_listener:
+					listener = _listener_position()
+					have_listener = true
+				if listener.distance_squared_to(o.last_pos) <= range_sq:
+					m.target = 1.0 if _muffle_blocked(listener, o.last_pos) else 0.0
+					if m.fresh:
+						m.fresh = false
+						m.amount = m.target
+						_muffle_apply(o.player, m.amount)
+		if m.amount != m.target:
+			m.amount = move_toward(m.amount, m.target, dt / MUFFLE_EASE_SEC)
+			_muffle_apply(o.player, m.amount)
+
+
+# --- the ray ---
+
+## True when a wall stands between `from` and `to` (global). False without a world to ask.
+func _muffle_blocked(from: Vector3, to: Vector3) -> bool:
+	if from.distance_squared_to(to) < 0.0025 or not _muffle_prepare():
+		return false
+	var w := Game.world as Node3D
+	if w == null or not w.is_inside_tree():
+		return false
+	var space := w.get_world_3d().direct_space_state
+	if space == null:
+		return false
+	_muffle_query.from = from
+	_muffle_query.to = to
+	for i in MUFFLE_MAX_RECASTS + 1:
+		_muffle_casts += 1
+		if i > 0:
+			_muffle_recasts += 1
+		var hit := space.intersect_ray(_muffle_query)
+		if hit.is_empty():
+			return false
+		if _muffle_walls.has(int(hit.get("collider_id", 0))):
+			return true
+		# On the world layer but not architecture (a body spawned after the list was made): never again. A list grown
+		# past MUFFLE_EXCLUDE_MAX (bodies come and go over a long run) is built afresh on the next ray.
+		_muffle_exclude.append(hit.get("rid", RID()))
+		_muffle_query.exclude = _muffle_exclude
+		if _muffle_exclude.size() > MUFFLE_EXCLUDE_MAX:
+			_muffle_world_id = 0
+	return false
+
+
+## The query, the wall set and the exclude list for the current world (built once per world). False without a world.
+func _muffle_prepare() -> bool:
+	var w: Node = Game.world
+	if w == null or not is_instance_valid(w):
+		return false
+	if _muffle_query != null and _muffle_world_id == w.get_instance_id():
+		return true
+	_muffle_world_id = w.get_instance_id()
+	_muffle_walls.clear()
+	_muffle_exclude.clear()
+	var places: Array[Node] = [w.get_node_or_null(^"Room"), w.get_node_or_null(^"Lobby")]
+	var paths: Array = [MUFFLE_WALL_PATHS, MUFFLE_LOBBY_WALL_PATHS]
+	for i in places.size():
+		if places[i] == null:
+			continue
+		for path: NodePath in paths[i]:
+			var body := places[i].get_node_or_null(path) as CollisionObject3D
+			if body != null:
+				_muffle_walls[body.get_instance_id()] = true
+	for place in places:
+		if place != null:
+			_muffle_collect(place)
+	if _muffle_query == null:
+		_muffle_query = PhysicsRayQueryParameters3D.new()
+		_muffle_query.collision_mask = Const.LAYER_WORLD
+		_muffle_query.collide_with_bodies = true
+		_muffle_query.collide_with_areas = false
+		_muffle_query.hit_from_inside = false
+	_muffle_query.exclude = _muffle_exclude
+	return true
+
+
+## Every body under `n` on the world layer that is not a wall goes in the exclude list.
+func _muffle_collect(n: Node) -> void:
+	var body := n as CollisionObject3D
+	if body != null and (body.collision_layer & Const.LAYER_WORLD) != 0 and not _muffle_walls.has(body.get_instance_id()):
+		_muffle_exclude.append(body.get_rid())
+	for c in n.get_children():
+		_muffle_collect(c)
+
+
+# --- the player ---
+
+func _muffle_apply(p: AudioStreamPlayer3D, amount: float) -> void:
+	p.attenuation_filter_cutoff_hz = MUFFLE_CLEAR_HZ * pow(MUFFLE_HZ / MUFFLE_CLEAR_HZ, amount)
+	p.volume_db = MUFFLE_DB * amount
+	p.max_db = MUFFLE_DB * amount
+
+
+## Off the 3D route: the clear cutoff and cap; volume_db is the route's (_apply_route).
+func _muffle_clear_filter(p: AudioStreamPlayer3D) -> void:
+	p.attenuation_filter_cutoff_hz = MUFFLE_CLEAR_HZ
+	p.max_db = 0.0
+
+# --- end M25 muffle -----------------------------------------------------------------------------------------------
 
 # --- Playback ---------------------------------------------------------------------------------------------------
 
