@@ -1858,3 +1858,16 @@ Why (FRIENDSLOP 13: voice is a system): a friend behind a wall sounds the same a
 - No per-frame allocations; the perf suite's budget holds.
 - Suite `muffle` (+19): in the open vs behind a wall vs through an open doorway; nothing cast while silent; radio and
   back room unchanged.
+
+### Mouth (mouth agent; added to M25) — toon_face.gd, a Voice level accessor, a player hook
+Why (research 2026-10-11: proximity voice with mouths that move is a signature of the genre): the talk mark says who
+is talking; a moving mouth makes it the worker talking.
+- `Voice.get_level(peer_id) -> float` 0..1: a remote peer's voice envelope from the frames as they are decoded (fast
+  attack, about 0.15 s release), 0 when silent or unknown. Its own region in voice.gd (the muffle agent also works in
+  voice.gd this wave: keep to your region and one-line hooks).
+- While a remote worker speaks, their face's mouth opens and closes with that level (ToonFace: the frown segments part
+  and a small dark opening scales with the level; flat and grim, never a smile); closed again within about 0.2 s of
+  silence; the mood poses, blinks and surprise keep working. Never on the local worker's own body.
+- Cheap: no per-frame allocations, nothing processes for a worker who is silent.
+- Suite `mouth` (+22): injected frames of known loudness open the mouth in proportion; silence closes it; a silent
+  worker's mouth stays shut; moods still pose.

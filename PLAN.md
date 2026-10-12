@@ -410,4 +410,5 @@ The user: "keep working do not stop for anything". CONTRACTS.md "M25". No new ru
 |---|---|---|---|
 | 25.1 | The run card: run totals (synced), a short THE RUN block when a run ends; runcard + runcard_mp suites | runcard | in progress |
 | 25.2 | Voices muffled through walls (not radios, not the back room); muffle suite | muffle | in progress |
+| 25.4 | Mouths move with the voice (Voice.get_level, ToonFace); mouth suite | mouth | in progress |
 | 25.3 | Integration | lead | pending |
