@@ -1398,6 +1398,81 @@ func _social_report_verdicts(peers: Array) -> PackedStringArray:
 # --- end M23 social ------------------------------------------------------------------------------------------------
 
 
+# --- M25 runcard --- the run card's copy ---------------------------------------------------------------------------
+## "THE RUN" on the round-end card when a run ends (RunCard; GameState's "M25 runcard" region keeps the totals, synced,
+## so every peer derives the same lines). Flat (STYLE.md): it says what happened and congratulates nobody.
+##   get_run_totals_line()  "Shifts worked: 5 · Deposited: $4,210 · Bruised: 3 · Helped up: 2" (the last two only when
+##                          above zero)
+##   get_run_verdicts()     at most RUN_VERDICT_MAX lines: the first that apply of get_run_verdict_order(), in that
+##                          order (deposits, helped up, bruised, bitten, written up), each only when somebody's run
+##                          total is above zero; it names the worker with the most (ties: the lowest id) under the
+##                          name they had in this run (GameState.get_run_name: a worker who left keeps it).
+## Installed at construction like the spores lines.
+const RUNCARD_LINES: Dictionary = {
+	"run_title": "THE RUN",
+	"run_totals_shifts": "Shifts worked: %d",
+	"run_totals_deposited": "Deposited: %s",
+	"run_totals_bruised": "Bruised: %d",
+	"run_totals_helped": "Helped up: %d",
+	"run_verdict_deposits": "%s carried the deposits. Nobody said so.",
+	"run_verdict_helped": "%s picked the most people up off the floor.",
+	"run_verdict_bruised": "%s bruised the most product. He docked it.",
+	"run_verdict_bitten": "%s got bitten the most. It is not covered.",
+	"run_verdict_write_ups": "%s was written up the most. It stays on file.",
+}
+const RUN_TOTALS_SEPARATOR: String = " · "
+const RUN_VERDICT_MAX: int = 3
+
+var _runcard_lines_installed: bool = _runcard_install_lines()
+
+
+func _runcard_install_lines() -> bool:
+	for key in RUNCARD_LINES:
+		if not lines.has(key):
+			lines[key] = RUNCARD_LINES[key]
+	return true
+
+
+## The run verdicts in the order they are tried: [stat, line key].
+func get_run_verdict_order() -> Array:
+	return [[Const.STAT_DEPOSITED, "run_verdict_deposits"], [Const.STAT_HELPED, "run_verdict_helped"],
+			[Const.STAT_BRUISED, "run_verdict_bruised"], [Const.STAT_BITTEN, "run_verdict_bitten"],
+			[Const.STAT_WRITE_UPS, "run_verdict_write_ups"]]
+
+
+## The totals line of the run (see the region header).
+func get_run_totals_line() -> String:
+	var parts := PackedStringArray([line("run_totals_shifts") % GameState.get_run_shifts(),
+			line("run_totals_deposited") % format_money(GameState.get_run_total(Const.STAT_DEPOSITED))])
+	var bruised := GameState.get_run_total(Const.STAT_BRUISED)
+	if bruised > 0:
+		parts.append(line("run_totals_bruised") % bruised)
+	var helped := GameState.get_run_total(Const.STAT_HELPED)
+	if helped > 0:
+		parts.append(line("run_totals_helped") % helped)
+	return RUN_TOTALS_SEPARATOR.join(parts)
+
+
+## The run's verdict lines (see the region header).
+func get_run_verdicts() -> PackedStringArray:
+	var out := PackedStringArray()
+	var peers := GameState.get_run_peers()
+	for entry: Array in get_run_verdict_order():
+		if out.size() >= RUN_VERDICT_MAX:
+			break
+		var best: int = 0
+		var best_amount: int = 0
+		for id: int in peers:
+			var amount: int = GameState.get_run_stat(id, entry[0])
+			if amount > best_amount:
+				best = id
+				best_amount = amount
+		if best_amount > 0:
+			out.append(line(String(entry[1])) % GameState.get_run_name(best))
+	return out
+# --- end M25 runcard -----------------------------------------------------------------------------------------------
+
+
 # --- M19 onboarding --- the guided first shift --------------------------------------------------------------------
 # The steps live in scripts/core/guide.gd (class Guide); _ready() creates it as this node's child (`guide`,
 # /root/Story/Guide) and Story lends it the Boss. A guide line is said at his window on THIS peer only (no RPC: each

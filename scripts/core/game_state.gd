@@ -403,6 +403,7 @@ func server_reset_game() -> void:
 	_run_reset(s) # M16 variety: the run's seed and cover, shift 1's dice (before anything is rolled from them)
 	_final_reset(s) # M17 finale: a new run: the team seen so far is this one, nothing cleared (before shift 1's roll)
 	_replay_reset(s) # M15 replay: nothing carried over; shift 1's roll
+	_runcard_reset(s) # M25 runcard: a new run has no totals
 	if was_live:
 		_rpc_game_reset.rpc(s)
 	else:
@@ -977,6 +978,7 @@ func _server_end_round(success: bool) -> void:
 	_career_shift_ending(success) # M15 career: a job judged at the end is settled before the end state goes out
 	var s := _snapshot()
 	_final_end_round(s, success) # M17 finale: paying the final notice clears the run (in the same end state)
+	_runcard_end_round(s) # M25 runcard: the shift that ended is counted into the run's totals
 	s["phase"] = Phase.ROUND_SUCCESS if success else Phase.ROUND_FAILED
 	if not success:
 		s["time"] = 0.0
@@ -1081,6 +1083,7 @@ func _snapshot() -> Dictionary:
 		"replay": _replay_snapshot(), # M15 replay: conditions, market, whether the host runs with replay
 		"run": _run_snapshot(), # M16 variety: the run's seed and cover layout
 		"final": _final_snapshot(), # M17 finale: the run's last shift and whether it was paid
+		"run_stats": _runcard_snapshot(), # M25 runcard: the run's totals and the names they go under
 	}
 
 ## Applies a state dictionary and emits change signals. `force` emits every state signal
@@ -1116,6 +1119,7 @@ func _apply_state(state: Dictionary, force: bool) -> void:
 	_replay_apply(state, force) # M15 replay: conditions + market (their signals fire first: the rest reads them)
 	_run_apply(state, force) # M16 variety: the run's seed and cover (the Room moves its cover before the phase is heard)
 	_final_apply(state, force) # M17 finale: the last shift and the cleared flag (final_changed / run_cleared before the phase)
+	_runcard_apply(state, force) # M25 runcard: the run's totals (run_stats_changed before the phase)
 
 	if force or money != old_money:
 		money_changed.emit(money)
@@ -1858,6 +1862,232 @@ func _run_clear_cover() -> void:
 			player.place_at(xf)
 
 # --- end M16 variety -------------------------------------------------------------------------------------------------
+
+
+# --- M25 runcard ----------------------------------------------------------------------------------------------------
+# The run card (FRIENDSLOP 13, CONTRACTS "M25", "Run card"): what the evening was. The HOST adds every worker's shift
+# ledger (`stats`) into the run's totals when a shift ends; the end screen of the run shows them (RunCard under the
+# shift report: one totals line and at most three verdict lines from Story).
+#
+# When a run ends (is_run_over): the final notice was paid (ROUND_SUCCESS with is_run_cleared()), or a payment was
+# missed (ROUND_FAILED: every missed payment ends the run, replay on or off; the card offers START OVER = request_retry,
+# a full reset). An ordinary paid shift (NEXT SHIFT) ends nothing.
+#
+# How the totals are kept (host): `_runcard_base` holds the totals of the shifts before the one on the end screen.
+# _server_end_round opens that shift (its end state carries base + its ledger, one more shift counted); while the end
+# screen is up the totals follow the ledger as it is then, so a stat booked after the shift ended (a bundle that lands
+# bruised, a late hit) still counts, once (the host corrects a broadcast whose snapshot was taken before the stat moved
+# with one deferred state). The first state that leaves the end screen (the next shift, the alley's WAITING) carries the
+# full totals and closes the shift. A worker who left keeps their row and the name they had (`run_names`, synced, so a
+# late joiner who never met them reads the same name). During a shift the totals are the shifts that ended before it.
+# A new run (server_reset_game: a session's first set-up, START OVER, NEW RUN) and the menu clear everything.
+#
+# State: one entry of the state dictionary, "run_stats": {"shifts": int, "stats": {peer: {stat: int}}, "names":
+# {peer: String}}, on every broadcast and in a late joiner's full state. On receive it is type-checked and clamped:
+# peers int > 0, at most RUN_MAX_WORKERS rows of at most RUN_MAX_KEYS stats, keys String / StringName of at most
+# RUN_MAX_KEY_LENGTH characters, values int 0..RUN_MAX_STAT, names through Net.sanitize_name, shifts int
+# 0..RUN_MAX_SHIFTS; anything else is dropped. An entry that is not a dictionary, or a state without the entry (an
+# older host), keeps what this peer has.
+
+## Every peer: the run's totals changed (a shift ended, a stat moved on the end screen, a new run, the menu).
+signal run_stats_changed
+
+## What a receiver keeps of the "run_stats" entry (see the region header).
+const RUN_MAX_WORKERS: int = 32
+const RUN_MAX_KEYS: int = 32
+const RUN_MAX_KEY_LENGTH: int = 32
+const RUN_MAX_STAT: int = 1000000000
+const RUN_MAX_SHIFTS: int = 999
+
+## Synced: peer_id (int) -> {StringName stat -> int}, the run's totals (every shift that ended, the one on its end
+## screen included). Read with get_run_stat() / get_run_total(); only the host changes it, when a shift ends.
+var run_stats: Dictionary = {}
+## Synced: peer_id (int) -> the name the worker had in this run (kept after they leave).
+var run_names: Dictionary = {}
+## Synced: the shifts of this run that ended (each counted once in run_stats).
+var run_shifts: int = 0
+
+## HOST: the run's totals before the shift on the end screen ({"shifts", "stats", "names"}) while that shift is open.
+var _runcard_base: Dictionary = {}
+## HOST: the shift that ended is counted in (from _server_end_round until a state leaves the end screen).
+var _runcard_open: bool = false
+var _runcard_resend_queued: bool = false
+
+
+## True on the end screen of a run: the final notice paid, or a missed payment (the card that offers START OVER).
+func is_run_over() -> bool:
+	return phase == Phase.ROUND_FAILED or (phase == Phase.ROUND_SUCCESS and is_run_cleared())
+
+
+## One worker's run total of one stat (0 when unknown).
+func get_run_stat(peer_id: int, key: StringName) -> int:
+	var row: Variant = run_stats.get(peer_id)
+	return int((row as Dictionary).get(key, 0)) if row is Dictionary else 0
+
+
+## The whole crew's run total of one stat.
+func get_run_total(key: StringName) -> int:
+	var total := 0
+	for peer_id: int in run_stats:
+		total += get_run_stat(peer_id, key)
+	return total
+
+
+## The shifts of this run that ended (the one on the end screen included).
+func get_run_shifts() -> int:
+	return run_shifts
+
+
+## The name a worker had in this run (the synced one; Net's for a worker the totals do not name).
+func get_run_name(peer_id: int) -> String:
+	if run_names.has(peer_id):
+		return String(run_names[peer_id])
+	return Net.get_player_name(peer_id)
+
+
+## Every worker with a row in the run's totals, sorted by id (those who left included).
+func get_run_peers() -> Array[int]:
+	var out: Array[int] = []
+	for k: Variant in run_stats:
+		out.append(int(k))
+	out.sort()
+	return out
+
+
+## HOST, from server_reset_game: a new run has no totals.
+func _runcard_reset(s: Dictionary) -> void:
+	_runcard_base = {}
+	_runcard_open = false
+	s["run_stats"] = {"shifts": 0, "stats": {}, "names": {}}
+
+
+## HOST, from _server_end_round (the end state `s` is built): the shift that ended is counted in.
+func _runcard_end_round(s: Dictionary) -> void:
+	if not _runcard_open:
+		_runcard_base = _runcard_entry_now()
+		_runcard_open = true
+	s["run_stats"] = _runcard_combined(s.get("stats", {}))
+
+
+## The "run_stats" entry of a snapshot: on the host's end screen, base + the ledger; otherwise what is applied.
+func _runcard_snapshot() -> Dictionary:
+	if _runcard_open:
+		return _runcard_combined(stats)
+	return _runcard_entry_now()
+
+
+## The applied totals as a state entry (copies).
+func _runcard_entry_now() -> Dictionary:
+	return {"shifts": run_shifts, "stats": run_stats.duplicate(true), "names": run_names.duplicate()}
+
+
+## HOST: the base plus one shift's `ledger` (peer -> {stat -> int}), one more shift; a worker's name from Net when Net
+## has them (the departed too), else the name the base kept.
+func _runcard_combined(ledger: Variant) -> Dictionary:
+	var out_stats: Dictionary = (_runcard_base.get("stats", {}) as Dictionary).duplicate(true)
+	var out_names: Dictionary = (_runcard_base.get("names", {}) as Dictionary).duplicate()
+	if ledger is Dictionary:
+		for pk: Variant in (ledger as Dictionary):
+			var row: Variant = (ledger as Dictionary)[pk]
+			var peer_id := int(pk)
+			if not row is Dictionary or peer_id <= 0:
+				continue
+			for key: Variant in (row as Dictionary):
+				_bump_stat(out_stats, peer_id, StringName(str(key)), int((row as Dictionary)[key]))
+			if Net.players.has(peer_id) or not out_names.has(peer_id):
+				out_names[peer_id] = Net.get_player_name(peer_id)
+	return {"shifts": int(_runcard_base.get("shifts", 0)) + 1, "stats": out_stats, "names": out_names}
+
+
+## Every peer, from _apply_state (after the final entry, before the plain signals): takes the "run_stats" entry of
+## `state`, cleaned (see the region header); everything clears in MENU. On the host a state that leaves the end screen
+## closes the open shift; on the end screen the host counts the ledger as applied. run_stats_changed when anything moved
+## (always on a forced state).
+func _runcard_apply(state: Dictionary, force: bool) -> void:
+	var entry := {"shifts": run_shifts, "stats": run_stats, "names": run_names}
+	var raw: Variant = state.get("run_stats")
+	if phase == Phase.MENU:
+		entry = {"shifts": 0, "stats": {}, "names": {}}
+		_runcard_base = {}
+		_runcard_open = false
+	elif raw is Dictionary:
+		entry = _runcard_parse(raw)
+	if _runcard_open and not is_round_over():
+		_runcard_open = false
+		_runcard_base = {}
+	elif _runcard_open:
+		var fresh := _runcard_combined(stats)
+		if _runcard_differs(fresh, entry):
+			entry = fresh
+			_runcard_queue_resend()
+	var moved := _runcard_differs(entry, {"shifts": run_shifts, "stats": run_stats, "names": run_names})
+	run_shifts = int(entry["shifts"])
+	run_stats = entry["stats"]
+	run_names = entry["names"]
+	if force or moved:
+		run_stats_changed.emit()
+
+
+static func _runcard_differs(a: Dictionary, b: Dictionary) -> bool:
+	return int(a["shifts"]) != int(b["shifts"]) or _stats_differ(a["stats"], b["stats"]) or a["names"] != b["names"]
+
+
+## HOST: one state at the end of this frame, so every peer gets the totals a broadcast's early snapshot missed.
+func _runcard_queue_resend() -> void:
+	if _runcard_resend_queued:
+		return
+	_runcard_resend_queued = true
+	_runcard_resend.call_deferred()
+
+
+func _runcard_resend() -> void:
+	_runcard_resend_queued = false
+	if phase != Phase.MENU and is_local_host():
+		_rpc_state.rpc(_snapshot())
+
+
+## The "run_stats" entry from the wire, cleaned: {"shifts": int, "stats": {int: {StringName: int}}, "names": {int:
+## String}} (see the region header for what is kept).
+static func _runcard_parse(raw: Variant) -> Dictionary:
+	var clean_stats: Dictionary = {}
+	var clean_names: Dictionary = {}
+	var out := {"shifts": 0, "stats": clean_stats, "names": clean_names}
+	if not raw is Dictionary:
+		return out
+	var d := raw as Dictionary
+	var raw_shifts: Variant = d.get("shifts", 0)
+	out["shifts"] = clampi(int(raw_shifts), 0, RUN_MAX_SHIFTS) if raw_shifts is int else 0
+	var raw_stats: Variant = d.get("stats")
+	if raw_stats is Dictionary:
+		for pk: Variant in (raw_stats as Dictionary):
+			if clean_stats.size() >= RUN_MAX_WORKERS:
+				break
+			var row: Variant = (raw_stats as Dictionary)[pk]
+			if not (pk is int and int(pk) > 0 and row is Dictionary):
+				continue
+			var clean_row: Dictionary = {}
+			for sk: Variant in (row as Dictionary):
+				if clean_row.size() >= RUN_MAX_KEYS:
+					break
+				var v: Variant = (row as Dictionary)[sk]
+				if not (sk is String or sk is StringName) or not v is int:
+					continue
+				var key := String(sk)
+				if key == "" or key.length() > RUN_MAX_KEY_LENGTH:
+					continue
+				clean_row[StringName(key)] = clampi(int(v), 0, RUN_MAX_STAT)
+			clean_stats[int(pk)] = clean_row
+	var raw_names: Variant = d.get("names")
+	if raw_names is Dictionary:
+		for pk: Variant in (raw_names as Dictionary):
+			if clean_names.size() >= RUN_MAX_WORKERS:
+				break
+			var v: Variant = (raw_names as Dictionary)[pk]
+			if pk is int and int(pk) > 0 and (v is String or v is StringName):
+				clean_names[int(pk)] = Net.sanitize_name(String(v))
+	return out
+
+# --- end M25 runcard ------------------------------------------------------------------------------------------------
 
 
 # --- M17 finale ----------------------------------------------------------------------------------------------------

@@ -72,6 +72,7 @@ func _ready() -> void:
 	Net.players_changed.connect(_on_players_changed) # the next payment scales with the team (+ report rows)
 	primary_button.pressed.connect(_on_primary_pressed)
 	menu_button.pressed.connect(_on_menu_pressed)
+	_runcard_ready() # M25 runcard: THE RUN block under the shift report (region below)
 	_sync_to_phase(GameState.phase)
 
 
@@ -216,6 +217,7 @@ func refresh() -> void:
 		next_value.text = str(maxi(round_number - 1, 0))
 
 	report.refresh()
+	if run_card != null: run_card.refresh() # M25 runcard: shown only when the run ends (PAID IN FULL / a missed payment)
 
 	primary_button.visible = host
 	primary_button.text = TEXT_NEXT_SHIFT if success else TEXT_START_OVER
@@ -240,6 +242,82 @@ func _on_primary_pressed() -> void:
 func _on_menu_pressed() -> void:
 	Sfx.play(&"ui_click")
 	Game.return_to_menu()
+
+
+# --- M25 runcard ---
+# "THE RUN" (RunCard, scripts/ui/run_card.gd): made here once and put right under the shift report (%ReportCard), above
+# the waiting line and the buttons. refresh() shows it when the run ends (GameState.is_run_over(): PAID IN FULL, or a
+# missed payment: the card that offers START OVER) and hides it after an ordinary shift; while the card is up it
+# follows GameState.run_stats_changed (a stat booked on the end screen, a late joiner's first state).
+# The fit: the card never runs off the screen and nothing scrolls. When its minimum size is larger than the screen less
+# FIT_MARGIN on every side (four workers at PAID IN FULL with cost lines, a job line and THE RUN is about 900 px tall;
+# the same card without THE RUN could already pass 720), the card's centring container (Center) is scaled down around
+# the screen's centre until the card fits; a card that fits keeps scale 1. While the overlay is up, every frame compares
+# the card's minimum size (cached by the engine) and the screen with the last fit and fits again when either moved
+# (the engine's minimum_size_changed does not fire for texts set while the overlay was hidden). Juice's pop-in scales
+# the card itself, not Center.
+
+## Pixels kept free between the card and every screen edge.
+const FIT_MARGIN: float = 16.0
+## The card is never drawn smaller than this.
+const FIT_MIN_SCALE: float = 0.5
+
+var run_card: RunCard
+var _runcard_fit_need: Vector2 = Vector2.ZERO
+var _runcard_fit_room: Vector2 = Vector2.ZERO
+
+
+func _runcard_ready() -> void:
+	run_card = RunCard.new()
+	(get_node(^"%ReportCard") as Control).add_sibling(run_card)
+	GameState.run_stats_changed.connect(_runcard_on_changed)
+	visibility_changed.connect(_runcard_on_visibility)
+	set_process(visible)
+
+
+func _runcard_on_changed() -> void:
+	if visible:
+		run_card.refresh()
+
+
+func _runcard_on_visibility() -> void:
+	set_process(visible)
+	if visible:
+		_runcard_fit()
+
+
+func _process(_delta: float) -> void:
+	if card.get_combined_minimum_size() != _runcard_fit_need or get_viewport_rect().size != _runcard_fit_room:
+		_runcard_fit()
+
+
+## Scales Center so the card fits the screen (see the region header). The room is the viewport, not Center: a container
+## is never smaller than its child, so Center grows past the screen (both ways, staying centred) with a tall card.
+func _runcard_fit() -> void:
+	var center := card.get_parent() as Control
+	if center == null or not is_inside_tree():
+		return
+	var need := card.get_combined_minimum_size()
+	_runcard_fit_need = need
+	_runcard_fit_room = get_viewport_rect().size
+	var avail := _runcard_fit_room - Vector2(FIT_MARGIN, FIT_MARGIN) * 2.0
+	var s := 1.0
+	if need.x > 0.0 and need.y > 0.0 and avail.x > 0.0 and avail.y > 0.0:
+		s = clampf(minf(avail.x / need.x, avail.y / need.y), FIT_MIN_SCALE, 1.0)
+	center.pivot_offset_ratio = Vector2(0.5, 0.5)
+	if not is_equal_approx(center.scale.x, s):
+		center.scale = Vector2(s, s)
+
+
+## True while the card shows THE RUN block (tests, capture tools).
+func is_showing_run() -> bool:
+	return visible and run_card != null and run_card.is_shown()
+
+
+## The scale the fit gives the card (1 when it fits the screen as it is).
+func get_fit_scale() -> float:
+	return (card.get_parent() as Control).scale.x
+# --- end M25 runcard ---
 
 
 func _set_locked(locked: bool) -> void:
