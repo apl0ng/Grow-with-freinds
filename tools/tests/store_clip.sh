@@ -19,7 +19,7 @@ if [ -e override.cfg ]; then
 	echo "store_clip.sh: override.cfg already exists here: not touching it"; exit 2
 fi
 trap 'rm -f override.cfg' EXIT INT TERM
-printf '[display]\n\nwindow/size/window_width_override=1920\nwindow/size/window_height_override=1080\nwindow/size/borderless=true\n\n[editor]\n\nmovie_writer/mjpeg_quality=0.95\n' > override.cfg
+printf '[display]\n\nwindow/size/window_width_override=1920\nwindow/size/window_height_override=1080\nwindow/size/borderless=true\n\n[editor]\n\nmovie_writer/video_quality=0.95\n' > override.cfg
 timeout 600 "$GODOT" --write-movie "$OUT" --fixed-fps 30 --position 0,0 --path . \
 	-s res://tools/tests/run_test.gd -- --body=res://tools/tests/store_clip_body.gd \
 	--port=7978 --no-mic --chill --replay --run=B5VP --event-delay=900 --borderless "$@"
