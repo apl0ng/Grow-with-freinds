@@ -18,7 +18,8 @@ readable at a glance.
 - **Faces:** nobody smiles, ever. `face.tscn` defaults to `&"sad"` (heavy drooping lids, eye bags, frown).
   Use `face.set_mood(&"sad" | &"tired" | &"grim" | &"neutral")`. `set_happy(true)` only reaches
   `&"neutral"`. No blush (`toon_blush` is now a faint grey flush; please remove it from characters), no
-  open mouths, no sparkly eyes. Posture slouches (tilt the `Visual` forward 3-5°), sprouts wilt.
+  open mouths (M25: a worker who is talking parts the frown over a small dark opening, flat, never a smile), no
+  sparkly eyes. Posture slouches (tilt the `Visual` forward 3-5°), sprouts wilt.
 - **Palette:** every `Toon` colour and library material is the old candy hue graded by `Toon.grade()`:
   value x0.85, saturation x0.85, then 10% towards cool slate `#6f7787`. Use palette constants as they are.
   Pass colours that come from **data** (SeedDef.color, anything typed in) through `Toon.grade(c)` /

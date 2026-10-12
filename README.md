@@ -132,6 +132,12 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   voice. A bundle that hits the floor, a wall, a station or a worker hard is bruised: darker, dented, labelled, and
   the chute pays a fifth less a bruise (two at most); a throw into the chute, a rack, Q and the hand truck keep it
   whole. The shift report names who helped people up and who bruised the most product.
+- Voices and faces (M25): a friend talking behind a wall sounds muffled and a little quieter (an open doorway, the
+  pen's fence, crates and the van do not muffle; radios never do), and a friend's mouth moves with their voice (the
+  frown parts over a small dark opening; your own body never does it).
+- The run card (M25): when a run ends (the final notice paid, or a missed payment) the round-end card adds THE RUN:
+  the shifts worked, what the crew deposited, and up to three flat lines on who carried the deposits, helped people up,
+  bruised the product, got bitten or was written up. A worker who left stays under the name they had.
 - Store material (M22, M24): `tools/tests/store_shots_body.gd` takes the eight screenshots, `tools/tests/store_clip.sh
   <abs path>.avi` records the 30-second clip (Movie Maker, 1920x1080, 30 fps, with the game's sound; nothing plays on
   the PC). Convert the AVI to MP4 with ffmpeg.

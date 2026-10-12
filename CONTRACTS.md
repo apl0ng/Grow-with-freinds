@@ -1881,3 +1881,39 @@ is talking; a moving mouth makes it the worker talking.
 - Cheap: no per-frame allocations, nothing processes for a worker who is silent.
 - Suite `mouth` (+22): injected frames of known loudness open the mouth in proportion; silence closes it; a silent
   worker's mouth stays shut; moods still pose.
+
+### M25 as delivered (integration notes, lead, 2026-10-12)
+Three branches merged (runcard, muffle, mouth). Suites `runcard` (+10), `runcard_mp` (+18), `muffle` (+19), `mouth` (+22).
+
+**Run card.** A run ends at the final notice paid or at any missed payment (the START OVER card):
+`GameState.is_run_over()`. GameState region "M25 runcard": `run_stats` (peer -> {stat -> int}), `run_names`, `run_shifts`,
+`signal run_stats_changed`, `get_run_stat / get_run_total / get_run_shifts / get_run_name / get_run_peers`. The host
+counts each shift's ledger in when the shift ends (a stat booked on the end screen, a bundle landing bruised, counts
+once); server_reset_game (first set-up, START OVER, NEW RUN) clears it. Synced as one state entry `"run_stats":
+{"shifts", "stats", "names"}`, type-checked and clamped on receive (caps on rows, keys, values; names through
+Net.sanitize_name); late joiners get it. Story: `get_run_totals_line()` ("Shifts worked: N · Deposited: $X", bruised
+and helped up only when above zero) and `get_run_verdicts()` (the first three that apply, fixed order: deposits,
+helped up, bruised, bitten, written up; flat lines). `RunCard` (scripts/ui/run_card.gd) under the report on the
+round-end card when the run is over. The round-end card now scales itself down around the screen centre when it would
+not fit the viewport (16 px margin, never below 0.5; four workers at PAID IN FULL about 0.8-0.9): every round-end
+card, not only the last. **Lead:** the shift report names a worker who left from `GameState.get_run_name` (a late
+joiner never met him).
+
+**Muffle.** Voice region "M25 muffle": a remote worker's 3D voice output goes from cutoff 5000 Hz / 0 dB to 700 Hz
+and -4 dB (`volume_db` and `max_db`: close up the 3D filter barely bites without the max) over 0.15 s while a ray from
+the listener's camera to the speaker hits architecture (`MUFFLE_WALL_PATHS`: Room Floor / Walls / Ceiling / the booth
+and the back-room door, the alley's floor and walls; everything else on the world layer is excluded, a body added
+later is excluded the first time a ray stops on it). One ray per 100 ms per talking speaker within voice range, on the
+`&"3d"` route only; the first ray of a talk spell sets it outright (nothing is playing yet). Radios and the back room
+are untouched. Measured at 3 m: 300 Hz -3 dB, 1 kHz -23 dB, 3 kHz -29 dB. A new wall must be added to
+`MUFFLE_WALL_PATHS` or it does not muffle. `get_muffle_amount(peer)`, `get_muffle_stats()`.
+
+**Mouth.** `Voice.get_level(peer) -> float` (RMS of the decoded frame through a mu-law square table, sqrt-shaped;
+instant attack, 40 ms hold, 150 ms release; 0 when silent or gone), computed only when asked. ToonFace region "M25
+mouth": `set_talk_source(callable)`, `stop_talking()`, `get_talk_opening()`, `is_talking()`, `pose_talk(x)`; the frown
+segments part (`TALK_PART` 0.012 m) over a dark `MouthOpen` (6.0 x 4.4 cm at full) through new pivots
+`Mouth/MouthPartL|R` (the mood tween keeps writing the segments); processes only while talking or closing. Player
+region "M25 mouth": `get_talking_face()` (null on your own body), started and stopped by `Voice.speaking_changed`.
+STYLE.md allows this opening. Known: the mouth leads the sound by the jitter buffer (40-60 ms); a speaker in the back
+room heard from the floor keeps a shut mouth (frames are dropped before decode) while the talk mark shows; an old
+ToonFace race (a blink during `surprise()` leaves the neutral pose) is unchanged (no game code calls surprise()).
