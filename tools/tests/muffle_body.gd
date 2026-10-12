@@ -31,6 +31,8 @@ extends "res://tools/tests/qa_base.gd"
 ##   the sound      measured on the Voice bus (an AudioEffectCapture, this suite only): a voice of three tones (300 Hz,
 ##                  1 kHz, 3 kHz) at 3 m through the doorway vs through the wall: the wall leaves 300 Hz a little
 ##                  quieter (-1.5 to -8 dB), takes 1 kHz down 12 dB or more and 3 kHz 18 dB or more
+## Opt-in for a human: --muffle-wav=user://muffle_walk.wav also records a voice-like buzz off the Voice bus while Bob
+## stands in the pen door's line, behind the wall, and in the line again (2 s each) into that WAV (see _record_walk).
 ## Every engine/script error fails the run unless announced (qa_base.gd).
 
 const VoiceScript := preload("res://scripts/core/voice.gd")
@@ -70,6 +72,7 @@ var _talk_t0: int = 0
 var _talk_sent: Dictionary = {}   # peer -> frames injected this spell
 var _cap: AudioEffectCapture = null
 var _worst_frame_ms: int = 0
+var _buzz: bool = false           # _frame makes the voice-like buzz of _record_walk instead of the three tones
 
 
 func _run() -> void:
@@ -98,6 +101,9 @@ func _run() -> void:
 	await _test_radio()
 	await _test_backroom()
 	await _test_sound()
+	var wav_path := String(Config.get_arg("muffle-wav", ""))
+	if not wav_path.is_empty():
+		await _record_walk(wav_path)
 	finish()
 
 
@@ -194,8 +200,12 @@ func _test_wall() -> void:
 	var bound := VoiceScript.MUFFLE_CAST_MS + int(VoiceScript.MUFFLE_EASE_SEC * 1000.0) + 3 * maxi(_worst_frame_ms, 17)
 	check(bool(r["reached"]), "the wall between: muffled")
 	check(int(r["ms"]) <= bound, "within %d ms (%d ms: one ray interval + the ease + frames)" % [bound, int(r["ms"])])
-	check(int(r["between"]) >= 1 and float(r["max_step"]) < 0.99, "eased: %d frames between clear and muffled, the biggest step %.2f" % [int(r["between"]), float(r["max_step"])])
-	check(int(r["ease_ms"]) >= int(VoiceScript.MUFFLE_EASE_SEC * 1000.0) - 20, "the ease took %d ms" % int(r["ease_ms"]))
+	# One frame's step is at most that frame's time / MUFFLE_EASE_SEC (a frame is capped at 0.1 s): never a snap.
+	var step_cap := minf(float(_worst_frame_ms) / 1000.0, 0.1) / VoiceScript.MUFFLE_EASE_SEC + 0.02
+	check(int(r["between"]) >= 1 and float(r["max_step"]) <= step_cap and float(r["max_step"]) < 0.99,
+			"eased: %d frames between clear and muffled, the biggest step %.2f (at most %.2f)" % [int(r["between"]), float(r["max_step"]), step_cap])
+	check(int(r["ease_ms"]) + _worst_frame_ms >= int(VoiceScript.MUFFLE_EASE_SEC * 1000.0),
+			"the ease took %d ms (%.0f ms, give or take a frame of %d ms)" % [int(r["ease_ms"]), VoiceScript.MUFFLE_EASE_SEC * 1000.0, _worst_frame_ms])
 	await _talk_sec(0.2)
 	check(out != null and _is_muffled(out), "muffled values (%s)" % _describe(out))
 
@@ -210,7 +220,9 @@ func _test_doorway() -> void:
 	var r := await _watch_amount(0.0, 1.5)
 	var bound := VoiceScript.MUFFLE_CAST_MS + int(VoiceScript.MUFFLE_EASE_SEC * 1000.0) + 3 * maxi(_worst_frame_ms, 17)
 	check(bool(r["reached"]) and int(r["ms"]) <= bound, "he steps into the doorway's line: clear again in %d ms (at most %d)" % [int(r["ms"]), bound])
-	check(int(r["between"]) >= 1 and float(r["max_step"]) < 0.99, "eased back: %d frames in between, the biggest step %.2f" % [int(r["between"]), float(r["max_step"])])
+	var step_cap := minf(float(_worst_frame_ms) / 1000.0, 0.1) / VoiceScript.MUFFLE_EASE_SEC + 0.02
+	check(int(r["between"]) >= 1 and float(r["max_step"]) <= step_cap and float(r["max_step"]) < 0.99,
+			"eased back: %d frames in between, the biggest step %.2f (at most %.2f)" % [int(r["between"]), float(r["max_step"]), step_cap])
 	var out := Voice.get_output_node(BOB)
 	check(out != null and _is_clear(out), "3 m through the doorway: the clear values (%s)" % _describe(out))
 	_stop_talk()
@@ -369,11 +381,15 @@ func _test_backroom() -> void:
 	var out := Voice.get_output_node(BOB)
 	check(Voice.get_muffle_amount(BOB) == 1.0, "Bob behind the wall: muffled")
 	check(GameState.server_send_to_backroom(BOB, 30.0), "Bob goes to the back room")
+	for i in 2:
+		_drive()
+		await get_tree().process_frame
+	check(Voice.get_muffle_amount(BOB) == 0.0 and out != null and _filter_clear(out), "mute route (him inside): the filter clear at once (two frames)")
 	await _talk_sec(0.1)
 	_put(bob, WALL_BOB)
 	var c0 := _casts()
 	await _talk_sec(0.5)
-	check(Voice.get_muffle_amount(BOB) == 0.0 and out != null and _filter_clear(out), "mute route (him inside): the filter clear at once")
+	check(Voice.get_muffle_amount(BOB) == 0.0 and out != null and _filter_clear(out), "and it stays clear")
 	check(_casts() == c0, "no ray while he is in the back room (%d)" % (_casts() - c0))
 
 	check(GameState.server_send_to_backroom(1, 30.0), "I go too")
@@ -444,6 +460,38 @@ func _test_sound() -> void:
 	await wait_sec(0.5)
 
 
+## Opt-in (--muffle-wav=<path>, e.g. user://muffle_walk.wav): for a human to listen to. A voice-like buzz (a 120 Hz
+## sawtooth with vibrato, in syllables) while Bob stands in the pen door's line (3 m), behind the wall beside it (3.9 m),
+## and in the doorway's line again, 2 s each, me at the pen door: recorded off the Voice bus into one 16-bit WAV.
+func _record_walk(path: String) -> void:
+	step("recording the walk to %s" % path)
+	var idx := AudioServer.get_bus_index(&"Voice")
+	var rec := AudioEffectRecord.new()
+	rec.format = AudioStreamWAV.FORMAT_16_BITS
+	AudioServer.add_bus_effect(idx, rec)
+	var fx := AudioServer.get_bus_effect_count(idx) - 1
+	_buzz = true
+	_put_me(DOOR_ME)
+	_put(bob, DOOR_BOB)
+	await wait_physics(2)
+	_start_talk([BOB])
+	await _talk_sec(0.4)
+	rec.set_recording_active(true)
+	await _talk_sec(2.0)
+	_put(bob, WALL_BOB)
+	await _talk_sec(2.0)
+	_put(bob, DOOR_BOB)
+	await _talk_sec(2.0)
+	rec.set_recording_active(false)
+	_stop_talk()
+	_buzz = false
+	var wav := rec.get_recording()
+	var err := wav.save_to_wav(path) if wav != null else ERR_CANT_CREATE
+	check(err == OK, "written: %s (%.1f s, clear / behind the wall / clear)" % [ProjectSettings.globalize_path(path), wav.get_length() if wav != null else 0.0])
+	AudioServer.remove_bus_effect(idx, fx)
+	await wait_sec(0.3)
+
+
 ## Goertzel levels of the three tones in what the Voice bus mixed over `sec` while Bob talks: (300 Hz, 1 kHz, 3 kHz in
 ## dB, frames).
 func _measure(sec: float) -> Vector4:
@@ -511,13 +559,14 @@ func _talk_sec(sec: float) -> void:
 	_drive()
 
 
-## Talks until Bob's muffle amount reaches `goal` (or `timeout`): {reached, ms (from the call), ease_ms (first change
-## to the goal), between (frames with the amount strictly between 0 and 1), max_step (biggest change in one frame)}.
+## Talks until Bob's muffle amount reaches `goal` (or `timeout`): {reached, ms (from the call), ease_ms (the last frame
+## still at the start value to the goal), between (frames with the amount strictly between 0 and 1), max_step (biggest
+## change in one frame)}.
 func _watch_amount(goal: float, timeout: float) -> Dictionary:
 	var t0 := Time.get_ticks_msec()
 	var prev := Voice.get_muffle_amount(BOB)
 	var start := prev
-	var first_change := -1
+	var last_at_start := t0
 	var between := 0
 	var max_step := 0.0
 	var last := t0
@@ -528,15 +577,14 @@ func _watch_amount(goal: float, timeout: float) -> Dictionary:
 		_worst_frame_ms = maxi(_worst_frame_ms, now - last)
 		last = now
 		var a := Voice.get_muffle_amount(BOB)
-		if a != start and first_change < 0:
-			first_change = now
+		if a == start:
+			last_at_start = now
 		max_step = maxf(max_step, absf(a - prev))
 		if a > 0.0 and a < 1.0:
 			between += 1
 		prev = a
 		if a == goal:
-			return {"reached": true, "ms": now - t0, "ease_ms": now - first_change if first_change >= 0 else 0,
-					"between": between, "max_step": max_step}
+			return {"reached": true, "ms": now - t0, "ease_ms": now - last_at_start, "between": between, "max_step": max_step}
 	return {"reached": false, "ms": Time.get_ticks_msec() - t0, "ease_ms": 0, "between": between, "max_step": max_step}
 
 
@@ -546,6 +594,11 @@ func _frame(n: int) -> PackedByteArray:
 	var rate := float(VoiceScript.SAMPLE_RATE)
 	for i in VoiceScript.FRAME_SAMPLES:
 		var t := float(i + n * VoiceScript.FRAME_SAMPLES) / rate
+		if _buzz:
+			var phase := 120.0 * t - 120.0 * 0.03 * cos(TAU * 5.0 * t) / (TAU * 5.0)
+			var syllable := pow(0.5 + 0.5 * sin(TAU * 3.0 * t), 2.0)
+			s[i] = 0.3 * syllable * (2.0 * fposmod(phase, 1.0) - 1.0)
+			continue
 		s[i] = 0.2 * (sin(TAU * TONE_LOW * t) + sin(TAU * TONE_MID * t) + sin(TAU * TONE_HIGH * t))
 	return VoiceScript.encode_mulaw(s)
 
