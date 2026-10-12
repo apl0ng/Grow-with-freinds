@@ -134,7 +134,8 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   whole.
 
 ## Test
-- `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 5 minutes, prints a table. On Windows
+- `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 40 minutes with the two soak suites,
+  prints a table; `--only a,b,c` runs some. On Windows
   run it from Git Bash with `export GODOT=<path to Godot_v4.7.2-stable_win64_console.exe>` (no setsid needed).
 - `tools/check.sh` — loads every script/scene/resource and boots the menu.
 - `tools/smoke.sh` — solo loop and a real host+client pair.
