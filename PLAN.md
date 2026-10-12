@@ -395,20 +395,20 @@ simple". FRIENDSLOP.md section 13 (the research); CONTRACTS.md "M23".
 | 23.3 | Bundles bruise when they hit hard (not into the chute); fragile + fragile_mp suites | fragile | done (133 + 71 checks) |
 | 23.4 | Integration: merges, captures (the slump follow-up, store shot 7 now help-up), docs, full run, export | lead | done (108 suites, 18151 checks; version 0.22.0; no job for an event the mix never deals; the bruise thud louder) |
 
-## M24 The chill curve and the clip (in progress, 2026-10-11)
+## M24 The chill curve and the clip (done, 2026-10-11)
 The user: "proceed". CONTRACTS.md "M24". No new systems.
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | 24.0 | Prep: BalanceConfig.quota_shift_scale / quota_shift_factor | lead | done |
 | 24.1 | The chill payment curve: average crews of every size reach and usually clear the final notice; chill suite | curve | done (average x1-x4 clear 5/5 in the model; the model now charges the chill event mix) |
-| 24.2 | A 30-second store clip (Movie Maker, scripted like the store shots) | clip | in progress |
-| 24.3 | Integration: merges, the full suite three runs in a row (R1), docs, export | lead | in progress (curve merged; the report names who bruised the most) |
+| 24.2 | A 30-second store clip (Movie Maker, scripted like the store shots) | clip | done (29 s, 1920x1080, 30 fps, with sound; store_clip_dry suite) |
+| 24.3 | Integration: merges, docs (the report names who bruised the most) | lead | done (full run 1 green, 108 suites; integrated with M25) |
 
 ## M25 The run card, voices through walls (in progress, 2026-10-11)
 The user: "keep working do not stop for anything". CONTRACTS.md "M25". No new rules or options.
 | ID | Task | Owner | Status |
 |---|---|---|---|
-| 25.1 | The run card: run totals (synced), a short THE RUN block when a run ends; runcard + runcard_mp suites | runcard | in progress |
-| 25.2 | Voices muffled through walls (not radios, not the back room); muffle suite | muffle | in progress |
-| 25.4 | Mouths move with the voice (Voice.get_level, ToonFace); mouth suite | mouth | in progress |
-| 25.3 | Integration | lead | pending |
+| 25.1 | The run card: run totals (synced), a short THE RUN block when a run ends; runcard + runcard_mp suites | runcard | done (78 + 75 checks; the card scales to fit) |
+| 25.2 | Voices muffled through walls (not radios, not the back room); muffle suite | muffle | done (67 checks; 700 Hz and -4 dB behind a wall) |
+| 25.4 | Mouths move with the voice (Voice.get_level, ToonFace); mouth suite | mouth | done (80 checks) |
+| 25.3 | Integration: merges, captures, docs, version 0.23.0, the full suite three runs in a row (R1), export | lead | in progress (merged, docs, 0.23.0; full runs wait while the user plays) |
