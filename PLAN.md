@@ -400,6 +400,14 @@ The user: "proceed". CONTRACTS.md "M24". No new systems.
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | 24.0 | Prep: BalanceConfig.quota_shift_scale / quota_shift_factor | lead | done |
-| 24.1 | The chill payment curve: average crews of every size reach and usually clear the final notice; chill suite | curve | in progress |
+| 24.1 | The chill payment curve: average crews of every size reach and usually clear the final notice; chill suite | curve | done (average x1-x4 clear 5/5 in the model; the model now charges the chill event mix) |
 | 24.2 | A 30-second store clip (Movie Maker, scripted like the store shots) | clip | in progress |
-| 24.3 | Integration: merges, the full suite three runs in a row (R1), docs, export | lead | pending |
+| 24.3 | Integration: merges, the full suite three runs in a row (R1), docs, export | lead | in progress (curve merged; the report names who bruised the most) |
+
+## M25 The run card, voices through walls (in progress, 2026-10-11)
+The user: "keep working do not stop for anything". CONTRACTS.md "M25". No new rules or options.
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| 25.1 | The run card: run totals (synced), a short THE RUN block when a run ends; runcard + runcard_mp suites | runcard | in progress |
+| 25.2 | Voices muffled through walls (not radios, not the back room); muffle suite | muffle | in progress |
+| 25.3 | Integration | lead | pending |

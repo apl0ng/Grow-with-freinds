@@ -1810,3 +1810,37 @@ trays for shift 2) and shift 2's payment is three to four times shift 1's: avera
   `Get-CimInstance Win32_Process -Filter "Name like 'Godot%'"`); a headless run stages every beat and records
   nothing (the dry run). On this 1920x1080 screen use `--borderless`.
 - If `ffmpeg` is on PATH, also write an MP4 next to the AVI; do not download anything.
+
+## M25 — the run card, voices through walls (lead prep, 2026-10-11)
+The user: "keep working do not stop for anything". Two agents in worktrees `.claude/worktrees/<agent>25` on
+`m25/<agent>`: **runcard**, **muffle**. tools/dev/AGENT_RULES.md applies (milestone M25; base ports runcard 9100,
+muffle 9300). Free test port offsets: runcard +10 and runcard_mp +18, muffle +19. The memory note
+game-direction-simpler-chill applies: nothing that adds rules, menus or options.
+
+### Run card (runcard agent) — a GameState region, the round-end card / shift report, Story copy
+Why (FRIENDSLOP 13: one evening, one run; failure is funnier than winning): a run ends with PAID IN FULL or with a
+missed payment, and nothing says what the evening was.
+- Run totals: the host adds every worker's shift stats (`GameState.stats`) into `run_stats` (peer -> {stat: n}) when a
+  shift ends, keeps each worker's name with their row (a worker who left still appears under the name they had),
+  clears it when a new run starts (server_reset_game, NEW RUN, START OVER), and syncs it in the state dictionary
+  (type-checked and clamped on receive; late joiners get it).
+- When the run ends (the final notice paid, or a missed payment: the card that offers START OVER), the round-end card
+  shows a short block "THE RUN" under what it shows today: one totals line (shifts worked, deposited, and the bruised /
+  helped-up counts when above zero), at most three run-wide verdict lines in Story's voice (who carried the deposits,
+  who helped people up, who bruised the most, who got bitten, who was written up most: the first three that apply in
+  a fixed order, each only when above zero), and nothing else. Flat copy (STYLE.md): nobody is congratulated.
+- Fits 1280x720 with four workers, no scrolling, on the host and every client.
+- Suites `runcard` (+10) and `runcard_mp` (+18: a client and a late joiner see the same block as the host).
+
+### Muffle (muffle agent) — a Voice region; no option, no UI
+Why (FRIENDSLOP 13: voice is a system): a friend behind a wall sounds the same as one in front of you.
+- A remote worker's proximity voice is low-passed and a little quieter while a wall (the static world: walls, closed
+  doors and roller doors, not players or items) stands between the speaker's head and the listener's camera:
+  `AudioStreamPlayer3D.attenuation_filter_cutoff_hz` (and `attenuation_filter_db` if useful) eased between the clear
+  value and about 700 Hz over about 0.15 s. Checked by a ray at most about 10 times a second per speaker, and only
+  while that speaker is talking (Voice already knows).
+- Radio voices are never muffled (a radio is a radio). The back room's own rules (`&"faint"` / the listener inside)
+  stay as they are.
+- No per-frame allocations; the perf suite's budget holds.
+- Suite `muffle` (+19): in the open vs behind a wall vs through an open doorway; nothing cast while silent; radio and
+  back room unchanged.
