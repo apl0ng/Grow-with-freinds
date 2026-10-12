@@ -40,7 +40,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp economy polish variety variety_mp
   hats hats_mp finale finale_mp mayhem3 mayhem3_mp cart cart_mp quit
   radio radio_mp emotes emotes_mp spores spores_mp
-  settings settings_mp onboarding onboarding_mp readability readability_mp chill perf social social_mp fragile fragile_mp store_clip_dry
+  settings settings_mp onboarding onboarding_mp readability readability_mp chill perf social social_mp fragile fragile_mp store_clip_dry muffle mouth
   soak soak_mp
   qa_mouse_x11)
 
@@ -60,7 +60,7 @@ port_busy() { # port -> 0 if some UDP socket is bound to it
 BASE="${QA_BASE_PORT:-7900}"
 for attempt in 1 2 3 4 5; do
   busy=0
-  for off in 1 2 3 4 5 6 7 8 9 11 12 13 14 15 16 17 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 98 99; do
+  for off in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 98 99; do
     if port_busy $((BASE + off)); then busy=1; break; fi
   done
   [[ $busy -eq 0 ]] && break
@@ -429,6 +429,13 @@ rm -rf "$LOGDIR/fragilemp"; mkdir -p "$LOGDIR/fragilemp"
 run_suite fragile_mp      260 "$LOGDIR/fragilemp/*.log" env FRAGILE_MP_PORT=$((BASE + 4)) FRAGILE_MP_LOGS="$LOGDIR/fragilemp" tools/tests/fragile_mp.sh
 # M24 clip: the store clip's staging as a headless dry run (every beat, nothing recorded; about 2 s) (+21).
 run_suite store_clip_dry  120 "" "${G[@]}" --fixed-fps 30 "${BODY[@]}" --body=$TESTS/store_clip_body.gd --port=$((BASE + 21)) --mute --no-mic --chill --replay --run=B5VP --event-delay=900
+# M25 muffle: voices through walls (a wall, a doorway, the pen fence, a body added later, the booth door, the roller
+# door, radios, the back room, the sound measured on the Voice bus) on a solo host with fake workers (+19).
+run_suite muffle          200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/muffle_body.gd --port=$((BASE + 19)) --replay --run=B5VP --career-file=user://muffle_test_$((BASE + 19)).cfg --settings-file=user://muffle_settings_$((BASE + 19)).cfg --round-sec=900 --timeout=180
+# M25 mouth: a remote worker's mouth moves with their voice (a frame's loudness, the level's attack / hold / release,
+# the opening in proportion, silence, moods / blink / surprise while talking, a silent worker, my own body, the back
+# room, the late join) on a solo host with fake workers (+22).
+run_suite mouth           200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/mouth_body.gd --port=$((BASE + 22)) --round-sec=900 --timeout=180
 # M22 soak: host + three clients play the chill game through the van to PAID IN FULL (scripted workers, checkpoints, a
 # mid-shift rejoin, the host leaving last; about 5.5 min) on +7; the same with Alpha and Bravo behind
 # tools/tests/udp_proxy.gd (80 ms +- 20 each way, 2% loss) on +8 (proxy +9).
