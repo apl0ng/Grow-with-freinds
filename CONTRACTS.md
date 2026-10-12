@@ -1824,6 +1824,16 @@ curve up to about 20% higher exists with no margin. Good crews pay mid-run shift
 85 s). The chill suite pins the curve, the table and the targets. Soak bots still need the host's top-up.
 **Lead.** `Const.STAT_BRUISED` (counted for the thrower in `ItemManager.server_bruise_bundle`), the report verdict
 "%s bruised the most product. It shows in the count." (Story M13 lines); the fragile suite pins it.
+**Clip.** tools/tests/store_clip.sh records tools/tests/store_clip_body.gd with Movie Maker (`--write-movie <abs>.avi
+--fixed-fps 30`): 29 s at 1920x1080, MJPEG + 48 kHz PCM. Godot sizes the movie from project settings, not the window,
+so the script writes a temporary override.cfg (1920x1080 window override, borderless), refuses to run when one exists,
+and deletes it on exit (delete it by hand after a hard kill, or the game opens borderless at 1920x1080). Sound: with a
+movie path set the engine always uses the Dummy audio driver and mixes it into the file, so nothing plays on the PC
+(the body mutes the Master bus if the driver is anything else). Every wait is on the game clock, so a movie second is
+30 frames whatever the recording speed. Beats: the alley and the van, the floor at work and a chute deposit, the power
+cut, the drive-by warning, a throw that bruises and knocks Marge down and Dale helping her up, the supply window, PAID
+IN FULL. No MP4 (ffmpeg is not on this PC): `ffmpeg -i store_clip.avi -c:v libx264 -crf 18 -pix_fmt yuv420p -c:a aac
+-b:a 192k store_clip.mp4`. The store tools host as "Cara".
 
 ## M25 — the run card, voices through walls (lead prep, 2026-10-11)
 The user: "keep working do not stop for anything". Two agents in worktrees `.claude/worktrees/<agent>25` on

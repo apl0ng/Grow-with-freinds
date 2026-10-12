@@ -1,7 +1,8 @@
 # Grow With Friends: store page
 
 Material for a store page (RELEASE.md R6). Where it goes and the price are the user's decision; itch.io is the
-obvious first stop. The screenshots come from `tools/tests/store_shots_body.gd` (eight moments at 1920x1080).
+obvious first stop. The screenshots come from `tools/tests/store_shots_body.gd` (eight moments at 1920x1080); the 30-second clip from
+`tools/tests/store_clip.sh` (an AVI with the game's sound; convert it to MP4 with ffmpeg).
 
 ## Pitch (one line)
 You owe the Boss. One to four of you work it off: grow it, deposit it, pay him, and do it again for a bigger number.

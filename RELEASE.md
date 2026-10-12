@@ -22,8 +22,9 @@ that bruise when they hit hard.
   62 fps on the user's GPU; 0.7-1.1 ms headless host frame), R4, R5 except the clean-PC check.
 - Needs the user: L1 (a crew with no instructions), R5's clean-PC check (tools/CLEAN_PC_CHECK.md), D4's sounds
   (export/audition; M23 added `bruise` and `help_up`), R6's channel and price.
-- Lead, before 1.0: R1 (the full suite three runs in a row), R6's screenshots (tools/tests/store_shots_body.gd) and the
-  30-second clip; P1 / P2 are shelved with M20 (the run summary may come back small).
+- Lead, before 1.0: R1 (the full suite three runs in a row). R6's screenshots (tools/tests/store_shots_body.gd) and the
+  30-second clip (tools/tests/store_clip.sh, M24: an AVI; an MP4 needs ffmpeg) are made; P1 / P2 are shelved with M20
+  (M25 brings a small run card).
 
 ## What 1.0 is
 
