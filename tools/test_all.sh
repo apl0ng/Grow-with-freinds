@@ -40,7 +40,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp economy polish variety variety_mp
   hats hats_mp finale finale_mp mayhem3 mayhem3_mp cart cart_mp quit
   radio radio_mp emotes emotes_mp spores spores_mp
-  settings settings_mp onboarding onboarding_mp readability readability_mp chill perf social social_mp fragile fragile_mp
+  settings settings_mp onboarding onboarding_mp readability readability_mp chill perf social social_mp fragile fragile_mp store_clip_dry
   soak soak_mp
   qa_mouse_x11)
 
@@ -427,6 +427,8 @@ run_suite social_mp       240 "$LOGDIR/socialmp/*.log" env SOCIAL_MP_PORT=$((BAS
 run_suite fragile         240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/fragile_body.gd --port=$((BASE + 3)) --replay --run=B5VP --career-file=user://fragile_test_$((BASE + 3)).cfg --round-sec=900 --timeout=200
 rm -rf "$LOGDIR/fragilemp"; mkdir -p "$LOGDIR/fragilemp"
 run_suite fragile_mp      260 "$LOGDIR/fragilemp/*.log" env FRAGILE_MP_PORT=$((BASE + 4)) FRAGILE_MP_LOGS="$LOGDIR/fragilemp" tools/tests/fragile_mp.sh
+# M24 clip: the store clip's staging as a headless dry run (every beat, nothing recorded; about 2 s) (+21).
+run_suite store_clip_dry  120 "" "${G[@]}" --fixed-fps 30 "${BODY[@]}" --body=$TESTS/store_clip_body.gd --port=$((BASE + 21)) --mute --no-mic --chill --replay --run=B5VP --event-delay=900
 # M22 soak: host + three clients play the chill game through the van to PAID IN FULL (scripted workers, checkpoints, a
 # mid-shift rejoin, the host leaving last; about 5.5 min) on +7; the same with Alpha and Bravo behind
 # tools/tests/udp_proxy.gd (80 ms +- 20 each way, 2% loss) on +8 (proxy +9).
