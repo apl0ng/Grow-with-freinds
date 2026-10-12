@@ -131,7 +131,10 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
   keeps you down for two seconds). A small speaker mark floats over whoever is talking and over a radio carrying a
   voice. A bundle that hits the floor, a wall, a station or a worker hard is bruised: darker, dented, labelled, and
   the chute pays a fifth less a bruise (two at most); a throw into the chute, a rack, Q and the hand truck keep it
-  whole.
+  whole. The shift report names who helped people up and who bruised the most product.
+- Store material (M22, M24): `tools/tests/store_shots_body.gd` takes the eight screenshots, `tools/tests/store_clip.sh
+  <abs path>.avi` records the 30-second clip (Movie Maker, 1920x1080, 30 fps, with the game's sound; nothing plays on
+  the PC). Convert the AVI to MP4 with ffmpeg.
 
 ## Test
 - `tools/test_all.sh` — every suite (headless + multi-process ENet + xvfb), about 40 minutes with the two soak suites,
