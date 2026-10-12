@@ -1811,6 +1811,20 @@ trays for shift 2) and shift 2's payment is three to four times shift 1's: avera
   nothing (the dry run). On this 1920x1080 screen use `--borderless`.
 - If `ffmpeg` is on PATH, also write an MP4 next to the AVI; do not download anything.
 
+### M24 as delivered (integration notes, lead, 2026-10-11)
+**Curve.** `Chill.QUOTA_SHIFT_SCALE` [0.48, 0.45, 0.56, 0.52, 0.52, 0.69] through `quota_shift_scale`, and
+`quota_multiplier` 1.0 in the chill preset (the full game unchanged: the economy suite untouched). Payments (one / two /
+three / four workers): shift 1 $168 / 235 / 239 / 245, shift 2 512 / 895 / 915 / 953, shift 3 1209 / 2539 / 2606 / 2739,
+shift 4 1877 / 3473 / 3553 / 3712, shift 5 3037 / 4859 / 4950 / 5132, shift 6 6548 / 8839 / 8954 / 9183; every payment
+is above the one before it. `econ_sim.event_weight(kind)`: with the chill preset the model charges the chill event mix
+(`Chill.EVENT_WEIGHTS`, normalised), not the full game's fourteen kinds (it had been billing the chill game for audits,
+raids, the collector and the scale). The model (five runs, each team to its final notice): careful and average x1-x4
+clear 5/5 (still 5/5 with every worker 6% slower), sloppy crews pay shift 1 (x1 3/5). Shift 2 is the binding one; a
+curve up to about 20% higher exists with no margin. Good crews pay mid-run shifts early (careful x4 shift 4 in about
+85 s). The chill suite pins the curve, the table and the targets. Soak bots still need the host's top-up.
+**Lead.** `Const.STAT_BRUISED` (counted for the thrower in `ItemManager.server_bruise_bundle`), the report verdict
+"%s bruised the most product. It shows in the count." (Story M13 lines); the fragile suite pins it.
+
 ## M25 — the run card, voices through walls (lead prep, 2026-10-11)
 The user: "keep working do not stop for anything". Two agents in worktrees `.claude/worktrees/<agent>25` on
 `m25/<agent>`: **runcard**, **muffle**. tools/dev/AGENT_RULES.md applies (milestone M25; base ports runcard 9100,
