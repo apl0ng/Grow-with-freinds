@@ -1590,7 +1590,8 @@ BalanceConfig values and an event mix that Config applies to `Config.balance` at
 - Simpler: no market (`market_swing` 0). M23 went further: four strains (`BalanceConfig.disabled_strains` creeper,
   brick, damp), no shift conditions (`conditions_from_round` 99) and no half-time raise (`final_interim_raise` 0);
   see "M23 as delivered".
-- Payments x0.85 (`BalanceConfig.quota_multiplier`, read by `quota_for_round`). The economy model with the preset:
+- Payments x0.85 (`BalanceConfig.quota_multiplier`, read by `quota_for_round`; M24 replaced it with a curve by shift,
+  `Chill.QUOTA_SHIFT_SCALE`, see "M24 as delivered"). The economy model with the preset:
   careful crews of every size clear their run 5 of 5, four average workers 4 of 5 (M23, four strains: three average
   reach the final notice 5 of 5 and clear 0; seven strains cleared 1); an average worker alone or in pairs still struggles (the early end of an easy first shift; a full-clock shift was tried in the
   model and is not a fair test there: its crews sell everything instead of holding bundles for the next shift).

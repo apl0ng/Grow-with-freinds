@@ -115,7 +115,8 @@ in Blender (bpy) and imported as glTF · chunky cartoon look with a deliberately
 - Chill by default (M20): the game you launch is the simpler, calmer one. Seven kinds of trouble instead of fourteen
   (the Boss walking the floor, the power going out, the leak, the rival crew, the rat, the phone, the sprinklers), less
   often and gentler, no market, plants walk off half as often (the angry plant is still there), and the payments are
-  15% lower. Since M23 it also sells four strains (Budget Bud, Purple Haze, Golden Kush from shift two, Night Shift
+  about half the full game's, lightest in shift two (M24: a curve by shift, so an average crew of any size usually
+  clears its run; every payment is still higher than the one before it). Since M23 it also sells four strains (Budget Bud, Purple Haze, Golden Kush from shift two, Night Shift
   from shift three), has no shift conditions, and the final notice's half-time look raises nothing ("Half the clock.").
   `--no-chill` plays the full game: the audit, the head count, the water main, the shortage, the raid, the collector,
   the scale, the market, the drive-by bill, the conditions, Creeper, Floor Brick and Black Damp described above only
