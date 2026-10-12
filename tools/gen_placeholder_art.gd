@@ -644,8 +644,14 @@ func _gen_face() -> void:
 	mouth.position = Vector3(0, -0.14, -0.026)   # proud of the surface: capsule bodies bulge ~2 cm there
 	face.add_child(mouth)
 	mouth.owner = face
+	# M25 mouth: the talking opening (hidden; ToonFace scales it) and a pivot over each segment (ToonFace parts them).
+	(_mesh_node(mouth, face, "MouthOpen", _sphere_mesh(0.5), "eye_black", Vector3(0, 0.0035, -0.006), Vector3(0.012, 0.001, 0.02)) as Node3D).visible = false # M25 mouth
 	for side in [-1.0, 1.0]:
-		_mesh_node(mouth, face, "MouthL" if side < 0.0 else "MouthR", mouth_seg, "eye_black", Vector3(0.03 * side, -0.012, 0), Vector3.ONE, Vector3(0, 0, 90.0 - 22.0 * side))
+		var part := Node3D.new() # M25 mouth
+		part.name = "MouthPartL" if side < 0.0 else "MouthPartR" # M25 mouth
+		mouth.add_child(part) # M25 mouth
+		part.owner = face # M25 mouth
+		_mesh_node(part, face, "MouthL" if side < 0.0 else "MouthR", mouth_seg, "eye_black", Vector3(0.03 * side, -0.012, 0), Vector3.ONE, Vector3(0, 0, 90.0 - 22.0 * side))
 	var ps := PackedScene.new()
 	var err := ps.pack(face)
 	if err != OK:

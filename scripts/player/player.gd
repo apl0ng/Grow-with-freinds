@@ -274,6 +274,7 @@ func _ready() -> void:
 	_hats_ready() # M16 hats
 	_settings_ready() # M19 settings: the local camera's field of view
 	_social_ready() # M23 social: the talk mark over a remote worker
+	_mouth_ready() # M25 mouth: a remote worker's mouth moves with their voice
 
 # --- Public API ---------------------------------------------------------------------------------------------
 
@@ -2069,6 +2070,45 @@ func _slump_process(delta: float) -> void:
 	_slump_drawn = _slump > 0.0
 
 # --- end M23 social ----------------------------------------------------------------------------------------------------
+
+# --- M25 mouth: the mouth moves with the voice -------------------------------------------------------------------------
+## CONTRACTS "M25", "Mouth". On every REMOTE worker's body the face (Visual/Face/ToonFace) follows Voice.get_level(peer)
+## while Voice hears the worker: Voice.speaking_changed starts it (ToonFace.set_talk_source with one Callable bound once
+## here) and ends it (stop_talking: the mouth closes, then the face stops drawing it). Read once at _ready, so a body that
+## spawns while its worker talks starts talking. The local worker's own body (only its shadow is seen) never moves its
+## mouth. Signal driven: nothing per frame here; a silent worker's face draws nothing.
+
+var _mouth_face: ToonFace = null
+var _mouth_source: Callable = Callable()
+
+
+## The face that talks on this body (null on the local worker's own body).
+func get_talking_face() -> ToonFace:
+	return _mouth_face
+
+
+## From _ready (one line).
+func _mouth_ready() -> void:
+	if is_local():
+		return
+	_mouth_face = get_node_or_null(^"Visual/Face/ToonFace") as ToonFace
+	if _mouth_face == null:
+		return
+	_mouth_source = Voice.get_level.bind(peer_id)
+	Voice.speaking_changed.connect(_mouth_on_speaking_changed)
+	if Voice.is_speaking(peer_id):
+		_mouth_face.set_talk_source(_mouth_source)
+
+
+func _mouth_on_speaking_changed(speaker: int, speaking: bool) -> void:
+	if speaker != peer_id or _mouth_face == null:
+		return
+	if speaking:
+		_mouth_face.set_talk_source(_mouth_source)
+	else:
+		_mouth_face.stop_talking()
+
+# --- end M25 mouth -----------------------------------------------------------------------------------------------------
 
 # --- M12 flame (flame agent): set on fire by the flamethrower -----------------------------------------------------
 
