@@ -52,7 +52,7 @@ func refresh() -> void:
 	for peer_id: int in Story.get_report_peers():
 		_row_peers.append(peer_id)
 		var color: Color = Net.get_player_color(peer_id)
-		var worker_name := Net.get_player_name(peer_id)
+		var worker_name := Net.get_player_name(peer_id) if Net.players.has(peer_id) else GameState.get_run_name(peer_id) # M25 lead: a late joiner never met a worker who left; the run keeps the name
 		if not Net.players.has(peer_id):
 			worker_name = TEXT_LEFT % worker_name
 		var name_cell := _cell(worker_name, false, &"HudLabel", ROW_FONT_SIZE, color, true)
@@ -105,7 +105,7 @@ func _perf_refresh_in_place() -> bool:
 		return false
 	var index := columns  # the header row keeps its fixed texts
 	for peer_id: int in peers:
-		var worker_name := Net.get_player_name(peer_id)
+		var worker_name := Net.get_player_name(peer_id) if Net.players.has(peer_id) else GameState.get_run_name(peer_id) # M25 lead: a late joiner never met a worker who left; the run keeps the name
 		if not Net.players.has(peer_id):
 			worker_name = TEXT_LEFT % worker_name
 		var color: Color = Net.get_player_color(peer_id)

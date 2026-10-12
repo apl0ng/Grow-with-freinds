@@ -40,7 +40,7 @@ ALL_SUITES=(check art_test models_test models_station_test models_item_test mode
   replay replay_off replay_mp mayhem2 mayhem2_mp career career_mp economy polish variety variety_mp
   hats hats_mp finale finale_mp mayhem3 mayhem3_mp cart cart_mp quit
   radio radio_mp emotes emotes_mp spores spores_mp
-  settings settings_mp onboarding onboarding_mp readability readability_mp chill perf social social_mp fragile fragile_mp store_clip_dry muffle mouth
+  settings settings_mp onboarding onboarding_mp readability readability_mp chill perf social social_mp fragile fragile_mp store_clip_dry muffle mouth runcard runcard_mp
   soak soak_mp
   qa_mouse_x11)
 
@@ -436,6 +436,12 @@ run_suite muffle          200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/muffle_bod
 # the opening in proportion, silence, moods / blink / surprise while talking, a silent worker, my own body, the back
 # room, the late join) on a solo host with fake workers (+22).
 run_suite mouth           200 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/mouth_body.gd --port=$((BASE + 22)) --round-sec=900 --timeout=180
+# M25 runcard: the run's totals (kept by the host, synced, names kept for workers who left, cleared by a new run) and
+# THE RUN block on the round-end card when a run ends, at 1280x720 (+10); the same block on a client and a late
+# joiner (+18).
+run_suite runcard         240 "" "${G[@]}" "${BODY[@]}" --body=$TESTS/runcard_body.gd --port=$((BASE + 10)) --replay --run=B5VP --career-file=user://runcard_test_$((BASE + 10)).cfg --round-sec=900 --timeout=200
+rm -rf "$LOGDIR/runcardmp"; mkdir -p "$LOGDIR/runcardmp"
+run_suite runcard_mp      260 "$LOGDIR/runcardmp/*.log" env RUNCARD_MP_PORT=$((BASE + 18)) RUNCARD_MP_LOGS="$LOGDIR/runcardmp" tools/tests/runcard_mp.sh
 # M22 soak: host + three clients play the chill game through the van to PAID IN FULL (scripted workers, checkpoints, a
 # mid-shift rejoin, the host leaving last; about 5.5 min) on +7; the same with Alpha and Bravo behind
 # tools/tests/udp_proxy.gd (80 ms +- 20 each way, 2% loss) on +8 (proxy +9).
