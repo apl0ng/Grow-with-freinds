@@ -43,6 +43,12 @@ height = 0.075
 radial_segments = 8
 rings = 2
 
+[sub_resource type="SphereMesh" id="SphereMesh_m25op"]
+radius = 0.5
+height = 1.0
+radial_segments = 16
+rings = 8
+
 [node name="Face" type="Node3D" unique_id=150126149]
 script = ExtResource("1_4dym8")
 
@@ -115,13 +121,24 @@ mesh = SubResource("SphereMesh_ldw5g")
 [node name="Mouth" type="Node3D" parent="." unique_id=277821027]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.14, -0.026)
 
-[node name="MouthL" type="MeshInstance3D" parent="Mouth" unique_id=1268895142]
+[node name="MouthOpen" type="MeshInstance3D" parent="Mouth" unique_id=2033617490]
+transform = Transform3D(0.012, 0, 0, 0, 0.001, 0, 0, 0, 0.02, 0, 0.0035, -0.006)
+visible = false
+material_override = ExtResource("3_if74c")
+cast_shadow = 0
+mesh = SubResource("SphereMesh_m25op")
+
+[node name="MouthPartL" type="Node3D" parent="Mouth" unique_id=1739204851]
+
+[node name="MouthL" type="MeshInstance3D" parent="Mouth/MouthPartL" unique_id=1268895142]
 transform = Transform3D(-0.3746066, -0.92718387, 0, 0.92718387, -0.3746066, 0, 0, 0, 1, -0.03, -0.012, 0)
 material_override = ExtResource("3_if74c")
 cast_shadow = 0
 mesh = SubResource("CapsuleMesh_06qt1")
 
-[node name="MouthR" type="MeshInstance3D" parent="Mouth" unique_id=1246970632]
+[node name="MouthPartR" type="Node3D" parent="Mouth" unique_id=905518337]
+
+[node name="MouthR" type="MeshInstance3D" parent="Mouth/MouthPartR" unique_id=1246970632]
 transform = Transform3D(0.37460664, -0.92718387, 0, 0.92718387, 0.37460664, 0, 0, 0, 1, 0.03, -0.012, 0)
 material_override = ExtResource("3_if74c")
 cast_shadow = 0

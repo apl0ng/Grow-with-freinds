@@ -8,6 +8,7 @@ extends Node3D
 ##   face.set_mood(&"sad" | &"tired" | &"grim" | &"neutral")   # animated, 0.25 s
 ##   face.set_happy(true)   # the best it gets: &"neutral". set_happy(false) -> back to default_mood
 ##   face.blink() / face.surprise() / face.look(Vector2)
+##   face.set_talk_source(Callable) / face.stop_talking()   # M25 mouth: the mouth moves with a voice level, see below
 ## Blinks on its own (slow, tired blinks). There is no blush and no smile, on purpose.
 
 ## lid_y: height of the eyelid's cut edge relative to the eye centre (eye spans -0.104..0.104; lower =
@@ -60,6 +61,7 @@ func refresh_parts() -> void:
 	_lids = [_part(_eyes[0], "Lid"), _part(_eyes[1], "Lid")]
 	_bags = [_part(self, "EyeBagL"), _part(self, "EyeBagR")]
 	_mouth = [_part(self, "MouthL"), _part(self, "MouthR")]
+	_talk_find_parts() # M25 mouth
 	_pupil_rest.clear()
 	_eye_rest.clear()
 	for p in _pupils:
@@ -77,6 +79,8 @@ func _process(delta: float) -> void:
 	if _next_blink <= 0.0:
 		_next_blink = randf_range(blink_interval.x, blink_interval.y)
 		blink()
+	if _talk_active:
+		_talk_process(delta) # M25 mouth: only while a voice is heard or the mouth is still closing
 
 ## Change expression. Unknown moods fall back to &"sad". instant = no animation.
 func set_mood(new_mood: StringName, instant: bool = false) -> void:
@@ -186,3 +190,118 @@ func _restart_tween() -> void:
 	if _tween != null and _tween.is_valid():
 		_tween.kill()
 	_tween = create_tween()
+
+# --- M25 mouth ---
+# The mouth moves with a voice (CONTRACTS "M25", "Mouth"). set_talk_source(source) hands the face a level source: a
+# Callable returning 0..1 (Player's "M25 mouth" passes Voice.get_level bound to a remote worker's peer while Voice hears
+# them). While a source is set, and after stop_talking() until the mouth is shut again, _process moves the drawn opening
+# towards the level (at most TALK_SPEED per second: shut to open in about 0.07 s; the voice envelope already carries the
+# release) and draws it:
+#   the parting  the two frown segments slide apart, TALK_PART each at a full opening. They move through their pivots
+#                MouthPartL / MouthPartR (face.tscn: Mouth/MouthPartL/MouthL), so the mood tween (MouthL / MouthR) and
+#                the talk never write the same node: moods, blinks and surprise pose as before, talking or not
+#   the opening  MouthOpen (face.tscn, under Mouth; the ink of the pupils and the segments) hangs from the frown's apex
+#                (the segments' inner ends meet at Mouth's origin in every mood): wider than tall, its height and width
+#                grow with the level, hidden while shut. The corners keep the mood's droop: never a smile
+# A face with no source costs one bool test a frame; a talking face reads the source, writes three transforms and
+# allocates nothing. Faces without the pivots or the opening (a Blender-modelled face) skip them: null-safe.
+
+## Opening units per second the drawn mouth moves (both ways).
+const TALK_SPEED: float = 14.0
+## How far each frown segment slides out at a full opening (m, Mouth space).
+const TALK_PART: float = 0.012
+## The opening at a full level: half width beyond the parting, half height, half depth (m); at a sliver it is
+## TALK_OPEN_W_MIN wide and nearly flat.
+const TALK_OPEN_W: float = 0.018
+const TALK_OPEN_W_MIN: float = 0.006
+const TALK_OPEN_H: float = 0.022
+const TALK_OPEN_D: float = 0.010
+## Its top sits this far above the apex (inside the segments' round inner ends). Its centre sits at this z in Mouth
+## space (-Z is the front: a little ahead of the segments' centre line, clear of the head, which comes up close behind
+## the segments; same ink, so the overlap does not show).
+const TALK_OPEN_TOP: float = 0.002
+const TALK_OPEN_Z: float = -0.006
+## Below this opening the mouth counts as shut (the opening is hidden, the segments are home).
+const TALK_SHUT: float = 0.001
+
+var _talk_source: Callable = Callable()
+var _talk_active: bool = false          # _process draws the mouth (a source is set or the mouth is still closing)
+var _talk_open: float = 0.0             # drawn opening 0..1
+var _talk_updates: int = 0              # _talk_process calls (tests: a silent face never runs it)
+var _talk_parts: Array[Node3D] = [null, null]
+var _talk_hole: Node3D = null
+
+
+## Starts the mouth following `source` (a Callable returning a level 0..1). An invalid Callable is stop_talking().
+func set_talk_source(source: Callable) -> void:
+	if not source.is_valid():
+		stop_talking()
+		return
+	_talk_source = source
+	_talk_active = true
+
+
+## The voice stopped: the mouth closes at TALK_SPEED, then the face stops drawing it.
+func stop_talking() -> void:
+	_talk_source = Callable()
+
+
+## The opening drawn now (0 shut .. 1 a full level).
+func get_talk_opening() -> float:
+	return _talk_open
+
+
+## True while the face draws its mouth every frame (a voice is heard, or the mouth is still closing).
+func is_talking() -> bool:
+	return _talk_active
+
+
+## How many frames this face has drawn its mouth (tests: a silent worker's stays 0).
+func get_talk_updates() -> int:
+	return _talk_updates
+
+
+## Draws a fixed opening now, with no source (capture tools). Talking faces overwrite it on their next frame.
+func pose_talk(opening: float) -> void:
+	_talk_open = clampf(opening, 0.0, 1.0)
+	_talk_draw()
+
+
+## From refresh_parts (one line): the pivots and the opening, found by name like every part.
+func _talk_find_parts() -> void:
+	_talk_parts = [_part(self, "MouthPartL"), _part(self, "MouthPartR")]
+	_talk_hole = _part(self, "MouthOpen")
+	_talk_draw()
+
+
+## From _process (one line) while _talk_active.
+func _talk_process(delta: float) -> void:
+	_talk_updates += 1
+	var want := 0.0
+	if _talk_source.is_valid():
+		var v: Variant = _talk_source.call()
+		if v is float or v is int:
+			want = clampf(float(v), 0.0, 1.0)
+	_talk_open = move_toward(_talk_open, want, TALK_SPEED * delta)
+	_talk_draw()
+	if _talk_open <= 0.0 and not _talk_source.is_valid():
+		_talk_active = false
+
+
+func _talk_draw() -> void:
+	var o := _talk_open if _talk_open > TALK_SHUT else 0.0
+	var gap := TALK_PART * o
+	if _talk_parts[0] != null:
+		_talk_parts[0].position = Vector3(-gap, 0.0, 0.0)
+	if _talk_parts[1] != null:
+		_talk_parts[1].position = Vector3(gap, 0.0, 0.0)
+	if _talk_hole == null:
+		return
+	_talk_hole.visible = o > 0.0
+	if o <= 0.0:
+		return
+	var half_w := gap + lerpf(TALK_OPEN_W_MIN, TALK_OPEN_W, o)
+	var half_h := maxf(TALK_OPEN_H * o, 0.0005)
+	_talk_hole.position = Vector3(0.0, TALK_OPEN_TOP - half_h, TALK_OPEN_Z)
+	_talk_hole.scale = Vector3(half_w * 2.0, half_h * 2.0, TALK_OPEN_D * 2.0)
+# --- end M25 mouth ---

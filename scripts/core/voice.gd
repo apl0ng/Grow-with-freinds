@@ -342,6 +342,95 @@ static func perf_decode_stereo(bytes: PackedByteArray) -> PackedVector2Array:
 	return out
 # --- end M22 perf ---
 
+# --- M25 mouth ---
+# A remote worker's mouth moves with their voice (CONTRACTS "M25", "Mouth"). Every frame _queue_playback decodes for a
+# peer (frames this peer plays: a muted route drops them before the decode, so a worker nobody here hears keeps a shut
+# mouth) gives a loudness: the RMS of every MOUTH_STRIDE-th sample (one table read per sample: the squares of the 256
+# mu-law values), MOUTH_RMS_FLOOR..MOUTH_RMS_FULL mapped onto 0..1 and square-rooted (ordinary speech, RMS 0.05 to 0.1,
+# opens a mouth about half way; a quiet microphone still moves it). The envelope:
+#   attack    a louder frame sets it at once
+#   release   a quieter frame lowers it by FRAME_MS / MOUTH_RELEASE_MS at most (1 -> 0 over MOUTH_RELEASE_MS of audio);
+#             once frames stop it holds MOUTH_HOLD_MS (the jitter between frames), then falls to 0 over
+#             MOUTH_RELEASE_MS: shut 0.19 s after the last loud frame
+# get_level evaluates it when asked: nothing runs per process frame for anybody, nothing is allocated (a float and an
+# int per peer that spoke; forgotten once the peer is). The level leads the sound by the jitter buffer (about 40 to
+# 60 ms): the mouth moves a moment before the voice is heard, as light comes before sound.
+# The face side: ToonFace "M25 mouth" (the drawing), Player "M25 mouth" (who reads it, remote workers only).
+
+## Loudness (RMS of samples in -1..1) that starts to open a mouth, and the loudness that opens it all the way.
+const MOUTH_RMS_FLOOR: float = 0.01
+const MOUTH_RMS_FULL: float = 0.2
+## After a peer's last frame the level holds this long, then falls from 1 to 0 over MOUTH_RELEASE_MS (ms).
+const MOUTH_HOLD_MS: int = 40
+const MOUTH_RELEASE_MS: int = 150
+## The RMS reads every n-th sample of a frame (160 of 320).
+const MOUTH_STRIDE: int = 2
+
+static var _mouth_sq_table := PackedFloat32Array()
+var _mouth_env: Dictionary = {}         # peer -> envelope (0..1) at its last decoded frame
+var _mouth_ms: Dictionary = {}          # peer -> ticks of that frame
+
+
+## A remote peer's voice level 0..1 on this peer (fast attack, MOUTH_RELEASE_MS release); 0 when silent, unknown or gone.
+func get_level(peer_id: int) -> float:
+	if not _mouth_env.has(peer_id):
+		return 0.0
+	if not _last_heard_ms.has(peer_id): # the peer left (or the session ended): _forget_peer / _clear_peer_state cleared it
+		_mouth_env.erase(peer_id)
+		_mouth_ms.erase(peer_id)
+		return 0.0
+	return _mouth_at(peer_id, Time.get_ticks_msec())
+
+
+## The loudness of one mu-law frame on the 0..1 scale get_level uses (before the envelope).
+static func mouth_level_of(frame: PackedByteArray) -> float:
+	var n := frame.size()
+	if n == 0:
+		return 0.0
+	var table := _mouth_squares()
+	var sum := 0.0
+	var count := 0
+	for i in range(0, n, MOUTH_STRIDE):
+		sum += table[frame[i]]
+		count += 1
+	var rms := sqrt(sum / float(count))
+	return sqrt(clampf((rms - MOUTH_RMS_FLOOR) / (MOUTH_RMS_FULL - MOUTH_RMS_FLOOR), 0.0, 1.0))
+
+
+## byte -> the square of _decode_mulaw_byte(byte).
+static func _mouth_squares() -> PackedFloat32Array:
+	if _mouth_sq_table.size() != 256:
+		var mono := _perf_mulaw()
+		var t := PackedFloat32Array()
+		t.resize(256)
+		for b in 256:
+			t[b] = mono[b] * mono[b]
+		_mouth_sq_table = t
+	return _mouth_sq_table
+
+
+## The envelope of `peer_id` (known) at `now`.
+func _mouth_at(peer_id: int, now: int) -> float:
+	var e: float = _mouth_env[peer_id]
+	var idle := now - int(_mouth_ms[peer_id]) - MOUTH_HOLD_MS
+	if idle <= 0:
+		return e
+	return maxf(e - float(idle) / float(MOUTH_RELEASE_MS), 0.0)
+
+
+## Hook (one line in _queue_playback): `frame` was just decoded for `peer_id`.
+func _mouth_frame(peer_id: int, frame: PackedByteArray) -> void:
+	var now := Time.get_ticks_msec()
+	var loud := mouth_level_of(frame)
+	var e := _mouth_at(peer_id, now) if _mouth_env.has(peer_id) else 0.0
+	if loud >= e:
+		e = loud
+	else:
+		e = maxf(loud, e - float(FRAME_MS) / float(MOUTH_RELEASE_MS))
+	_mouth_env[peer_id] = e
+	_mouth_ms[peer_id] = now
+# --- end M25 mouth ---
+
 ## Reads the settings file (`settings_path`); values missing from it fall back to the defaults.
 func load_settings() -> void:
 	_loading_settings = true
@@ -1555,6 +1644,7 @@ func _queue_playback(peer_id: int, frame: PackedByteArray, gap: int = 0) -> void
 			_stats_concealed += 1
 			level *= 0.5
 	var stereo := perf_decode_stereo(frame) # M22 perf: one table read per sample (was decode_mulaw + a mono -> stereo copy)
+	_mouth_frame(peer_id, frame) # M25 mouth: the loudness of the frame just decoded (get_level)
 	o.queue.append(stereo)
 	o.last_frame = stereo if stereo.size() == FRAME_SAMPLES else PackedVector2Array()
 	while o.queue.size() > JITTER_MAX_FRAMES:
